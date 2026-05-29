@@ -27,7 +27,8 @@ Current phase: **Phase 4 — Implementation (Milestone 1)**
 - [x] Implement Milestone 1 — all 58 acceptance tests green — 2026-05-29
 - [x] Refactoring phase (no behavior change) — all 58 acceptance tests remain green — 2026-05-29
 - [x] Demo: two-container Docker demo completed — 2026-05-29 (see DEMO_NOTE.md)
-- [ ] UoR validation and merge to main — AGENTS.md Rule 12
+- [x] UoR validation — 2026-05-29
+- [x] Merged to master, branch deleted — 2026-05-29
 
 ## Blockers
 
