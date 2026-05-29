@@ -28,6 +28,7 @@
 | 4 | Leader Failover | Automatic Raft election on leader loss; former leader rejoins as follower; manual leadership transfer API | Slice 3 | FS-LeaderFailover* | TS-RaftFsm | tests/acceptance/failover_test.go | Planned |
 | 5 | Cluster Status | API exposes Raft role, last-contact, commit index, term; same view from any node | Slice 2 | FS-ClusterStatus* | TS-ClusterApi | tests/acceptance/cluster_status_test.go | Planned |
 | 6 | Query Log Aggregates | Hourly aggregates committed through Raft; cluster stats available from any node; fan-out endpoint for raw entries | Slice 3 | FS-QueryLogAggregates* | TS-QueryLogCluster | tests/acceptance/query_log_aggregates_test.go | Planned |
+| 7 | Shadow YAML | After every FSM apply, write-through `<data_dir>/config.yaml` (debounced, atomic rename) for filesystem-level backup tools (PBS, restic) | Slice 3 | FS-ConfigShadowYaml* | TS-ClusterStore | tests/acceptance/shadow_yaml_test.go | Planned |
 
 ## Cross-feature dependencies and blockers
 

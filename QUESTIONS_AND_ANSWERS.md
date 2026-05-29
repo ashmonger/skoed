@@ -33,6 +33,9 @@ None.
 - **Q**: M2 — How does the cluster expose query log data for the future dashboard?
   **A**: Hybrid. Raw entries stay per-node (volume too high to replicate). Each node writes hourly aggregate counters (totals, top-N domains, top-N clients) into a bbolt bucket that Raft replicates to all nodes — so cluster-wide stats are available from any node with zero extra protocol code. Individual-entry searches use an on-demand fan-out endpoint that queries every node in parallel. — 2026-05-29
 
+- **Q**: M2 — Should the YAML config still be written to disk for filesystem-level backup tools (Proxmox Backup Server, restic, borg)?
+  **A**: Yes. A write-through shadow YAML at `<data_dir>/config.yaml` is updated after every Raft commit (debounced ~1 s, atomic rename). It is the M1 export format byte-for-byte. It is NEVER read by a running node — bbolt remains source of truth — but PBS-style FS snapshots capture it automatically. On restore to a fresh node, the M1→M2 migration imports it. — 2026-05-29
+
 - **Q**: Parental control scope?
   **A**: All four: category-based blocking, schedule-based blocking, per-device/client profiles, SafeSearch enforcement. — 2026-05-29
 

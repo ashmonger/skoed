@@ -57,6 +57,9 @@ x-fsid-links:
   - FS-QueryLogAggregatesAvailableDuringLeaderLoss
   - FS-QueryLogAggregatesFanOutForRawEntries
   - FS-QueryLogAggregatesFanOutPartialFailure
+  # --- M2 shadow YAML ---
+  - FS-ConfigShadowYamlPresentOnDisk
+  - FS-ConfigShadowYamlUpdatesAfterWrite
 
 info:
   title: dblock Management API
@@ -880,16 +883,24 @@ paths:
 
   /api/v1/config/export:
     get:
-      summary: Export the full configuration as a tar.gz archive
+      summary: Export the full configuration as YAML
+      description: >
+        Returns the same content the node writes to its on-disk shadow YAML at
+        `<data_dir>/config.yaml` (see cluster-store.md § Shadow YAML).
+        Filesystem-level backup tools (e.g. Proxmox Backup Server) can read
+        the shadow YAML directly without calling this endpoint; both forms
+        are byte-identical at any quiescent moment.
       operationId: exportConfig
+      x-fsid-links:
+        - FS-ConfigExport
+        - FS-ConfigShadowYamlPresentOnDisk
       responses:
         "200":
-          description: Configuration archive
+          description: Configuration YAML
           content:
-            application/gzip:
+            application/x-yaml:
               schema:
                 type: string
-                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
 

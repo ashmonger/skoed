@@ -79,17 +79,23 @@ admin --HTTP write-->  any node
                                3. raft commits to quorum
                                4. FSM.Apply runs on every node:
                                     bbolt.Update(tx -> apply command)
-                                    notify in-process subscribers
-                                       (filter engine rebuild,
-                                        local DNS resolver rebuild)
+                                    notify in-process subscribers:
+                                       - filter engine rebuild
+                                       - local DNS resolver rebuild
+                                       - shadow YAML writer (debounced)
                                5. response returned to admin
 ```
 
 - `raft.Apply` returns only after the entry is committed to a quorum.
 - `FSM.Apply` MUST be deterministic: no clocks, no random numbers, no I/O
   beyond bbolt. The Raft library serialises all FSM calls.
-- Side effects (filter rebuild, DNS handler swap) happen via an in-process
-  pub/sub fed by `FSM.Apply` — never directly from HTTP handlers.
+- Side effects (filter rebuild, DNS handler swap, shadow YAML write) happen
+  via an in-process pub/sub fed by `FSM.Apply` — never directly from HTTP
+  handlers. Each subscriber owns its own goroutine; FSM.Apply is not
+  blocked on subscriber latency.
+- The shadow YAML write is debounced ~1 s and is a strict side effect: a
+  failed YAML write is logged but never fails the FSM apply. See
+  `cluster-store.md` § Shadow YAML for the writer protocol.
 
 ## Snapshot format
 

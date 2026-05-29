@@ -13,6 +13,13 @@ x-fsid-links:
   - FS-ClusterConfigSyncLocalDns
   - FS-QueryLogAggregatesPerNodePerHour
   - FS-QueryLogAggregatesRetention
+  - FS-ConfigShadowYamlPresentOnDisk
+  - FS-ConfigShadowYamlUpdatesAfterWrite
+  - FS-ConfigShadowYamlAtomicWrite
+  - FS-ConfigShadowYamlIgnoredOnRead
+  - FS-ConfigShadowYamlExcludesNodeLocal
+  - FS-ConfigShadowYamlRebuiltOnBoot
+  - FS-ConfigShadowYamlRoundTrips
 ---
 
 # TS-ClusterStore — On-disk State
@@ -28,7 +35,10 @@ x-fsid-links:
 │   ├── raft-log.bolt     # Raft log store
 │   ├── raft-stable.bolt  # Raft stable store (term, vote)
 │   └── snapshots/        # periodic Raft snapshots
-└── config.yaml           # legacy M1 file; preserved for export only after migration
+└── config.yaml           # write-through shadow of bbolt (M1 format);
+                          # always current for backup tools (PBS, restic, etc.);
+                          # NEVER read by a running node — bbolt wins.
+                          # See "Shadow YAML" below.
 ```
 
 ## node.yaml (node-local, not replicated)
@@ -100,6 +110,89 @@ Single `meta/schema_version` (uint32) drives forward compatibility:
 Migrations are written as one-shot Go functions registered in
 `internal/cluster/store/migrations.go`. They MUST be deterministic.
 
+## Shadow YAML (write-through mirror)
+
+bbolt is the source of truth at runtime, but a YAML projection is kept on
+disk at `<data_dir>/config.yaml` so that filesystem-level backup tools
+(Proxmox Backup Server, restic, borg, `tar`-the-container) capture the
+config without needing to call the HTTP export endpoint.
+
+### Writer
+
+A single goroutine per node owns the YAML file:
+
+```
+                     debounce 1s
+FSM.Apply ─signal─►  ┌─────────┐
+                     │ writer  │── render YAML from bbolt
+                     │ goroutine│── write to config.yaml.tmp
+                     │         │── fsync + atomic rename → config.yaml
+                     └─────────┘
+                          │
+                          └─ records last-rendered commit_index
+```
+
+- Triggered by:
+  - every successful `FSM.Apply` on the local node, AND
+  - process startup (always re-renders once to catch any stale-YAML from a
+    previous crash).
+- Debounced: if more signals arrive within the 1-second window, only one
+  write happens, reflecting the latest commit.
+- Atomic: writes to a temp file in the same directory, `fsync`s, then
+  `rename(2)`s over the target. Readers (backup tools) always see a
+  complete file.
+- Records `last_rendered_commit_index` in memory only — recomputed at boot.
+
+### What's in it
+
+The YAML is exactly the M1 export format (see `config-schema.md`):
+
+```yaml
+schema_version: 1
+dns:
+  mode: forwarding
+  upstream_resolvers: [...]
+  cache: {...}
+filtering:
+  block_policy: nxdomain
+  allowlist: [...]
+  blocklists: [...]
+local_dns:
+  entries: [...]
+query_log:
+  max_entries: 10000
+auth:
+  username: admin
+  password_hash: $2a$...
+```
+
+### What's NOT in it
+
+- `cluster/members` — Raft membership; valid only for the running cluster
+  topology, would harm a PBS restore to a different host.
+- `cluster/tokens` — short-lived secrets; restoring expired tokens is
+  pointless and writing them to disk widens the secret blast radius.
+- `stats/*` — hourly aggregates; operational data, not user config.
+- `node.id`, `node.raft_address`, `node.api_address`, DNS listen ports —
+  these live in `node.yaml` and are intentionally per-host.
+
+### Behaviour during failure
+
+| Failure | Effect | Recovery |
+|---|---|---|
+| Process killed mid-rename | Either old or new YAML on disk; both are complete | None needed; atomic rename guarantees consistency |
+| Disk full | Rename fails; bbolt write already succeeded | Writer logs error, retries on next signal; alert via metrics |
+| `data_dir` read-only at boot | Writer errors; node continues serving | Admin fixes permissions; YAML re-rendered on next FSM apply |
+| YAML present but corrupted from external tampering | Not a problem on a running node (the writer overwrites it) | Edits are lost on next commit; not honoured (by design) |
+
+### Why not honour manual edits?
+
+Two writers (admin editor + Raft FSM) into the same file is unsafe —
+last-writer-wins races, partial reads, ambiguous source-of-truth. The
+restore path covers the intended use case: admins who want to bulk-edit
+config can export, edit offline, then re-import via the API, which goes
+through Raft like any other write.
+
 ## M1 → M2 migration
 
 On first M2 startup with an M1 layout present:
@@ -115,15 +208,23 @@ If any step fails, the node refuses to start and leaves all M1 files intact.
 
 ## Backup / restore
 
-Two supported paths:
+Three supported paths, in increasing order of fidelity:
 
-- **Export YAML** — `GET /api/v1/config/export` dumps cluster state from
-  bbolt into the M1 YAML format. Suitable for human review and migration.
-  Does NOT include `cluster/members`, `cluster/tokens`, or `stats/*`.
-- **Snapshot copy** — stop the node, copy `cluster.bbolt` and `raft/` to
-  a backup destination. Restores must go onto the same `node.yaml.node.id`
-  (Raft identity matters). For disaster recovery across nodes, use the
-  YAML export + a fresh single-node bootstrap.
+- **YAML-only (recommended for off-host / cross-cluster restore)** — back
+  up `<data_dir>/config.yaml`. The shadow writer keeps it current. On
+  restore to a fresh node, the M1→M2 migration imports it on first boot.
+  Loses runtime state (Raft log, query log, aggregates, tokens) but
+  reproduces all user config. This is what Proxmox Backup Server captures
+  when snapshotting the container filesystem; the writer guarantees the
+  YAML on disk is at most ~1 s stale relative to the latest commit.
+- **HTTP export** — `GET /api/v1/config/export`. Identical content to the
+  shadow YAML; useful from outside the host.
+- **Full filesystem snapshot** — back up the entire `<data_dir>`. Restores
+  cluster.bbolt, raft/, querylog.bbolt, and config.yaml together. Must be
+  restored onto a node with the same `node.id` (Raft identity matters).
+  Suitable for in-place disaster recovery of a single node. For
+  multi-node restore, restore one node this way and have the others
+  re-join via the token flow.
 
 ## Disk-size envelope
 
