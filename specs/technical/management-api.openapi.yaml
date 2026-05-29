@@ -37,10 +37,46 @@ x-fsid-links:
   - FS-WebUiAuthInvalidCredentials
   - FS-WebUiAuthFirstRunSetup
   - FS-WebUiAuthPasswordChange
+  # --- M2 cluster endpoints ---
+  - FS-NodeEnrollmentGenerateToken
+  - FS-NodeEnrollmentJoinWithValidToken
+  - FS-NodeEnrollmentJoinTokenIsSingleUse
+  - FS-NodeEnrollmentJoinTokenExpires
+  - FS-NodeEnrollmentInvalidToken
+  - FS-NodeEnrollmentPreservesNodeLocalSettings
+  - FS-NodeRemoval
+  - FS-ClusterStatusListsAllNodes
+  - FS-ClusterStatusShowsCommitIndex
+  - FS-ClusterStatusShowsLaggingFollower
+  - FS-ClusterStatusShowsUnreachableFollower
+  - FS-ClusterStatusSameViewFromAnyNode
+  - FS-ClusterStatusShowsRaftTerm
+  - FS-LeaderFailoverManualTransfer
+  - FS-ClusterConfigSyncWriteToFollowerIsForwarded
+  - FS-QueryLogAggregatesClusterStats
+  - FS-QueryLogAggregatesAvailableDuringLeaderLoss
+  - FS-QueryLogAggregatesFanOutForRawEntries
+  - FS-QueryLogAggregatesFanOutPartialFailure
 
 info:
   title: dblock Management API
-  version: "1.0.0"
+  version: "2.0.0"
+  x-cluster-write-semantics: |
+    As of M2, every mutating endpoint under /api/v1 (blocklists, allowlist,
+    local-dns, settings, config/import, auth) is cluster-aware:
+
+      * If the receiving node is the Raft leader, the write is applied through
+        the FSM, replicated, and the response is returned once it commits.
+      * If the receiving node is a follower, the request is transparently
+        forwarded to the current leader over the same HTTP API. The admin
+        sees no difference; only the latency is slightly higher.
+      * If no leader is currently elected (e.g. minority partition), the call
+        returns HTTP 503 with a LeaderRedirect body whose `leader_id` is empty.
+
+    Read endpoints (GET) are always served locally from bbolt without
+    forwarding, so they remain available during leader transitions.
+
+    See specs/technical/raft-fsm.md for the FSM command set and write path.
   description: >
     REST API for managing a dblock node. All endpoints require HTTP Basic
     authentication except POST /api/v1/auth/setup (first-run only).
@@ -225,6 +261,199 @@ components:
       properties:
         error:
           type: string
+
+    # --- M2 cluster schemas ---
+
+    LeaderRedirect:
+      type: object
+      required: [error, leader_address]
+      properties:
+        error:
+          type: string
+          example: "not the leader"
+        leader_id:
+          type: string
+        leader_address:
+          type: string
+          example: "192.168.1.10:8080"
+
+    ClusterNode:
+      type: object
+      required: [node_id, role, raft_address, api_address, last_contact, commit_index, sync_state]
+      properties:
+        node_id:
+          type: string
+        role:
+          type: string
+          enum: [leader, follower, learner, removed]
+        raft_address:
+          type: string
+        api_address:
+          type: string
+        last_contact:
+          type: string
+          format: date-time
+        commit_index:
+          type: integer
+        sync_state:
+          type: string
+          enum: [in_sync, behind, unreachable]
+          description: |
+            in_sync     — commit_index matches the leader
+            behind      — commit_index < leader's, follower is still catching up
+            unreachable — no Raft heartbeat for > 3× heartbeat interval
+
+    ClusterStatus:
+      type: object
+      required: [cluster_id, raft_term, leader_id, nodes]
+      properties:
+        cluster_id:
+          type: string
+        raft_term:
+          type: integer
+        leader_id:
+          type: string
+          description: Empty string if no leader is currently elected
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClusterNode"
+
+    HourlyAggregate:
+      type: object
+      required: [node_id, hour_start, total, blocked, forwarded, cached, local, top_domains, top_clients]
+      properties:
+        node_id:
+          type: string
+        hour_start:
+          type: string
+          format: date-time
+        total:
+          type: integer
+        blocked:
+          type: integer
+        forwarded:
+          type: integer
+        cached:
+          type: integer
+        local:
+          type: integer
+        top_domains:
+          type: array
+          items:
+            type: object
+            required: [domain, count]
+            properties:
+              domain:
+                type: string
+              count:
+                type: integer
+        top_clients:
+          type: array
+          items:
+            type: object
+            required: [client, count]
+            properties:
+              client:
+                type: string
+              count:
+                type: integer
+
+    ClusterStats:
+      type: object
+      required: [window_from, window_to, per_node, cluster_totals, top_domains, top_clients]
+      properties:
+        window_from:
+          type: string
+          format: date-time
+        window_to:
+          type: string
+          format: date-time
+        per_node:
+          type: array
+          items:
+            $ref: "#/components/schemas/HourlyAggregate"
+        cluster_totals:
+          type: object
+          required: [total, blocked, forwarded, cached, local]
+          properties:
+            total:
+              type: integer
+            blocked:
+              type: integer
+            forwarded:
+              type: integer
+            cached:
+              type: integer
+            local:
+              type: integer
+        top_domains:
+          type: array
+          description: Top-N domains summed across all nodes in the window
+          items:
+            type: object
+            required: [domain, count]
+            properties:
+              domain:
+                type: string
+              count:
+                type: integer
+        top_clients:
+          type: array
+          items:
+            type: object
+            required: [client, count]
+            properties:
+              client:
+                type: string
+              count:
+                type: integer
+
+    ClusterQueryLog:
+      type: object
+      required: [entries, total, per_node]
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            required: [node_id, timestamp, client, domain, query_type, outcome]
+            properties:
+              node_id:
+                type: string
+                description: Identifies which node served this query
+              timestamp:
+                type: string
+                format: date-time
+              client:
+                type: string
+              domain:
+                type: string
+              query_type:
+                type: string
+              outcome:
+                type: string
+              blocklist_id:
+                type: string
+        total:
+          type: integer
+          description: Total matching entries across all reachable nodes
+        per_node:
+          type: array
+          description: Per-node fan-out result, including unreachable nodes
+          items:
+            type: object
+            required: [node_id, status]
+            properties:
+              node_id:
+                type: string
+              status:
+                type: string
+                enum: [ok, timeout, error]
+              entry_count:
+                type: integer
+              error:
+                type: string
 
 paths:
 
@@ -761,6 +990,276 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  # =========================================================================
+  # M2 — Cluster endpoints
+  # =========================================================================
+
+  /api/v1/cluster/tokens:
+    post:
+      summary: Generate a single-use join token
+      description: >
+        Issued by any cluster node; persisted in bbolt (replicated via Raft) so
+        that any node can validate a token regardless of which node issued it.
+      operationId: createJoinToken
+      x-tsid: TS-ClusterApi
+      x-fsid-links:
+        - FS-NodeEnrollmentGenerateToken
+      responses:
+        "201":
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expires_at, leader_address]
+                properties:
+                  token:
+                    type: string
+                    description: Opaque bearer string (32+ bytes, URL-safe base64)
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: 15 minutes after issuance
+                  leader_address:
+                    type: string
+                    example: "192.168.1.10:8080"
+                    description: Current Raft leader's reachable API address; the joining node uses this address to submit its enrollment
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/cluster/join:
+    post:
+      summary: Enroll a fresh node into the cluster
+      description: >
+        Called by a node with empty cluster state. The receiving node MUST be a
+        Raft voter (typically the leader). The token is validated against the
+        replicated token bucket; on success the leader issues a Raft
+        AddVoter membership change and waits for the new node to catch up.
+      operationId: clusterJoin
+      x-tsid: TS-ClusterApi
+      x-fsid-links:
+        - FS-NodeEnrollmentJoinWithValidToken
+        - FS-NodeEnrollmentJoinTokenIsSingleUse
+        - FS-NodeEnrollmentJoinTokenExpires
+        - FS-NodeEnrollmentInvalidToken
+        - FS-NodeEnrollmentPreservesNodeLocalSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, node_id, raft_address]
+              properties:
+                token:
+                  type: string
+                node_id:
+                  type: string
+                  description: Stable identifier the joining node will use in Raft
+                raft_address:
+                  type: string
+                  example: "192.168.1.11:7000"
+                  description: Address the leader will dial to send Raft RPCs to the new node
+      responses:
+        "200":
+          description: Enrollment accepted; node has been added as a Raft voter
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cluster_id, commit_index_at_join]
+                properties:
+                  cluster_id:
+                    type: string
+                  commit_index_at_join:
+                    type: integer
+                    description: Raft index the joining node must reach before serving traffic
+        "400":
+          description: Validation error (malformed body)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token rejected — invalid, expired, or already consumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Not the leader; response body carries the leader address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderRedirect"
+
+  /api/v1/cluster/status:
+    get:
+      summary: Cluster topology and Raft state
+      operationId: getClusterStatus
+      x-tsid: TS-ClusterApi
+      x-fsid-links:
+        - FS-ClusterStatusListsAllNodes
+        - FS-ClusterStatusShowsCommitIndex
+        - FS-ClusterStatusShowsLaggingFollower
+        - FS-ClusterStatusShowsUnreachableFollower
+        - FS-ClusterStatusSameViewFromAnyNode
+        - FS-ClusterStatusShowsRaftTerm
+      responses:
+        "200":
+          description: Cluster status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/cluster/leadership/transfer:
+    post:
+      summary: Transfer leadership to a specific node
+      description: >
+        Triggers a Raft leadership transfer to the named follower. The call
+        returns once the transfer has completed or timed out.
+      operationId: transferLeadership
+      x-tsid: TS-ClusterApi
+      x-fsid-links:
+        - FS-LeaderFailoverManualTransfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_node_id]
+              properties:
+                target_node_id:
+                  type: string
+      responses:
+        "204":
+          description: Leadership transferred
+        "409":
+          description: Not the leader OR target not in cluster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderRedirect"
+        "504":
+          description: Transfer did not complete within the deadline
+
+  /api/v1/cluster/nodes/{node_id}:
+    delete:
+      summary: Remove a node from the cluster
+      description: >
+        Issues a Raft RemoveServer change. The leader rejects requests to
+        remove itself; admin must transfer leadership first.
+      operationId: removeNode
+      x-tsid: TS-ClusterApi
+      x-fsid-links:
+        - FS-NodeRemoval
+      parameters:
+        - in: path
+          name: node_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Node removed
+        "409":
+          description: Cannot remove the leader (transfer first)
+        "404":
+          description: Node not in cluster
+
+  /api/v1/cluster/stats:
+    get:
+      summary: Cluster-wide aggregated query stats
+      description: >
+        Returns the union of hourly aggregates committed by every node. Served
+        from local bbolt (replicated by Raft) so the call succeeds even when
+        the leader is unreachable.
+      operationId: getClusterStats
+      x-tsid: TS-QueryLogCluster
+      x-fsid-links:
+        - FS-QueryLogAggregatesClusterStats
+        - FS-QueryLogAggregatesAvailableDuringLeaderLoss
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: top_n
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Aggregated stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/cluster/query-log:
+    get:
+      summary: Cluster-wide raw query log via fan-out
+      description: >
+        Fans out the request to every node in the cluster in parallel; merges
+        results sorted by timestamp descending. Each entry is tagged with the
+        node id that originally served the query. Unreachable nodes are
+        reported in the response but do not fail the call.
+      operationId: getClusterQueryLog
+      x-tsid: TS-QueryLogCluster
+      x-fsid-links:
+        - FS-QueryLogAggregatesFanOutForRawEntries
+        - FS-QueryLogAggregatesFanOutPartialFailure
+      parameters:
+        - in: query
+          name: client
+          schema:
+            type: string
+        - in: query
+          name: outcome
+          schema:
+            type: string
+            enum: [forwarded, blocked, local, cached]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: timeout_ms
+          schema:
+            type: integer
+            default: 2000
+            description: Per-node deadline for the fan-out
+      responses:
+        "200":
+          description: Merged entries plus per-node status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterQueryLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   components:
     responses:

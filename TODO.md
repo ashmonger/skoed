@@ -24,7 +24,7 @@ Current phase: **Phase 1 — Functional Specifications**
 - [x] M2 — architecture pivot: hashicorp/raft + bbolt as source of truth; obsoletes SSE / manual+quorum failover — 2026-05-29
 - [x] M2 — IMPLEMENTATION_PLAN.md updated — 2026-05-29
 - [x] M2 — functional specs revised for Raft architecture (5 .feature files: node-enrollment, cluster-config-sync, leader-failover, cluster-status, query-log-aggregates) — 2026-05-29
-- [ ] M2 — Write technical specs (sync-protocol.md, quorum-protocol.md, OpenAPI updates)
+- [x] M2 — technical specs written: OpenAPI extended with /cluster/* endpoints; raft-fsm.md, cluster-store.md, query-log-cluster.md added; config-schema.md flagged as import/export only — 2026-05-29
 - [ ] M2 — Write acceptance tests
 - [ ] M2 — Implementation
 - [ ] M2 — Refactoring phase
