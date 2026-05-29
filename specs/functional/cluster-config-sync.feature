@@ -1,62 +1,80 @@
 Feature: Cluster Config Sync
   As an administrator managing a multi-node dblock cluster
-  I want changes made on the primary to propagate to all replicas automatically
-  So that I do not have to apply the same change on every node manually.
+  I want config changes applied via Raft to all nodes
+  So that every node has consistent state and I can address any node interchangeably.
 
   Background:
-    Given a primary dblock node and one enrolled replica
-    And both nodes are reachable on the network
+    Given a 3-node dblock cluster (one leader, two followers)
+    And all nodes are reachable on the network
+    And all nodes are at the same Raft commit index
 
-  @fsid:FS-ClusterConfigSyncBlocklistAdd
-  Scenario: A new blocklist added on the primary propagates to the replica
-    When the administrator adds a blocklist "ads" containing "tracker.example.com" on the primary
-    Then within 10 seconds the replica blocks queries for "tracker.example.com"
-    And the replica's blocklist "ads" contains the same domains as the primary
+  @fsid:FS-ClusterConfigSyncWriteToLeader
+  Scenario: A write sent to the leader replicates to all followers
+    When the administrator adds a blocklist "ads" containing "tracker.example.com" via the leader
+    Then within 5 seconds all 3 nodes' commit indices have advanced by one
+    And every node's local view of blocklists contains "ads" with "tracker.example.com"
+    And DNS queries for "tracker.example.com" are blocked on every node
+
+  @fsid:FS-ClusterConfigSyncWriteToFollowerIsForwarded
+  Scenario: A write sent to a follower is forwarded to the leader transparently
+    When the administrator sends a write to a follower
+    Then the follower forwards the write to the leader
+    And the response to the admin's request is identical to what the leader would have returned
+    And within 5 seconds all 3 nodes have the new state
 
   @fsid:FS-ClusterConfigSyncBlocklistRemove
-  Scenario: A blocklist removed on the primary is removed from the replica
-    Given the primary has blocklist "ads" enabled containing "tracker.example.com"
-    And the replica has the same blocklist
-    When the administrator deletes the "ads" blocklist on the primary
-    Then within 10 seconds the replica no longer blocks "tracker.example.com"
+  Scenario: A blocklist removed from any node is removed from every node
+    Given the cluster has blocklist "ads" enabled containing "tracker.example.com"
+    When the administrator deletes the "ads" blocklist via any node
+    Then within 5 seconds every node has no "ads" blocklist
+    And no node blocks "tracker.example.com"
 
   @fsid:FS-ClusterConfigSyncAllowlist
-  Scenario: An allowlist change on the primary propagates to the replica
-    Given the primary has blocklist "ads" containing "ads.example.com"
-    When the administrator adds "ads.example.com" to the allowlist on the primary
-    Then within 10 seconds the replica resolves "ads.example.com" instead of blocking it
+  Scenario: An allowlist change replicates across the cluster
+    Given the cluster has blocklist "ads" containing "ads.example.com"
+    When the administrator adds "ads.example.com" to the allowlist via any node
+    Then within 5 seconds every node resolves "ads.example.com" instead of blocking it
 
   @fsid:FS-ClusterConfigSyncLocalDns
-  Scenario: A local DNS entry added on the primary propagates to the replica
-    When the administrator adds a local A record "router.lab" → "192.168.1.1" on the primary
-    Then within 10 seconds the replica returns "192.168.1.1" for "router.lab"
+  Scenario: A local DNS entry added on any node propagates to every node
+    When the administrator adds a local A record "router.lab" → "192.168.1.1" via any node
+    Then within 5 seconds every node returns "192.168.1.1" for "router.lab"
 
-  @fsid:FS-ClusterConfigSyncReplicaIsReadOnly
-  Scenario: Writes to a replica are rejected with status indicating the primary's address
-    When the administrator attempts to create a blocklist on the replica
-    Then the request is rejected with HTTP status 409
-    And the response body indicates the request must be sent to the primary
-    And the response body contains the primary's address
+  @fsid:FS-ClusterConfigSyncSurvivesFollowerDisconnect
+  Scenario: A follower catches up after a temporary disconnect
+    Given the cluster is at commit index N
+    And one follower is partitioned from the network
+    When the administrator commits 5 writes via the leader
+    And the partitioned follower reconnects 30 seconds later
+    Then within 10 seconds the reconnected follower's commit index equals the leader's
+    And the reconnected follower's local state matches the cluster's
 
-  @fsid:FS-ClusterConfigSyncSurvivesReplicaDisconnect
-  Scenario: A replica catches up after a temporary disconnect
-    Given the primary and replica are in sync at config version N
-    And the replica is disconnected from the network
-    When the administrator adds a blocklist on the primary
-    And the replica reconnects to the network 30 seconds later
-    Then within 10 seconds after reconnection the replica has the new blocklist
-    And the replica's config version equals the primary's
+  @fsid:FS-ClusterConfigSyncMinorityPartitionRefusesWrites
+  Scenario: A partitioned minority cannot accept writes
+    Given a 3-node cluster
+    And node-3 is partitioned alone from node-1 and node-2
+    When the administrator sends a write to node-3
+    Then the write is rejected with status indicating no leader is reachable
+    And no state mutation occurs on node-3
 
-  @fsid:FS-ClusterConfigSyncQueryLogIsPerNode
-  Scenario: Query log entries stay on the node that served the query
-    Given the primary has handled 3 DNS queries
-    And the replica has handled 2 DNS queries
-    When the administrator inspects the query log on each node
-    Then the primary's log contains exactly 3 entries
-    And the replica's log contains exactly 2 entries
+  @fsid:FS-ClusterConfigSyncMajorityPartitionContinues
+  Scenario: A majority partition continues to serve writes
+    Given a 3-node cluster
+    And node-3 is partitioned alone from node-1 and node-2
+    When the administrator sends a write to either node-1 or node-2
+    Then the write succeeds within 5 seconds
+    And node-1 and node-2 both have the new state
+    And node-3 does NOT have the new state until the partition heals
+
+  @fsid:FS-ClusterConfigSyncQueryLogRawIsPerNode
+  Scenario: Raw query log entries stay on the node that served the query
+    Given the leader has handled 3 DNS queries
+    And one follower has handled 2 DNS queries
+    When the administrator inspects each node's local query log
+    Then the leader's raw log contains exactly 3 entries
+    And the follower's raw log contains exactly 2 entries
 
   Non-goals:
-    - Bi-directional sync (replicas writing back to the primary).
-    - Sync of query log entries.
-    - Sync of node-local settings (DNS listen port, API port, role).
-    - Conflict resolution beyond "primary wins" — replicas are always read-only.
+    - Application-level conflict resolution (Raft provides total ordering).
+    - Read-your-writes consistency across followers without lease (a write returns from the leader before all followers ack).
+    - Replication of raw query log entries.

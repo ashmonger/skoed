@@ -13,39 +13,41 @@
 - Roadmap links: ROADMAP.md § Milestone 1
 - Scope summary: A single dblock node that serves DNS (forwarding + root resolution, dual-stack, DNSSEC transparent), filters domains via configurable blocklists and allowlists, serves local DNS entries, logs queries, exposes a management API with basic auth, and supports config import/export. Released as a Linux binary and Docker image. **Status: merged to master 2026-05-29, 58/58 acceptance tests green.**
 - Assumptions:
-  - SSE over plain HTTP/1.1 is sufficient for sync transport (H3 — validate at Slice 2).
-  - Quorum-based auto-failover with last-seen heartbeats prevents split-brain for ≤ 10 nodes in practice (H2 — validate at Slice 4).
-  - Config state remains on disk as YAML (no external database).
-  - Node-local state (DNS listen port, API port, role) is NOT synced; cluster-wide state (blocklists, allowlists, local DNS, settings, auth) IS synced.
+  - hashicorp/raft + go.etcd.io/bbolt operates correctly for clusters of ≤10 nodes on home/lab networks (H4 — validate throughout M2).
+  - bbolt is the source of truth; YAML becomes import/export only; node-local settings remain in a separate `node.yaml`.
+  - Cluster-wide state (blocklists, allowlists, local DNS, settings, auth) goes through Raft; node-local state (DNS listen port, API port) and high-volume raw query log entries do NOT.
+  - Query log aggregates (hourly buckets, top-N) are committed through Raft and replicated to every node; raw entries stay per-node and are accessed via fan-out when needed.
 
 ## Global feature sequencing (Milestone 2)
 
 | Order | Feature | Outcome | Depends on | FSIDs | TSIDs | Acceptance tests | Status |
 |-------|---------|---------|-----------|-------|-------|-----------------|--------|
-| 1 | Node Enrollment | Replica joins primary using a single-use join token; receives initial config | M1 Management API | FS-NodeEnrollment | TS-ClusterApi | tests/acceptance/enrollment_test.go | Planned |
-| 2 | Config Sync (SSE) | Replicas open `/api/v1/sync/events`; receive `config-changed` events and pull new config within 10s | Node Enrollment | FS-ClusterConfigSync | TS-SyncProtocol | tests/acceptance/sync_test.go | Planned |
-| 3 | Manual Failover | Admin promotes a replica via API; former primary demotes to replica on next contact | Config Sync | FS-ManualFailover | TS-ClusterApi | tests/acceptance/failover_test.go | Planned |
-| 4 | Quorum Auto-Failover (opt-in) | When `cluster.auto_failover=true`, replicas detect primary loss via missed heartbeats and elect a new primary by majority vote | Manual Failover | FS-QuorumAutoFailover | TS-QuorumProtocol | tests/acceptance/quorum_test.go | Planned |
-| 5 | Cluster Status | API exposes all nodes' roles, last-seen, sync state; primary surfaces its replicas, replicas surface their primary | Node Enrollment | FS-ClusterStatus | TS-ClusterApi | tests/acceptance/cluster_status_test.go | Planned |
-| 6 | Sync-Aware Refactor | Existing M1 mutation endpoints reject writes on replicas (read-only); writes accepted only on primary | Config Sync, Cluster Status | (refines M1 FSIDs) | (refines M1 TSIDs) | tests/acceptance/sync_test.go | Planned |
+| 1 | Raft Bootstrap & M1 Migration | First-run node initialises a single-node Raft cluster; existing M1 `config.yaml` is imported into bbolt | M1 (config + API) | FS-NodeEnrollmentSingleNodeBootstrap, FS-NodeEnrollmentM1ConfigMigration | TS-ClusterStore | tests/acceptance/bootstrap_test.go | Planned |
+| 2 | Node Enrollment | A fresh node joins the cluster using a single-use join token; Raft membership change adds it as a voter; node-local settings are preserved | Slice 1 | FS-NodeEnrollment*, FS-NodeRemoval | TS-ClusterApi | tests/acceptance/enrollment_test.go | Planned |
+| 3 | Config Sync via Raft | Writes to any node are forwarded to the leader and replicated to all followers; minority partition refuses writes | Slice 2 | FS-ClusterConfigSync* | TS-RaftLog | tests/acceptance/sync_test.go | Planned |
+| 4 | Leader Failover | Automatic Raft election on leader loss; former leader rejoins as follower; manual leadership transfer API | Slice 3 | FS-LeaderFailover* | TS-RaftFsm | tests/acceptance/failover_test.go | Planned |
+| 5 | Cluster Status | API exposes Raft role, last-contact, commit index, term; same view from any node | Slice 2 | FS-ClusterStatus* | TS-ClusterApi | tests/acceptance/cluster_status_test.go | Planned |
+| 6 | Query Log Aggregates | Hourly aggregates committed through Raft; cluster stats available from any node; fan-out endpoint for raw entries | Slice 3 | FS-QueryLogAggregates* | TS-QueryLogCluster | tests/acceptance/query_log_aggregates_test.go | Planned |
 
 ## Cross-feature dependencies and blockers
 
 | Dependency | Upstream | Downstream | Impact if late | Mitigation | Status |
 |-----------|---------|-----------|---------------|-----------|--------|
-| Config version counter | Node Enrollment | Config Sync, Manual Failover | Replicas can't detect new config | Add monotonic `config_version` to config root; increment on every mutation | Open |
-| Heartbeat protocol | Cluster Status | Quorum Auto-Failover | Auto-failover impossible without liveness signal | Piggyback on SSE `keep-alive` event every 5s; missed 3× = node lost | Open |
-| Join token lifecycle | Node Enrollment | All cluster ops | Replicas can't authenticate | Tokens are single-use, 15 min TTL, generated on demand by primary | Open |
+| Raft FSM (apply / snapshot / restore) | Slice 1 | All cluster ops | No replication possible | Define FSM commands first; cover with unit tests before integration tests | Open |
+| bbolt schema for replicated state | Slice 1 | All cluster ops | Schema churn invalidates Raft snapshots | Finalise buckets (`config/*`, `cluster/*`, `stats/{node}/{hour}`) before Slice 3 | Open |
+| Join token lifecycle | Slice 2 | All cluster ops | Nodes can't authenticate to join | Tokens are single-use, 15-min TTL, stored in bbolt (replicated), validated by the leader | Open |
+| Library: `hashicorp/raft` vs `etcd/raft` | Slice 1 | All cluster ops | Wrong choice = rework | Default: `hashicorp/raft` — more library-shaped, used by k3s/Consul/Nomad; revisit if it doesn't fit | Decision needed |
 
 ## Critical path and milestones
 
-- Critical path: Node Enrollment → Config Sync → Manual Failover → Cluster Status → Quorum Auto-Failover → Sync-Aware Refactor
+- Critical path: Raft Bootstrap → Node Enrollment → Config Sync → Leader Failover → Query Log Aggregates → Cluster Status
 - Milestone 2 exit criteria:
   - All M2 acceptance tests pass
-  - A primary + 2 replicas can be brought up in `docker compose` in under 5 minutes
-  - Config change on the primary visible on both replicas within 10 seconds
-  - Manual promotion of a replica works; former primary demotes cleanly when reachable
-  - With `auto_failover=true`, killing the primary causes a replica to take over within 30 seconds
+  - A 3-node cluster can be brought up in `docker compose` in under 5 minutes
+  - Config write on any node is committed across the cluster within 5 seconds
+  - Killing the leader causes a follower to take over within 10 seconds (Raft default heartbeat tuning)
+  - Minority partition refuses writes; majority partition continues; partition heal reconciles cleanly
+  - Cluster-wide stats endpoint returns the same answer from any node
   - All M1 acceptance tests remain green (no regressions)
 
 ## Validation checkpoints
@@ -60,28 +62,32 @@
 
 ## Risks and trade-offs
 
-- Risk: SSE over HTTP/1.1 doesn't survive transparent proxies / firewalls
-  - Trigger: replica disconnects every N seconds without a clean reason
-  - Response: add periodic reconnection with backoff; document supported network setups; consider WebSocket fallback in M2.5
+- Risk: hashicorp/raft snapshotting interacts badly with large blocklists
+  - Trigger: snapshot size > 10 MB causes long pauses on follower catch-up
+  - Response: measure at Slice 3; if needed, use streaming snapshot (Raft library supports it) and skip blocklist domains larger than a threshold from the snapshot, refetching them from URL on restore
 
-- Risk: Quorum auto-failover causes split-brain in flaky networks
-  - Trigger: two nodes both claim primary after a partition heals
-  - Response: design coordinated step-down with config version comparison; document as a known limitation; auto-failover stays opt-in
+- Risk: bbolt corruption on power loss
+  - Trigger: hard kill mid-write; bbolt database becomes unreadable
+  - Response: write-ahead via Raft log gives recovery; document backup as periodic Raft snapshot export; bbolt's own write semantics already use mmap + fsync
 
 - Risk: Join token theft allows unauthorized node enrollment
   - Trigger: token leaked from logs or terminal history
-  - Response: short TTL (15 min), single-use, primary logs all enrollment attempts; rotate tokens never reused
+  - Response: short TTL (15 min), single-use, leader logs all enrollment attempts, tokens never reused
+
+- Risk: Raft library API changes between minor versions
+  - Trigger: dependency update breaks compilation
+  - Response: pin `hashicorp/raft` to a tested major version in go.mod; track upstream releases
 
 ## Open questions
 
-None. M2 design questions resolved 2026-05-29 (see QUESTIONS_AND_ANSWERS.md).
+- Raft library: `hashicorp/raft` (recommended) vs `etcd/raft`. Default to `hashicorp/raft` unless UoR overrides. — open at Slice 1 start
 
 ## Hypotheses to validate in M2
 
-- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain for ≤ 10 nodes. **Validate at Slice 4.**
-- H3: SSE over HTTP/1.1 is sufficient for config sync transport. **Validate at Slice 2 by measuring reconnection behavior.**
+- H4: `hashicorp/raft` + `go.etcd.io/bbolt` are operationally suitable for dblock's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state) on home/lab networks. **Validate throughout M2.** Replaces H2 (manual quorum) and H3 (SSE).
 
 ## Change log
 
 - 2026-05-29: Initial plan created for Milestone 1.
 - 2026-05-29: Milestone 1 complete; plan updated for Milestone 2.
+- 2026-05-29: Replication core pivoted from SSE-pull to hashicorp/raft + bbolt; source of truth moved from YAML to bbolt; query log aggregates added via Raft; manual + quorum failover obsoleted.

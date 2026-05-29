@@ -20,9 +20,10 @@ Current phase: **Phase 1 — Functional Specifications**
 ## Current tasks
 
 - [x] M1 — merged to master, all 58 acceptance tests green, demo validated — 2026-05-29
-- [x] M2 — design questions answered (failover model, sync direction, Helm scope) — 2026-05-29
+- [x] M2 — initial design questions answered (failover model, sync direction, Helm scope) — 2026-05-29
+- [x] M2 — architecture pivot: hashicorp/raft + bbolt as source of truth; obsoletes SSE / manual+quorum failover — 2026-05-29
 - [x] M2 — IMPLEMENTATION_PLAN.md updated — 2026-05-29
-- [ ] M2 — Write functional specs (6 .feature files)
+- [x] M2 — functional specs revised for Raft architecture (5 .feature files: node-enrollment, cluster-config-sync, leader-failover, cluster-status, query-log-aggregates) — 2026-05-29
 - [ ] M2 — Write technical specs (sync-protocol.md, quorum-protocol.md, OpenAPI updates)
 - [ ] M2 — Write acceptance tests
 - [ ] M2 — Implementation
@@ -50,8 +51,9 @@ None for M2 design (see QUESTIONS_AND_ANSWERS.md for resolved M2 decisions).
 ## Hypotheses
 
 - H1: `miekg/dns` is sufficient for dblock's DNS engine needs (forwarding + root resolution). — **VALIDATED** at M1 implementation (2026-05-29).
-- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain in practice for home/lab scale (≤ 10 nodes). — open, validate at M2 Slice 4.
-- H3: SSE over HTTP/1.1 is sufficient for config sync transport. — open, validate at M2 Slice 2.
+- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain in practice for home/lab scale (≤ 10 nodes). — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
+- H3: SSE over HTTP/1.1 is sufficient for config sync transport. — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
+- H4: hashicorp/raft + go.etcd.io/bbolt are operationally suitable for dblock's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state). — open, validate throughout M2.
 
 ## Done when
 

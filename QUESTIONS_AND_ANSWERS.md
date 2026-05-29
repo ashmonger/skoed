@@ -16,13 +16,22 @@ None.
   **A**: Primary + replicas (push). Hybrid approach: split-brain avoidance via last-seen timestamps and health-check quorum. Full consensus (Raft) deferred to post-M2. — 2026-05-29
 
 - **Q**: M2 — How does a replica become the new primary when the current primary fails?
-  **A**: Hybrid. Manual promotion via UI/API is the default. An opt-in `cluster.auto_failover` setting enables quorum-based automatic promotion for clusters where the admin accepts the split-brain trade-off. — 2026-05-29
+  **A**: ~~Hybrid. Manual default, opt-in quorum auto-failover.~~ **SUPERSEDED 2026-05-29** by the Raft decision below — Raft handles leader election automatically; manual promotion and the opt-in quorum protocol are no longer needed.
 
 - **Q**: M2 — How do config changes propagate from primary to replicas?
-  **A**: Replica pulls from primary via Server-Sent Events. Replicas open a long-lived `GET /api/v1/sync/events` connection; primary emits `config-changed` events with a version number; replicas fetch new config via `GET /api/v1/config/export?since=<version>`. Sub-second propagation; only the primary needs to be reachable. — 2026-05-29
+  **A**: ~~Replica pulls from primary via SSE.~~ **SUPERSEDED 2026-05-29** by the Raft decision below — config replication is now via Raft log; writes accepted on any node and forwarded to the leader; SSE is not used.
 
 - **Q**: M2 — Is the Helm chart / Kubernetes DaemonSet part of M2 scope?
-  **A**: Deferred to a later milestone (M2.5). M2 focuses on the core sync protocol (enrollment, SSE push, manual + opt-in auto failover, cluster status dashboard). Plain `kubectl apply` of a Deployment remains supported. — 2026-05-29
+  **A**: Deferred to a later milestone (M2.5). M2 focuses on the cluster core (Raft replication, enrollment, cluster status). Plain `kubectl apply` of a Deployment remains supported. — 2026-05-29
+
+- **Q**: M2 — What is the replication core for cluster config?
+  **A**: hashicorp/raft + go.etcd.io/bbolt. Pure Go (no CGO), proven in production by Consul / Nomad / Vault / k3s. Any node accepts writes; non-leader nodes forward to the leader transparently. Raft handles leader election, split-brain prevention, log replication, and snapshots. Hypothesis H2 (manual quorum protocol) is replaced by H4 (hashicorp/raft is operationally suitable for ≤10 nodes on home/lab networks). — 2026-05-29
+
+- **Q**: M2 — What is the on-disk source of truth for cluster config?
+  **A**: bbolt is the source of truth. The YAML file from M1 becomes an import/export artifact only — useful for backup, migration, and human review, but never the live state. Editing config.yaml on disk after boot has no effect. Node-local settings (DNS listen port, API port) remain in a small `node.yaml` file. — 2026-05-29
+
+- **Q**: M2 — How does the cluster expose query log data for the future dashboard?
+  **A**: Hybrid. Raw entries stay per-node (volume too high to replicate). Each node writes hourly aggregate counters (totals, top-N domains, top-N clients) into a bbolt bucket that Raft replicates to all nodes — so cluster-wide stats are available from any node with zero extra protocol code. Individual-entry searches use an on-demand fan-out endpoint that queries every node in parallel. — 2026-05-29
 
 - **Q**: Parental control scope?
   **A**: All four: category-based blocking, schedule-based blocking, per-device/client profiles, SafeSearch enforcement. — 2026-05-29
