@@ -31,10 +31,7 @@ type Entry struct {
 // newEntryID generates a random 16-byte hex string for use as an entry ID.
 func newEntryID() string {
 	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		// Extremely unlikely; fall back to zero bytes rather than panic.
-		return hex.EncodeToString(b)
-	}
+	rand.Read(b) //nolint:errcheck — crypto/rand.Read never returns an error
 	return hex.EncodeToString(b)
 }
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -190,24 +191,11 @@ func Save(dir string, c *Config) error {
 
 // normaliseUpstream appends :53 if no port is specified.
 func normaliseUpstream(s string) string {
-	if len(s) == 0 {
+	if s == "" {
 		return s
 	}
-	// IPv6 literal without port: [::1] or ::1
-	// Has port already if last segment after last ':' is numeric and preceded by ':' not inside []
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == ':' {
-			// Check if what follows the colon is a valid port
-			rest := s[i+1:]
-			if len(rest) > 0 && rest[0] != ':' {
-				return s // already has port
-			}
-			break
-		}
-		if s[i] == ']' {
-			// IPv6 literal without port
-			return s + ":53"
-		}
+	if _, _, err := net.SplitHostPort(s); err == nil {
+		return s
 	}
 	return s + ":53"
 }

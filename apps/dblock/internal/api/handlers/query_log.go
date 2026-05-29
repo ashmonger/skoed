@@ -3,12 +3,22 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 )
 
-// queryLogResponse is the JSON shape returned by GET /api/v1/query-log.
+type queryLogEntry struct {
+	ID          string    `json:"id"`
+	Timestamp   time.Time `json:"timestamp"`
+	Client      string    `json:"client"`
+	Domain      string    `json:"domain"`
+	QueryType   string    `json:"query_type"`
+	Outcome     string    `json:"outcome"`
+	BlocklistID string    `json:"blocklist_id"`
+}
+
 type queryLogResponse struct {
-	Entries []any `json:"entries"`
-	Total   int   `json:"total"`
+	Entries []queryLogEntry `json:"entries"`
+	Total   int             `json:"total"`
 }
 
 // GetQueryLog handles GET /api/v1/query-log.
@@ -34,16 +44,16 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 	ql := h.app.GetQueryLog()
 	entries, total := ql.Query(client, outcome, limit, offset)
 
-	result := make([]any, len(entries))
+	result := make([]queryLogEntry, len(entries))
 	for i, e := range entries {
-		result[i] = map[string]any{
-			"id":           e.ID,
-			"timestamp":    e.Timestamp,
-			"client":       e.Client,
-			"domain":       e.Domain,
-			"query_type":   e.QueryType,
-			"outcome":      string(e.Outcome),
-			"blocklist_id": e.BlocklistID,
+		result[i] = queryLogEntry{
+			ID:          e.ID,
+			Timestamp:   e.Timestamp,
+			Client:      e.Client,
+			Domain:      e.Domain,
+			QueryType:   e.QueryType,
+			Outcome:     string(e.Outcome),
+			BlocklistID: e.BlocklistID,
 		}
 	}
 

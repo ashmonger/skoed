@@ -66,7 +66,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		qtypeStr = "UNKNOWN"
 	}
 
-	// Step (b): check local entries.
+	// Local DNS entries take priority over both the filter and upstream resolution.
 	if h.lr != nil {
 		if msg, ok := h.lr.Resolve(q.Name, qtype); ok {
 			msg.SetReply(r)
@@ -76,7 +76,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
-	// Steps (c)/(d): filter engine evaluation.
+	// Block if the domain matches any active blocklist (allowlist already checked inside Evaluate).
 	fe := h.fe()
 	result := fe.Evaluate(name)
 	if result.Disposition == filter.Block {
@@ -86,9 +86,8 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		h.logEntry(clientIP, name, qtypeStr, dlog.OutcomeBlocked, result.BlocklistID)
 		return
 	}
-	// result.Disposition == filter.Allow: proceed.
 
-	// Step (e): cache lookup.
+	// Serve from cache before hitting upstream.
 	key := cacheKey{Name: q.Name, Qtype: qtype}
 	if h.ch != nil && h.cfg.Cache.Enabled {
 		if cached, ok := h.ch.get(key); ok {
@@ -99,7 +98,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
-	// Step (f): resolve.
+	// Resolve via forwarder or recursor.
 	var resolved *dns.Msg
 	if h.cfg.Mode == "recursive" && h.rec != nil {
 		resolved = h.rec.Resolve(r, clientIP)
@@ -113,12 +112,10 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		resolved = servfail(r)
 	}
 
-	// Step (g): cache the response.
 	if h.ch != nil && h.cfg.Cache.Enabled {
 		h.ch.set(key, resolved)
 	}
 
-	// Step (h)/(i): log and return.
 	// Preserve the upstream Rcode — SetReply resets it to NOERROR.
 	rcode := resolved.Rcode
 	resolved.SetReply(r)

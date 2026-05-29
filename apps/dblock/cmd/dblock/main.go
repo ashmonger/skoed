@@ -19,9 +19,32 @@ import (
 	dlog "github.com/dblock/dblock/internal/log"
 )
 
-// app is a package-level var so that the rebuildDNS closure can reference it
-// before it is assigned. It is written once, before any DNS query arrives.
-var app *api.App
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog) *dnsengine.Handler {
+	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
+
+	var fwd *dnsengine.Forwarder
+	var rec *dnsengine.Recursor
+	if cfg.DNS.Mode == "recursive" {
+		rec = dnsengine.NewRecursor(cfg.DNS.TrustedSubnets)
+	} else {
+		fwd = dnsengine.NewForwarder(cfg.DNS)
+	}
+
+	var cache *dnsengine.Cache
+	if cfg.DNS.Cache.Enabled {
+		cache = dnsengine.NewCache(cfg.DNS.Cache.MaxEntries)
+	}
+
+	return dnsengine.NewHandler(dnsengine.HandlerConfig{
+		DNSCfg:        cfg.DNS,
+		FilterEngine:  getEng,
+		LocalResolver: localRes,
+		Forwarder:     fwd,
+		Recursor:      rec,
+		Cache:         cache,
+		QueryLog:      queryLog,
+	})
+}
 
 func main() {
 	cfgFile := flag.String("config", "config.yaml", "path to config file")
@@ -47,43 +70,20 @@ func main() {
 	filterEng := filter.New(cfg.Filtering)
 	queryLog := dlog.New(cfg.QueryLog.MaxEntries)
 
-	// dnsServer is replaced on a full DNS restart (listen-config change only).
+	// app is declared before rebuildDNS so the closure captures it by reference.
+	// It is assigned before any DNS query arrives, so the closure reads the final value.
+	var app *api.App
 	var dnsServer *dnsengine.Server
 
 	rebuildDNS := func(newCfg *config.Config) error {
-		newLocalRes := dnsengine.NewLocalResolver(newCfg.LocalDNS.Entries)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog)
 
-		var newFwd *dnsengine.Forwarder
-		var newRec *dnsengine.Recursor
-		if newCfg.DNS.Mode == "recursive" {
-			newRec = dnsengine.NewRecursor(newCfg.DNS.TrustedSubnets)
-		} else {
-			newFwd = dnsengine.NewForwarder(newCfg.DNS)
-		}
-
-		var newCache *dnsengine.Cache
-		if newCfg.DNS.Cache.Enabled {
-			newCache = dnsengine.NewCache(newCfg.DNS.Cache.MaxEntries)
-		}
-
-		newHandler := dnsengine.NewHandler(dnsengine.HandlerConfig{
-			DNSCfg:        newCfg.DNS,
-			FilterEngine:  app.GetFilterEng,
-			LocalResolver: newLocalRes,
-			Forwarder:     newFwd,
-			Recursor:      newRec,
-			Cache:         newCache,
-			QueryLog:      queryLog,
-		})
-
-		// If the listen config (port, address family) hasn't changed, we can
-		// swap the handler in-place without restarting the listeners.
+		// Swap the handler in-place when only the blocklist/filter config changed.
 		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
 			dnsServer.UpdateHandler(newHandler)
 			return nil
 		}
 
-		// Listen config changed: restart the server.
 		newServer := dnsengine.New(newCfg.DNS, newHandler)
 		if dnsServer != nil {
 			dnsServer.Shutdown()
@@ -95,33 +95,9 @@ func main() {
 		return nil
 	}
 
-	// Create App before the DNS handler so we can pass app.GetFilterEng as a getter.
 	app = api.NewApp(dir, cfg, authStore, filterEng, queryLog, rebuildDNS)
 
-	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
-
-	var fwd *dnsengine.Forwarder
-	var rec *dnsengine.Recursor
-	if cfg.DNS.Mode == "recursive" {
-		rec = dnsengine.NewRecursor(cfg.DNS.TrustedSubnets)
-	} else {
-		fwd = dnsengine.NewForwarder(cfg.DNS)
-	}
-
-	var cache *dnsengine.Cache
-	if cfg.DNS.Cache.Enabled {
-		cache = dnsengine.NewCache(cfg.DNS.Cache.MaxEntries)
-	}
-
-	handler := dnsengine.NewHandler(dnsengine.HandlerConfig{
-		DNSCfg:        cfg.DNS,
-		FilterEngine:  app.GetFilterEng,
-		LocalResolver: localRes,
-		Forwarder:     fwd,
-		Recursor:      rec,
-		Cache:         cache,
-		QueryLog:      queryLog,
-	})
+	handler := buildDNSHandler(cfg, app.GetFilterEng, queryLog)
 
 	dnsServer = dnsengine.New(cfg.DNS, handler)
 

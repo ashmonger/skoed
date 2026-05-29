@@ -30,43 +30,38 @@ type Result struct {
 	BlocklistID string
 }
 
+// domainSet holds a set of apex domains. An entry "example.com" matches
+// "example.com" itself and every subdomain at any depth. The "*.example.com"
+// prefix syntax is normalised to "example.com" on insert — both forms are
+// equivalent.
 type domainSet struct {
-	exact    map[string]struct{}
-	wildcards []string // each entry is the suffix after "*."; e.g. "example.com"
+	apices map[string]struct{}
 }
 
 func newDomainSet(entries []string) domainSet {
-	ds := domainSet{
-		exact: make(map[string]struct{}, len(entries)),
-	}
+	ds := domainSet{apices: make(map[string]struct{}, len(entries))}
 	for _, e := range entries {
-		e = strings.ToLower(e)
-		if strings.HasPrefix(e, "*.") {
-			ds.wildcards = append(ds.wildcards, e[2:])
-		} else {
-			ds.exact[e] = struct{}{}
-			// Every plain domain entry implicitly blocks all its subdomains too.
-			ds.wildcards = append(ds.wildcards, e)
+		e = strings.ToLower(strings.TrimPrefix(e, "*."))
+		if e != "" {
+			ds.apices[e] = struct{}{}
 		}
 	}
 	return ds
 }
 
-// matches returns true if domain matches an exact entry or a wildcard entry.
-// Wildcard suffix "example.com" matches "example.com" and "*.example.com" at any depth.
+// matches returns true if domain equals or is a subdomain of any registered apex.
+// It strips one DNS label at a time, so the check is O(label-depth) map lookups.
 func (ds *domainSet) matches(domain string) bool {
-	if _, ok := ds.exact[domain]; ok {
-		return true
-	}
-	for _, suffix := range ds.wildcards {
-		if domain == suffix {
+	for d := domain; ; {
+		if _, ok := ds.apices[d]; ok {
 			return true
 		}
-		if strings.HasSuffix(domain, "."+suffix) {
-			return true
+		dot := strings.Index(d, ".")
+		if dot < 0 {
+			return false
 		}
+		d = d[dot+1:]
 	}
-	return false
 }
 
 type blocklistEntry struct {
