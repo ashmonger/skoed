@@ -1,0 +1,776 @@
+openapi: "3.1.0"
+
+x-tsid: TS-ManagementApi
+x-fsid-links:
+  - FS-BlocklistAddFromUrl
+  - FS-BlocklistAddManual
+  - FS-BlocklistRemove
+  - FS-BlocklistDisable
+  - FS-BlocklistEnable
+  - FS-BlocklistRefresh
+  - FS-BlocklistStats
+  - FS-BlocklistWildcardEntry
+  - FS-BlocklistParseHostsFormat
+  - FS-BlocklistParseAdblockFormat
+  - FS-AllowlistAddDomain
+  - FS-AllowlistRemoveDomain
+  - FS-AllowlistWildcardEntry
+  - FS-BlockPolicyConfigurationGlobalDefault
+  - FS-BlockPolicyConfigurationPerBlocklist
+  - FS-BlockPolicyConfigurationChangeGlobal
+  - FS-BlockPolicyConfigurationPerBlocklistReset
+  - FS-LocalDnsEntryAddA
+  - FS-LocalDnsEntryAddAAAA
+  - FS-LocalDnsEntryAddCNAME
+  - FS-LocalDnsEntryUpdate
+  - FS-LocalDnsEntryDelete
+  - FS-QueryLogRecordsEntry
+  - FS-QueryLogBrowseAll
+  - FS-QueryLogFilterByClient
+  - FS-QueryLogFilterByOutcome
+  - FS-QueryLogRetentionConfigurable
+  - FS-ConfigExport
+  - FS-ConfigImportOnFreshNode
+  - FS-ConfigImportAtomic
+  - FS-WebUiAuthUnauthenticatedRequestRejected
+  - FS-WebUiAuthValidCredentials
+  - FS-WebUiAuthInvalidCredentials
+  - FS-WebUiAuthFirstRunSetup
+  - FS-WebUiAuthPasswordChange
+
+info:
+  title: dblock Management API
+  version: "1.0.0"
+  description: >
+    REST API for managing a dblock node. All endpoints require HTTP Basic
+    authentication except POST /api/v1/auth/setup (first-run only).
+    DNS port 53 is never gated by this API's authentication.
+
+servers:
+  - url: http://{host}:{port}
+    variables:
+      host:
+        default: localhost
+      port:
+        default: "8080"
+
+security:
+  - basicAuth: []
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+
+  schemas:
+
+    BlocklistSource:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [url, inline]
+        url:
+          type: string
+          format: uri
+          description: Required when type=url.
+        format:
+          type: string
+          enum: [auto, hosts, domainlist, adblock]
+          default: auto
+
+    Blocklist:
+      type: object
+      required: [id, name, source]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-zA-Z0-9_-]+$"
+        name:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        source:
+          $ref: "#/components/schemas/BlocklistSource"
+        block_policy:
+          type: string
+          enum: [nxdomain, "null", nodata, ""]
+          default: ""
+          description: Empty string inherits the global default.
+        domain_count:
+          type: integer
+          readOnly: true
+        last_updated:
+          type: string
+          format: date-time
+          readOnly: true
+
+    BlocklistCreate:
+      type: object
+      required: [id, name, source]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-zA-Z0-9_-]+$"
+        name:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        source:
+          $ref: "#/components/schemas/BlocklistSource"
+        domains:
+          type: array
+          items:
+            type: string
+          description: Required when source.type=inline.
+        block_policy:
+          type: string
+          enum: [nxdomain, "null", nodata, ""]
+          default: ""
+
+    LocalDnsEntry:
+      type: object
+      required: [hostname, type, value]
+      properties:
+        id:
+          type: string
+          readOnly: true
+        hostname:
+          type: string
+        type:
+          type: string
+          enum: [A, AAAA, CNAME]
+        value:
+          type: string
+          description: IPv4 address for A, IPv6 for AAAA, FQDN for CNAME.
+        ttl:
+          type: integer
+          default: 300
+          minimum: 1
+          maximum: 86400
+
+    QueryLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        timestamp:
+          type: string
+          format: date-time
+        client:
+          type: string
+          description: Client IP address (IPv4 or IPv6).
+        domain:
+          type: string
+        query_type:
+          type: string
+          description: DNS record type (A, AAAA, MX, etc.)
+        outcome:
+          type: string
+          enum: [forwarded, blocked, local, cached]
+        blocklist_id:
+          type: string
+          description: Set when outcome=blocked. ID of the matching blocklist.
+
+    Settings:
+      type: object
+      properties:
+        dns:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [forwarding, recursive]
+            upstream_resolvers:
+              type: array
+              items:
+                type: string
+            upstream_timeout_seconds:
+              type: integer
+              minimum: 1
+              maximum: 30
+            trusted_subnets:
+              type: array
+              items:
+                type: string
+            cache:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                max_entries:
+                  type: integer
+        filtering:
+          type: object
+          properties:
+            block_policy:
+              type: string
+              enum: [nxdomain, "null", nodata]
+        query_log:
+          type: object
+          properties:
+            max_entries:
+              type: integer
+              minimum: 1
+              maximum: 1000000
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+paths:
+
+  # ── Blocklists ────────────────────────────────────────────────────────────
+
+  /api/v1/blocklists:
+    get:
+      summary: List all blocklists
+      operationId: listBlocklists
+      responses:
+        "200":
+          description: Array of blocklists with stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Blocklist"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Add a blocklist
+      operationId: createBlocklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlocklistCreate"
+      responses:
+        "201":
+          description: Blocklist created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blocklist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Blocklist with this ID already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/blocklists/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      summary: Get a blocklist by ID
+      operationId: getBlocklist
+      responses:
+        "200":
+          description: Blocklist details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blocklist"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      summary: Update a blocklist (enable/disable, change policy, rename)
+      operationId: updateBlocklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                enabled:
+                  type: boolean
+                block_policy:
+                  type: string
+                  enum: [nxdomain, "null", nodata, ""]
+      responses:
+        "200":
+          description: Updated blocklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blocklist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      summary: Remove a blocklist
+      operationId: deleteBlocklist
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/blocklists/{id}/refresh:
+    post:
+      summary: Manually refresh a URL-sourced blocklist
+      operationId: refreshBlocklist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Refresh triggered; returns updated blocklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blocklist"
+        "400":
+          description: Blocklist is not URL-sourced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Allowlist ─────────────────────────────────────────────────────────────
+
+  /api/v1/allowlist:
+    get:
+      summary: List all allowlist entries
+      operationId: listAllowlist
+      responses:
+        "200":
+          description: Array of domain strings (exact or wildcard)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Add a domain to the allowlist
+      operationId: addAllowlistEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+      responses:
+        "201":
+          description: Entry added
+        "400":
+          description: Invalid domain format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Entry already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/allowlist/{domain}:
+    delete:
+      summary: Remove a domain from the allowlist
+      operationId: deleteAllowlistEntry
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Local DNS ─────────────────────────────────────────────────────────────
+
+  /api/v1/local-dns:
+    get:
+      summary: List all local DNS entries
+      operationId: listLocalDns
+      responses:
+        "200":
+          description: Array of local DNS entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LocalDnsEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Add a local DNS entry
+      operationId: createLocalDns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalDnsEntry"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalDnsEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/local-dns/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+
+    put:
+      summary: Replace a local DNS entry
+      operationId: updateLocalDns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalDnsEntry"
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalDnsEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      summary: Delete a local DNS entry
+      operationId: deleteLocalDns
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Query Log ─────────────────────────────────────────────────────────────
+
+  /api/v1/query-log:
+    get:
+      summary: Browse the query log
+      operationId: listQueryLog
+      parameters:
+        - name: client
+          in: query
+          schema:
+            type: string
+          description: Filter by client IP address.
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [forwarded, blocked, local, cached]
+          description: Filter by outcome.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: Maximum number of entries to return.
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset.
+      responses:
+        "200":
+          description: Array of log entries, reverse chronological order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/QueryLogEntry"
+                  total:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Settings ──────────────────────────────────────────────────────────────
+
+  /api/v1/settings:
+    get:
+      summary: Get current settings
+      operationId: getSettings
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      summary: Update settings
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Config Import / Export ────────────────────────────────────────────────
+
+  /api/v1/config/export:
+    get:
+      summary: Export the full configuration as a tar.gz archive
+      operationId: exportConfig
+      responses:
+        "200":
+          description: Configuration archive
+          content:
+            application/gzip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/config/import:
+    post:
+      summary: Import a configuration archive
+      operationId: importConfig
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [archive]
+              properties:
+                archive:
+                  type: string
+                  format: binary
+                  description: tar.gz archive produced by the export endpoint.
+      responses:
+        "200":
+          description: Import successful
+        "400":
+          description: Archive invalid, corrupt, or schema validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Authentication ────────────────────────────────────────────────────────
+
+  /api/v1/auth/setup:
+    post:
+      summary: Set credentials on first run (no auth required)
+      operationId: authSetup
+      security: []
+      description: >
+        Available only when no credentials have been configured yet (first run).
+        Returns 409 if credentials are already set.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "201":
+          description: Credentials set
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Credentials already configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/auth/password:
+    put:
+      summary: Change the admin password
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        "204":
+          description: Password changed
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  components:
+    responses:
+      Unauthorized:
+        description: Authentication required or credentials invalid
+        headers:
+          WWW-Authenticate:
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Error"
