@@ -56,10 +56,40 @@ node:
       ipv4: true
       ipv6: true
   data_dir: "/var/lib/dblock"
+
+# Optional. Consumed exactly once on first boot when no cluster.bbolt exists.
+# Ignored on every subsequent boot. Tokens are single-use; a successful join
+# clears nothing here (the field is just unread next time), so the same
+# node.yaml can be re-deployed as-is.
+bootstrap:
+  leader_address: "http://192.168.1.10:8080"
+  token: "..."
 ```
 
 The same admin can run `node-1` on port 5353 and `node-2` on port 53 in the
 same cluster — DNS listen ports are not portable between nodes.
+
+The binary is invoked with `--config <path/to/node.yaml>`. The data directory
+is `filepath.Dir(--config)` so all four state files (`node.yaml`,
+`cluster.bbolt`, `querylog.bbolt`, `raft/`) live next to each other. The
+shadow `config.yaml` is also written there.
+
+### Test affordances
+
+The following environment variables are honoured **only when**
+`DBLOCK_TEST_MODE=1` is also set. Production builds and operational deployments
+that omit `DBLOCK_TEST_MODE` ignore them, so they cannot weaken security or
+durability outside the test harness.
+
+| Variable | Effect |
+|---|---|
+| `DBLOCK_TEST_TOKEN_TTL_SECONDS` | Overrides the 15-minute join-token TTL with this many seconds (≥ 1). Used by acceptance tests to verify expired-token rejection without sleeping for 15 min. |
+| `DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS` | Overrides the 60-second aggregate-flush interval (≥ 1). Used by acceptance tests to make cluster stats observable in seconds rather than waiting for an hour boundary. |
+
+These exist because their corresponding behaviours are time-driven and would
+otherwise force test suites to either sleep for production-realistic durations
+or invent test-only HTTP endpoints — both worse trade-offs than a documented,
+mode-gated env-var knob.
 
 ## cluster.bbolt — replicated buckets
 
