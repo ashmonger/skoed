@@ -1,0 +1,420 @@
+// Package acceptance contains black-box acceptance tests for dblock.
+// Tests start the dblock binary as a subprocess and interact with it
+// exclusively through port 53 (DNS) and the HTTP management API.
+//
+// Prerequisites:
+//   - Build the dblock binary: cd apps/dblock && go build -o dblock .
+//   - Set DBLOCK_BINARY to override the default binary path.
+//
+// Run: go test ./... -v
+package acceptance
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/miekg/dns"
+	"gopkg.in/yaml.v3"
+)
+
+const (
+	readyTimeout    = 10 * time.Second
+	readyPollInterval = 100 * time.Millisecond
+	dnsQueryTimeout = 3 * time.Second
+
+	defaultUsername = "admin"
+	defaultPassword = "testpass1!"
+)
+
+// Node represents a running dblock instance under test.
+type Node struct {
+	DNSAddr string // "127.0.0.1:port" — UDP/TCP DNS listener
+	APIBase string // "http://127.0.0.1:port" — management API
+	cmd     *exec.Cmd
+}
+
+// NodeConfig drives what gets written to config.yaml before starting the node.
+type NodeConfig struct {
+	Mode             string   // "forwarding" (default) or "recursive"
+	UpstreamResolvers []string // used when Mode="forwarding"
+	TrustedSubnets   []string // used when Mode="recursive"
+	BlockPolicy      string   // global default: "nxdomain" (default), "null", "nodata"
+	// Auth is always set up automatically with defaultUsername / defaultPassword.
+}
+
+// dblockBinary returns the path to the binary under test.
+func dblockBinary(t *testing.T) string {
+	t.Helper()
+	if b := os.Getenv("DBLOCK_BINARY"); b != "" {
+		return b
+	}
+	return filepath.Join("..", "..", "apps", "dblock", "dblock")
+}
+
+// startNode starts a dblock node. The test is skipped if the binary is missing.
+// Cleanup (process kill) is registered automatically via t.Cleanup.
+func startNode(t *testing.T, cfg NodeConfig) *Node {
+	t.Helper()
+
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+
+	dir := t.TempDir()
+	dnsPort := freeUDPPort(t)
+	apiPort := freeTCPPort(t)
+
+	if cfg.Mode == "" {
+		cfg.Mode = "forwarding"
+	}
+	if cfg.BlockPolicy == "" {
+		cfg.BlockPolicy = "nxdomain"
+	}
+
+	writeConfig(t, dir, cfg, dnsPort, apiPort)
+
+	cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
+	cmd.Dir = dir
+	if testing.Verbose() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start dblock: %v", err)
+	}
+
+	n := &Node{
+		DNSAddr: fmt.Sprintf("127.0.0.1:%d", dnsPort),
+		APIBase: fmt.Sprintf("http://127.0.0.1:%d", apiPort),
+		cmd:     cmd,
+	}
+
+	t.Cleanup(func() {
+		cmd.Process.Kill() //nolint:errcheck
+		cmd.Wait()         //nolint:errcheck
+	})
+
+	waitReady(t, n)
+	setupAuth(t, n)
+	return n
+}
+
+// startFakeUpstream starts an in-process UDP DNS server whose handler you control.
+// Returns the "host:port" address. Registered for cleanup via t.Cleanup.
+func startFakeUpstream(t *testing.T, handler dns.HandlerFunc) string {
+	t.Helper()
+
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen fake upstream: %v", err)
+	}
+
+	srv := &dns.Server{
+		PacketConn: pc,
+		Net:        "udp",
+		Handler:    dns.HandlerFunc(handler),
+	}
+
+	started := make(chan struct{})
+	srv.NotifyStartedFunc = func() { close(started) }
+
+	go srv.ActivateAndServe() //nolint:errcheck
+
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fake upstream did not start in time")
+	}
+
+	t.Cleanup(func() { srv.Shutdown() }) //nolint:errcheck
+
+	return pc.LocalAddr().String()
+}
+
+// fakeUpstreamReturnsA returns a handler that answers every A query with the given IP.
+func fakeUpstreamReturnsA(ip string) dns.HandlerFunc {
+	return func(w dns.ResponseWriter, r *dns.Msg) {
+		m := new(dns.Msg)
+		m.SetReply(r)
+		if len(r.Question) > 0 && r.Question[0].Qtype == dns.TypeA {
+			m.Answer = append(m.Answer, &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   r.Question[0].Name,
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				A: net.ParseIP(ip).To4(),
+			})
+		}
+		w.WriteMsg(m) //nolint:errcheck
+	}
+}
+
+// dnsQuery sends a UDP DNS query to server and returns the response.
+func dnsQuery(t *testing.T, server, name string, qtype uint16) *dns.Msg {
+	t.Helper()
+	c := &dns.Client{Net: "udp", Timeout: dnsQueryTimeout}
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn(name), qtype)
+	r, _, err := c.Exchange(m, server)
+	if err != nil {
+		t.Fatalf("DNS query %s %s @%s: %v", name, dns.TypeToString[qtype], server, err)
+	}
+	return r
+}
+
+// dnsQueryWithDO sends a DNS query with the DNSSEC OK bit set.
+func dnsQueryWithDO(t *testing.T, server, name string, qtype uint16) *dns.Msg {
+	t.Helper()
+	c := &dns.Client{Net: "udp", Timeout: dnsQueryTimeout}
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn(name), qtype)
+	m.SetEdns0(4096, true) // DO bit
+	r, _, err := c.Exchange(m, server)
+	if err != nil {
+		t.Fatalf("DNS query (DO) %s %s @%s: %v", name, dns.TypeToString[qtype], server, err)
+	}
+	return r
+}
+
+// apiDo sends an authenticated HTTP request and returns the response.
+// Pass body="" for requests with no body.
+func (n *Node) apiDo(t *testing.T, method, path, body string) *http.Response {
+	t.Helper()
+	return n.apiDoAs(t, method, path, body, defaultUsername, defaultPassword)
+}
+
+// apiDoAs sends an HTTP request with explicit credentials.
+func (n *Node) apiDoAs(t *testing.T, method, path, body, username, password string) *http.Response {
+	t.Helper()
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, n.APIBase+path, bodyReader)
+	if err != nil {
+		t.Fatalf("build request %s %s: %v", method, path, err)
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if username != "" {
+		req.SetBasicAuth(username, password)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request %s %s: %v", method, path, err)
+	}
+	return resp
+}
+
+// apiDoNoAuth sends an HTTP request without any authentication.
+func (n *Node) apiDoNoAuth(t *testing.T, method, path string) *http.Response {
+	t.Helper()
+	return n.apiDoAs(t, method, path, "", "", "")
+}
+
+// mustJSON encodes v as JSON or fails the test.
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal JSON: %v", err)
+	}
+	return string(b)
+}
+
+// readBody reads and closes the response body, returning it as a string.
+func readBody(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+	return string(b)
+}
+
+// assertStatus fails the test if the response status code does not match.
+func assertStatus(t *testing.T, resp *http.Response, want int) {
+	t.Helper()
+	if resp.StatusCode != want {
+		body := readBody(t, resp)
+		t.Fatalf("expected HTTP %d, got %d: %s", want, resp.StatusCode, body)
+	}
+}
+
+// assertRcode fails the test if the DNS response rcode does not match.
+func assertRcode(t *testing.T, msg *dns.Msg, want int) {
+	t.Helper()
+	if msg.Rcode != want {
+		t.Fatalf("expected DNS rcode %s, got %s", dns.RcodeToString[want], dns.RcodeToString[msg.Rcode])
+	}
+}
+
+// assertAnswerA fails the test if the first A record in the response does not match ip.
+func assertAnswerA(t *testing.T, msg *dns.Msg, ip string) {
+	t.Helper()
+	for _, rr := range msg.Answer {
+		if a, ok := rr.(*dns.A); ok {
+			if a.A.String() == ip {
+				return
+			}
+			t.Fatalf("expected A record %s, got %s", ip, a.A.String())
+		}
+	}
+	t.Fatalf("no A record in response: %v", msg)
+}
+
+// assertAnswerAAAA fails if no AAAA record matching ip is present.
+func assertAnswerAAAA(t *testing.T, msg *dns.Msg, ip string) {
+	t.Helper()
+	for _, rr := range msg.Answer {
+		if aaaa, ok := rr.(*dns.AAAA); ok {
+			if aaaa.AAAA.String() == ip {
+				return
+			}
+			t.Fatalf("expected AAAA record %s, got %s", ip, aaaa.AAAA.String())
+		}
+	}
+	t.Fatalf("no AAAA record in response: %v", msg)
+}
+
+// assertNoAnswer fails if the response contains any answer records.
+func assertNoAnswer(t *testing.T, msg *dns.Msg) {
+	t.Helper()
+	if len(msg.Answer) > 0 {
+		t.Fatalf("expected empty answer section, got: %v", msg.Answer)
+	}
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────
+
+func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int) {
+	t.Helper()
+
+	type listenConfig struct {
+		Port int  `yaml:"port"`
+		IPv4 bool `yaml:"ipv4"`
+		IPv6 bool `yaml:"ipv6"`
+	}
+	type cacheConfig struct {
+		Enabled    bool `yaml:"enabled"`
+		MaxEntries int  `yaml:"max_entries"`
+	}
+	type dnsConfig struct {
+		Listen            listenConfig `yaml:"listen"`
+		Mode              string       `yaml:"mode"`
+		UpstreamResolvers []string     `yaml:"upstream_resolvers,omitempty"`
+		TrustedSubnets    []string     `yaml:"trusted_subnets,omitempty"`
+		UpstreamTimeout   int          `yaml:"upstream_timeout_seconds"`
+		Cache             cacheConfig  `yaml:"cache"`
+	}
+	type filteringConfig struct {
+		BlockPolicy string `yaml:"block_policy"`
+	}
+	type apiConfig struct {
+		Port int `yaml:"port"`
+	}
+	type config struct {
+		Version   int             `yaml:"version"`
+		DNS       dnsConfig       `yaml:"dns"`
+		Filtering filteringConfig `yaml:"filtering"`
+		API       apiConfig       `yaml:"api"`
+	}
+
+	c := config{
+		Version: 1,
+		DNS: dnsConfig{
+			Listen:            listenConfig{Port: dnsPort, IPv4: true, IPv6: false},
+			Mode:              cfg.Mode,
+			UpstreamResolvers: cfg.UpstreamResolvers,
+			TrustedSubnets:    cfg.TrustedSubnets,
+			UpstreamTimeout:   3,
+			Cache:             cacheConfig{Enabled: true, MaxEntries: 1000},
+		},
+		Filtering: filteringConfig{BlockPolicy: cfg.BlockPolicy},
+		API:       apiConfig{Port: apiPort},
+	}
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+}
+
+func waitReady(t *testing.T, n *Node) {
+	t.Helper()
+	deadline := time.Now().Add(readyTimeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(n.APIBase + "/api/v1/health")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == 200 || resp.StatusCode == 401 {
+				// 401 means auth not set up yet — node is running
+				return
+			}
+		}
+		time.Sleep(readyPollInterval)
+	}
+	t.Fatalf("dblock did not become ready within %s at %s", readyTimeout, n.APIBase)
+}
+
+func setupAuth(t *testing.T, n *Node) {
+	t.Helper()
+	body := mustJSON(t, map[string]string{
+		"username": defaultUsername,
+		"password": defaultPassword,
+	})
+	req, err := http.NewRequest(http.MethodPost, n.APIBase+"/api/v1/auth/setup",
+		bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("build auth setup request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("auth setup: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 201 && resp.StatusCode != 409 {
+		t.Fatalf("auth setup returned unexpected status %d", resp.StatusCode)
+	}
+}
+
+func freeUDPPort(t *testing.T) int {
+	t.Helper()
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free UDP port: %v", err)
+	}
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+	pc.Close()
+	return port
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free TCP port: %v", err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port
+}
