@@ -15,6 +15,15 @@ None.
 - **Q**: Multi-node sync model?
   **A**: Primary + replicas (push). Hybrid approach: split-brain avoidance via last-seen timestamps and health-check quorum. Full consensus (Raft) deferred to post-M2. — 2026-05-29
 
+- **Q**: M2 — How does a replica become the new primary when the current primary fails?
+  **A**: Hybrid. Manual promotion via UI/API is the default. An opt-in `cluster.auto_failover` setting enables quorum-based automatic promotion for clusters where the admin accepts the split-brain trade-off. — 2026-05-29
+
+- **Q**: M2 — How do config changes propagate from primary to replicas?
+  **A**: Replica pulls from primary via Server-Sent Events. Replicas open a long-lived `GET /api/v1/sync/events` connection; primary emits `config-changed` events with a version number; replicas fetch new config via `GET /api/v1/config/export?since=<version>`. Sub-second propagation; only the primary needs to be reachable. — 2026-05-29
+
+- **Q**: M2 — Is the Helm chart / Kubernetes DaemonSet part of M2 scope?
+  **A**: Deferred to a later milestone (M2.5). M2 focuses on the core sync protocol (enrollment, SSE push, manual + opt-in auto failover, cluster status dashboard). Plain `kubectl apply` of a Deployment remains supported. — 2026-05-29
+
 - **Q**: Parental control scope?
   **A**: All four: category-based blocking, schedule-based blocking, per-device/client profiles, SafeSearch enforcement. — 2026-05-29
 

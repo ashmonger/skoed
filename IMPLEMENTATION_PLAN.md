@@ -1,76 +1,87 @@
 # Implementation Plan
 
 ## Context
+- Planning scope: Milestone 2 — Multi-Node Cluster
+- Roadmap links: ROADMAP.md § Milestone 2
+- Planning horizon: Milestone 2 only; Helm chart (M2.5) and M3+ planned separately
+- Scope summary: A second or third dblock node joins an existing installation via a join token issued by the primary. All config changes on the primary propagate to enrolled replicas within seconds via SSE. Manual failover is the default; opt-in quorum-based auto-failover is available. A cluster status dashboard shows node roles, last-seen timestamps, and sync state. Helm chart is deferred to M2.5.
+
+---
+
+## Previous milestone — Milestone 1 (DONE)
 - Planning scope: Milestone 1 — Single Node Foundation
 - Roadmap links: ROADMAP.md § Milestone 1
-- Planning horizon: Milestone 1 only; M2+ planned after M1 demo validation
-- Scope summary: A single dblock node that serves DNS (forwarding + root resolution, dual-stack, DNSSEC transparent), filters domains via configurable blocklists and allowlists, serves local DNS entries, logs queries, exposes a web UI with basic auth, and supports config import/export. Released as a Linux binary and Docker image.
+- Scope summary: A single dblock node that serves DNS (forwarding + root resolution, dual-stack, DNSSEC transparent), filters domains via configurable blocklists and allowlists, serves local DNS entries, logs queries, exposes a management API with basic auth, and supports config import/export. Released as a Linux binary and Docker image. **Status: merged to master 2026-05-29, 58/58 acceptance tests green.**
 - Assumptions:
-  - `miekg/dns` covers all DNS engine needs (H1 — validated at Slice 1 start).
-  - No external database; all state in YAML files on disk.
-  - Web UI is a compiled Vue.js SPA embedded in the binary via Go `embed`.
+  - SSE over plain HTTP/1.1 is sufficient for sync transport (H3 — validate at Slice 2).
+  - Quorum-based auto-failover with last-seen heartbeats prevents split-brain for ≤ 10 nodes in practice (H2 — validate at Slice 4).
+  - Config state remains on disk as YAML (no external database).
+  - Node-local state (DNS listen port, API port, role) is NOT synced; cluster-wide state (blocklists, allowlists, local DNS, settings, auth) IS synced.
 
-## Global feature sequencing
+## Global feature sequencing (Milestone 2)
 
 | Order | Feature | Outcome | Depends on | FSIDs | TSIDs | Acceptance tests | Status |
 |-------|---------|---------|-----------|-------|-------|-----------------|--------|
-| 1 | DNS Engine Core | Queries resolved via upstream or root DNS; dual-stack; DNSSEC transparent | — | FS-DnsQueryForwarding, FS-RootDnsResolution, FS-DualStackDns, FS-DnssecTransparentProxy | TS-DnsEngine | tests/acceptance/dns_engine_test.go | Planned |
-| 2 | Filtering Engine | Blocked domains return configured response; allowlist overrides | DNS Engine Core | FS-DomainBlocking, FS-BlockPolicyConfiguration, FS-BlocklistManagement, FS-AllowlistManagement | TS-FilteringEngine, TS-BlocklistApi | tests/acceptance/filtering_test.go | Planned |
-| 3 | Local DNS Entries | Admin-defined A/AAAA/CNAME records served to clients | DNS Engine Core | FS-LocalDnsEntryManagement | TS-LocalDnsApi | tests/acceptance/local_dns_test.go | Planned |
-| 4 | Config Store | Full config readable/writable as YAML; import/export works | Filtering Engine, Local DNS | FS-ConfigImportExport | TS-ConfigApi | tests/acceptance/config_test.go | Planned |
-| 5 | Query Log | Every query logged; admin can browse by client and outcome | DNS Engine Core | FS-QueryLog | TS-QueryLogApi | tests/acceptance/query_log_test.go | Planned |
-| 6 | Management API + Auth | All management operations available over HTTP; unauthenticated requests rejected | Config Store, Query Log | FS-WebUiAuthentication | TS-ManagementApi | tests/acceptance/auth_test.go | Planned |
-| 7 | Web UI | SPA embedded in binary; all management features accessible via browser | Management API | (covered by above FSIDs) | TS-WebUi | manual demo | Planned |
-| 8 | Packaging | Linux binary (amd64, arm64) + Docker image (≤ 100 MB) | All slices | — | — | CI size gate | Planned |
+| 1 | Node Enrollment | Replica joins primary using a single-use join token; receives initial config | M1 Management API | FS-NodeEnrollment | TS-ClusterApi | tests/acceptance/enrollment_test.go | Planned |
+| 2 | Config Sync (SSE) | Replicas open `/api/v1/sync/events`; receive `config-changed` events and pull new config within 10s | Node Enrollment | FS-ClusterConfigSync | TS-SyncProtocol | tests/acceptance/sync_test.go | Planned |
+| 3 | Manual Failover | Admin promotes a replica via API; former primary demotes to replica on next contact | Config Sync | FS-ManualFailover | TS-ClusterApi | tests/acceptance/failover_test.go | Planned |
+| 4 | Quorum Auto-Failover (opt-in) | When `cluster.auto_failover=true`, replicas detect primary loss via missed heartbeats and elect a new primary by majority vote | Manual Failover | FS-QuorumAutoFailover | TS-QuorumProtocol | tests/acceptance/quorum_test.go | Planned |
+| 5 | Cluster Status | API exposes all nodes' roles, last-seen, sync state; primary surfaces its replicas, replicas surface their primary | Node Enrollment | FS-ClusterStatus | TS-ClusterApi | tests/acceptance/cluster_status_test.go | Planned |
+| 6 | Sync-Aware Refactor | Existing M1 mutation endpoints reject writes on replicas (read-only); writes accepted only on primary | Config Sync, Cluster Status | (refines M1 FSIDs) | (refines M1 TSIDs) | tests/acceptance/sync_test.go | Planned |
 
 ## Cross-feature dependencies and blockers
 
 | Dependency | Upstream | Downstream | Impact if late | Mitigation | Status |
 |-----------|---------|-----------|---------------|-----------|--------|
-| `miekg/dns` capability | DNS Engine Core | All | Blocked if library insufficient | Evaluate at Slice 1; fallback to coredns library | Open (H1) |
-| Config store schema finalized | Config Store | Import/export, Web UI | Schema churn breaks tests | Finalize schema before writing acceptance tests | Open |
-| Vue.js embed build pipeline | Web UI | Packaging | Binary build broken | Set up build pipeline (Vite + go:generate) at Slice 7 start | Open |
+| Config version counter | Node Enrollment | Config Sync, Manual Failover | Replicas can't detect new config | Add monotonic `config_version` to config root; increment on every mutation | Open |
+| Heartbeat protocol | Cluster Status | Quorum Auto-Failover | Auto-failover impossible without liveness signal | Piggyback on SSE `keep-alive` event every 5s; missed 3× = node lost | Open |
+| Join token lifecycle | Node Enrollment | All cluster ops | Replicas can't authenticate | Tokens are single-use, 15 min TTL, generated on demand by primary | Open |
 
 ## Critical path and milestones
 
-- Critical path: DNS Engine Core → Filtering Engine → Config Store → Management API → Web UI → Packaging
-- Milestone 1:
-  - Exit criteria:
-    - All acceptance tests pass
-    - `docker run` starts a functional node
-    - Linux binary installs and serves DNS within 10 minutes on a fresh host
-    - Config exported from one node and imported on another restores identical behavior
-    - Web UI accessible; blocklist management, local DNS, and query log functional
-    - CI green (tests + image size gate)
+- Critical path: Node Enrollment → Config Sync → Manual Failover → Cluster Status → Quorum Auto-Failover → Sync-Aware Refactor
+- Milestone 2 exit criteria:
+  - All M2 acceptance tests pass
+  - A primary + 2 replicas can be brought up in `docker compose` in under 5 minutes
+  - Config change on the primary visible on both replicas within 10 seconds
+  - Manual promotion of a replica works; former primary demotes cleanly when reachable
+  - With `auto_failover=true`, killing the primary causes a replica to take over within 30 seconds
+  - All M1 acceptance tests remain green (no regressions)
 
 ## Validation checkpoints
 
-- [ ] Functional specs validated by UoR (all M1 .feature files)
-- [ ] Technical specs validated by UoR (OpenAPI for management API + DNS engine notes)
+- [ ] Functional specs validated by UoR (all M2 .feature files)
+- [ ] Technical specs validated by UoR (OpenAPI updates + sync-protocol.md + quorum-protocol.md)
 - [ ] Acceptance tests validated by UoR
-- [ ] Implementation done (all acceptance tests pass)
+- [ ] Implementation done (all M2 acceptance tests pass, no M1 regressions)
 - [ ] CI green
 - [ ] Refactoring validated (acceptance + full tests green after refactor)
-- [ ] Demo prepared and validated by UoR
+- [ ] Demo prepared and validated by UoR (multi-container Docker compose)
 
 ## Risks and trade-offs
 
-- Risk: `miekg/dns` insufficient for root DNS or DNSSEC transparent proxy
-  - Trigger: prototype DNS engine fails to handle root resolution or DNSSEC DO bit forwarding
-  - Response: evaluate `coredns` DNS library as drop-in alternative; log decision in `decisions/`
+- Risk: SSE over HTTP/1.1 doesn't survive transparent proxies / firewalls
+  - Trigger: replica disconnects every N seconds without a clean reason
+  - Response: add periodic reconnection with backoff; document supported network setups; consider WebSocket fallback in M2.5
 
-- Risk: embedded Vue.js SPA inflates binary above 50 MB
-  - Trigger: binary > 50 MB after Vite build + go:generate
-  - Response: audit bundle size; defer non-essential UI features; use dynamic imports
+- Risk: Quorum auto-failover causes split-brain in flaky networks
+  - Trigger: two nodes both claim primary after a partition heals
+  - Response: design coordinated step-down with config version comparison; document as a known limitation; auto-failover stays opt-in
 
-- Risk: blocklist with > 1M domains causes excessive memory use
-  - Trigger: idle RAM > 64 MB with a large blocklist loaded
-  - Response: replace map-based lookup with radix trie or Bloom filter; measure at Slice 2
+- Risk: Join token theft allows unauthorized node enrollment
+  - Trigger: token leaked from logs or terminal history
+  - Response: short TTL (15 min), single-use, primary logs all enrollment attempts; rotate tokens never reused
 
 ## Open questions
 
-None. All M1 questions resolved (see QUESTIONS_AND_ANSWERS.md).
+None. M2 design questions resolved 2026-05-29 (see QUESTIONS_AND_ANSWERS.md).
+
+## Hypotheses to validate in M2
+
+- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain for ≤ 10 nodes. **Validate at Slice 4.**
+- H3: SSE over HTTP/1.1 is sufficient for config sync transport. **Validate at Slice 2 by measuring reconnection behavior.**
 
 ## Change log
 
 - 2026-05-29: Initial plan created for Milestone 1.
+- 2026-05-29: Milestone 1 complete; plan updated for Milestone 2.
