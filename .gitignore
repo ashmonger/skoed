@@ -1,0 +1,19 @@
+# Node-local environment (AGENTS_MODE, secrets)
+.env
+
+# Compiled binaries
+apps/*/dblock
+apps/*/*.exe
+
+# Go build artifacts
+apps/*/vendor/
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Temp files
+*.tmp
+*.bak
