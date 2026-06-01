@@ -60,30 +60,81 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
-### Milestone 3 — Parental Control
+### Milestone 3 — Parental Control + DoH/DoT Detection
 
-**Outcome**: A parent can assign a child's device to a restricted profile with category-based blocking, a schedule that tightens access in the evening, and SafeSearch forced on all search engines — all managed from the web UI.
+**Outcome**: A parent can assign a child's device to a restricted profile with category-based blocking, an evening-tightening schedule, and forced SafeSearch — all managed from the web UI. Clients that try to bypass filtering by switching to public DoH/DoT resolvers are detected and blocked at the DNS hostname layer.
 
 **Capabilities:**
+
+*Parental control:*
 - Per-client profiles: assign blocking rules and allowlists to specific IPs or IP ranges
 - Category-based blocking: curated domain categories (adult content, gambling, social media, gaming, streaming) sourced from OISD and Steven Black lists
 - Schedule-based rules: define block/allow windows by time of day and day of week per profile
 - SafeSearch enforcement: DNS rewriting for Google, Bing, YouTube, DuckDuckGo
 - Profile inheritance: a default profile applies to all unassigned clients
 
+*DoH/DoT detection and Layer-2 blocking:*
+- Default-on `doh-resolvers` blocklist: ~50 known DoH/DoT hostnames (Cloudflare, Google, Quad9, Mullvad, AdGuard, NextDNS, ControlD, …) so clients can't resolve them
+- Explicit handling of `use-application-dns.net` (Firefox canary): always NXDOMAIN, making Firefox auto-disable its DoH-by-default
+- DDR (RFC 9462) probe handling: `_dns.resolver.arpa` queries logged and never served
+- Query log tags entries hitting known DoH bootstrap hostnames with `category: doh-probe` so the eventual dashboard can surface "client tried DoH" events
+
 **Non-goals for this milestone:**
 - Content inspection beyond DNS (no HTTP filtering)
 - Quota-based blocking (time budgets)
 - Per-application blocking
+- Blocking DoH clients pinned to hardcoded IPs (handled by M3.5 + operator firewall config)
 
 **Dependencies:** Milestone 1 complete and validated. Milestone 2 recommended (profiles sync across nodes).
 
 **Risks:**
-- HTTPS bypass: clients using DNS-over-HTTPS directly bypass dblock; mitigated by documentation and optional firewall guidance.
+- Clients with hardcoded resolver IPs (Chrome configured with `1.1.1.1` directly) still bypass DNS-hostname blocking; M3 catches the ~70–80% that uses hostnames, M3.5 + firewall close the rest.
 
 ---
 
-### Milestone 4 — Production Hardening
+### Milestone 3.5 — Per-Client DoH Surfacing + Firewall Recipes
+
+**Outcome**: An admin can see, per client, whether DoH/DoT use is suspected, and apply ready-made firewall snippets to close the hardcoded-IP gap.
+
+**Capabilities:**
+- `GET /api/v1/clients/{ip}/doh-status` returns `using_doh`, `last_doh_query`, `suspected_provider` derived from the query log
+- Dashboard alert: "Client X attempted DoH N times in the last hour"
+- Firewall-rule generator: templates for `iptables`, `nftables`, MikroTik RouterOS, OpnSense/pfSense, and UniFi controllers that block egress 853/tcp + egress 443 to the curated DoH-resolver-IP set, scoped to client subnets
+- Resolver-IP database refresh: same cadence as blocklist refresh; pulled from a curated source
+- Documentation: "Closing the DoH gap" guide that walks through firewall placement
+
+**Non-goals:**
+- dblock pushing rules into routers automatically (operator copy-paste only)
+- SNI-based blocking (belongs at the firewall, not in dblock)
+
+**Dependencies:** Milestone 3 complete.
+
+---
+
+### Milestone 4 — dblock as a DoH/DoT Server
+
+**Outcome**: Devices that *want* encrypted DNS get it from dblock itself, with the same filtering applied. The "fight against DoH" turns into "we serve DoH, just point at us".
+
+**Capabilities:**
+- DoH server on `/dns-query` (RFC 8484) with auto-generated or operator-supplied TLS cert
+- DoT server on port 853 with the same cert
+- Same filter, local-DNS, and query-log pipeline as plain DNS — `outcome` field gains values like `forwarded-doh`, `blocked-doh` for analytics
+- Optional ACME (Let's Encrypt) integration for the TLS cert
+- Per-listen-protocol enable/disable in `node.dns.listen` (`port`, `doh_port`, `dot_port`)
+- Cluster: every node serves DoH/DoT on its own listen address; clients can target any node
+
+**Non-goals:**
+- DNSCrypt (rare in modern clients)
+- HTTP/3 (DoH3) — defer; clients are slow to adopt
+
+**Dependencies:** Milestones 1–3 complete. M2 cluster mode for multi-node DoH endpoints.
+
+**Risks:**
+- Cert lifecycle in air-gapped deployments — manual cert provisioning supported as fallback.
+
+---
+
+### Milestone 5 — Production Hardening
 
 **Outcome**: dblock is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
 
@@ -97,16 +148,17 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 **Non-goals for this milestone:**
 - GUI-driven OS updates
-- HA active-active cluster with Raft consensus (deferred to post-Milestone 4)
+- HA active-active cluster with Raft consensus (deferred to post-Milestone 5)
 
-**Dependencies:** Milestones 1–3 complete and validated.
+**Dependencies:** Milestones 1–4 complete and validated.
 
 ---
 
-## Post-Milestone 4 (backlog, not committed)
+## Post-Milestone 5 (backlog, not committed)
 
 - Active-active cluster mode (any-node writes, Raft-based consensus)
-- DNS-over-HTTPS (DoH) and DNS-over-TLS (DoT) server endpoints
+- DoH3 / HTTP/3 server endpoint
+- DNSCrypt server endpoint
 - API token authentication (replace basic auth)
 - IPv6-only and dual-stack network support validation
 - Operator (Kubernetes) for lifecycle management
