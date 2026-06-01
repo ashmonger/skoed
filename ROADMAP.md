@@ -60,9 +60,55 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
+### Milestone 2.5 — Helm Chart (Kubernetes deployment)
+
+**Outcome**: dblock deploys onto a Kubernetes cluster via a single `helm install`. Per-node DNS service is reachable on each Kubernetes node; the Raft cluster forms automatically.
+
+**Capabilities:**
+- Helm chart in `deploy/helm/dblock/` with `values.yaml` exposing image tag, replica count, resource requests/limits, persistent-volume size, upstream resolvers, and the bootstrap-token Secret
+- `DaemonSet` topology (one dblock pod per node) with `hostPort: 53` for the DNS listener
+- `Service` per pod for the management API (`ClusterIP` by default, optional `NodePort`)
+- `PersistentVolumeClaim` per pod for the data directory (raft/, bbolt, shadow config.yaml)
+- `Secret` for the join token used by replica pods on first start
+- CI: `kind` or `k3s` smoke test installing the chart and running a subset of the M2 acceptance tests against the pods
+
+**Non-goals:**
+- Operator pattern / CRDs (manual `helm upgrade` is enough)
+- ACME / cert-manager integration (defer to M4)
+
+**Dependencies:** Milestone 2 complete and validated. Independent of the Web UI work in M2.6.
+
+---
+
+### Milestone 2.6 — Web UI
+
+**Outcome**: A browser-based UI ships embedded in the dblock binary, served by the existing management API. Every admin task currently doable via `curl` is doable via point-and-click on every supported milestone-1/2 endpoint.
+
+**Capabilities:**
+- SPA (Vue 3 + Vite, or Svelte — TBD at design time) compiled and embedded via `//go:embed web/dist`; served from `/` when authenticated
+- Login screen using the existing Basic Auth credentials; first-run setup flow
+- **Read views:** cluster topology / health, blocklists (with domain counts and last-updated), allowlist, local DNS entries, settings (DNS upstreams, block policy, query log retention), query log (live tail + filters), cluster stats (per-node + cluster-wide totals)
+- **Write views:** create/edit/delete blocklists (URL or manual entries), allowlist add/remove, local DNS CRUD, settings patch, password change, token generation for new cluster members
+- Responsive layout (mobile-friendly) for at-a-glance home dashboards
+- Build pipeline: `go generate ./...` triggers a Vite build and copies `dist/` into the embed directory; `make build` includes it
+- Same binary size budget: aim for ≤ 25 MB final image after UI embed
+
+**Non-goals:**
+- Custom theming / branding
+- Multi-language i18n (English only at first)
+- Cluster management primitives beyond what M2 already exposes (no operator-style "drain node" buttons)
+
+**Dependencies:** Milestone 2 complete (Web UI exposes M2 endpoints from the start, no API changes needed).
+
+**Risks:**
+- Build pipeline complexity: cross-platform `npm` invocation from `go generate` is fiddly — mitigation: document the build steps and ship a `Makefile` target.
+- Binary size: bundle audit at design time; if > 25 MB, defer non-essential views.
+
+---
+
 ### Milestone 3 — Parental Control + DoH/DoT Detection
 
-**Outcome**: A parent can assign a child's device to a restricted profile with category-based blocking, an evening-tightening schedule, and forced SafeSearch — all managed from the web UI. Clients that try to bypass filtering by switching to public DoH/DoT resolvers are detected and blocked at the DNS hostname layer.
+**Outcome**: A parent can assign a child's device to a restricted profile with category-based blocking, an evening-tightening schedule, and forced SafeSearch — all managed from the M2.6 Web UI. Clients that try to bypass filtering by switching to public DoH/DoT resolvers are detected and blocked at the DNS hostname layer.
 
 **Capabilities:**
 
@@ -85,7 +131,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 - Per-application blocking
 - Blocking DoH clients pinned to hardcoded IPs (handled by M3.5 + operator firewall config)
 
-**Dependencies:** Milestone 1 complete and validated. Milestone 2 recommended (profiles sync across nodes).
+**Dependencies:** Milestone 1 complete and validated. Milestone 2 recommended (profiles sync across nodes). Milestone 2.6 (Web UI) required — per-client profiles with schedules and category pickers are unmanageable via raw API calls.
 
 **Risks:**
 - Clients with hardcoded resolver IPs (Chrome configured with `1.1.1.1` directly) still bypass DNS-hostname blocking; M3 catches the ~70–80% that uses hostnames, M3.5 + firewall close the rest.
