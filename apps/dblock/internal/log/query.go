@@ -41,6 +41,7 @@ type QueryLog struct {
 	mu         sync.Mutex
 	entries    []Entry
 	maxEntries int
+	observer   func(Entry) // optional fan-out for cluster aggregator
 }
 
 // New creates a QueryLog with the given maximum number of entries.
@@ -54,6 +55,15 @@ func New(maxEntries int) *QueryLog {
 	}
 }
 
+// SetObserver registers fn to be called after every Append. Used by the
+// cluster aggregator to count events as they happen without polling the log.
+// fn must be fast (it runs under Append's lock); offload heavy work.
+func (l *QueryLog) SetObserver(fn func(Entry)) {
+	l.mu.Lock()
+	l.observer = fn
+	l.mu.Unlock()
+}
+
 // Append adds an entry to the log. If the log is at capacity, the oldest
 // entry is dropped to make room.
 func (l *QueryLog) Append(e Entry) {
@@ -61,16 +71,18 @@ func (l *QueryLog) Append(e Entry) {
 		e.ID = newEntryID()
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.maxEntries <= 0 {
-		return
+	if l.maxEntries > 0 {
+		if len(l.entries) >= l.maxEntries {
+			copy(l.entries, l.entries[1:])
+			l.entries = l.entries[:len(l.entries)-1]
+		}
+		l.entries = append(l.entries, e)
 	}
-	if len(l.entries) >= l.maxEntries {
-		// Drop oldest entry (index 0) by shifting.
-		copy(l.entries, l.entries[1:])
-		l.entries = l.entries[:len(l.entries)-1]
+	obs := l.observer
+	l.mu.Unlock()
+	if obs != nil {
+		obs(e)
 	}
-	l.entries = append(l.entries, e)
 }
 
 // Query returns entries matching the optional filters in reverse chronological

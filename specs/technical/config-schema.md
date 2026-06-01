@@ -1,5 +1,11 @@
 # Config Schema — Technical Specification
 
+> **M2 status:** Since the move to Raft+bbolt, the YAML form documented here
+> is **import/export only** — it is the wire format for `GET /config/export`
+> and `POST /config/import`, and the on-disk form during an M1→M2 migration.
+> The live state is the bbolt store described in `cluster-store.md`.
+> Editing `config.yaml` on disk after boot has no effect.
+
 x-tsid: TS-ConfigSchema
 x-fsid-links:
   - FS-BlocklistAddFromUrl

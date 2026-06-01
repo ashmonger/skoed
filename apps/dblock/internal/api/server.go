@@ -11,15 +11,13 @@ type Server struct {
 	httpServer *http.Server
 }
 
-// NewServer creates a Server that will listen on the port specified in app.Cfg.API.
+// NewServer creates a Server that listens on the node's API address from
+// node.yaml. The API address is node-local and never replicated.
 func NewServer(app *App) *Server {
-	app.mu.RLock()
-	port := app.cfg.API.Port
-	app.mu.RUnlock()
-
+	addr := app.GetCluster().Node().Node.APIAddress
 	return &Server{
 		httpServer: &http.Server{
-			Addr:    fmt.Sprintf(":%d", port),
+			Addr:    addr,
 			Handler: app.Router(),
 		},
 	}

@@ -14,21 +14,23 @@ Build dblock: a self-hosted DNS filtering and parental control solution with mul
 
 ## Active feature
 
-**Milestone 1 — Single Node Foundation**
-Current phase: **Phase 4 — Implementation (Milestone 1)**
+**Milestone 2 — Multi-Node Cluster**
+Current phase: **Phase 1 — Functional Specifications**
 
 ## Current tasks
 
-- [x] UoR validates the four foundation artifacts (PROBLEM_STATEMENT, UBIQUITOUS_LANGUAGE, GLOBAL_TECHNICAL_ARCHITECTURE, ROADMAP) — 2026-05-29
-- [ ] Create IMPLEMENTATION_PLAN.md for Milestone 1
-- [x] Write functional specs for Milestone 1 features (11 .feature files) — 2026-05-29
-- [x] Write technical specs (3 artifacts: dns-engine.md, config-schema.md, management-api.openapi.yaml) — 2026-05-29
-- [x] Write acceptance tests (6 files + harness in tests/acceptance/) — 2026-05-29
-- [x] Implement Milestone 1 — all 58 acceptance tests green — 2026-05-29
-- [x] Refactoring phase (no behavior change) — all 58 acceptance tests remain green — 2026-05-29
-- [x] Demo: two-container Docker demo completed — 2026-05-29 (see DEMO_NOTE.md)
-- [x] UoR validation — 2026-05-29
-- [x] Merged to master, branch deleted — 2026-05-29
+- [x] M1 — merged to master, all 58 acceptance tests green, demo validated — 2026-05-29
+- [x] M2 — initial design questions answered (failover model, sync direction, Helm scope) — 2026-05-29
+- [x] M2 — architecture pivot: hashicorp/raft + bbolt as source of truth; obsoletes SSE / manual+quorum failover — 2026-05-29
+- [x] M2 — IMPLEMENTATION_PLAN.md updated — 2026-05-29
+- [x] M2 — functional specs revised for Raft architecture (5 .feature files: node-enrollment, cluster-config-sync, leader-failover, cluster-status, query-log-aggregates) — 2026-05-29
+- [x] M2 — technical specs written: OpenAPI extended with /cluster/* endpoints; raft-fsm.md, cluster-store.md, query-log-cluster.md added; config-schema.md flagged as import/export only — 2026-05-29
+- [x] M2 — shadow YAML on disk for PBS / filesystem-level backups: spec'd (config-shadow-yaml.feature) and documented in cluster-store.md / raft-fsm.md — 2026-05-29
+- [ ] M2 — Write acceptance tests
+- [ ] M2 — Implementation
+- [ ] M2 — Refactoring phase
+- [ ] M2 — Demo: docker compose with primary + 2 replicas
+- [ ] M2 — UoR validation and merge to master
 
 ## Blockers
 
@@ -36,8 +38,7 @@ None.
 
 ## Open questions
 
-- Multi-node sync model: will use primary+replica with last-seen timestamp quorum. Full consensus (Raft) deferred. — hypothesis, to be validated during M2 design.
-- None.
+None for M2 design (see QUESTIONS_AND_ANSWERS.md for resolved M2 decisions).
 
 ## Resolved questions
 
@@ -51,8 +52,11 @@ None.
 ## Hypotheses
 
 - H1: `miekg/dns` is sufficient for dblock's DNS engine needs (forwarding + root resolution). — **VALIDATED** at M1 implementation (2026-05-29).
-- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain in practice for home/lab scale (≤ 10 nodes). — open, validate at M2.
+- H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain in practice for home/lab scale (≤ 10 nodes). — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
+- H3: SSE over HTTP/1.1 is sufficient for config sync transport. — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
+- H4: hashicorp/raft + go.etcd.io/bbolt are operationally suitable for dblock's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state). — open, validate throughout M2.
 
 ## Done when
 
-- Milestone 1: single node serves DNS, blocks ads, serves local entries, has a working web UI, and config can be imported/exported. All acceptance tests green.
+- Milestone 1: single node serves DNS, blocks ads, serves local entries, supports config import/export. All acceptance tests green. — **DONE** 2026-05-29.
+- Milestone 2: primary + 2 replicas brought up in `docker compose`; config change on primary visible on replicas within 10s; manual + opt-in auto failover work; cluster status dashboard surfaces node roles and last-seen.
