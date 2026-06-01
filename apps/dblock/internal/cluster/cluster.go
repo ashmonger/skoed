@@ -192,87 +192,71 @@ func (c *Cluster) requireLeader() error {
 	return nil
 }
 
-// UpsertBlocklist commits the full blocklist (create or replace).
-func (c *Cluster) UpsertBlocklist(bl config.Blocklist) error {
+// applyAsLeader is the common path for every typed mutation method: require
+// leadership, then Raft-apply the encoded command. A zero timeout falls back
+// to ApplyTimeout; callers with unusually large payloads (e.g. ConfigImport)
+// can override.
+func (c *Cluster) applyAsLeader(kind CommandKind, payload any, timeout time.Duration) error {
 	if err := c.requireLeader(); err != nil {
 		return err
 	}
-	return c.raft.ApplyCommand(CmdBlocklistUpsert, BlocklistUpsertPayload{Blocklist: bl}, ApplyTimeout)
+	if timeout <= 0 {
+		timeout = ApplyTimeout
+	}
+	return c.raft.ApplyCommand(kind, payload, timeout)
+}
+
+// UpsertBlocklist commits the full blocklist (create or replace).
+func (c *Cluster) UpsertBlocklist(bl config.Blocklist) error {
+	return c.applyAsLeader(CmdBlocklistUpsert, BlocklistUpsertPayload{Blocklist: bl}, 0)
 }
 
 // DeleteBlocklist removes a blocklist by id.
 func (c *Cluster) DeleteBlocklist(id string) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdBlocklistDelete, BlocklistDeletePayload{ID: id}, ApplyTimeout)
+	return c.applyAsLeader(CmdBlocklistDelete, BlocklistDeletePayload{ID: id}, 0)
 }
 
 // SetBlocklistEnabled toggles the enabled flag on an existing blocklist.
 func (c *Cluster) SetBlocklistEnabled(id string, enabled bool) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdBlocklistSetEnabled,
-		BlocklistSetEnabledPayload{ID: id, Enabled: enabled}, ApplyTimeout)
+	return c.applyAsLeader(CmdBlocklistSetEnabled, BlocklistSetEnabledPayload{ID: id, Enabled: enabled}, 0)
 }
 
 // AddAllowlistEntry adds a domain to the allowlist.
 func (c *Cluster) AddAllowlistEntry(domain string) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdAllowlistAdd, AllowlistAddPayload{Domain: domain}, ApplyTimeout)
+	return c.applyAsLeader(CmdAllowlistAdd, AllowlistAddPayload{Domain: domain}, 0)
 }
 
 // RemoveAllowlistEntry removes a domain from the allowlist.
 func (c *Cluster) RemoveAllowlistEntry(domain string) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdAllowlistRemove, AllowlistRemovePayload{Domain: domain}, ApplyTimeout)
+	return c.applyAsLeader(CmdAllowlistRemove, AllowlistRemovePayload{Domain: domain}, 0)
 }
 
 // UpsertLocalDNS commits a local DNS entry.
 func (c *Cluster) UpsertLocalDNS(entry config.LocalDNSEntry) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdLocalDNSUpsert, LocalDNSUpsertPayload{Entry: entry}, ApplyTimeout)
+	return c.applyAsLeader(CmdLocalDNSUpsert, LocalDNSUpsertPayload{Entry: entry}, 0)
 }
 
 // DeleteLocalDNS removes a local DNS entry by id.
 func (c *Cluster) DeleteLocalDNS(id string) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdLocalDNSDelete, LocalDNSDeletePayload{ID: id}, ApplyTimeout)
+	return c.applyAsLeader(CmdLocalDNSDelete, LocalDNSDeletePayload{ID: id}, 0)
 }
 
 // PatchSettings applies a partial settings update.
 func (c *Cluster) PatchSettings(p SettingsPatchPayload) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdSettingsPatch, p, ApplyTimeout)
+	return c.applyAsLeader(CmdSettingsPatch, p, 0)
 }
 
 // SetCredentials writes admin credentials (username + bcrypt hash).
 func (c *Cluster) SetCredentials(username, passwordHash string) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdAuthSetCredentials,
-		AuthSetCredentialsPayload{Username: username, PasswordHash: passwordHash}, ApplyTimeout)
+	return c.applyAsLeader(CmdAuthSetCredentials,
+		AuthSetCredentialsPayload{Username: username, PasswordHash: passwordHash}, 0)
 }
 
 // ImportFromM1 replays a full M1 config snapshot into bbolt as a single
-// atomic FSM command. Used only by the migration path.
+// atomic FSM command. Used only by the migration path; the larger payload
+// warrants a longer apply timeout than the default.
 func (c *Cluster) ImportFromM1(snapshot config.Config) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdConfigImport, ConfigImportPayload{Snapshot: snapshot}, 10*time.Second)
+	return c.applyAsLeader(CmdConfigImport, ConfigImportPayload{Snapshot: snapshot}, 10*time.Second)
 }
 
 // CommitHourlyAggregate writes a hourly aggregate to the replicated stats
@@ -402,10 +386,7 @@ func (c *Cluster) EnsureClusterSecret() error {
 // PruneAggregatesBefore deletes hourly aggregates older than the given unix
 // timestamp.
 func (c *Cluster) PruneAggregatesBefore(beforeUnix int64) error {
-	if err := c.requireLeader(); err != nil {
-		return err
-	}
-	return c.raft.ApplyCommand(CmdStatsPrune, StatsPrunePayload{BeforeUnix: beforeUnix}, ApplyTimeout)
+	return c.applyAsLeader(CmdStatsPrune, StatsPrunePayload{BeforeUnix: beforeUnix}, 0)
 }
 
 // ============================================================================

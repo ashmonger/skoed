@@ -291,32 +291,11 @@ func (h *Handler) ClusterHealth(w http.ResponseWriter, r *http.Request) {
 	// Count reachable peers. The local node always counts as reachable.
 	reachable := 1
 	if resp.Members > 1 {
-		client := &http.Client{Timeout: 800 * time.Millisecond}
-		authHeader := r.Header.Get("Authorization")
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		for _, s := range servers {
-			id := string(s.ID)
-			if id == localID {
-				continue
+		for _, r := range probeAllPeers(c, localID, r.Header.Get("Authorization")) {
+			if r.alive {
+				reachable++
 			}
-			m, _ := c.Store().MemberByID(id)
-			if m == nil || m.APIAddress == "" {
-				continue
-			}
-			apiAddr := m.APIAddress
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				r := probePeer(client, apiAddr, authHeader)
-				if r.alive {
-					mu.Lock()
-					reachable++
-					mu.Unlock()
-				}
-			}()
 		}
-		wg.Wait()
 	}
 	resp.ReachableMembers = reachable
 
@@ -447,36 +426,10 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		peers = append(peers, pv)
 	}
 
-	// Probe every peer (except self) in parallel to find live ones and learn
-	// their commit indices. hashicorp/raft doesn't expose per-peer commit
-	// index in Stats(), so we ask each peer directly.
-	type probeResult struct {
-		alive       bool
-		commitIndex uint64
-	}
-	results := make(map[string]probeResult, len(peers))
-	var resMu sync.Mutex
-	var wg sync.WaitGroup
-	client := &http.Client{Timeout: 800 * time.Millisecond}
-	for _, p := range peers {
-		if p.id == localID {
-			continue
-		}
-		if p.apiAddr == "" {
-			results[p.id] = probeResult{}
-			continue
-		}
-		p := p
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			r := probePeer(client, p.apiAddr, r.Header.Get("Authorization"))
-			resMu.Lock()
-			results[p.id] = r
-			resMu.Unlock()
-		}()
-	}
-	wg.Wait()
+	// Probe every peer (except self) in parallel to learn liveness and
+	// commit_index. hashicorp/raft doesn't expose per-peer commit_index in
+	// Stats(), so we ask each peer directly via /cluster/self.
+	results := probeAllPeers(c, localID, r.Header.Get("Authorization"))
 
 	for _, p := range peers {
 		entry := clusterNodeEntry{
@@ -520,6 +473,52 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(out.Nodes, func(i, j int) bool { return out.Nodes[i].NodeID < out.Nodes[j].NodeID })
 
 	writeJSON(w, http.StatusOK, out)
+}
+
+// peerProbeResult is what one probeAllPeers entry yields. alive is false
+// when the peer didn't respond within the probe timeout or had no known
+// api_address; commitIndex is 0 in that case.
+type peerProbeResult struct {
+	alive       bool
+	commitIndex uint64
+}
+
+// probeAllPeers fan-outs probePeer to every cluster member except localID
+// using the shared HTTP timeout. Each call inherits the caller's
+// Authorization header. Missing api_address counts as not-alive but is still
+// keyed in the returned map so the caller can iterate the full member list
+// uniformly. Both ClusterStatus and ClusterHealth use this; keeping the
+// pattern in one place avoids drift between the two views.
+func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]peerProbeResult {
+	servers := c.MembersFromRaftConfig()
+	out := make(map[string]peerProbeResult, len(servers))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	client := &http.Client{Timeout: 800 * time.Millisecond}
+	for _, s := range servers {
+		id := string(s.ID)
+		if id == localID {
+			continue
+		}
+		m, _ := c.Store().MemberByID(id)
+		if m == nil || m.APIAddress == "" {
+			mu.Lock()
+			out[id] = peerProbeResult{}
+			mu.Unlock()
+			continue
+		}
+		apiAddr := m.APIAddress
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := probePeer(client, apiAddr, authHeader)
+			mu.Lock()
+			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex}
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return out
 }
 
 // probePeer GETs the peer's /api/v1/cluster/self endpoint, a deliberately
