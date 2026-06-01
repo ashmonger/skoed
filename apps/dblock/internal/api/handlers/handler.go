@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/dblock/dblock/internal/auth"
+	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/filter"
 	"github.com/dblock/dblock/internal/log"
@@ -39,6 +40,10 @@ type AppState interface {
 	GetAuth() *auth.Store
 	GetFilterEng() *filter.Engine
 	GetQueryLog() *log.QueryLog
+
+	// GetCluster returns the *cluster.Cluster owned by the app, or nil when the
+	// server is running in M1 (non-clustered) mode.
+	GetCluster() *cluster.Cluster
 
 	Dir() string
 }

@@ -291,6 +291,7 @@ api:
 	cn := c.spawnNodeInDir(t, dir, cfg)
 	c.nodes = append(c.nodes, cn)
 
+	waitReady(t, cn.Node)
 	setupAuth(t, cn.Node)
 
 	// After migration, the blocklist defined in YAML is now in bbolt.
@@ -333,6 +334,21 @@ func TestNodeRemoval(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+
+	// Removed node is no longer a Raft voter, so WaitConverged would loop
+	// forever waiting for it to catch up to the leader's commit index. Kill
+	// the orphan process and mark its slot so WaitConverged skips it.
+	victimIdx := -1
+	for i := 0; i < c.Size(); i++ {
+		if c.Node(i) == victim {
+			victimIdx = i
+			break
+		}
+	}
+	if victimIdx < 0 {
+		t.Fatalf("could not locate victim node %s in cluster", victim.NodeID)
+	}
+	c.KillNode(t, victimIdx)
 
 	// Cluster still accepts writes via remaining majority.
 	c.MustCreateBlocklist(t, leader, "leader-write-after-removal", "post.example.com")

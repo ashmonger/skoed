@@ -28,24 +28,29 @@ x-fsid-links:
 
 ```
 /var/lib/dblock/
-├── node.yaml             # node-local, NOT replicated
-├── cluster.bbolt         # replicated state machine; source of truth
+├── config.yaml           # SINGLE per-node file. Combines node-local
+│                         # settings (id, raft_address, api_address, dns
+│                         # listen) with a write-through shadow of the
+│                         # replicated state (blocklists, allowlist, …).
+│                         # On startup: node-local is read; cluster-replicated
+│                         # is read only on first boot (migration into bbolt).
+│                         # While running: bbolt is source of truth; the shadow
+│                         # writer rewrites this file after every commit,
+│                         # preserving the node section verbatim.
+├── cluster.bbolt         # replicated state machine; runtime source of truth
 ├── querylog.bbolt        # per-node raw query log; NOT replicated
-├── raft/
-│   ├── raft-log.bolt     # Raft log store
-│   ├── raft-stable.bolt  # Raft stable store (term, vote)
-│   └── snapshots/        # periodic Raft snapshots
-└── config.yaml           # write-through shadow of bbolt (M1 format);
-                          # always current for backup tools (PBS, restic, etc.);
-                          # NEVER read by a running node — bbolt wins.
-                          # See "Shadow YAML" below.
+└── raft/
+    ├── raft-log.bolt     # Raft log store
+    ├── raft-stable.bolt  # Raft stable store (term, vote)
+    └── snapshots/        # periodic Raft snapshots
 ```
 
-## node.yaml (node-local, not replicated)
-
-Keys that depend on the host and must not be overwritten by Raft:
+## config.yaml — the single per-node file
 
 ```yaml
+schema_version: 1
+
+# Node-local. Never replicated; preserved verbatim across shadow rewrites.
 node:
   id: "node-1"                 # stable identifier used in Raft membership
   raft_address: "0.0.0.0:7000" # bound for Raft RPC traffic
@@ -57,22 +62,48 @@ node:
       ipv6: true
   data_dir: "/var/lib/dblock"
 
-# Optional. Consumed exactly once on first boot when no cluster.bbolt exists.
-# Ignored on every subsequent boot. Tokens are single-use; a successful join
-# clears nothing here (the field is just unread next time), so the same
-# node.yaml can be re-deployed as-is.
+# Optional. Consumed exactly once on first boot when no cluster.bbolt exists;
+# ignored on every subsequent boot. Tokens are single-use; the field is
+# simply unread next time, so the same config.yaml can be re-deployed as-is.
 bootstrap:
   leader_address: "http://192.168.1.10:8080"
   token: "..."
+
+# Cluster-replicated state. On first boot this section seeds bbolt; on every
+# subsequent boot bbolt is the source of truth and this section is rewritten
+# by the shadow writer after every Raft commit.
+dns:
+  mode: forwarding
+  upstream_resolvers: ["9.9.9.9:53"]
+  upstream_timeout_seconds: 3
+  cache: {enabled: true, max_entries: 1000}
+filtering:
+  block_policy: nxdomain
+  blocklists: []
+  allowlist: []
+local_dns:
+  entries: []
+query_log:
+  max_entries: 10000
+auth:
+  username: admin
+  password_hash: "$2a$..."
 ```
 
 The same admin can run `node-1` on port 5353 and `node-2` on port 53 in the
-same cluster — DNS listen ports are not portable between nodes.
+same cluster — `node.dns.listen.port` is per-host and never replicated.
 
-The binary is invoked with `--config <path/to/node.yaml>`. The data directory
-is `filepath.Dir(--config)` so all four state files (`node.yaml`,
-`cluster.bbolt`, `querylog.bbolt`, `raft/`) live next to each other. The
-shadow `config.yaml` is also written there.
+The binary is invoked with `--config <path/to/config.yaml>`. The data
+directory is `node.data_dir` (defaulting to `filepath.Dir(--config)`), and
+all state files (`cluster.bbolt`, `querylog.bbolt`, `raft/`) live there.
+
+### Backward compatibility with M1 config.yaml
+
+M1 config files have no `node:` section. The M2 binary synthesises one when
+it sees an M1 file: `node.id="node-1"`, listen ports taken from `dns.listen`
+and `api.port`, `raft_address=127.0.0.1:0` (picked at start). The cluster-
+replicated sections are migrated into bbolt as if they were the bootstrap
+seed. Existing M1 deployments need no manual conversion.
 
 ### Test affordances
 

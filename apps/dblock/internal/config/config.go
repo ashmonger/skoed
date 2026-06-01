@@ -84,7 +84,8 @@ type APIConfig struct {
 }
 
 type QueryLogConfig struct {
-	MaxEntries int `yaml:"max_entries" json:"max_entries"`
+	MaxEntries             int `yaml:"max_entries"               json:"max_entries"`
+	AggregateRetentionDays int `yaml:"aggregate_retention_days"  json:"aggregate_retention_days"`
 }
 
 type AuthConfig struct {
@@ -122,6 +123,9 @@ func (c *Config) Defaults() {
 	}
 	if c.QueryLog.MaxEntries == 0 {
 		c.QueryLog.MaxEntries = 10000
+	}
+	if c.QueryLog.AggregateRetentionDays == 0 {
+		c.QueryLog.AggregateRetentionDays = 30
 	}
 	for i := range c.DNS.UpstreamResolvers {
 		c.DNS.UpstreamResolvers[i] = normaliseUpstream(c.DNS.UpstreamResolvers[i])

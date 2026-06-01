@@ -5,84 +5,131 @@ import (
 	"sync"
 
 	"github.com/dblock/dblock/internal/api/handlers"
+	apimw "github.com/dblock/dblock/internal/api/middleware"
 	"github.com/dblock/dblock/internal/auth"
+	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/filter"
-	"github.com/dblock/dblock/internal/log"
+	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// App is the central state holder for the HTTP management API.
-// All config mutations go through its methods to ensure thread safety.
+// App is the HTTP-facing facade over the cluster. It owns the live
+// *cluster.Cluster (Raft+bbolt) and a cached *config.Config snapshot kept in
+// sync by a Subscribe callback. All mutations are routed through Raft so
+// every node converges on the same state.
 type App struct {
-	dir        string         // config directory (for Save, Export, Import)
-	cfg        *config.Config // current live config
-	authStore  *auth.Store
-	filterEng  *filter.Engine
-	queryLog   *log.QueryLog
-	rebuildDNS func(*config.Config) error // called after config changes that affect DNS
-	mu         sync.RWMutex              // protects cfg, filterEng (not queryLog — it has its own lock)
+	cluster   *cluster.Cluster
+	authStore *auth.Store
+	queryLog  *dlog.QueryLog
+
+	// rebuildDNS is invoked after every committed FSM apply that may have
+	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
+	rebuildDNS func(*config.Config) error
+
+	// cfg + filterEng are caches refreshed on every committed apply via the
+	// onApply Subscribe callback. cfgMu guards both.
+	cfgMu     sync.RWMutex
+	cfg       *config.Config
+	filterEng *filter.Engine
 }
 
-// NewApp creates an App. rebuildDNS may be nil if no DNS server is managed.
+// NewApp wires up the facade. cluster must be already running (Raft started);
+// authStore and queryLog are node-local services. rebuildDNS may be nil if
+// no DNS server is managed.
 func NewApp(
-	dir string,
-	cfg *config.Config,
+	c *cluster.Cluster,
 	authStore *auth.Store,
-	filterEng *filter.Engine,
-	queryLog *log.QueryLog,
+	queryLog *dlog.QueryLog,
 	rebuildDNS func(*config.Config) error,
 ) *App {
-	return &App{
-		dir:        dir,
-		cfg:        cfg,
+	a := &App{
+		cluster:    c,
 		authStore:  authStore,
-		filterEng:  filterEng,
 		queryLog:   queryLog,
 		rebuildDNS: rebuildDNS,
+	}
+	// Prime the cache.
+	if snap, err := c.Store().Snapshot(); err == nil {
+		a.cfg = snap
+		a.filterEng = filter.New(snap.Filtering)
+	} else {
+		a.cfg = &config.Config{}
+		a.filterEng = filter.New(config.FilteringConfig{})
+	}
+	// Keep the cache fresh after every replicated apply.
+	c.Subscribe(a.onApply)
+	return a
+}
+
+// onApply runs after every committed FSM apply on this node. It refreshes
+// the cached config, rebuilds the filter engine, syncs the auth store, and
+// fires the DNS rebuild callback. Errors are swallowed so an apply never
+// fails because of a downstream rebuild.
+func (a *App) onApply() {
+	snap, err := a.cluster.Store().Snapshot()
+	if err != nil {
+		return
+	}
+	a.cfgMu.Lock()
+	a.cfg = snap
+	a.filterEng = filter.New(snap.Filtering)
+	a.cfgMu.Unlock()
+
+	// Sync auth.Store with the replicated credentials so admin can log into
+	// any node with the same password.
+	if snap.Auth.Username != "" && snap.Auth.PasswordHash != "" {
+		a.authStore.SetHashedCredentials(snap.Auth.Username, snap.Auth.PasswordHash)
+	}
+
+	if a.rebuildDNS != nil {
+		_ = a.rebuildDNS(snap)
 	}
 }
 
 // --- handlers.AppState implementation ---
 
-// GetCfg returns the current config. The caller must hold the read lock.
+// GetCfg returns the current snapshot. Callers must not mutate it; the
+// returned pointer is shared with concurrent readers.
 func (a *App) GetCfg() *config.Config {
+	a.cfgMu.RLock()
+	defer a.cfgMu.RUnlock()
 	return a.cfg
 }
 
-// WithWriteLock acquires the write lock, calls fn with the current config,
-// and releases the lock. fn should mutate *config.Config directly.
+// WithWriteLock takes a snapshot, runs fn against it, then commits the
+// mutated snapshot via Raft as a single ConfigImport command.
+//
+// The full-snapshot import is heavyweight (rewrites every replicated bucket
+// per call) but lets the M2 implementation keep the existing M1 handler API
+// surface unchanged. Per-command typed paths are a future optimisation.
 func (a *App) WithWriteLock(fn func(*config.Config) error) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return fn(a.cfg)
+	snap, err := a.cluster.Store().Snapshot()
+	if err != nil {
+		return err
+	}
+	if err := fn(snap); err != nil {
+		return err
+	}
+	return a.cluster.ImportFromM1(*snap)
 }
 
-// SaveConfig writes the current config to disk. The write lock must be held
-// by the caller (or the caller must ensure no concurrent mutations).
-func (a *App) SaveConfig() error {
-	a.mu.RLock()
-	cfg := a.cfg
-	a.mu.RUnlock()
-	return config.Save(a.dir, cfg)
-}
+// SaveConfig is a no-op: every write goes through WithWriteLock which
+// already committed via Raft. Kept on the interface for handler compatibility.
+func (a *App) SaveConfig() error { return nil }
 
-// RebuildFilter rebuilds the filter engine from the current config.
-// It acquires the write lock.
-func (a *App) RebuildFilter() error {
-	a.mu.Lock()
-	a.filterEng = filter.New(a.cfg.Filtering)
-	a.mu.Unlock()
-	return nil
-}
+// RebuildFilter is a no-op for the same reason — the filter engine is
+// rebuilt automatically by onApply after every committed apply.
+func (a *App) RebuildFilter() error { return nil }
 
-// RebuildDNSFromCfg calls the registered DNS rebuild callback.
+// RebuildDNSFromCfg invokes the DNS rebuild callback with the current cached
+// config. Used by handlers that change DNS-affecting settings.
 func (a *App) RebuildDNSFromCfg() error {
-	a.mu.RLock()
+	a.cfgMu.RLock()
 	cfg := a.cfg
 	fn := a.rebuildDNS
-	a.mu.RUnlock()
+	a.cfgMu.RUnlock()
 	if fn == nil {
 		return nil
 	}
@@ -90,43 +137,37 @@ func (a *App) RebuildDNSFromCfg() error {
 }
 
 // GetAuth returns the auth store.
-func (a *App) GetAuth() *auth.Store {
-	return a.authStore
-}
+func (a *App) GetAuth() *auth.Store { return a.authStore }
 
 // GetFilterEng returns the current filter engine.
 func (a *App) GetFilterEng() *filter.Engine {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+	a.cfgMu.RLock()
+	defer a.cfgMu.RUnlock()
 	return a.filterEng
 }
 
 // GetQueryLog returns the query log.
-func (a *App) GetQueryLog() *log.QueryLog {
-	return a.queryLog
-}
+func (a *App) GetQueryLog() *dlog.QueryLog { return a.queryLog }
 
-// Dir returns the config directory.
-func (a *App) Dir() string {
-	return a.dir
-}
+// GetCluster returns the underlying cluster orchestrator. Used by the
+// cluster API handlers.
+func (a *App) GetCluster() *cluster.Cluster { return a.cluster }
 
-// UpdateAuthConfig stores the auth config into the main config and persists it.
-// This is used after SetPassword / ChangePassword.
+// Dir returns the node's data directory. Used by the legacy export/import
+// handlers as a working directory.
+func (a *App) Dir() string { return a.cluster.Node().Node.DataDir }
+
+// UpdateAuthConfig flushes the local auth.Store state through Raft so every
+// node sees the new credentials. Called after first-run setup and password
+// change.
 func (a *App) UpdateAuthConfig() error {
 	exported := a.authStore.Export()
-	a.mu.Lock()
-	a.cfg.Auth = exported
-	a.mu.Unlock()
-	return a.SaveConfig()
+	return a.cluster.SetCredentials(exported.Username, exported.PasswordHash)
 }
 
-// saveConfig is a convenience method for internal use that saves under write lock.
-func (a *App) saveConfig() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return config.Save(a.dir, a.cfg)
-}
+// ============================================================================
+// HTTP routing
+// ============================================================================
 
 // Router returns a chi router with all API routes and middleware registered.
 func (a *App) Router() http.Handler {
@@ -135,52 +176,81 @@ func (a *App) Router() http.Handler {
 
 	h := handlers.New(a)
 
-	// Health endpoint — no auth required.
+	// Health and first-run setup never require auth.
 	r.Get("/api/v1/health", h.Health)
+	r.Post("/api/v1/auth/setup", a.forward(h.AuthSetup))
 
-	// Setup endpoint — always public so first-run credentials can be set.
-	r.Post("/api/v1/auth/setup", h.AuthSetup)
+	// The /cluster/join endpoint must be served by the leader. Forwarding
+	// handles that transparently.
+	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
 
-	// All other routes require authentication.
+	// Internal cluster-to-cluster channel for follower → leader aggregate
+	// forwarding. Authenticated by the replicated cluster secret in the
+	// X-Cluster-Secret header — peers do not have admin credentials.
+	r.Post("/api/v1/cluster/_internal/aggregates", h.ClusterInternalAggregates)
+
 	r.Group(func(r chi.Router) {
 		r.Use(a.BasicAuth)
 
 		// Auth
-		r.Put("/api/v1/auth/password", h.AuthChangePassword)
+		r.Put("/api/v1/auth/password", a.forward(h.AuthChangePassword))
 
-		// Blocklists
+		// Blocklists — reads served locally; mutations forwarded.
 		r.Get("/api/v1/blocklists", h.ListBlocklists)
-		r.Post("/api/v1/blocklists", h.CreateBlocklist)
+		r.Post("/api/v1/blocklists", a.forward(h.CreateBlocklist))
 		r.Get("/api/v1/blocklists/{id}", h.GetBlocklist)
-		r.Patch("/api/v1/blocklists/{id}", h.UpdateBlocklist)
-		r.Delete("/api/v1/blocklists/{id}", h.DeleteBlocklist)
-		r.Post("/api/v1/blocklists/{id}/refresh", h.RefreshBlocklist)
+		r.Patch("/api/v1/blocklists/{id}", a.forward(h.UpdateBlocklist))
+		r.Delete("/api/v1/blocklists/{id}", a.forward(h.DeleteBlocklist))
+		r.Post("/api/v1/blocklists/{id}/refresh", a.forward(h.RefreshBlocklist))
 
 		// Allowlist
 		r.Get("/api/v1/allowlist", h.GetAllowlist)
-		r.Post("/api/v1/allowlist", h.AddAllowlistEntry)
-		r.Delete("/api/v1/allowlist/{domain}", h.DeleteAllowlistEntry)
+		r.Post("/api/v1/allowlist", a.forward(h.AddAllowlistEntry))
+		r.Delete("/api/v1/allowlist/{domain}", a.forward(h.DeleteAllowlistEntry))
 
 		// Local DNS
 		r.Get("/api/v1/local-dns", h.ListLocalDNS)
-		r.Post("/api/v1/local-dns", h.CreateLocalDNSEntry)
-		r.Put("/api/v1/local-dns/{id}", h.UpdateLocalDNSEntry)
-		r.Delete("/api/v1/local-dns/{id}", h.DeleteLocalDNSEntry)
+		r.Post("/api/v1/local-dns", a.forward(h.CreateLocalDNSEntry))
+		r.Put("/api/v1/local-dns/{id}", a.forward(h.UpdateLocalDNSEntry))
+		r.Delete("/api/v1/local-dns/{id}", a.forward(h.DeleteLocalDNSEntry))
 
 		// Settings
 		r.Get("/api/v1/settings", h.GetSettings)
-		r.Patch("/api/v1/settings", h.UpdateSettings)
+		r.Patch("/api/v1/settings", a.forward(h.UpdateSettings))
 
-		// Query log
+		// Query log (per-node read; never forwarded)
 		r.Get("/api/v1/query-log", h.GetQueryLog)
 
 		// Config export/import
 		r.Get("/api/v1/config/export", h.ExportConfig)
-		r.Post("/api/v1/config/import", h.ImportConfig)
+		r.Post("/api/v1/config/import", a.forward(h.ImportConfig))
 
-		// Catch-all: web UI placeholder (auth challenge for unauthenticated requests).
+		// Cluster endpoints — most write paths forwarded.
+		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))
+		r.Get("/api/v1/cluster/status", h.ClusterStatus)
+		r.Get("/api/v1/cluster/self", h.ClusterSelf)
+		r.Get("/api/v1/cluster/health", h.ClusterHealth)
+		r.Post("/api/v1/cluster/leadership/transfer", a.forward(h.TransferLeadership))
+		r.Delete("/api/v1/cluster/nodes/{node_id}", a.forward(h.RemoveNode))
+		r.Get("/api/v1/cluster/stats", h.ClusterStats)
+		r.Get("/api/v1/cluster/query-log", h.ClusterQueryLog)
+
+		// Catch-all: web UI placeholder.
 		r.Get("/*", http.NotFound)
 	})
 
 	return r
 }
+
+// forward wraps an HTTP handler func with the forward-to-leader middleware.
+func (a *App) forward(fn http.HandlerFunc) http.HandlerFunc {
+	return apimw.LeaderForward(clusterAdapter{a.cluster}, fn).ServeHTTP
+}
+
+// clusterAdapter implements apimw.Cluster on top of *cluster.Cluster without
+// pulling the concrete type into the middleware package.
+type clusterAdapter struct{ c *cluster.Cluster }
+
+func (a clusterAdapter) IsLeader() bool           { return a.c.IsLeader() }
+func (a clusterAdapter) LeaderAPIAddress() string { return a.c.LeaderAPIAddress() }
+func (a clusterAdapter) LeaderID() string         { return a.c.LeaderID() }

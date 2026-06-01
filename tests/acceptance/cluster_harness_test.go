@@ -63,7 +63,7 @@ type ClusterNode struct {
 	killed bool
 }
 
-// M2NodeConfig drives the node.yaml written before starting an M2 node.
+// M2NodeConfig drives the config.yaml written before starting an M2 node.
 type M2NodeConfig struct {
 	NodeID   string
 	DNSPort  int
@@ -171,14 +171,14 @@ func (c *Cluster) AddNodeWithToken(t *testing.T, token string) *ClusterNode {
 	return cn
 }
 
-// spawnNode writes node.yaml, starts the process, and registers cleanup.
+// spawnNode writes config.yaml, starts the process, and registers cleanup.
 // SkipWriteNodeYAML lets callers pre-populate the data dir themselves
 // (used by the M1 migration test).
 func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 	t.Helper()
 	dir := t.TempDir()
 	if !cfg.SkipWriteNodeYAML {
-		writeNodeYAML(t, dir, cfg)
+		writeConfigYAML(t, dir, cfg)
 	}
 
 	env := append([]string{}, c.defaultEnv...)
@@ -229,7 +229,7 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 // env-var overrides survive restarts.
 func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	t.Helper()
-	cmd := exec.Command(c.bin, "--config", filepath.Join(cn.DataDir, "node.yaml"))
+	cmd := exec.Command(c.bin, "--config", filepath.Join(cn.DataDir, "config.yaml"))
 	cmd.Dir = cn.DataDir
 	if len(cn.Env) > 0 {
 		cmd.Env = append(os.Environ(), cn.Env...)
@@ -253,12 +253,14 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	})
 }
 
-// writeNodeYAML writes the node-local configuration consumed by an M2 node.
-// Per cluster-store.md, the file has a `node:` section (id, addresses, dns
-// listen) and an optional `bootstrap:` section (consumed once on first boot).
-// Replicated state — blocklists, allowlist, settings, auth, etc. — lives in
-// bbolt, not here.
-func writeNodeYAML(t *testing.T, dir string, cfg M2NodeConfig) {
+// writeConfigYAML writes the per-node config.yaml consumed by an M2 node.
+// The file has a top-level `node:` section (id, addresses, dns listen,
+// data_dir) and an optional `bootstrap:` section (consumed once on first
+// boot). Cluster-replicated state — blocklists, allowlist, settings, auth,
+// etc. — lives in bbolt and is mirrored back into this same file by the
+// shadow YAML writer; the harness intentionally leaves those sections empty
+// so the binary treats first boot as "no seed needed".
+func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	t.Helper()
 
 	type listenSection struct {
@@ -280,12 +282,12 @@ func writeNodeYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		LeaderAddress string `yaml:"leader_address,omitempty"`
 		Token         string `yaml:"token,omitempty"`
 	}
-	type nodeYAML struct {
+	type configYAML struct {
 		Node      nodeSection      `yaml:"node"`
 		Bootstrap bootstrapSection `yaml:"bootstrap,omitempty"`
 	}
 
-	doc := nodeYAML{
+	doc := configYAML{
 		Node: nodeSection{
 			ID:          cfg.NodeID,
 			RaftAddress: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
@@ -301,10 +303,10 @@ func writeNodeYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 
 	data, err := yaml.Marshal(doc)
 	if err != nil {
-		t.Fatalf("marshal node.yaml: %v", err)
+		t.Fatalf("marshal config.yaml: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "node.yaml"), data, 0600); err != nil {
-		t.Fatalf("write node.yaml: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0600); err != nil {
+		t.Fatalf("write config.yaml: %v", err)
 	}
 }
 

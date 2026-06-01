@@ -183,10 +183,12 @@ func TestConfigShadowYamlIgnoredOnRead(t *testing.T) {
 
 // FS-ConfigShadowYamlExcludesNodeLocal
 //
-// Decode the shadow YAML and assert structurally that node-local and
-// operational fields are absent. The shadow YAML is the M1 export format —
-// it carries user config only, never live cluster membership, tokens,
-// stats, or any per-node address.
+// Decode the shadow YAML and assert structurally that operational state
+// (Raft membership, hourly stats) and internal secrets never leak into the
+// on-disk file. Under the merged single-config.yaml design, the file
+// legitimately carries the per-node `node:` section alongside the M1
+// cluster sections — both must be present, but `cluster:`/`stats:` and
+// any `cluster_secret` field must not.
 func TestConfigShadowYamlExcludesNodeLocal(t *testing.T) {
 	c := startCluster(t, 2)
 	leader := c.Leader(t)
@@ -199,16 +201,22 @@ func TestConfigShadowYamlExcludesNodeLocal(t *testing.T) {
 		t.Fatalf("decode shadow YAML: %v\n%s", err, string(raw))
 	}
 
-	// Allowed top-level keys per the M1 export format.
+	// Allowed top-level keys under the merged single-config.yaml design:
+	// per-node `node:`, optional `bootstrap:`, plus the M1 cluster sections.
 	allowedTop := map[string]struct{}{
 		"schema_version": {},
+		"node":           {},
+		"bootstrap":      {},
 		"dns":            {},
 		"filtering":      {},
 		"local_dns":      {},
 		"query_log":      {},
 		"auth":           {},
 	}
-	forbiddenTop := []string{"cluster", "stats", "node"}
+	// Operational state must never appear in the user-facing YAML: Raft
+	// membership lives in the cluster_members bbolt bucket, and hourly
+	// aggregates are runtime state, not config.
+	forbiddenTop := []string{"cluster", "stats"}
 	for _, k := range forbiddenTop {
 		if _, ok := doc[k]; ok {
 			t.Fatalf("shadow YAML must not contain top-level %q:\n%s", k, string(raw))
@@ -216,18 +224,14 @@ func TestConfigShadowYamlExcludesNodeLocal(t *testing.T) {
 	}
 	for k := range doc {
 		if _, ok := allowedTop[k]; !ok {
-			t.Fatalf("shadow YAML has unexpected top-level key %q (not in M1 export format):\n%s",
+			t.Fatalf("shadow YAML has unexpected top-level key %q (not in merged config format):\n%s",
 				k, string(raw))
 		}
 	}
 
-	// Recursively scan the decoded structure for forbidden field names.
-	forbiddenFields := map[string]struct{}{
-		"raft_address": {},
-		"api_address":  {},
-		"node_id":      {},
-	}
-	if found := findForbiddenField(doc, forbiddenFields); found != "" {
+	// The internal shared secret is bbolt-only and must not appear anywhere
+	// in the on-disk YAML (any nesting level).
+	if found := findForbiddenField(doc, map[string]struct{}{"cluster_secret": {}}); found != "" {
 		t.Fatalf("shadow YAML contains forbidden field %q somewhere in the tree:\n%s",
 			found, string(raw))
 	}
@@ -236,6 +240,23 @@ func TestConfigShadowYamlExcludesNodeLocal(t *testing.T) {
 	for _, k := range []string{"filtering", "dns"} {
 		if _, ok := doc[k]; !ok {
 			t.Fatalf("shadow YAML missing required key %q:\n%s", k, string(raw))
+		}
+	}
+
+	// The `node:` section must be present with its identity fields. Under
+	// the merged design this section is node-local but legitimately lives
+	// in config.yaml so the binary can find its identity on restart.
+	nodeRaw, ok := doc["node"]
+	if !ok {
+		t.Fatalf("shadow YAML missing required top-level %q section:\n%s", "node", string(raw))
+	}
+	nodeMap, ok := nodeRaw.(map[string]any)
+	if !ok {
+		t.Fatalf("shadow YAML %q section is not a mapping (got %T):\n%s", "node", nodeRaw, string(raw))
+	}
+	for _, k := range []string{"id", "raft_address"} {
+		if _, ok := nodeMap[k]; !ok {
+			t.Fatalf("shadow YAML %q section missing required field %q:\n%s", "node", k, string(raw))
 		}
 	}
 }
@@ -284,9 +305,17 @@ func TestConfigShadowYamlRebuiltOnBoot(t *testing.T) {
 
 	leaderIdx := indexOf(c, leader)
 
-	// Overwrite the YAML with stale content while the node is running.
+	// Tamper with the cluster sections of config.yaml while preserving the
+	// node section (the binary needs that to know its identity / bind addrs).
+	// The shadow writer must rebuild the cluster sections from bbolt after
+	// the next FSM event.
 	shadowPath := filepath.Join(leader.DataDir, "config.yaml")
-	if err := os.WriteFile(shadowPath, []byte("# stale\n"), 0600); err != nil {
+	original, err := os.ReadFile(shadowPath)
+	if err != nil {
+		t.Fatalf("read original yaml: %v", err)
+	}
+	stale := preserveNodeSection(t, original)
+	if err := os.WriteFile(shadowPath, stale, 0600); err != nil {
 		t.Fatalf("overwrite YAML: %v", err)
 	}
 
@@ -308,8 +337,9 @@ func TestConfigShadowYamlRebuiltOnBoot(t *testing.T) {
 // FS-ConfigShadowYamlRoundTrips
 //
 // Build state on a node, capture its YAML, then bootstrap a fresh node with
-// that YAML in place (simulating a PBS-style restore). The new node's bbolt
-// must reproduce the captured state.
+// the cluster sections from that YAML as seed (simulating a PBS-style
+// restore where the operator updates node section for the new host). The
+// new node's bbolt must reproduce the captured cluster state.
 func TestConfigShadowYamlRoundTrips(t *testing.T) {
 	c := startCluster(t, 1)
 	src := c.Leader(t)
@@ -321,17 +351,100 @@ func TestConfigShadowYamlRoundTrips(t *testing.T) {
 		t.Fatalf("read captured YAML: %v", err)
 	}
 
-	// Bootstrap a fresh node with the captured YAML in place of a generated one.
+	// Bootstrap a fresh node, then splice the captured cluster sections on
+	// top of its (fresh) node section. After the next restart the binary
+	// reads the merged file, treats the cluster sections as seed, and
+	// imports them via ConfigImport.
 	c2 := &Cluster{t: t, bin: dblockBinary(t)}
-	cn := c2.spawnNode(t, M2NodeConfig{NodeID: "restored-1"})
-	if err := os.WriteFile(filepath.Join(cn.DataDir, "config.yaml"), captured, 0600); err != nil {
-		t.Fatalf("write captured YAML: %v", err)
-	}
+	dnsPort := freeUDPPort(t)
+	apiPort := freeTCPPort(t)
+	raftPort := freeTCPPort(t)
+	cn := c2.spawnNode(t, M2NodeConfig{
+		NodeID:   "restored-1",
+		DNSPort:  dnsPort,
+		APIPort:  apiPort,
+		RaftPort: raftPort,
+	})
 	c2.nodes = append(c2.nodes, cn)
+
+	freshCfg, err := os.ReadFile(filepath.Join(cn.DataDir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("read fresh config: %v", err)
+	}
+	merged := spliceClusterSections(t, freshCfg, captured)
+
 	c2.KillNode(t, 0)
+	// Also remove the bbolt so the binary treats the seed as fresh state on
+	// restart (otherwise isClusterSectionEmpty check is moot — bbolt already
+	// has state from the bootstrap and the seed is ignored).
+	if err := os.RemoveAll(filepath.Join(cn.DataDir, "cluster.bbolt")); err != nil {
+		t.Fatalf("remove bbolt: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(cn.DataDir, "raft")); err != nil {
+		t.Fatalf("remove raft: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(cn.DataDir, "config.yaml"), merged, 0600); err != nil {
+		t.Fatalf("write merged YAML: %v", err)
+	}
 	c2.RestartNode(t, 0)
 	setupAuth(t, cn.Node)
 
 	waitForBlocklist(t, cn, "round-trip", 10*time.Second)
+}
+
+// preserveNodeSection takes a config.yaml that has both node and cluster
+// sections and returns a new YAML with the SAME node/bootstrap sections but
+// the cluster sections replaced by junk that the shadow writer should
+// overwrite on next FSM apply.
+func preserveNodeSection(t *testing.T, full []byte) []byte {
+	t.Helper()
+	var doc map[string]any
+	if err := yaml.Unmarshal(full, &doc); err != nil {
+		t.Fatalf("decode shadow yaml: %v", err)
+	}
+	out := map[string]any{}
+	if v, ok := doc["node"]; ok {
+		out["node"] = v
+	}
+	if v, ok := doc["bootstrap"]; ok {
+		out["bootstrap"] = v
+	}
+	// Intentional stale marker; not a valid cluster section.
+	out["_stale_marker"] = "this should be overwritten by the shadow writer"
+	b, err := yaml.Marshal(out)
+	if err != nil {
+		t.Fatalf("encode stale yaml: %v", err)
+	}
+	return b
+}
+
+// spliceClusterSections returns a config.yaml whose top-level node and
+// bootstrap sections come from base and whose cluster sections (dns,
+// filtering, local_dns, query_log, auth) come from seed.
+func spliceClusterSections(t *testing.T, base, seed []byte) []byte {
+	t.Helper()
+	var baseDoc, seedDoc map[string]any
+	if err := yaml.Unmarshal(base, &baseDoc); err != nil {
+		t.Fatalf("decode base yaml: %v", err)
+	}
+	if err := yaml.Unmarshal(seed, &seedDoc); err != nil {
+		t.Fatalf("decode seed yaml: %v", err)
+	}
+	out := map[string]any{}
+	for _, k := range []string{"node", "bootstrap"} {
+		if v, ok := baseDoc[k]; ok {
+			out[k] = v
+		}
+	}
+	for _, k := range []string{"schema_version", "dns", "filtering", "local_dns", "query_log", "auth"} {
+		if v, ok := seedDoc[k]; ok {
+			out[k] = v
+		}
+	}
+	b, err := yaml.Marshal(out)
+	if err != nil {
+		t.Fatalf("encode spliced yaml: %v", err)
+	}
+	return b
 }
 

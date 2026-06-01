@@ -72,6 +72,17 @@ func (s *Store) ChangePassword(currentPassword, newPassword string) error {
 	return s.SetPassword(storedUser, newPassword)
 }
 
+// SetHashedCredentials writes a pre-hashed credential pair into the store.
+// Used by the cluster apply path to push replicated auth state into the
+// in-memory verifier without re-bcrypting (the hash already comes from
+// another node's bcrypt run).
+func (s *Store) SetHashedCredentials(username, passwordHash string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.username = username
+	s.passwordHash = passwordHash
+}
+
 // Export returns an AuthConfig reflecting the current in-memory state.
 func (s *Store) Export() config.AuthConfig {
 	s.mu.RLock()
