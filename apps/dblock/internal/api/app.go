@@ -55,7 +55,7 @@ func NewApp(
 	// Prime the cache.
 	if snap, err := c.Store().Snapshot(); err == nil {
 		a.cfg = snap
-		a.filterEng = filter.New(snap.Filtering)
+		a.filterEng = filter.NewProfiled(snap)
 	} else {
 		a.cfg = &config.Config{}
 		a.filterEng = filter.New(config.FilteringConfig{})
@@ -76,7 +76,7 @@ func (a *App) onApply() {
 	}
 	a.cfgMu.Lock()
 	a.cfg = snap
-	a.filterEng = filter.New(snap.Filtering)
+	a.filterEng = filter.NewProfiled(snap)
 	a.cfgMu.Unlock()
 
 	// Sync auth.Store with the replicated credentials so admin can log into
@@ -226,6 +226,29 @@ func (a *App) Router() http.Handler {
 		// Config export/import
 		r.Get("/api/v1/config/export", h.ExportConfig)
 		r.Post("/api/v1/config/import", a.forward(h.ImportConfig))
+
+		// M3 — Profiles
+		r.Get("/api/v1/profiles", h.ListProfiles)
+		r.Post("/api/v1/profiles", a.forward(h.CreateProfile))
+		r.Get("/api/v1/profiles/{id}", h.GetProfile)
+		r.Patch("/api/v1/profiles/{id}", a.forward(h.UpdateProfile))
+		r.Delete("/api/v1/profiles/{id}", a.forward(h.DeleteProfile))
+
+		// M3 — Schedules
+		r.Get("/api/v1/schedules", h.ListSchedules)
+		r.Post("/api/v1/schedules", a.forward(h.CreateSchedule))
+		r.Get("/api/v1/schedules/{id}", h.GetSchedule)
+		r.Patch("/api/v1/schedules/{id}", a.forward(h.UpdateSchedule))
+		r.Delete("/api/v1/schedules/{id}", a.forward(h.DeleteSchedule))
+		r.Post("/api/v1/schedules/{id}/bindings", a.forward(h.AddScheduleBinding))
+		r.Delete("/api/v1/schedules/{id}/bindings/{profile}/{blocklist}", a.forward(h.DeleteScheduleBinding))
+
+		// M3 — Categories
+		r.Get("/api/v1/categories", h.ListCategories)
+		r.Get("/api/v1/categories/{name}", h.GetCategory)
+		r.Patch("/api/v1/categories/{name}", a.forward(h.UpdateCategory))
+		r.Post("/api/v1/categories/{name}/enable", a.forward(h.EnableCategory))
+		r.Post("/api/v1/categories/{name}/disable", a.forward(h.DisableCategory))
 
 		// Cluster endpoints — most write paths forwarded.
 		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))

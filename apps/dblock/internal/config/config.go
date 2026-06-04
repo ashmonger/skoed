@@ -14,13 +14,62 @@ const SchemaVersion = 1
 // Config is the root configuration structure. It is the single source of truth
 // for all dblock settings and is persisted to config.yaml via atomic rename.
 type Config struct {
-	Version   int             `yaml:"version"`
-	DNS       DNSConfig       `yaml:"dns"`
-	Filtering FilteringConfig `yaml:"filtering"`
-	LocalDNS  LocalDNSConfig  `yaml:"local_dns"`
-	API       APIConfig       `yaml:"api"`
-	QueryLog  QueryLogConfig  `yaml:"query_log"`
-	Auth      AuthConfig      `yaml:"auth"`
+	Version   int                 `yaml:"version"`
+	DNS       DNSConfig           `yaml:"dns"`
+	Filtering FilteringConfig     `yaml:"filtering"`
+	LocalDNS  LocalDNSConfig      `yaml:"local_dns"`
+	API       APIConfig           `yaml:"api"`
+	QueryLog  QueryLogConfig      `yaml:"query_log"`
+	Auth      AuthConfig          `yaml:"auth"`
+	Profiles  []Profile           `yaml:"profiles,omitempty" json:"profiles,omitempty"`
+	Schedules []Schedule          `yaml:"schedules,omitempty" json:"schedules,omitempty"`
+	Bindings  []ScheduleBinding   `yaml:"schedule_bindings,omitempty" json:"schedule_bindings,omitempty"`
+	Categories []CategoryOverride `yaml:"category_overrides,omitempty" json:"category_overrides,omitempty"`
+}
+
+// Profile binds blocklists, allowlist entries, SafeSearch providers, and
+// client identifiers (IPs and/or CIDRs) into a named rule set. The reserved
+// id "default" is applied to any client not matched by an explicit profile.
+type Profile struct {
+	ID          string   `yaml:"id"           json:"id"`
+	Name        string   `yaml:"name"         json:"name"`
+	Blocklists  []string `yaml:"blocklists,omitempty"   json:"blocklists,omitempty"`
+	Allowlist   []string `yaml:"allowlist,omitempty"    json:"allowlist,omitempty"`
+	SafeSearch  []string `yaml:"safesearch,omitempty"   json:"safesearch,omitempty"`
+	ClientIPs   []string `yaml:"client_ips,omitempty"   json:"client_ips,omitempty"`
+	ClientCIDRs []string `yaml:"client_cidrs,omitempty" json:"client_cidrs,omitempty"`
+}
+
+// Schedule defines time-of-day / day-of-week windows that gate when a
+// schedule-binding's blocklist applies. Times use 24h "HH:MM" in the node's
+// local timezone (configurable via node.yaml's optional `node.timezone`).
+type Schedule struct {
+	ID      string       `yaml:"id"      json:"id"`
+	Name    string       `yaml:"name"    json:"name"`
+	Mode    string       `yaml:"mode"    json:"mode"` // "block_only_inside" | "allow_only_inside"
+	Windows []TimeWindow `yaml:"windows" json:"windows"`
+}
+
+// TimeWindow is one weekly recurring interval. `End < Start` wraps midnight.
+type TimeWindow struct {
+	Days  []string `yaml:"days"  json:"days"`
+	Start string   `yaml:"start" json:"start"`
+	End   string   `yaml:"end"   json:"end"`
+}
+
+// ScheduleBinding attaches one schedule to one (profile, blocklist) pair.
+type ScheduleBinding struct {
+	ScheduleID  string `yaml:"schedule_id"  json:"schedule_id"`
+	ProfileID   string `yaml:"profile_id"   json:"profile_id"`
+	BlocklistID string `yaml:"blocklist_id" json:"blocklist_id"`
+}
+
+// CategoryOverride lets an operator point a built-in category at a custom
+// upstream URL. Empty fields fall back to the catalog defaults.
+type CategoryOverride struct {
+	Name   string `yaml:"name"           json:"name"`
+	URL    string `yaml:"url,omitempty"   json:"url,omitempty"`
+	Format string `yaml:"format,omitempty" json:"format,omitempty"`
 }
 
 type DNSConfig struct {
@@ -51,13 +100,17 @@ type FilteringConfig struct {
 
 // Blocklist describes a named set of domain rules.
 type Blocklist struct {
-	ID          string          `yaml:"id"`
-	Name        string          `yaml:"name"`
-	Enabled     bool            `yaml:"enabled"`
-	Source      BlocklistSource `yaml:"source"`
-	BlockPolicy string          `yaml:"block_policy,omitempty"` // "" = inherit global
-	Domains     []string        `yaml:"domains,omitempty"`
-	LastUpdated string          `yaml:"last_updated,omitempty"`
+	ID          string          `yaml:"id"           json:"id"`
+	Name        string          `yaml:"name"         json:"name"`
+	Enabled     bool            `yaml:"enabled"      json:"enabled"`
+	Source      BlocklistSource `yaml:"source"       json:"source"`
+	BlockPolicy string          `yaml:"block_policy,omitempty" json:"block_policy,omitempty"` // "" = inherit global
+	Domains     []string        `yaml:"domains,omitempty"      json:"domains,omitempty"`
+	LastUpdated string          `yaml:"last_updated,omitempty" json:"last_updated,omitempty"`
+	// Managed marks a blocklist as owned by a category (cat:*). The UI uses
+	// this to forbid manual editing of the domain list — refreshes pull
+	// from the catalog URL instead.
+	Managed bool `yaml:"managed,omitempty" json:"managed,omitempty"`
 }
 
 type BlocklistSource struct {

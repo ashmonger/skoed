@@ -389,6 +389,127 @@ func (c *Cluster) PruneAggregatesBefore(beforeUnix int64) error {
 	return c.applyAsLeader(CmdStatsPrune, StatsPrunePayload{BeforeUnix: beforeUnix}, 0)
 }
 
+// ─── M3 typed mutation methods ──────────────────────────────────────────
+
+// UpsertProfile creates or replaces a profile.
+func (c *Cluster) UpsertProfile(p config.Profile) error {
+	return c.applyAsLeader(CmdProfileUpsert, ProfileUpsertPayload{Profile: p}, 0)
+}
+
+// DeleteProfile removes a profile by id. Cannot delete "default".
+func (c *Cluster) DeleteProfile(id string) error {
+	return c.applyAsLeader(CmdProfileDelete, ProfileDeletePayload{ID: id}, 0)
+}
+
+// UpsertSchedule creates or replaces a schedule.
+func (c *Cluster) UpsertSchedule(s config.Schedule) error {
+	return c.applyAsLeader(CmdScheduleUpsert, ScheduleUpsertPayload{Schedule: s}, 0)
+}
+
+// DeleteSchedule removes a schedule by id; cascades to its bindings.
+func (c *Cluster) DeleteSchedule(id string) error {
+	return c.applyAsLeader(CmdScheduleDelete, ScheduleDeletePayload{ID: id}, 0)
+}
+
+// UpsertScheduleBinding attaches one schedule to a (profile, blocklist) pair.
+func (c *Cluster) UpsertScheduleBinding(b config.ScheduleBinding) error {
+	return c.applyAsLeader(CmdScheduleBindingPut, ScheduleBindingPutPayload{Binding: b}, 0)
+}
+
+// DeleteScheduleBinding detaches a schedule from a (profile, blocklist) pair.
+func (c *Cluster) DeleteScheduleBinding(scheduleID, profileID, blocklistID string) error {
+	return c.applyAsLeader(CmdScheduleBindingDel, ScheduleBindingDelPayload{
+		ScheduleID:  scheduleID,
+		ProfileID:   profileID,
+		BlocklistID: blocklistID,
+	}, 0)
+}
+
+// UpsertCategoryOverride records an operator's URL/format override for a
+// named built-in category.
+func (c *Cluster) UpsertCategoryOverride(o config.CategoryOverride) error {
+	return c.applyAsLeader(CmdCategoryOverridePut, CategoryOverridePutPayload{Override: o}, 0)
+}
+
+// EnsureDefaultProfile creates the reserved "default" profile if missing.
+// Idempotent. Called from main.go on bootstrap so a fresh cluster always
+// has a fallback profile for unassigned clients.
+func (c *Cluster) EnsureDefaultProfile() error {
+	if !c.raft.IsLeader() {
+		return nil
+	}
+	snap, err := c.store.Snapshot()
+	if err != nil {
+		return err
+	}
+	for _, p := range snap.Profiles {
+		if p.ID == "default" {
+			return nil
+		}
+	}
+	return c.UpsertProfile(config.Profile{
+		ID:   "default",
+		Name: "Default",
+	})
+}
+
+// EnsureDohCategoryOnDefaultProfile creates the cat:doh blocklist (seeded
+// from the bundled DoH-resolver list) and ensures the default profile's
+// blocklists include it. Idempotent.
+//
+// We avoid importing internal/filter/categories here (cluster ↔ filter is
+// the wrong direction). The bundled DoH domain list is passed in by main.go
+// from the categories package — keeps the dependency arrow pointing the
+// right way.
+func (c *Cluster) EnsureDohCategoryOnDefaultProfile(bundledDoH []string) error {
+	if !c.raft.IsLeader() {
+		return nil
+	}
+	snap, err := c.store.Snapshot()
+	if err != nil {
+		return err
+	}
+	const dohID = "cat:doh"
+
+	// Find or create the blocklist.
+	var existing *config.Blocklist
+	for i := range snap.Filtering.Blocklists {
+		if snap.Filtering.Blocklists[i].ID == dohID {
+			existing = &snap.Filtering.Blocklists[i]
+			break
+		}
+	}
+	if existing == nil {
+		bl := config.Blocklist{
+			ID:      dohID,
+			Name:    "DoH/DoT resolvers (bundled)",
+			Enabled: true,
+			Source:  config.BlocklistSource{Type: "inline", Format: "domainlist"},
+			Domains: bundledDoH,
+			Managed: true,
+		}
+		if err := c.UpsertBlocklist(bl); err != nil {
+			return err
+		}
+	}
+
+	// Attach to default profile.
+	for _, p := range snap.Profiles {
+		if p.ID != "default" {
+			continue
+		}
+		for _, b := range p.Blocklists {
+			if b == dohID {
+				return nil // already attached
+			}
+		}
+		p.Blocklists = append(p.Blocklists, dohID)
+		return c.UpsertProfile(p)
+	}
+	// Default profile not present yet (EnsureDefaultProfile not yet run).
+	return nil
+}
+
 // ============================================================================
 // Token issuance & enrollment. Tokens are stored hashed in the replicated
 // tokens bucket so any node can validate one regardless of which node issued
