@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,11 +89,19 @@ func TestAuthUnauthenticatedRequestRejected(t *testing.T) {
 }
 
 // FS-WebUiAuthUnauthenticatedUiRedirect
-// An unauthenticated GET / returns 401 or 302.
+// As of M2.6 the SPA is embedded and serves index.html on GET / without
+// requiring auth — the SPA itself handles routing to the login form
+// before issuing any API call. The acceptance contract becomes:
+//
+//   - GET / returns 200 with HTML (the SPA shell), OR 401/302 if the
+//     deployment hasn't built the SPA yet (Go-only builds skip the embed).
+//   - The SPA shell MUST contain a <div id="app"> root so the client-side
+//     bootstrapper can mount; otherwise the auth flow is broken.
+//
+// API endpoints' auth behaviour is covered by sibling tests below.
 func TestAuthUnauthenticatedUiRedirect(t *testing.T) {
 	n := startNode(t, NodeConfig{})
 
-	// Use a client that does not follow redirects so we can observe 302.
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -110,8 +119,16 @@ func TestAuthUnauthenticatedUiRedirect(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusFound {
-		t.Fatalf("expected 401 or 302 for unauthenticated GET /, got %d", resp.StatusCode)
+	switch resp.StatusCode {
+	case http.StatusOK:
+		body := readBody(t, resp)
+		if !strings.Contains(body, `id="app"`) {
+			t.Fatalf(`200 response missing the SPA mount point <div id="app">: %s`, body[:min(200, len(body))])
+		}
+	case http.StatusUnauthorized, http.StatusFound, http.StatusNotFound:
+		// Acceptable when the SPA has not been built (no embedded index.html).
+	default:
+		t.Fatalf("expected 200 (SPA), 401, 302 or 404 for unauthenticated GET /, got %d", resp.StatusCode)
 	}
 }
 

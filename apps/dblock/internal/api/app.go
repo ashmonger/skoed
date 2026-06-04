@@ -2,10 +2,12 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/dblock/dblock/internal/api/handlers"
 	apimw "github.com/dblock/dblock/internal/api/middleware"
+	"github.com/dblock/dblock/internal/api/static"
 	"github.com/dblock/dblock/internal/auth"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
@@ -235,11 +237,50 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/cluster/stats", h.ClusterStats)
 		r.Get("/api/v1/cluster/query-log", h.ClusterQueryLog)
 
-		// Catch-all: web UI placeholder.
-		r.Get("/*", http.NotFound)
 	})
 
+	// Serve the embedded Web UI for everything not matched by /api/v1/*.
+	// /assets/* loads built JS/CSS; every other unmatched GET falls back to
+	// index.html so the SPA's history router can handle the path. No auth:
+	// the SPA renders the login/setup form itself before any API call.
+	r.NotFound(serveSPA)
+
 	return r
+}
+
+// serveSPA serves files from the embedded SPA dist FS. Asset paths
+// (/assets/* or known static files) hit the FS directly; any other path
+// returns index.html so the Vue Router can take over.
+func serveSPA(w http.ResponseWriter, r *http.Request) {
+	if !static.HasIndex() {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.NotFound(w, r)
+		return
+	}
+	// Decline anything API-shaped — guards against future API paths slipping
+	// through if a route is removed.
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	clean := strings.TrimPrefix(r.URL.Path, "/")
+	if clean == "" {
+		clean = "index.html"
+	}
+
+	fsys := static.FS()
+	if f, err := fsys.Open(clean); err == nil {
+		_ = f.Close()
+		http.ServeFileFS(w, r, fsys, clean)
+		return
+	}
+
+	// SPA route: serve index.html so the client-side router renders.
+	http.ServeFileFS(w, r, fsys, "index.html")
 }
 
 // forward wraps an HTTP handler func with the forward-to-leader middleware.
