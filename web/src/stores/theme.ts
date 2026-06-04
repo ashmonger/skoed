@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
 type Mode = 'light' | 'dark'
-type Palette = 'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro'
+type Palette = 'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro' | 'lipgloss'
 
 interface ThemeState {
   mode: Mode

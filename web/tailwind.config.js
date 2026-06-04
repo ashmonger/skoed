@@ -31,8 +31,8 @@ export default {
         fg: {
           DEFAULT: '#586E75', // solarized base01
           strong: '#073642',  // solarized base02 → near-black
-          muted: '#839496',
-          subtle: '#93A1A1',
+          muted: '#657B83',   // solarized base00 (was #839496 — too low contrast on canvas)
+          subtle: '#93A1A1',  // decorative-only; sub-3:1 by design
           inverse: '#FDF6E3',
         },
         border: {
@@ -40,17 +40,17 @@ export default {
           strong: '#93A1A1',
         },
         accent: {
-          DEFAULT: '#268BD2', // solarized blue
+          DEFAULT: '#1576B8', // solarized blue, darkened from #268BD2 for AA-safe text
           hover: '#1A6FA0',
           active: '#0F537C',
-          subtle: '#D6EAF8',
+          subtle: '#B8D9F0',  // was #D6EAF8 — saturated up so text-accent passes 3.0 on it
         },
         success: {
-          DEFAULT: '#859900', // solarized green ≈ monokai green
+          DEFAULT: '#6B7A00', // was #859900 — darkened so text-success on bg-card passes
           subtle: '#E8F0CC',
         },
         warning: {
-          DEFAULT: '#B58900', // solarized yellow / monokai orange
+          DEFAULT: '#947000', // was #B58900 — darkened so text-warning on bg-card passes
           subtle: '#FAF3D0',
         },
         danger: {

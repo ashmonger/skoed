@@ -86,6 +86,7 @@
             <option value="monokai">Monokai (vivid)</option>
             <option value="monokai-blue">Monokai Blue</option>
             <option value="monokai-pro">Monokai Pro</option>
+            <option value="lipgloss">Lipgloss</option>
           </select>
           <div class="text-xs text-fg-muted hidden sm:block">{{ auth.user }}</div>
           <button class="btn-ghost p-1.5" title="Account" @click="$router.push({ name: 'account' })">
@@ -158,7 +159,7 @@ const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'dblock')
 
 function onPaletteChange(e: Event) {
   const v = (e.target as HTMLSelectElement).value as
-    'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro'
+    'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro' | 'lipgloss'
   theme.setPalette(v)
 }
 

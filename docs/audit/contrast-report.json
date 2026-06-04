@@ -1,0 +1,2312 @@
+[
+  {
+    "palette": "monokai-solarized",
+    "mode": "light",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          253,
+          246,
+          227
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "4.99",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          253,
+          246,
+          227
+        ],
+        "fgRGB": [
+          7,
+          54,
+          66
+        ],
+        "ratio": "12.05",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          253,
+          246,
+          227
+        ],
+        "fgRGB": [
+          101,
+          123,
+          131
+        ],
+        "ratio": "4.13",
+        "status": "low"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          253,
+          246,
+          227
+        ],
+        "fgRGB": [
+          147,
+          161,
+          161
+        ],
+        "ratio": "2.48",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "4.39",
+        "status": "low"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          7,
+          54,
+          66
+        ],
+        "ratio": "10.61",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          101,
+          123,
+          131
+        ],
+        "ratio": "3.64",
+        "status": "low"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          21,
+          118,
+          184
+        ],
+        "ratio": "3.97",
+        "status": "low"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          107,
+          122,
+          0
+        ],
+        "ratio": "3.89",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          148,
+          112,
+          0
+        ],
+        "ratio": "3.74",
+        "status": "low"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          238,
+          232,
+          213
+        ],
+        "fgRGB": [
+          220,
+          50,
+          47
+        ],
+        "ratio": "3.77",
+        "status": "low"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          184,
+          217,
+          240
+        ],
+        "fgRGB": [
+          21,
+          118,
+          184
+        ],
+        "ratio": "3.30",
+        "status": "low"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          21,
+          118,
+          184
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "1.11",
+        "status": "FAIL"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          107,
+          122,
+          0
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "1.13",
+        "status": "FAIL"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          220,
+          50,
+          47
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "1.16",
+        "status": "FAIL"
+      }
+    ]
+  },
+  {
+    "palette": "monokai-solarized",
+    "mode": "dark",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          0,
+          43,
+          54
+        ],
+        "fgRGB": [
+          147,
+          161,
+          161
+        ],
+        "ratio": "5.61",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          0,
+          43,
+          54
+        ],
+        "fgRGB": [
+          238,
+          232,
+          213
+        ],
+        "ratio": "12.25",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          0,
+          43,
+          54
+        ],
+        "fgRGB": [
+          131,
+          148,
+          150
+        ],
+        "ratio": "4.75",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          0,
+          43,
+          54
+        ],
+        "fgRGB": [
+          88,
+          110,
+          117
+        ],
+        "ratio": "2.79",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          147,
+          161,
+          161
+        ],
+        "ratio": "4.86",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          238,
+          232,
+          213
+        ],
+        "ratio": "10.61",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          131,
+          148,
+          150
+        ],
+        "ratio": "4.11",
+        "status": "low"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          38,
+          139,
+          210
+        ],
+        "ratio": "3.53",
+        "status": "low"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          133,
+          153,
+          0
+        ],
+        "ratio": "4.06",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          181,
+          137,
+          0
+        ],
+        "ratio": "4.05",
+        "status": "low"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          242,
+          101,
+          97
+        ],
+        "ratio": "4.22",
+        "status": "low"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          7,
+          54,
+          66
+        ],
+        "fgRGB": [
+          38,
+          139,
+          210
+        ],
+        "ratio": "3.53",
+        "status": "low"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          38,
+          139,
+          210
+        ],
+        "fgRGB": [
+          253,
+          246,
+          227
+        ],
+        "ratio": "3.41",
+        "status": "low"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          133,
+          153,
+          0
+        ],
+        "fgRGB": [
+          0,
+          43,
+          54
+        ],
+        "ratio": "4.69",
+        "status": "pass"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          220,
+          50,
+          47
+        ],
+        "fgRGB": [
+          253,
+          246,
+          227
+        ],
+        "ratio": "4.29",
+        "status": "low"
+      }
+    ]
+  },
+  {
+    "palette": "monokai",
+    "mode": "light",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          245,
+          244,
+          235
+        ],
+        "fgRGB": [
+          73,
+          72,
+          62
+        ],
+        "ratio": "8.34",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          245,
+          244,
+          235
+        ],
+        "fgRGB": [
+          39,
+          40,
+          34
+        ],
+        "ratio": "13.46",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          245,
+          244,
+          235
+        ],
+        "fgRGB": [
+          117,
+          113,
+          94
+        ],
+        "ratio": "4.44",
+        "status": "low"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          245,
+          244,
+          235
+        ],
+        "fgRGB": [
+          168,
+          167,
+          153
+        ],
+        "ratio": "2.20",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          73,
+          72,
+          62
+        ],
+        "ratio": "9.21",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          39,
+          40,
+          34
+        ],
+        "ratio": "14.86",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          117,
+          113,
+          94
+        ],
+        "ratio": "4.91",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          19,
+          116,
+          135
+        ],
+        "ratio": "5.42",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          103,
+          150,
+          31
+        ],
+        "ratio": "3.52",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          194,
+          106,
+          0
+        ],
+        "ratio": "3.92",
+        "status": "low"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          211,
+          20,
+          92
+        ],
+        "ratio": "5.22",
+        "status": "pass"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          220,
+          243,
+          247
+        ],
+        "fgRGB": [
+          19,
+          116,
+          135
+        ],
+        "ratio": "4.70",
+        "status": "pass"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          19,
+          116,
+          135
+        ],
+        "fgRGB": [
+          245,
+          244,
+          235
+        ],
+        "ratio": "4.91",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          103,
+          150,
+          31
+        ],
+        "fgRGB": [
+          245,
+          244,
+          235
+        ],
+        "ratio": "3.19",
+        "status": "low"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          211,
+          20,
+          92
+        ],
+        "fgRGB": [
+          245,
+          244,
+          235
+        ],
+        "ratio": "4.73",
+        "status": "pass"
+      }
+    ]
+  },
+  {
+    "palette": "monokai",
+    "mode": "dark",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          39,
+          40,
+          34
+        ],
+        "fgRGB": [
+          248,
+          248,
+          242
+        ],
+        "ratio": "13.94",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          39,
+          40,
+          34
+        ],
+        "fgRGB": [
+          248,
+          248,
+          242
+        ],
+        "ratio": "13.94",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          39,
+          40,
+          34
+        ],
+        "fgRGB": [
+          189,
+          189,
+          177
+        ],
+        "ratio": "7.84",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          39,
+          40,
+          34
+        ],
+        "fgRGB": [
+          117,
+          113,
+          94
+        ],
+        "ratio": "3.03",
+        "status": "low"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          248,
+          248,
+          242
+        ],
+        "ratio": "10.27",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          248,
+          248,
+          242
+        ],
+        "ratio": "10.27",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          189,
+          189,
+          177
+        ],
+        "ratio": "5.77",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          102,
+          217,
+          239
+        ],
+        "ratio": "6.64",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          166,
+          226,
+          46
+        ],
+        "ratio": "7.06",
+        "status": "pass"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          253,
+          151,
+          31
+        ],
+        "ratio": "5.02",
+        "status": "pass"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          255,
+          92,
+          153
+        ],
+        "ratio": "3.78",
+        "status": "low"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          62,
+          61,
+          50
+        ],
+        "fgRGB": [
+          102,
+          217,
+          239
+        ],
+        "ratio": "6.64",
+        "status": "pass"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          102,
+          217,
+          239
+        ],
+        "fgRGB": [
+          39,
+          40,
+          34
+        ],
+        "ratio": "9.01",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          166,
+          226,
+          46
+        ],
+        "fgRGB": [
+          39,
+          40,
+          34
+        ],
+        "ratio": "9.58",
+        "status": "pass"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          249,
+          38,
+          114
+        ],
+        "fgRGB": [
+          248,
+          248,
+          242
+        ],
+        "ratio": "3.55",
+        "status": "low"
+      }
+    ]
+  },
+  {
+    "palette": "monokai-blue",
+    "mode": "light",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          238,
+          242,
+          248
+        ],
+        "fgRGB": [
+          61,
+          79,
+          102
+        ],
+        "ratio": "7.45",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          238,
+          242,
+          248
+        ],
+        "fgRGB": [
+          26,
+          40,
+          66
+        ],
+        "ratio": "13.11",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          238,
+          242,
+          248
+        ],
+        "fgRGB": [
+          111,
+          128,
+          153
+        ],
+        "ratio": "3.58",
+        "status": "low"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          238,
+          242,
+          248
+        ],
+        "fgRGB": [
+          148,
+          163,
+          184
+        ],
+        "ratio": "2.28",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          61,
+          79,
+          102
+        ],
+        "ratio": "8.01",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          26,
+          40,
+          66
+        ],
+        "ratio": "14.08",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          111,
+          128,
+          153
+        ],
+        "ratio": "3.84",
+        "status": "low"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          37,
+          99,
+          235
+        ],
+        "ratio": "4.94",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          15,
+          133,
+          92
+        ],
+        "ratio": "4.43",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          180,
+          83,
+          9
+        ],
+        "ratio": "4.80",
+        "status": "pass"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          248,
+          250,
+          253
+        ],
+        "fgRGB": [
+          190,
+          18,
+          60
+        ],
+        "ratio": "6.01",
+        "status": "pass"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          220,
+          232,
+          251
+        ],
+        "fgRGB": [
+          37,
+          99,
+          235
+        ],
+        "ratio": "4.18",
+        "status": "low"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          37,
+          99,
+          235
+        ],
+        "fgRGB": [
+          248,
+          250,
+          253
+        ],
+        "ratio": "4.94",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          15,
+          133,
+          92
+        ],
+        "fgRGB": [
+          248,
+          250,
+          253
+        ],
+        "ratio": "4.43",
+        "status": "low"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          190,
+          18,
+          60
+        ],
+        "fgRGB": [
+          248,
+          250,
+          253
+        ],
+        "ratio": "6.01",
+        "status": "pass"
+      }
+    ]
+  },
+  {
+    "palette": "monokai-blue",
+    "mode": "dark",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          15,
+          27,
+          44
+        ],
+        "fgRGB": [
+          203,
+          213,
+          225
+        ],
+        "ratio": "11.66",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          15,
+          27,
+          44
+        ],
+        "fgRGB": [
+          241,
+          245,
+          249
+        ],
+        "ratio": "15.80",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          15,
+          27,
+          44
+        ],
+        "fgRGB": [
+          148,
+          163,
+          184
+        ],
+        "ratio": "6.75",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          15,
+          27,
+          44
+        ],
+        "fgRGB": [
+          100,
+          116,
+          139
+        ],
+        "ratio": "3.64",
+        "status": "low"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          203,
+          213,
+          225
+        ],
+        "ratio": "9.94",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          241,
+          245,
+          249
+        ],
+        "ratio": "13.47",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          148,
+          163,
+          184
+        ],
+        "ratio": "5.75",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          96,
+          165,
+          250
+        ],
+        "ratio": "5.80",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          74,
+          222,
+          128
+        ],
+        "ratio": "8.47",
+        "status": "pass"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          251,
+          191,
+          36
+        ],
+        "ratio": "8.84",
+        "status": "pass"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          248,
+          113,
+          113
+        ],
+        "ratio": "5.33",
+        "status": "pass"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          24,
+          40,
+          67
+        ],
+        "fgRGB": [
+          96,
+          165,
+          250
+        ],
+        "ratio": "5.80",
+        "status": "pass"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          96,
+          165,
+          250
+        ],
+        "fgRGB": [
+          15,
+          27,
+          44
+        ],
+        "ratio": "6.81",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          74,
+          222,
+          128
+        ],
+        "fgRGB": [
+          15,
+          27,
+          44
+        ],
+        "ratio": "9.93",
+        "status": "pass"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          248,
+          113,
+          113
+        ],
+        "fgRGB": [
+          248,
+          250,
+          253
+        ],
+        "ratio": "2.65",
+        "status": "FAIL"
+      }
+    ]
+  },
+  {
+    "palette": "monokai-pro",
+    "mode": "light",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          250,
+          244,
+          237
+        ],
+        "fgRGB": [
+          92,
+          91,
+          97
+        ],
+        "ratio": "6.15",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          250,
+          244,
+          237
+        ],
+        "fgRGB": [
+          41,
+          36,
+          42
+        ],
+        "ratio": "13.93",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          250,
+          244,
+          237
+        ],
+        "fgRGB": [
+          136,
+          133,
+          139
+        ],
+        "ratio": "3.33",
+        "status": "low"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          250,
+          244,
+          237
+        ],
+        "fgRGB": [
+          177,
+          174,
+          179
+        ],
+        "ratio": "2.01",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          92,
+          91,
+          97
+        ],
+        "ratio": "6.57",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          41,
+          36,
+          42
+        ],
+        "ratio": "14.87",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          136,
+          133,
+          139
+        ],
+        "ratio": "3.55",
+        "status": "low"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          26,
+          139,
+          171
+        ],
+        "ratio": "3.85",
+        "status": "low"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          79,
+          139,
+          25
+        ],
+        "ratio": "4.07",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          194,
+          106,
+          0
+        ],
+        "ratio": "3.83",
+        "status": "low"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          255,
+          252,
+          247
+        ],
+        "fgRGB": [
+          184,
+          54,
+          96
+        ],
+        "ratio": "5.49",
+        "status": "pass"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          215,
+          238,
+          244
+        ],
+        "fgRGB": [
+          26,
+          139,
+          171
+        ],
+        "ratio": "3.27",
+        "status": "low"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          26,
+          139,
+          171
+        ],
+        "fgRGB": [
+          255,
+          252,
+          247
+        ],
+        "ratio": "3.85",
+        "status": "low"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          79,
+          139,
+          25
+        ],
+        "fgRGB": [
+          255,
+          252,
+          247
+        ],
+        "ratio": "4.07",
+        "status": "low"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          184,
+          54,
+          96
+        ],
+        "fgRGB": [
+          255,
+          252,
+          247
+        ],
+        "ratio": "5.49",
+        "status": "pass"
+      }
+    ]
+  },
+  {
+    "palette": "monokai-pro",
+    "mode": "dark",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          45,
+          42,
+          46
+        ],
+        "fgRGB": [
+          252,
+          252,
+          250
+        ],
+        "ratio": "13.79",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          45,
+          42,
+          46
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "14.17",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          45,
+          42,
+          46
+        ],
+        "fgRGB": [
+          193,
+          192,
+          192
+        ],
+        "ratio": "7.80",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          45,
+          42,
+          46
+        ],
+        "fgRGB": [
+          114,
+          112,
+          114
+        ],
+        "ratio": "2.88",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          252,
+          252,
+          250
+        ],
+        "ratio": "10.31",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "10.59",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          193,
+          192,
+          192
+        ],
+        "ratio": "5.83",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          120,
+          220,
+          232
+        ],
+        "ratio": "6.66",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          169,
+          220,
+          118
+        ],
+        "ratio": "6.65",
+        "status": "pass"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          252,
+          152,
+          103
+        ],
+        "ratio": "4.95",
+        "status": "pass"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          255,
+          97,
+          136
+        ],
+        "ratio": "3.69",
+        "status": "low"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          64,
+          62,
+          65
+        ],
+        "fgRGB": [
+          120,
+          220,
+          232
+        ],
+        "ratio": "6.66",
+        "status": "pass"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          120,
+          220,
+          232
+        ],
+        "fgRGB": [
+          45,
+          42,
+          46
+        ],
+        "ratio": "8.91",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          169,
+          220,
+          118
+        ],
+        "fgRGB": [
+          45,
+          42,
+          46
+        ],
+        "ratio": "8.90",
+        "status": "pass"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          255,
+          97,
+          136
+        ],
+        "fgRGB": [
+          255,
+          252,
+          247
+        ],
+        "ratio": "2.80",
+        "status": "FAIL"
+      }
+    ]
+  },
+  {
+    "palette": "lipgloss",
+    "mode": "light",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          250,
+          249,
+          246
+        ],
+        "fgRGB": [
+          61,
+          54,
+          84
+        ],
+        "ratio": "10.76",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          250,
+          249,
+          246
+        ],
+        "fgRGB": [
+          28,
+          21,
+          48
+        ],
+        "ratio": "16.63",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          250,
+          249,
+          246
+        ],
+        "fgRGB": [
+          107,
+          95,
+          135
+        ],
+        "ratio": "5.52",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          250,
+          249,
+          246
+        ],
+        "fgRGB": [
+          157,
+          148,
+          184
+        ],
+        "ratio": "2.71",
+        "status": "FAIL"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          61,
+          54,
+          84
+        ],
+        "ratio": "11.33",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          28,
+          21,
+          48
+        ],
+        "ratio": "17.51",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          107,
+          95,
+          135
+        ],
+        "ratio": "5.81",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          135,
+          75,
+          253
+        ],
+        "ratio": "4.71",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          4,
+          165,
+          108
+        ],
+        "ratio": "3.18",
+        "status": "low"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          214,
+          116,
+          17
+        ],
+        "ratio": "3.30",
+        "status": "low"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          255,
+          255,
+          255
+        ],
+        "fgRGB": [
+          233,
+          30,
+          142
+        ],
+        "ratio": "4.17",
+        "status": "low"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          235,
+          223,
+          253
+        ],
+        "fgRGB": [
+          135,
+          75,
+          253
+        ],
+        "ratio": "3.71",
+        "status": "low"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          135,
+          75,
+          253
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "4.71",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          4,
+          165,
+          108
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "3.18",
+        "status": "low"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          233,
+          30,
+          142
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "4.17",
+        "status": "low"
+      }
+    ]
+  },
+  {
+    "palette": "lipgloss",
+    "mode": "dark",
+    "pairs": [
+      {
+        "label": "body text",
+        "bgRGB": [
+          22,
+          22,
+          29
+        ],
+        "fgRGB": [
+          221,
+          214,
+          245
+        ],
+        "ratio": "12.87",
+        "status": "pass"
+      },
+      {
+        "label": "headings",
+        "bgRGB": [
+          22,
+          22,
+          29
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "18.00",
+        "status": "pass"
+      },
+      {
+        "label": "muted text",
+        "bgRGB": [
+          22,
+          22,
+          29
+        ],
+        "fgRGB": [
+          156,
+          144,
+          194
+        ],
+        "ratio": "6.16",
+        "status": "pass"
+      },
+      {
+        "label": "subtle text",
+        "bgRGB": [
+          22,
+          22,
+          29
+        ],
+        "fgRGB": [
+          107,
+          96,
+          128
+        ],
+        "ratio": "3.09",
+        "status": "low"
+      },
+      {
+        "label": "body in card",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          221,
+          214,
+          245
+        ],
+        "ratio": "11.52",
+        "status": "pass"
+      },
+      {
+        "label": "heading in card",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "16.12",
+        "status": "pass"
+      },
+      {
+        "label": "muted in card",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          156,
+          144,
+          194
+        ],
+        "ratio": "5.51",
+        "status": "pass"
+      },
+      {
+        "label": "accent link",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          181,
+          178,
+          239
+        ],
+        "ratio": "8.12",
+        "status": "pass"
+      },
+      {
+        "label": "success text",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          4,
+          181,
+          117
+        ],
+        "ratio": "6.04",
+        "status": "pass"
+      },
+      {
+        "label": "warning text",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          255,
+          175,
+          92
+        ],
+        "ratio": "8.86",
+        "status": "pass"
+      },
+      {
+        "label": "danger text",
+        "bgRGB": [
+          32,
+          32,
+          43
+        ],
+        "fgRGB": [
+          255,
+          6,
+          183
+        ],
+        "ratio": "4.58",
+        "status": "pass"
+      },
+      {
+        "label": "active nav",
+        "bgRGB": [
+          45,
+          32,
+          66
+        ],
+        "fgRGB": [
+          181,
+          178,
+          239
+        ],
+        "ratio": "7.57",
+        "status": "pass"
+      },
+      {
+        "label": "primary btn (auto fg)",
+        "bgRGB": [
+          135,
+          75,
+          253
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "4.71",
+        "status": "pass"
+      },
+      {
+        "label": "success badge (auto fg)",
+        "bgRGB": [
+          4,
+          181,
+          117
+        ],
+        "fgRGB": [
+          22,
+          22,
+          29
+        ],
+        "ratio": "6.75",
+        "status": "pass"
+      },
+      {
+        "label": "danger badge (auto fg)",
+        "bgRGB": [
+          255,
+          6,
+          183
+        ],
+        "fgRGB": [
+          255,
+          255,
+          255
+        ],
+        "ratio": "3.52",
+        "status": "low"
+      }
+    ]
+  }
+]

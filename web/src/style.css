@@ -101,9 +101,9 @@ html.dark[data-palette="monokai-solarized"] .bg-success-subtle { background-colo
 html.dark[data-palette="monokai-solarized"] .text-warning { color: #B58900; }
 html.dark[data-palette="monokai-solarized"] .bg-warning { background-color: #B58900; color: #002B36; }
 html.dark[data-palette="monokai-solarized"] .bg-warning-subtle { background-color: #073642; color: #B58900; }
-html.dark[data-palette="monokai-solarized"] .text-danger { color: #DC322F; }
+html.dark[data-palette="monokai-solarized"] .text-danger { color: #F26561; }
 html.dark[data-palette="monokai-solarized"] .bg-danger { background-color: #DC322F; color: #FDF6E3; }
-html.dark[data-palette="monokai-solarized"] .bg-danger-subtle { background-color: #073642; color: #DC322F; }
+html.dark[data-palette="monokai-solarized"] .bg-danger-subtle { background-color: #073642; color: #F26561; }
 html.dark[data-palette="monokai-solarized"] .bg-accent-subtle { background-color: #073642; color: #268BD2; }
 
 /* =========================================================================
@@ -124,9 +124,9 @@ html[data-palette="monokai"]:not(.dark) .text-fg-strong { color: #272822; }
 html[data-palette="monokai"]:not(.dark) .text-fg-muted { color: #75715E; }
 html[data-palette="monokai"]:not(.dark) .text-fg-subtle { color: #A8A799; }
 html[data-palette="monokai"]:not(.dark) .border-border { border-color: #DDD9C6; }
-html[data-palette="monokai"]:not(.dark) .text-accent { color: #1FA2B8; }
-html[data-palette="monokai"]:not(.dark) .bg-accent { background-color: #1FA2B8; color: #F5F4EB; }
-html[data-palette="monokai"]:not(.dark) .bg-accent:hover { background-color: #15879A; }
+html[data-palette="monokai"]:not(.dark) .text-accent { color: #137487; }
+html[data-palette="monokai"]:not(.dark) .bg-accent { background-color: #137487; color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-accent:hover { background-color: #0D5C6C; }
 html[data-palette="monokai"]:not(.dark) .text-success { color: #67961F; }
 html[data-palette="monokai"]:not(.dark) .bg-success { background-color: #67961F; color: #F5F4EB; }
 html[data-palette="monokai"]:not(.dark) .bg-success-subtle { background-color: #EFF4DE; color: #67961F; }
@@ -136,7 +136,7 @@ html[data-palette="monokai"]:not(.dark) .bg-warning-subtle { background-color: #
 html[data-palette="monokai"]:not(.dark) .text-danger { color: #D3145C; }
 html[data-palette="monokai"]:not(.dark) .bg-danger { background-color: #D3145C; color: #F5F4EB; }
 html[data-palette="monokai"]:not(.dark) .bg-danger-subtle { background-color: #FCDCE6; color: #D3145C; }
-html[data-palette="monokai"]:not(.dark) .bg-accent-subtle { background-color: #DCF3F7; color: #1FA2B8; }
+html[data-palette="monokai"]:not(.dark) .bg-accent-subtle { background-color: #DCF3F7; color: #137487; }
 
 html.dark[data-palette="monokai"] { background-color: #272822; color-scheme: dark; }
 html.dark[data-palette="monokai"] body { color: #F8F8F2; }
@@ -158,9 +158,9 @@ html.dark[data-palette="monokai"] .bg-success-subtle { background-color: #3E3D32
 html.dark[data-palette="monokai"] .text-warning { color: #FD971F; }
 html.dark[data-palette="monokai"] .bg-warning { background-color: #FD971F; color: #272822; }
 html.dark[data-palette="monokai"] .bg-warning-subtle { background-color: #3E3D32; color: #FD971F; }
-html.dark[data-palette="monokai"] .text-danger { color: #F92672; }
+html.dark[data-palette="monokai"] .text-danger { color: #FF5C99; }
 html.dark[data-palette="monokai"] .bg-danger { background-color: #F92672; color: #F8F8F2; }
-html.dark[data-palette="monokai"] .bg-danger-subtle { background-color: #3E3D32; color: #F92672; }
+html.dark[data-palette="monokai"] .bg-danger-subtle { background-color: #3E3D32; color: #FF5C99; }
 html.dark[data-palette="monokai"] .bg-accent-subtle { background-color: #3E3D32; color: #66D9EF; }
 
 /* =========================================================================
@@ -276,3 +276,61 @@ html.dark[data-palette="monokai-pro"] .text-danger { color: #FF6188; }
 html.dark[data-palette="monokai-pro"] .bg-danger { background-color: #FF6188; color: #FFFCF7; }
 html.dark[data-palette="monokai-pro"] .bg-danger-subtle { background-color: #403E41; color: #FF6188; }
 html.dark[data-palette="monokai-pro"] .bg-accent-subtle { background-color: #403E41; color: #78DCE8; }
+
+/* =========================================================================
+ * Palette: lipgloss
+ *   Inspired by Charmbracelet's Lipgloss / Charm CLI scheme. Signature
+ *   colors: hot pink (#FF06B7), Charm purple (#874BFD), periwinkle
+ *   (#B5B2EF), Charm green (#04B575), cyan (#43BF6D / #8DD3FA).
+ *   Backgrounds: nearly-black indigo for dark, cream paper for light.
+ * ========================================================================= */
+
+html[data-palette="lipgloss"]:not(.dark) { background-color: #FAF9F6; color-scheme: light; }
+html[data-palette="lipgloss"]:not(.dark) body { color: #3D3654; }
+html[data-palette="lipgloss"]:not(.dark) .bg-bg-canvas { background-color: #FAF9F6; }
+html[data-palette="lipgloss"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-bg-hover { background-color: #F0EAF8; }
+html[data-palette="lipgloss"]:not(.dark) .text-fg { color: #3D3654; }
+html[data-palette="lipgloss"]:not(.dark) .text-fg-strong { color: #1C1530; }
+html[data-palette="lipgloss"]:not(.dark) .text-fg-muted { color: #6B5F87; }
+html[data-palette="lipgloss"]:not(.dark) .text-fg-subtle { color: #9D94B8; }
+html[data-palette="lipgloss"]:not(.dark) .border-border { border-color: #E0D6F0; }
+html[data-palette="lipgloss"]:not(.dark) .text-accent { color: #874BFD; }
+html[data-palette="lipgloss"]:not(.dark) .bg-accent { background-color: #874BFD; color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-accent:hover { background-color: #6B36E0; }
+html[data-palette="lipgloss"]:not(.dark) .text-success { color: #04A56C; }
+html[data-palette="lipgloss"]:not(.dark) .bg-success { background-color: #04A56C; color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-success-subtle { background-color: #D4F1E4; color: #04A56C; }
+html[data-palette="lipgloss"]:not(.dark) .text-warning { color: #D67411; }
+html[data-palette="lipgloss"]:not(.dark) .bg-warning { background-color: #D67411; color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-warning-subtle { background-color: #FCE9D2; color: #D67411; }
+html[data-palette="lipgloss"]:not(.dark) .text-danger { color: #E91E8E; }
+html[data-palette="lipgloss"]:not(.dark) .bg-danger { background-color: #E91E8E; color: #FFFFFF; }
+html[data-palette="lipgloss"]:not(.dark) .bg-danger-subtle { background-color: #FAD3E8; color: #E91E8E; }
+html[data-palette="lipgloss"]:not(.dark) .bg-accent-subtle { background-color: #EBDFFD; color: #874BFD; }
+
+html.dark[data-palette="lipgloss"] { background-color: #16161D; color-scheme: dark; }
+html.dark[data-palette="lipgloss"] body { color: #DDD6F5; }
+html.dark[data-palette="lipgloss"] .bg-bg-canvas { background-color: #16161D; }
+html.dark[data-palette="lipgloss"] .bg-bg-card { background-color: #20202B; }
+html.dark[data-palette="lipgloss"] .bg-bg-input { background-color: #0F0F15; }
+html.dark[data-palette="lipgloss"] .bg-bg-hover { background-color: #2D2D3D; }
+html.dark[data-palette="lipgloss"] .text-fg { color: #DDD6F5; }
+html.dark[data-palette="lipgloss"] .text-fg-strong { color: #FFFFFF; }
+html.dark[data-palette="lipgloss"] .text-fg-muted { color: #9C90C2; }
+html.dark[data-palette="lipgloss"] .text-fg-subtle { color: #6B6080; }
+html.dark[data-palette="lipgloss"] .border-border { border-color: #2D2D3D; }
+html.dark[data-palette="lipgloss"] .text-accent { color: #B5B2EF; }
+html.dark[data-palette="lipgloss"] .bg-accent { background-color: #874BFD; color: #FFFFFF; }
+html.dark[data-palette="lipgloss"] .bg-accent:hover { background-color: #9B66FF; }
+html.dark[data-palette="lipgloss"] .text-success { color: #04B575; }
+html.dark[data-palette="lipgloss"] .bg-success { background-color: #04B575; color: #16161D; }
+html.dark[data-palette="lipgloss"] .bg-success-subtle { background-color: #20202B; color: #04B575; }
+html.dark[data-palette="lipgloss"] .text-warning { color: #FFAF5C; }
+html.dark[data-palette="lipgloss"] .bg-warning { background-color: #FFAF5C; color: #16161D; }
+html.dark[data-palette="lipgloss"] .bg-warning-subtle { background-color: #20202B; color: #FFAF5C; }
+html.dark[data-palette="lipgloss"] .text-danger { color: #FF06B7; }
+html.dark[data-palette="lipgloss"] .bg-danger { background-color: #FF06B7; color: #FFFFFF; }
+html.dark[data-palette="lipgloss"] .bg-danger-subtle { background-color: #20202B; color: #FF06B7; }
+html.dark[data-palette="lipgloss"] .bg-accent-subtle { background-color: #2D2042; color: #B5B2EF; }
