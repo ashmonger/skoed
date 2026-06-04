@@ -187,3 +187,12 @@ export interface Category {
   format: string
   enabled_for_profiles: string[]
 }
+
+// M3.5 — per-client DoH status
+export interface ClientDohStatus {
+  client: string
+  using_doh: boolean
+  doh_probes_1h: number
+  last_doh_query: string | null
+  suspected_provider: string | null
+}

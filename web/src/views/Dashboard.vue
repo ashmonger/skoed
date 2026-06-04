@@ -1,5 +1,30 @@
 <template>
   <div class="space-y-6">
+    <!-- M3.5 DoH alert — surfaces clients with N+ DoH probes in the last hour -->
+    <div v-if="dohAlert.length > 0" class="card p-4 border-l-4 border-warning space-y-2">
+      <div class="flex items-center gap-2">
+        <ExclamationTriangleIcon class="w-5 h-5 text-warning" />
+        <h2 class="text-sm font-semibold text-fg-strong">Suspected DoH/DoT use</h2>
+      </div>
+      <p class="text-xs text-fg-muted">
+        Clients with blocked DoH probes in the last hour. dblock catches the
+        hostname-based path; clients using hardcoded resolver IPs need a
+        firewall rule (see roadmap M3.5).
+      </p>
+      <ul class="text-sm space-y-0.5">
+        <li v-for="row in dohAlert" :key="row.client" class="flex items-center gap-2">
+          <span class="font-mono text-xs">{{ row.client }}</span>
+          <span class="text-fg-muted">·</span>
+          <span class="text-xs">{{ row.count }} probe{{ row.count > 1 ? 's' : '' }}</span>
+          <span v-if="row.provider" class="badge-warning">{{ row.provider }}</span>
+          <router-link
+            class="ml-auto text-xs text-accent hover:underline"
+            :to="{ name: 'query-log', query: { client: row.client } }"
+          >View log →</router-link>
+        </li>
+      </ul>
+    </div>
+
     <!-- Stat tiles (AdGuard-Home-inspired big numbers) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <StatTile label="Cluster status" :value="health?.status ?? '—'"
@@ -64,10 +89,14 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import StatTile from '@/components/StatTile.vue'
 import Breakdown from '@/components/Breakdown.vue'
-import { clusterHealth, clusterStats, clusterStatus } from '@/api/endpoints'
-import type { ClusterHealth, ClusterStats, ClusterStatus } from '@/api/types'
+import {
+  clusterHealth, clusterStats, clusterStatus,
+  getClientDohStatus, getClusterQueryLog,
+} from '@/api/endpoints'
+import type { ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry } from '@/api/types'
 
 const health = ref<ClusterHealth | null>(null)
 const stats  = ref<ClusterStats | null>(null)
@@ -77,6 +106,34 @@ const memberStr = computed(() => {
   if (!health.value) return '—'
   return `${health.value.reachable_members} / ${health.value.members}`
 })
+
+// M3.5 — surface clients suspected of DoH/DoT use.
+interface DohAlertRow { client: string; count: number; provider: string | null }
+const dohAlert = ref<DohAlertRow[]>([])
+
+async function refreshDohAlert() {
+  try {
+    const page = await getClusterQueryLog({ outcome: 'blocked', limit: 500 })
+    const entries: QueryLogEntry[] = page.entries ?? []
+    const clients = new Set<string>()
+    for (const e of entries) {
+      if (e.blocklist_id === 'cat:doh') clients.add(e.client)
+    }
+    const statuses = await Promise.all(
+      Array.from(clients).map(async (c) => {
+        try { return await getClientDohStatus(c) }
+        catch { return null }
+      })
+    )
+    dohAlert.value = statuses
+      .filter((s): s is NonNullable<typeof s> => s !== null && s.using_doh && s.doh_probes_1h > 0)
+      .map((s) => ({ client: s.client, count: s.doh_probes_1h, provider: s.suspected_provider }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  } catch {
+    dohAlert.value = []
+  }
+}
 
 async function refresh() {
   try {
@@ -88,6 +145,14 @@ async function refresh() {
 }
 
 let timer: number | undefined
-onMounted(async () => { await refresh(); timer = window.setInterval(refresh, 10_000) })
-onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
+let dohTimer: number | undefined
+onMounted(async () => {
+  await Promise.all([refresh(), refreshDohAlert()])
+  timer = window.setInterval(refresh, 10_000)
+  dohTimer = window.setInterval(refreshDohAlert, 60_000)
+})
+onBeforeUnmount(() => {
+  if (timer) window.clearInterval(timer)
+  if (dohTimer) window.clearInterval(dohTimer)
+})
 </script>
