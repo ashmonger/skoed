@@ -1,7 +1,7 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Blocklist, BlocklistSource, Category, ClusterHealth, ClusterSelf,
+  Blocklist, BlocklistSource, Category, ClientDohStatus, ClusterHealth, ClusterSelf,
   ClusterStats, ClusterStatus, JoinTokenResponse, LocalDNSEntry, Profile,
   QueryLogPage, Schedule, ScheduleBinding, Settings,
 } from './types'
@@ -223,4 +223,10 @@ export function enableCategory(name: string, profile_id: string): Promise<unknow
 
 export function disableCategory(name: string, profile_id: string): Promise<unknown> {
   return postJSON(`/api/v1/categories/${encodeURIComponent(name)}/disable`, { profile_id })
+}
+
+// ─── M3.5 — Per-client DoH status ────────────────────────────────────────
+
+export function getClientDohStatus(ip: string): Promise<ClientDohStatus> {
+  return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}/doh-status`)
 }
