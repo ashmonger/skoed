@@ -1,8 +1,9 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Blocklist, BlocklistSource, ClusterHealth, ClusterSelf, ClusterStats,
-  ClusterStatus, JoinTokenResponse, LocalDNSEntry, QueryLogPage, Settings,
+  Blocklist, BlocklistSource, Category, ClusterHealth, ClusterSelf,
+  ClusterStats, ClusterStatus, JoinTokenResponse, LocalDNSEntry, Profile,
+  QueryLogPage, Schedule, ScheduleBinding, Settings,
 } from './types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────
@@ -152,4 +153,74 @@ export function transferLeadership(target_node_id: string): Promise<void> {
 
 export function removeNode(node_id: string): Promise<void> {
   return deleteRequest(`/api/v1/cluster/nodes/${encodeURIComponent(node_id)}`)
+}
+
+// ─── M3 — Profiles ───────────────────────────────────────────────────────
+
+export function listProfiles(): Promise<Profile[]> {
+  return getJSON('/api/v1/profiles')
+}
+
+export function getProfile(id: string): Promise<Profile> {
+  return getJSON(`/api/v1/profiles/${encodeURIComponent(id)}`)
+}
+
+export function createProfile(p: Profile): Promise<Profile> {
+  return postJSON('/api/v1/profiles', p)
+}
+
+export function updateProfile(id: string, patch: Partial<Profile>): Promise<Profile> {
+  return patchJSON(`/api/v1/profiles/${encodeURIComponent(id)}`, patch)
+}
+
+export function deleteProfile(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/profiles/${encodeURIComponent(id)}`)
+}
+
+// ─── M3 — Schedules ──────────────────────────────────────────────────────
+
+export function listSchedules(): Promise<Schedule[]> {
+  return getJSON('/api/v1/schedules')
+}
+
+export function createSchedule(s: Schedule): Promise<Schedule> {
+  return postJSON('/api/v1/schedules', s)
+}
+
+export function updateSchedule(id: string, patch: Partial<Schedule>): Promise<Schedule> {
+  return patchJSON(`/api/v1/schedules/${encodeURIComponent(id)}`, patch)
+}
+
+export function deleteSchedule(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/schedules/${encodeURIComponent(id)}`)
+}
+
+export function addScheduleBinding(id: string, profile_id: string, blocklist_id: string): Promise<ScheduleBinding> {
+  return postJSON(`/api/v1/schedules/${encodeURIComponent(id)}/bindings`, { profile_id, blocklist_id })
+}
+
+export function deleteScheduleBinding(id: string, profile: string, blocklist: string): Promise<void> {
+  return deleteRequest(`/api/v1/schedules/${encodeURIComponent(id)}/bindings/${encodeURIComponent(profile)}/${encodeURIComponent(blocklist)}`)
+}
+
+// ─── M3 — Categories ─────────────────────────────────────────────────────
+
+export function listCategories(): Promise<Category[]> {
+  return getJSON('/api/v1/categories')
+}
+
+export function getCategoryView(name: string): Promise<Category> {
+  return getJSON(`/api/v1/categories/${encodeURIComponent(name)}`)
+}
+
+export function updateCategoryURL(name: string, url: string, format?: string): Promise<unknown> {
+  return patchJSON(`/api/v1/categories/${encodeURIComponent(name)}`, { url, format })
+}
+
+export function enableCategory(name: string, profile_id: string): Promise<unknown> {
+  return postJSON(`/api/v1/categories/${encodeURIComponent(name)}/enable`, { profile_id })
+}
+
+export function disableCategory(name: string, profile_id: string): Promise<unknown> {
+  return postJSON(`/api/v1/categories/${encodeURIComponent(name)}/disable`, { profile_id })
 }

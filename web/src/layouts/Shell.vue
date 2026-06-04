@@ -111,7 +111,7 @@ import {
   HomeIcon, NoSymbolIcon, CheckBadgeIcon, ServerStackIcon,
   QueueListIcon, ChartBarIcon, CpuChipIcon, Cog6ToothIcon,
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
-  ArrowRightStartOnRectangleIcon,
+  ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -131,6 +131,9 @@ const nav = [
   { name: 'blocklists', label: 'Blocklists', icon: NoSymbolIcon },
   { name: 'allowlist',  label: 'Allowlist',  icon: CheckBadgeIcon },
   { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
+  { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
+  { name: 'schedules',  label: 'Schedules',  icon: ClockIcon },
+  { name: 'categories', label: 'Categories', icon: TagIcon },
   { name: 'query-log',  label: 'Query log',  icon: QueueListIcon },
   { name: 'stats',      label: 'Stats',      icon: ChartBarIcon },
   { name: 'cluster',    label: 'Cluster',    icon: CpuChipIcon },
@@ -142,6 +145,9 @@ const titles: Record<string, string> = {
   blocklists: 'Blocklists',
   allowlist: 'Allowlist',
   'local-dns': 'Local DNS',
+  profiles: 'Profiles',
+  schedules: 'Schedules',
+  categories: 'Categories',
   'query-log': 'Query log',
   stats: 'Stats',
   cluster: 'Cluster',
