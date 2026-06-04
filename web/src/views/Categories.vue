@@ -54,9 +54,13 @@
           </div>
           <div v-if="editingUrl !== cat.name"
                class="flex items-center gap-2">
-            <code class="font-mono text-xs text-fg break-all flex-1 min-w-0">
+            <code v-if="cat.url"
+                  class="font-mono text-xs text-fg break-all flex-1 min-w-0">
               {{ cat.url }}
             </code>
+            <span v-else class="text-xs text-fg-muted italic flex-1 min-w-0">
+              bundled in dblock — no remote URL
+            </span>
             <button class="btn-ghost shrink-0"
                     title="Edit upstream URL"
                     @click="openUrlEditor(cat)">

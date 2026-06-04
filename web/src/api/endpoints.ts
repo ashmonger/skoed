@@ -75,7 +75,7 @@ export function refreshBlocklist(id: string): Promise<Blocklist> {
 
 // ─── Allowlist ───────────────────────────────────────────────────────────
 
-export function listAllowlist(): Promise<{ entries: string[] }> {
+export function listAllowlist(): Promise<string[]> {
   return getJSON('/api/v1/allowlist')
 }
 

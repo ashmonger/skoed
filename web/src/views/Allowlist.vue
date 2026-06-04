@@ -203,8 +203,7 @@ const filtered = computed(() => {
 
 async function refresh() {
   try {
-    const res = await listAllowlist()
-    entries.value = res.entries ?? []
+    entries.value = await listAllowlist()
     lastError.value = ''
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load allowlist')

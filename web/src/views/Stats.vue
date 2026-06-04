@@ -4,8 +4,11 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-lg font-semibold text-fg-strong">Cluster statistics</h1>
-        <p class="text-xs text-fg-muted" v-if="stats">
+        <p class="text-xs text-fg-muted" v-if="stats?.window_from && stats?.window_to">
           Window: {{ fmtHour(stats.window_from) }} → {{ fmtHour(stats.window_to) }}
+        </p>
+        <p class="text-xs text-fg-muted" v-else-if="stats">
+          Window: waiting for first hourly flush…
         </p>
       </div>
       <button class="btn-ghost" :disabled="loading" @click="refresh" aria-label="Refresh">
