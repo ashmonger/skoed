@@ -334,3 +334,63 @@ html.dark[data-palette="lipgloss"] .text-danger { color: #FF06B7; }
 html.dark[data-palette="lipgloss"] .bg-danger { background-color: #FF06B7; color: #FFFFFF; }
 html.dark[data-palette="lipgloss"] .bg-danger-subtle { background-color: #20202B; color: #FF06B7; }
 html.dark[data-palette="lipgloss"] .bg-accent-subtle { background-color: #2D2042; color: #B5B2EF; }
+
+/* =========================================================================
+ * Hover bg overrides for dark palettes
+ *
+ * Tailwind compiles `hover:bg-bg-hover` to `.hover\:bg-bg-hover:hover`,
+ * which is a DIFFERENT selector from `.bg-bg-hover`. The dark-palette
+ * blocks above only override `.bg-bg-hover`, so the hover-modifier form
+ * falls back to the Tailwind compile-time default (#E4DBC1, cream) —
+ * resulting in cream-on-light-text in every dark mode (1.0–1.3:1 contrast,
+ * effectively invisible).
+ *
+ * Same applies for `hover:bg-accent-hover` (used by btn-primary). The
+ * dark palettes do define `.bg-accent:hover` but not the literal
+ * `.hover\:bg-accent-hover:hover` Tailwind generates.
+ *
+ * Mirror the per-palette `.bg-bg-hover` value into the hover-modifier
+ * selector so nav-link / ghost-button hover states actually contrast.
+ * ========================================================================= */
+
+html.dark[data-palette="monokai-solarized"] .hover\:bg-bg-hover:hover { background-color: #094352; }
+html.dark[data-palette="monokai"]            .hover\:bg-bg-hover:hover { background-color: #49483E; }
+html.dark[data-palette="monokai-blue"]       .hover\:bg-bg-hover:hover { background-color: #213557; }
+html.dark[data-palette="monokai-pro"]        .hover\:bg-bg-hover:hover { background-color: #4A484C; }
+html.dark[data-palette="lipgloss"]           .hover\:bg-bg-hover:hover { background-color: #2D2D3D; }
+
+/* `hover:text-fg-strong` — same story: nav links bump to strong text on
+ * hover. Without these overrides, dark mode falls back to the Tailwind
+ * compile-time fg.strong (#073642, near-black) → invisible on a dark
+ * hover bg. */
+html.dark[data-palette="monokai-solarized"] .hover\:text-fg-strong:hover { color: #EEE8D5; }
+html.dark[data-palette="monokai"]            .hover\:text-fg-strong:hover { color: #F8F8F2; }
+html.dark[data-palette="monokai-blue"]       .hover\:text-fg-strong:hover { color: #F1F5F9; }
+html.dark[data-palette="monokai-pro"]        .hover\:text-fg-strong:hover { color: #FFFFFF; }
+html.dark[data-palette="lipgloss"]           .hover\:text-fg-strong:hover { color: #FFFFFF; }
+
+/* `hover:bg-accent-hover` — used by btn-primary. Tailwind compiles this
+ * to a separate selector from `.bg-accent:hover`, so dark palettes also
+ * need this explicit override for buttons to keep their palette tone on
+ * hover instead of reverting to the Solarized teal default. */
+html.dark[data-palette="monokai-solarized"] .hover\:bg-accent-hover:hover { background-color: #1A6FA0; }
+html.dark[data-palette="monokai"]            .hover\:bg-accent-hover:hover { background-color: #4FB8CC; }
+html.dark[data-palette="monokai-blue"]       .hover\:bg-accent-hover:hover { background-color: #4690E6; }
+html.dark[data-palette="monokai-pro"]        .hover\:bg-accent-hover:hover { background-color: #5BBDC8; }
+html.dark[data-palette="lipgloss"]           .hover\:bg-accent-hover:hover { background-color: #9B66FF; }
+
+/* Same overrides for the light non-default palettes. */
+html[data-palette="monokai"]:not(.dark)        .hover\:bg-bg-hover:hover { background-color: #ECEAD9; }
+html[data-palette="monokai-blue"]:not(.dark)   .hover\:bg-bg-hover:hover { background-color: #DEE6F1; }
+html[data-palette="monokai-pro"]:not(.dark)    .hover\:bg-bg-hover:hover { background-color: #F0E9DD; }
+html[data-palette="lipgloss"]:not(.dark)       .hover\:bg-bg-hover:hover { background-color: #F0EAF8; }
+
+html[data-palette="monokai"]:not(.dark)        .hover\:text-fg-strong:hover { color: #272822; }
+html[data-palette="monokai-blue"]:not(.dark)   .hover\:text-fg-strong:hover { color: #1A2842; }
+html[data-palette="monokai-pro"]:not(.dark)    .hover\:text-fg-strong:hover { color: #29242A; }
+html[data-palette="lipgloss"]:not(.dark)       .hover\:text-fg-strong:hover { color: #1C1530; }
+
+html[data-palette="monokai"]:not(.dark)        .hover\:bg-accent-hover:hover { background-color: #0D5C6C; }
+html[data-palette="monokai-blue"]:not(.dark)   .hover\:bg-accent-hover:hover { background-color: #1D4FC4; }
+html[data-palette="monokai-pro"]:not(.dark)    .hover\:bg-accent-hover:hover { background-color: #167390; }
+html[data-palette="lipgloss"]:not(.dark)       .hover\:bg-accent-hover:hover { background-color: #6B36E0; }
