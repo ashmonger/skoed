@@ -121,15 +121,62 @@
         </table>
       </div>
     </template>
+
+    <!-- DoH attempts today — FSID FS-WebUiDohWidget. Rendered independently
+         of the aggregate stats block so it surfaces even before the first
+         hourly flush has produced any aggregate data. -->
+    <div v-if="dohRows.length > 0 || dohError" class="card p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-fg-strong flex items-center gap-2">
+          <LockClosedIcon class="h-4 w-4" />
+          <span>DoH attempts today</span>
+        </h2>
+      </div>
+      <div v-if="dohError" class="text-xs text-danger flex items-center gap-3">
+        <span>Could not load DoH attempts.</span>
+        <button class="btn-ghost" :disabled="dohLoading" @click="refreshDoH">Retry</button>
+      </div>
+      <table v-else class="table">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th class="text-right w-32">Probes</th>
+            <th class="w-32"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in dohRows" :key="row.client">
+            <td class="font-mono text-xs">{{ row.client }}</td>
+            <td class="text-right font-mono text-xs">{{ fmtNum(row.count) }}</td>
+            <td class="text-right">
+              <router-link
+                class="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                :to="{ name: 'query-log', query: { client: row.client, category: 'doh-probe' } }"
+              >
+                <span>View log</span>
+                <ArrowRightIcon class="h-3 w-3" />
+              </router-link>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else class="card p-4">
+      <h2 class="text-sm font-semibold text-fg-strong flex items-center gap-2 mb-2">
+        <LockClosedIcon class="h-4 w-4" />
+        <span>DoH attempts today</span>
+      </h2>
+      <p class="text-xs text-fg-muted">No DoH probes detected today.</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ArrowPathIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, ArrowRightIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
 import StatTile from '@/components/StatTile.vue'
-import { clusterStats } from '@/api/endpoints'
-import type { ClusterStats, HourAggregate } from '@/api/types'
+import { clusterStats, getClusterQueryLog } from '@/api/endpoints'
+import type { ClusterStats, HourAggregate, QueryLogEntry } from '@/api/types'
 
 const stats = ref<ClusterStats | null>(null)
 const loading = ref(false)
@@ -188,10 +235,50 @@ async function refresh() {
   }
 }
 
+// ─── DoH attempts today (FS-WebUiDohWidget) ─────────────────────────────
+interface DohRow { client: string; count: number }
+
+const dohRows = ref<DohRow[]>([])
+const dohError = ref(false)
+const dohLoading = ref(false)
+
+function todayISODate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+async function refreshDoH() {
+  dohLoading.value = true
+  dohError.value = false
+  try {
+    const page = await getClusterQueryLog({ outcome: 'blocked', limit: 500 })
+    const today = todayISODate()
+    const counts = new Map<string, number>()
+    const entries: QueryLogEntry[] = page.entries ?? []
+    for (const e of entries) {
+      if (e.blocklist_id !== 'cat:doh') continue
+      if (!e.timestamp || e.timestamp.slice(0, 10) !== today) continue
+      counts.set(e.client, (counts.get(e.client) ?? 0) + 1)
+    }
+    dohRows.value = Array.from(counts, ([client, count]) => ({ client, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  } catch {
+    dohError.value = true
+    dohRows.value = []
+  } finally {
+    dohLoading.value = false
+  }
+}
+
 let timer: number | undefined
+let dohTimer: number | undefined
 onMounted(async () => {
-  await refresh()
+  await Promise.all([refresh(), refreshDoH()])
   timer = window.setInterval(refresh, 30_000)
+  dohTimer = window.setInterval(refreshDoH, 60_000)
 })
-onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
+onBeforeUnmount(() => {
+  if (timer) window.clearInterval(timer)
+  if (dohTimer) window.clearInterval(dohTimer)
+})
 </script>

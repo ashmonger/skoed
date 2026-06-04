@@ -145,3 +145,45 @@ export interface ApiError {
   leader_id?: string
   leader_address?: string
 }
+
+// ─── M3 ───────────────────────────────────────────────────────────────────
+
+export interface Profile {
+  id: string
+  name: string
+  blocklists?: string[]
+  allowlist?: string[]
+  safesearch?: string[]
+  client_ips?: string[]
+  client_cidrs?: string[]
+}
+
+export type ScheduleMode = 'block_only_inside' | 'allow_only_inside'
+
+export interface TimeWindow {
+  days: string[]   // "Mon","Tue",…,"Sun"
+  start: string    // "HH:MM"
+  end: string      // "HH:MM"
+}
+
+export interface Schedule {
+  id: string
+  name: string
+  mode: ScheduleMode
+  windows: TimeWindow[]
+}
+
+export interface ScheduleBinding {
+  schedule_id: string
+  profile_id: string
+  blocklist_id: string
+}
+
+export interface Category {
+  name: string
+  description: string
+  default_url: string
+  url: string             // effective URL (override or default)
+  format: string
+  enabled_for_profiles: string[]
+}
