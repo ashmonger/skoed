@@ -144,7 +144,7 @@ func requireDoTEnabled(t *testing.T, n *Node) string {
 
 // FS-DohServerListens
 func TestDohServerListensPostAndGet(t *testing.T) {
-	c := startCluster(t, 1)
+	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)
 
@@ -175,7 +175,7 @@ func TestDohServerListensPostAndGet(t *testing.T) {
 
 // FS-DotServerListens
 func TestDotServerListens(t *testing.T) {
-	c := startCluster(t, 1)
+	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoTEnabled(t, n)
 
@@ -187,7 +187,7 @@ func TestDotServerListens(t *testing.T) {
 
 // FS-DohAppliesFilter
 func TestDohAppliesFilter(t *testing.T) {
-	c := startCluster(t, 1)
+	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)
 
@@ -217,7 +217,7 @@ func TestDohAppliesFilter(t *testing.T) {
 
 // FS-DotAppliesFilter
 func TestDotAppliesFilter(t *testing.T) {
-	c := startCluster(t, 1)
+	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoTEnabled(t, n)
 
@@ -245,7 +245,7 @@ func TestDotAppliesFilter(t *testing.T) {
 
 // FS-DohSelfSignedCert
 func TestDohSelfSignedCertOnFirstBoot(t *testing.T) {
-	c := startCluster(t, 1)
+	c := startClusterEncrypted(t, 1)
 	cn := c.Leader(t)
 	n := cn.Node
 	addr := requireDoHEnabled(t, n)
