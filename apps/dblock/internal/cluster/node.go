@@ -37,6 +37,7 @@ type NodeSection struct {
 // existing M1 binaries can still parse this listen subtree without surprise.
 type DNSSection struct {
 	Listen ListenSection `yaml:"listen"`
+	TLS    TLSSection    `yaml:"tls,omitempty"`
 }
 
 // ListenSection is the bind address for the DNS server.
@@ -44,6 +45,17 @@ type ListenSection struct {
 	Port int  `yaml:"port"`
 	IPv4 bool `yaml:"ipv4"`
 	IPv6 bool `yaml:"ipv6"`
+	// M4: encrypted-DNS listeners. Zero/unset = disabled.
+	DoHPort int `yaml:"doh_port,omitempty"`
+	DoTPort int `yaml:"dot_port,omitempty"`
+}
+
+// TLSSection carries the certificate paths for the M4 DoH/DoT listeners.
+// Both fields empty = dblock auto-generates a self-signed cert under
+// <data_dir>/tls/ on first boot.
+type TLSSection struct {
+	CertFile string `yaml:"cert_file,omitempty"`
+	KeyFile  string `yaml:"key_file,omitempty"`
 }
 
 // BootstrapSection is consumed exactly once on first boot when no bbolt

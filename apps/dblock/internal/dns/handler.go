@@ -52,6 +52,16 @@ func NewHandler(cfg HandlerConfig) *Handler {
 func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	clientIPStr, clientIP := h.resolveClient(w, r)
 
+	// M4: when a query comes in over DoH/DoT, suffix every query-log
+	// outcome with -doh / -dot so analytics can split by transport.
+	transport := transportFromWriter(w)
+	applyT := func(o dlog.Outcome) dlog.Outcome {
+		if transport == "" {
+			return o
+		}
+		return dlog.Outcome(string(o) + "-" + transport)
+	}
+
 	if len(r.Question) == 0 {
 		m := new(dns.Msg)
 		m.SetRcode(r, dns.RcodeFormatError)
@@ -74,12 +84,12 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// network-wide DNS filtering is in effect.
 	if name == categories.FirefoxCanary {
 		_ = w.WriteMsg(nxdomain(r))
-		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, "", "doh-canary", "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "doh-canary", "")
 		return
 	}
 	if name == categories.DDRProbeDomain {
 		_ = w.WriteMsg(noData(r))
-		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, "", "ddr-probe", "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "ddr-probe", "")
 		return
 	}
 
@@ -88,7 +98,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if msg, ok := h.lr.Resolve(q.Name, qtype); ok {
 			msg.SetReply(r)
 			_ = w.WriteMsg(msg)
-			h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeLocal, "")
+			h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeLocal), "")
 			return
 		}
 	}
@@ -100,7 +110,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	if target, ok := filter.SafeSearchRewrite(name, fe.SafeSearchProvidersForClient(clientIP)); ok && (qtype == dns.TypeA || qtype == dns.TypeAAAA) {
 		resp := h.buildSafeSearchResponse(r, q, target)
 		_ = w.WriteMsg(resp)
-		h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeLocal, "")
+		h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeLocal), "")
 		return
 	}
 
@@ -118,7 +128,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if result.BlocklistID == categories.BlocklistID("doh") {
 			cat = "doh-probe"
 		}
-		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, result.BlocklistID, cat, "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), result.BlocklistID, cat, "")
 		return
 	}
 
@@ -128,7 +138,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if cached, ok := h.ch.get(key); ok {
 			cached.SetReply(r)
 			_ = w.WriteMsg(cached)
-			h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeCached, "")
+			h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeCached), "")
 			return
 		}
 	}
@@ -156,7 +166,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	resolved.SetReply(r)
 	resolved.Rcode = rcode
 	_ = w.WriteMsg(resolved)
-	h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeForwarded, "")
+	h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeForwarded), "")
 }
 
 // resolveClient returns the client's string IP and parsed net.IP. When

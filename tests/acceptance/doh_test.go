@@ -31,8 +31,8 @@ import (
 type queryLogEntry struct {
 	Domain   string `json:"domain"`
 	Category string `json:"category"`
-	ClientIP string `json:"client_ip"`
-	Action   string `json:"action"`
+	ClientIP string `json:"client"`
+	Action   string `json:"outcome"`
 }
 
 // fetchQueryLog retrieves /api/v1/query-log?limit=N. Skips when 404.

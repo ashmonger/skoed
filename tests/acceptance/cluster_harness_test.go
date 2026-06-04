@@ -45,6 +45,10 @@ type Cluster struct {
 	// cluster-wide override (e.g. DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS) without
 	// threading env through every helper.
 	defaultEnv []string
+	// encryptedDNS opt-in: when true, every node spawned in this cluster gets
+	// freshly-allocated DoH + DoT ports written into its config.yaml. M4 tests
+	// flip this via startClusterEncrypted.
+	encryptedDNS bool
 }
 
 // ClusterNode wraps a Node with the bookkeeping needed to kill and restart it.
@@ -69,6 +73,9 @@ type M2NodeConfig struct {
 	DNSPort  int
 	APIPort  int
 	RaftPort int
+	// M4: optional encrypted DNS listeners. Zero/unset = disabled.
+	DoHPort int
+	DoTPort int
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
 	// cluster); for joining nodes it carries the leader's API address and the
 	// single-use join token issued by the leader.
@@ -87,6 +94,36 @@ type M2NodeConfig struct {
 // has converged to the same commit index.
 func startCluster(t *testing.T, initialNodes int) *Cluster {
 	return startClusterWithEnv(t, initialNodes, nil)
+}
+
+// startClusterEncrypted is startCluster + every node opens DoH/DoT listeners
+// on freshly-allocated TCP ports. M4 tests use this; everyone else stays on
+// plain UDP/TCP DNS.
+func startClusterEncrypted(t *testing.T, initialNodes int) *Cluster {
+	c := startClusterWithEnvEncrypted(t, initialNodes, nil, true)
+	return c
+}
+
+// startClusterWithEnvEncrypted is the full-knob form.
+func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, encryptedDNS bool) *Cluster {
+	t.Helper()
+	if initialNodes < 1 {
+		t.Fatalf("startCluster: need at least 1 node, got %d", initialNodes)
+	}
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin, defaultEnv: env, encryptedDNS: encryptedDNS}
+	c.bootstrapFirst(t)
+	setupAuth(t, c.nodes[0].Node)
+	for i := 1; i < initialNodes; i++ {
+		c.AddNode(t)
+	}
+	if initialNodes > 1 {
+		c.WaitConverged(t)
+	}
+	return c
 }
 
 // startClusterWithEnv is like startCluster but applies the given env vars to
@@ -120,12 +157,17 @@ func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster 
 // itself as a single-node Raft cluster and is immediately the leader.
 func (c *Cluster) bootstrapFirst(t *testing.T) {
 	t.Helper()
-	cn := c.spawnNode(t, M2NodeConfig{
+	cfg := M2NodeConfig{
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
 		RaftPort: freeTCPPort(t),
-	})
+	}
+	if c.encryptedDNS {
+		cfg.DoHPort = freeTCPPort(t)
+		cfg.DoTPort = freeTCPPort(t)
+	}
+	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
 }
@@ -184,11 +226,18 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 	env := append([]string{}, c.defaultEnv...)
 	env = append(env, cfg.Env...)
 
+	n := &Node{
+		DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
+		APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
+	}
+	if cfg.DoHPort > 0 {
+		n.DoHAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoHPort)
+	}
+	if cfg.DoTPort > 0 {
+		n.DoTAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoTPort)
+	}
 	cn := &ClusterNode{
-		Node: &Node{
-			DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
-			APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
-		},
+		Node:     n,
 		NodeID:   cfg.NodeID,
 		DataDir:  dir,
 		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
@@ -207,11 +256,18 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 	t.Helper()
 	env := append([]string{}, c.defaultEnv...)
 	env = append(env, cfg.Env...)
+	n := &Node{
+		DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
+		APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
+	}
+	if cfg.DoHPort > 0 {
+		n.DoHAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoHPort)
+	}
+	if cfg.DoTPort > 0 {
+		n.DoTAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoTPort)
+	}
 	cn := &ClusterNode{
-		Node: &Node{
-			DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
-			APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
-		},
+		Node:     n,
 		NodeID:   cfg.NodeID,
 		DataDir:  dir,
 		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
@@ -264,9 +320,11 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	t.Helper()
 
 	type listenSection struct {
-		Port int  `yaml:"port"`
-		IPv4 bool `yaml:"ipv4"`
-		IPv6 bool `yaml:"ipv6"`
+		Port    int  `yaml:"port"`
+		IPv4    bool `yaml:"ipv4"`
+		IPv6    bool `yaml:"ipv6"`
+		DoHPort int  `yaml:"doh_port,omitempty"`
+		DoTPort int  `yaml:"dot_port,omitempty"`
 	}
 	type dnsSection struct {
 		Listen listenSection `yaml:"listen"`
@@ -292,7 +350,10 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 			ID:          cfg.NodeID,
 			RaftAddress: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
 			APIAddress:  fmt.Sprintf("127.0.0.1:%d", cfg.APIPort),
-			DNS:         dnsSection{Listen: listenSection{Port: cfg.DNSPort, IPv4: true, IPv6: false}},
+			DNS: dnsSection{Listen: listenSection{
+				Port: cfg.DNSPort, IPv4: true, IPv6: false,
+				DoHPort: cfg.DoHPort, DoTPort: cfg.DoTPort,
+			}},
 			DataDir:     dir,
 		},
 		Bootstrap: bootstrapSection{

@@ -85,6 +85,17 @@ type ListenConfig struct {
 	Port int  `yaml:"port" json:"port"`
 	IPv4 bool `yaml:"ipv4" json:"ipv4"`
 	IPv6 bool `yaml:"ipv6" json:"ipv6"`
+	// M4: encrypted DNS listeners. Zero/unset = disabled.
+	DoHPort int `yaml:"doh_port,omitempty" json:"doh_port,omitempty"`
+	DoTPort int `yaml:"dot_port,omitempty" json:"dot_port,omitempty"`
+}
+
+// TLSConfig carries the certificate paths used by the DoH and DoT listeners.
+// When CertFile/KeyFile are empty, dblock generates a self-signed cert on
+// first boot under <data_dir>/tls/ and reuses it afterwards.
+type TLSConfig struct {
+	CertFile string `yaml:"cert_file,omitempty" json:"cert_file,omitempty"`
+	KeyFile  string `yaml:"key_file,omitempty"  json:"key_file,omitempty"`
 }
 
 type CacheConfig struct {

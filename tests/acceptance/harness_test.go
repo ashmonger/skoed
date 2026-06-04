@@ -40,6 +40,8 @@ const (
 type Node struct {
 	DNSAddr string // "127.0.0.1:port" — UDP/TCP DNS listener
 	APIBase string // "http://127.0.0.1:port" — management API
+	DoHAddr string // "127.0.0.1:port" — DoH HTTPS listener; "" when disabled
+	DoTAddr string // "127.0.0.1:port" — DoT TLS listener; "" when disabled
 	cmd     *exec.Cmd
 }
 

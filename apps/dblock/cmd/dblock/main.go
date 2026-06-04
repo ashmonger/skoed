@@ -195,6 +195,41 @@ func main() {
 	}
 	log.Printf("DNS server listening on :%d (mode=%s)", snap.DNS.Listen.Port, snap.DNS.Mode)
 
+	// M4: encrypted DNS listeners (DoH/DoT). Both share a single TLS cert.
+	// Either port at 0 disables that transport; both at 0 skips the
+	// EncryptedServer entirely so non-M4 deployments behave exactly like
+	// they did before.
+	var encryptedSrv *dnsengine.EncryptedServer
+	if snap.DNS.Listen.DoHPort > 0 || snap.DNS.Listen.DoTPort > 0 {
+		certFile, keyFile, err := dnsengine.EnsureSelfSignedCert(
+			node.Node.DataDir,
+			node.Node.DNS.TLS.CertFile,
+			node.Node.DNS.TLS.KeyFile,
+			node.Node.ID,
+		)
+		if err != nil {
+			log.Fatalf("prepare TLS cert: %v", err)
+		}
+		encryptedSrv, err = dnsengine.NewEncryptedServer(
+			buildDNSHandler(snap, app.GetFilterEng, queryLog),
+			snap.DNS.Listen.DoHPort,
+			snap.DNS.Listen.DoTPort,
+			certFile, keyFile,
+		)
+		if err != nil {
+			log.Fatalf("build encrypted DNS server: %v", err)
+		}
+		if err := encryptedSrv.Start(); err != nil {
+			log.Fatalf("start encrypted DNS server: %v", err)
+		}
+		if snap.DNS.Listen.DoHPort > 0 {
+			log.Printf("DoH server listening on :%d (cert=%s)", snap.DNS.Listen.DoHPort, certFile)
+		}
+		if snap.DNS.Listen.DoTPort > 0 {
+			log.Printf("DoT server listening on :%d (cert=%s)", snap.DNS.Listen.DoTPort, certFile)
+		}
+	}
+
 	log.Printf("dblock M2 node %q ready (raft=%s)", node.Node.ID, node.Node.RaftAddress)
 
 	quit := make(chan os.Signal, 1)
@@ -208,6 +243,9 @@ func main() {
 		log.Printf("api shutdown: %v", err)
 	}
 	dnsServer.Shutdown()
+	if encryptedSrv != nil {
+		encryptedSrv.Shutdown()
+	}
 	log.Println("done")
 }
 
@@ -216,9 +254,11 @@ func main() {
 // ports because they're host-specific.
 func mergeNodeLocal(cfg *config.Config, node *cluster.NodeYAML) {
 	cfg.DNS.Listen = config.ListenConfig{
-		Port: node.Node.DNS.Listen.Port,
-		IPv4: node.Node.DNS.Listen.IPv4,
-		IPv6: node.Node.DNS.Listen.IPv6,
+		Port:    node.Node.DNS.Listen.Port,
+		IPv4:    node.Node.DNS.Listen.IPv4,
+		IPv6:    node.Node.DNS.Listen.IPv6,
+		DoHPort: node.Node.DNS.Listen.DoHPort,
+		DoTPort: node.Node.DNS.Listen.DoTPort,
 	}
 }
 
