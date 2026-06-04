@@ -77,21 +77,22 @@
                    class="input"
                    @input="markDnsDirty" />
           </div>
-          <div class="space-y-2">
-            <label class="inline-flex items-center gap-2 text-sm pt-6">
-              <input type="checkbox"
-                     v-model="dnsForm.cacheEnabled"
-                     @change="markDnsDirty" />
-              Enable DNS cache
-            </label>
-            <div v-if="dnsForm.cacheEnabled">
-              <label class="label" for="dns-cache-max">Cache max entries</label>
-              <input id="dns-cache-max"
-                     v-model.number="dnsForm.cacheMax"
-                     type="number" min="0"
-                     class="input"
-                     @input="markDnsDirty" />
+          <div>
+            <div class="flex items-center justify-between">
+              <label class="label !mb-0" for="dns-cache-max">Cache max entries</label>
+              <label class="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+                <input type="checkbox"
+                       v-model="dnsForm.cacheEnabled"
+                       @change="markDnsDirty" />
+                Enable DNS cache
+              </label>
             </div>
+            <input id="dns-cache-max"
+                   v-model.number="dnsForm.cacheMax"
+                   type="number" min="0"
+                   class="input mt-1"
+                   :disabled="!dnsForm.cacheEnabled"
+                   @input="markDnsDirty" />
           </div>
         </div>
 

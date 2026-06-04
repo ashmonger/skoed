@@ -5,7 +5,7 @@
       class="w-60 shrink-0 border-r border-border bg-bg-card flex flex-col"
       :class="{ '-ml-60 md:ml-0': !sidebarOpen }"
     >
-      <div class="px-5 py-4 border-b border-border flex items-center gap-2">
+      <div class="px-5 h-12 border-b border-border flex items-center gap-2">
         <img src="/favicon.svg" alt="" class="w-6 h-6" />
         <span class="font-semibold text-fg-strong tracking-tight">dblock</span>
         <span
