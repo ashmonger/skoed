@@ -57,6 +57,7 @@ func fetchDohStatus(t *testing.T, n *Node, clientIP string) (clientDohStatus, in
 
 // FS-ClientDohStatusEndpointShape
 func TestClientDohStatusEndpointShape(t *testing.T) {
+	t.Setenv("DBLOCK_TEST_MODE", "1") // EDNS0 client-IP spoofing only honored in test mode
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -169,6 +170,7 @@ func TestClientDohStatusSuspectedProvider(t *testing.T) {
 	}
 	for i, tc := range cases {
 		t.Run(tc.domain, func(t *testing.T) {
+			t.Setenv("DBLOCK_TEST_MODE", "1") // EDNS0 client-IP spoof only in test mode
 			c := startCluster(t, 1)
 			n := c.Leader(t).Node
 

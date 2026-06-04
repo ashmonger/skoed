@@ -250,6 +250,9 @@ func (a *App) Router() http.Handler {
 		r.Post("/api/v1/categories/{name}/enable", a.forward(h.EnableCategory))
 		r.Post("/api/v1/categories/{name}/disable", a.forward(h.DisableCategory))
 
+		// M3.5 — Per-client DoH status (local query-log read; never forwarded)
+		r.Get("/api/v1/clients/{ip}/doh-status", h.GetClientDohStatus)
+
 		// Cluster endpoints — most write paths forwarded.
 		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))
 		r.Get("/api/v1/cluster/status", h.ClusterStatus)
