@@ -2,19 +2,21 @@ package dns
 
 import (
 	"net"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/filter"
+	"github.com/dblock/dblock/internal/filter/categories"
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/miekg/dns"
 )
 
 // HandlerConfig bundles all dependencies for the DNS query pipeline.
 type HandlerConfig struct {
-	DNSCfg       config.DNSConfig
-	FilterEngine func() *filter.Engine // called on each query to get the current engine
+	DNSCfg        config.DNSConfig
+	FilterEngine  func() *filter.Engine // called on each query to get the current engine
 	LocalResolver *LocalResolver
 	Forwarder     *Forwarder // nil when mode=recursive
 	Recursor      *Recursor  // nil when mode=forwarding
@@ -48,7 +50,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 
 // ServeDNS implements dns.Handler.
 func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	clientIP := extractIP(w.RemoteAddr())
+	clientIPStr, clientIP := h.resolveClient(w, r)
 
 	if len(r.Question) == 0 {
 		m := new(dns.Msg)
@@ -66,24 +68,57 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		qtypeStr = "UNKNOWN"
 	}
 
+	// M3 interceptions BEFORE any filtering. These three special cases
+	// short-circuit the regular pipeline. Firefox canary is non-overridable
+	// by design — the entire point is to be the operator's signal that
+	// network-wide DNS filtering is in effect.
+	if name == categories.FirefoxCanary {
+		_ = w.WriteMsg(nxdomain(r))
+		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, "", "doh-canary", "")
+		return
+	}
+	if name == categories.DDRProbeDomain {
+		_ = w.WriteMsg(noData(r))
+		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, "", "ddr-probe", "")
+		return
+	}
+
 	// Local DNS entries take priority over both the filter and upstream resolution.
 	if h.lr != nil {
 		if msg, ok := h.lr.Resolve(q.Name, qtype); ok {
 			msg.SetReply(r)
 			_ = w.WriteMsg(msg)
-			h.logEntry(clientIP, name, qtypeStr, dlog.OutcomeLocal, "")
+			h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeLocal, "")
 			return
 		}
 	}
 
-	// Block if the domain matches any active blocklist (allowlist already checked inside Evaluate).
+	// SafeSearch — profile-aware. If the active profile(s) enable
+	// SafeSearch for a matching provider, rewrite via CNAME before any
+	// blocklist evaluation.
 	fe := h.fe()
-	result := fe.Evaluate(name)
+	if target, ok := filter.SafeSearchRewrite(name, fe.SafeSearchProvidersForClient(clientIP)); ok && (qtype == dns.TypeA || qtype == dns.TypeAAAA) {
+		resp := h.buildSafeSearchResponse(r, q, target)
+		_ = w.WriteMsg(resp)
+		h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeLocal, "")
+		return
+	}
+
+	// Block if the domain matches any active blocklist for this client's
+	// matched profile(s). Per-client evaluation falls back to the global
+	// blocklists when no Profile object exists yet.
+	result := fe.EvaluateForClient(name, clientIP, filter.Now())
 	if result.Disposition == filter.Block {
 		policy := fe.EffectivePolicy(result)
 		resp := h.buildBlockResponse(r, q, policy)
 		_ = w.WriteMsg(resp)
-		h.logEntry(clientIP, name, qtypeStr, dlog.OutcomeBlocked, result.BlocklistID)
+		// Tag DoH-probe entries when the matched blocklist is the bundled
+		// DoH category.
+		cat := ""
+		if result.BlocklistID == categories.BlocklistID("doh") {
+			cat = "doh-probe"
+		}
+		h.logCategorised(clientIPStr, name, qtypeStr, dlog.OutcomeBlocked, result.BlocklistID, cat, "")
 		return
 	}
 
@@ -93,7 +128,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if cached, ok := h.ch.get(key); ok {
 			cached.SetReply(r)
 			_ = w.WriteMsg(cached)
-			h.logEntry(clientIP, name, qtypeStr, dlog.OutcomeCached, "")
+			h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeCached, "")
 			return
 		}
 	}
@@ -101,7 +136,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// Resolve via forwarder or recursor.
 	var resolved *dns.Msg
 	if h.cfg.Mode == "recursive" && h.rec != nil {
-		resolved = h.rec.Resolve(r, clientIP)
+		resolved = h.rec.Resolve(r, clientIPStr)
 	} else if h.fwd != nil {
 		resolved = h.fwd.Forward(r)
 	} else {
@@ -121,7 +156,65 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	resolved.SetReply(r)
 	resolved.Rcode = rcode
 	_ = w.WriteMsg(resolved)
-	h.logEntry(clientIP, name, qtypeStr, dlog.OutcomeForwarded, "")
+	h.logEntry(clientIPStr, name, qtypeStr, dlog.OutcomeForwarded, "")
+}
+
+// resolveClient returns the client's string IP and parsed net.IP. When
+// DBLOCK_TEST_MODE=1 and the query carries an EDNS0 LOCAL option with
+// code 65500, that option's data overrides the source IP — used by
+// acceptance tests that can't actually spoof UDP source addresses.
+func (h *Handler) resolveClient(w dns.ResponseWriter, r *dns.Msg) (string, net.IP) {
+	clientIPStr := extractIP(w.RemoteAddr())
+	clientIP := net.ParseIP(clientIPStr)
+	if os.Getenv("DBLOCK_TEST_MODE") == "1" {
+		if opt := r.IsEdns0(); opt != nil {
+			for _, o := range opt.Option {
+				if loc, ok := o.(*dns.EDNS0_LOCAL); ok && loc.Code == 65500 {
+					if ip := net.IP(loc.Data); ip != nil {
+						clientIP = ip
+						clientIPStr = ip.String()
+					}
+				}
+			}
+		}
+	}
+	return clientIPStr, clientIP
+}
+
+// buildSafeSearchResponse emits a CNAME pointing the queried name at the
+// provider's SafeSearch endpoint. The handler doesn't follow the CNAME
+// itself — clients will issue a separate query for the target, which we
+// forward upstream normally.
+func (h *Handler) buildSafeSearchResponse(r *dns.Msg, q dns.Question, target string) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(r)
+	m.RecursionAvailable = true
+	m.Answer = append(m.Answer, &dns.CNAME{
+		Hdr:    dns.RR_Header{Name: q.Name, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
+		Target: dns.Fqdn(target),
+	})
+	return m
+}
+
+// nxdomain returns an NXDOMAIN reply for r. Used by the Firefox canary
+// short-circuit and by the noop block-policy.
+func nxdomain(r *dns.Msg) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(r)
+	m.Rcode = dns.RcodeNameError
+	m.RecursionAvailable = true
+	return m
+}
+
+// noData returns NOERROR with an empty answer section — the canonical
+// shape for "this name exists but has no records of the requested type".
+// Used for RFC 9462 DDR probes.
+func noData(r *dns.Msg) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(r)
+	m.Rcode = dns.RcodeSuccess
+	m.RecursionAvailable = true
+	return m
 }
 
 // buildBlockResponse constructs the appropriate DNS response for a blocked query.
@@ -178,6 +271,12 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 
 // logEntry appends an entry to the query log if one is configured.
 func (h *Handler) logEntry(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID string) {
+	h.logCategorised(clientIP, domain, qtype, outcome, blocklistID, "", "")
+}
+
+// logCategorised is the M3 form that also carries a category tag (e.g.
+// "doh-probe") and a profile id (best-effort).
+func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID, category, profileID string) {
 	if h.ql == nil {
 		return
 	}
@@ -188,6 +287,8 @@ func (h *Handler) logEntry(clientIP, domain, qtype string, outcome dlog.Outcome,
 		Timestamp:   time.Now(),
 		Outcome:     outcome,
 		BlocklistID: blocklistID,
+		Category:    category,
+		ProfileID:   profileID,
 	})
 }
 

@@ -30,6 +30,13 @@ const (
 	CmdMemberUpsert         CommandKind = "member.upsert"
 	CmdMemberRemove         CommandKind = "member.remove"
 	CmdClusterSecretSet     CommandKind = "cluster.secret_set"
+	CmdProfileUpsert        CommandKind = "profile.upsert"
+	CmdProfileDelete        CommandKind = "profile.delete"
+	CmdScheduleUpsert       CommandKind = "schedule.upsert"
+	CmdScheduleDelete       CommandKind = "schedule.delete"
+	CmdScheduleBindingPut   CommandKind = "schedule_binding.upsert"
+	CmdScheduleBindingDel   CommandKind = "schedule_binding.delete"
+	CmdCategoryOverridePut  CommandKind = "category_override.upsert"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -143,6 +150,38 @@ type MemberRemovePayload struct {
 // once at first bootstrap and replicated to every node via Raft.
 type ClusterSecretSetPayload struct {
 	Secret string `json:"secret"`
+}
+
+// ─── M3 payloads ────────────────────────────────────────────────────────────
+
+type ProfileUpsertPayload struct {
+	Profile config.Profile `json:"profile"`
+}
+
+type ProfileDeletePayload struct {
+	ID string `json:"id"`
+}
+
+type ScheduleUpsertPayload struct {
+	Schedule config.Schedule `json:"schedule"`
+}
+
+type ScheduleDeletePayload struct {
+	ID string `json:"id"`
+}
+
+type ScheduleBindingPutPayload struct {
+	Binding config.ScheduleBinding `json:"binding"`
+}
+
+type ScheduleBindingDelPayload struct {
+	ScheduleID  string `json:"schedule_id"`
+	ProfileID   string `json:"profile_id"`
+	BlocklistID string `json:"blocklist_id"`
+}
+
+type CategoryOverridePutPayload struct {
+	Override config.CategoryOverride `json:"override"`
 }
 
 // HourAggregate is the per-node hourly aggregate written by the

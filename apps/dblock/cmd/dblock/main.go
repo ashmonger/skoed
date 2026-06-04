@@ -20,6 +20,7 @@ import (
 	"github.com/dblock/dblock/internal/config"
 	dnsengine "github.com/dblock/dblock/internal/dns"
 	"github.com/dblock/dblock/internal/filter"
+	filterCats "github.com/dblock/dblock/internal/filter/categories"
 	dlog "github.com/dblock/dblock/internal/log"
 )
 
@@ -106,6 +107,14 @@ func main() {
 		// nodes pick it up automatically via Raft replication.
 		if err := c.EnsureClusterSecret(); err != nil {
 			log.Printf("ensure cluster secret: %v", err)
+		}
+		// M3: the reserved default profile + bundled DoH category seed.
+		// Idempotent — re-runs every bootstrap but only mutates state once.
+		if err := c.EnsureDefaultProfile(); err != nil {
+			log.Printf("ensure default profile: %v", err)
+		}
+		if err := c.EnsureDohCategoryOnDefaultProfile(filterCats.Catalog["doh"].Bundled); err != nil {
+			log.Printf("ensure DoH category: %v", err)
 		}
 	}
 

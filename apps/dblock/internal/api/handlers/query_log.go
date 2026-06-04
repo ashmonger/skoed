@@ -14,6 +14,8 @@ type queryLogEntry struct {
 	QueryType   string    `json:"query_type"`
 	Outcome     string    `json:"outcome"`
 	BlocklistID string    `json:"blocklist_id"`
+	Category    string    `json:"category"`
+	ProfileID   string    `json:"profile_id,omitempty"`
 }
 
 type queryLogResponse struct {
@@ -54,6 +56,8 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 			QueryType:   e.QueryType,
 			Outcome:     string(e.Outcome),
 			BlocklistID: e.BlocklistID,
+			Category:    e.Category,
+			ProfileID:   e.ProfileID,
 		}
 	}
 

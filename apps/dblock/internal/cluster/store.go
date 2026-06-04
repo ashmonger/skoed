@@ -16,15 +16,19 @@ import (
 
 // Bucket names. Paths use slashes in comments only; bbolt buckets are flat.
 var (
-	bucketMeta       = []byte("meta")
-	bucketMembers    = []byte("cluster_members")
-	bucketTokens     = []byte("cluster_tokens")
-	bucketBlocklists = []byte("config_blocklists")
-	bucketAllowlist  = []byte("config_allowlist")
-	bucketLocalDNS   = []byte("config_local_dns")
-	bucketSettings   = []byte("config_settings")
-	bucketAuth       = []byte("config_auth")
-	bucketStats      = []byte("stats") // sub-bucket per node-id
+	bucketMeta              = []byte("meta")
+	bucketMembers           = []byte("cluster_members")
+	bucketTokens            = []byte("cluster_tokens")
+	bucketBlocklists        = []byte("config_blocklists")
+	bucketAllowlist         = []byte("config_allowlist")
+	bucketLocalDNS          = []byte("config_local_dns")
+	bucketSettings          = []byte("config_settings")
+	bucketAuth              = []byte("config_auth")
+	bucketStats             = []byte("stats") // sub-bucket per node-id
+	bucketProfiles          = []byte("config_profiles")
+	bucketSchedules         = []byte("config_schedules")
+	bucketScheduleBindings  = []byte("config_schedule_bindings")
+	bucketCategoryOverrides = []byte("config_category_overrides")
 )
 
 const schemaVersion uint32 = 1
@@ -58,6 +62,8 @@ func (s *Store) init() error {
 			bucketMeta, bucketMembers, bucketTokens,
 			bucketBlocklists, bucketAllowlist, bucketLocalDNS,
 			bucketSettings, bucketAuth, bucketStats,
+			bucketProfiles, bucketSchedules, bucketScheduleBindings,
+			bucketCategoryOverrides,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -295,6 +301,89 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		}
 		return tx.Bucket(bucketMeta).Put([]byte("cluster_secret"), []byte(p.Secret))
 
+	case CmdProfileUpsert:
+		var p ProfileUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Profile)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketProfiles).Put([]byte(p.Profile.ID), v)
+
+	case CmdProfileDelete:
+		var p ProfileDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		if p.ID == "default" {
+			return fmt.Errorf("cannot delete the reserved default profile")
+		}
+		return tx.Bucket(bucketProfiles).Delete([]byte(p.ID))
+
+	case CmdScheduleUpsert:
+		var p ScheduleUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Schedule)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketSchedules).Put([]byte(p.Schedule.ID), v)
+
+	case CmdScheduleDelete:
+		var p ScheduleDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		// Cascade: drop every binding referencing this schedule.
+		bindings := tx.Bucket(bucketScheduleBindings)
+		toDrop := [][]byte{}
+		_ = bindings.ForEach(func(k, _ []byte) error {
+			if strings.HasPrefix(string(k), p.ID+":") {
+				toDrop = append(toDrop, append([]byte(nil), k...))
+			}
+			return nil
+		})
+		for _, k := range toDrop {
+			if err := bindings.Delete(k); err != nil {
+				return err
+			}
+		}
+		return tx.Bucket(bucketSchedules).Delete([]byte(p.ID))
+
+	case CmdScheduleBindingPut:
+		var p ScheduleBindingPutPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		key := bindingKey(p.Binding.ScheduleID, p.Binding.ProfileID, p.Binding.BlocklistID)
+		v, err := json.Marshal(p.Binding)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketScheduleBindings).Put(key, v)
+
+	case CmdScheduleBindingDel:
+		var p ScheduleBindingDelPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketScheduleBindings).Delete(bindingKey(p.ScheduleID, p.ProfileID, p.BlocklistID))
+
+	case CmdCategoryOverridePut:
+		var p CategoryOverridePutPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Override)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketCategoryOverrides).Put([]byte(p.Override.Name), v)
+
 	case CmdConfigImport:
 		var p ConfigImportPayload
 		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
@@ -498,6 +587,57 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			out.Auth.PasswordHash = a.PasswordHash
 		}
 
+		// Profiles.
+		if err := tx.Bucket(bucketProfiles).ForEach(func(_, v []byte) error {
+			var p config.Profile
+			if err := json.Unmarshal(v, &p); err != nil {
+				return err
+			}
+			out.Profiles = append(out.Profiles, p)
+			return nil
+		}); err != nil {
+			return err
+		}
+		sort.Slice(out.Profiles, func(i, j int) bool { return out.Profiles[i].ID < out.Profiles[j].ID })
+
+		// Schedules.
+		if err := tx.Bucket(bucketSchedules).ForEach(func(_, v []byte) error {
+			var s config.Schedule
+			if err := json.Unmarshal(v, &s); err != nil {
+				return err
+			}
+			out.Schedules = append(out.Schedules, s)
+			return nil
+		}); err != nil {
+			return err
+		}
+		sort.Slice(out.Schedules, func(i, j int) bool { return out.Schedules[i].ID < out.Schedules[j].ID })
+
+		// Schedule bindings.
+		if err := tx.Bucket(bucketScheduleBindings).ForEach(func(_, v []byte) error {
+			var b config.ScheduleBinding
+			if err := json.Unmarshal(v, &b); err != nil {
+				return err
+			}
+			out.Bindings = append(out.Bindings, b)
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// Category overrides.
+		if err := tx.Bucket(bucketCategoryOverrides).ForEach(func(_, v []byte) error {
+			var c config.CategoryOverride
+			if err := json.Unmarshal(v, &c); err != nil {
+				return err
+			}
+			out.Categories = append(out.Categories, c)
+			return nil
+		}); err != nil {
+			return err
+		}
+		sort.Slice(out.Categories, func(i, j int) bool { return out.Categories[i].Name < out.Categories[j].Name })
+
 		out.Version = config.SchemaVersion
 		return nil
 	})
@@ -590,6 +730,13 @@ func (s *Store) ClusterSecret() (string, error) {
 		return nil
 	})
 	return out, err
+}
+
+// bindingKey is the canonical composite key for a schedule_binding in
+// bbolt. Format: "<schedule_id>:<profile_id>:<blocklist_id>". The schedule
+// prefix lets CmdScheduleDelete cascade by prefix-scan.
+func bindingKey(scheduleID, profileID, blocklistID string) []byte {
+	return []byte(scheduleID + ":" + profileID + ":" + blocklistID)
 }
 
 // AggregatesIter calls fn for every hourly aggregate currently stored. The

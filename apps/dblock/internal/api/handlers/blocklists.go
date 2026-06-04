@@ -11,13 +11,14 @@ import (
 
 // blocklistResponse is the JSON representation of a blocklist exposed by the API.
 type blocklistResponse struct {
-	ID          string                    `json:"id"`
-	Name        string                    `json:"name"`
-	Enabled     bool                      `json:"enabled"`
-	Source      config.BlocklistSource    `json:"source"`
-	BlockPolicy string                    `json:"block_policy,omitempty"`
-	DomainCount int                       `json:"domain_count"`
-	LastUpdated string                    `json:"last_updated,omitempty"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Enabled     bool                   `json:"enabled"`
+	Source      config.BlocklistSource `json:"source"`
+	BlockPolicy string                 `json:"block_policy,omitempty"`
+	DomainCount int                    `json:"domain_count"`
+	LastUpdated string                 `json:"last_updated,omitempty"`
+	Managed     bool                   `json:"managed,omitempty"`
 }
 
 func toBlocklistResponse(bl config.Blocklist) blocklistResponse {
@@ -29,6 +30,7 @@ func toBlocklistResponse(bl config.Blocklist) blocklistResponse {
 		BlockPolicy: bl.BlockPolicy,
 		DomainCount: len(bl.Domains),
 		LastUpdated: bl.LastUpdated,
+		Managed:     bl.Managed,
 	}
 }
 
