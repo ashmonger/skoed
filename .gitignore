@@ -17,3 +17,12 @@ apps/*/vendor/
 # Temp files
 *.tmp
 *.bak
+
+# Web UI build artefacts — committed at apps/dblock/internal/api/static/dist
+# instead so the Go binary's go:embed slot is populated.
+web/node_modules/
+web/dist/
+
+# Traceability tool output (regenerated on demand)
+traceability-report.md
+web/tsconfig.tsbuildinfo

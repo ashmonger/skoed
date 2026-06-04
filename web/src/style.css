@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark mode swap: when <html class="dark">, override the design tokens
+   defined in tailwind.config.js with their Monokai equivalents. Tailwind's
+   `dark:` variant uses `class` strategy, so the toggle in
+   stores/theme.ts only needs to add/remove a class on <html>. */
+@layer base {
+  html {
+    background-color: #FDF6E3;
+    color-scheme: light;
+  }
+  html.dark {
+    background-color: #272822;
+    color-scheme: dark;
+  }
+  html.dark body {
+    @apply text-monokai-fg;
+  }
+  html.dark .bg-bg-canvas {
+    background-color: #272822;
+  }
+  html.dark .bg-bg-card {
+    background-color: #3E3D32;
+  }
+  html.dark .bg-bg-input {
+    background-color: #1E1F1A;
+  }
+  html.dark .bg-bg-hover {
+    background-color: #49483E;
+  }
+  html.dark .text-fg {
+    color: #F8F8F2;
+  }
+  html.dark .text-fg-strong {
+    color: #F8F8F2;
+  }
+  html.dark .text-fg-muted {
+    color: #BDBDB1;
+  }
+  html.dark .text-fg-subtle {
+    color: #75715E;
+  }
+  html.dark .border-border {
+    border-color: #49483E;
+  }
+  html.dark .border-border-strong {
+    border-color: #75715E;
+  }
+  html.dark .text-accent {
+    color: #66D9EF;
+  }
+  html.dark .bg-accent {
+    background-color: #66D9EF;
+    color: #272822;
+  }
+  html.dark .bg-accent:hover {
+    background-color: #4FB8CC;
+  }
+  html.dark .bg-success {
+    background-color: #A6E22E;
+    color: #272822;
+  }
+  html.dark .text-success {
+    color: #A6E22E;
+  }
+  html.dark .bg-success-subtle {
+    background-color: #3E3D32;
+    color: #A6E22E;
+  }
+  html.dark .bg-warning {
+    background-color: #FD971F;
+    color: #272822;
+  }
+  html.dark .text-warning {
+    color: #FD971F;
+  }
+  html.dark .bg-warning-subtle {
+    background-color: #3E3D32;
+    color: #FD971F;
+  }
+  html.dark .bg-danger {
+    background-color: #F92672;
+    color: #F8F8F2;
+  }
+  html.dark .text-danger {
+    color: #F92672;
+  }
+  html.dark .bg-danger-subtle {
+    background-color: #3E3D32;
+    color: #F92672;
+  }
+  html.dark .bg-accent-subtle {
+    background-color: #3E3D32;
+    color: #66D9EF;
+  }
+}
+
+@layer components {
+  /* Button primitives so views don't have to memorise Tailwind chains. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded px-3 py-1.5
+           text-sm font-medium transition-colors disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-fg-inverse hover:bg-accent-hover active:bg-accent-active;
+  }
+  .btn-secondary {
+    @apply btn bg-bg-card text-fg border border-border hover:bg-bg-hover;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-fg-inverse hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn text-fg hover:bg-bg-hover;
+  }
+  .card {
+    @apply bg-bg-card border border-border rounded-lg shadow-soft;
+  }
+  .input {
+    @apply w-full rounded border border-border bg-bg-input px-3 py-1.5
+           text-sm text-fg placeholder:text-fg-subtle focus:outline-none
+           focus:ring-2 focus:ring-accent focus:border-accent;
+  }
+  .label {
+    @apply block text-sm font-medium text-fg mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-success { @apply badge bg-success-subtle text-success; }
+  .badge-warning { @apply badge bg-warning-subtle text-warning; }
+  .badge-danger  { @apply badge bg-danger-subtle text-danger; }
+  .badge-accent  { @apply badge bg-accent-subtle text-accent; }
+  .table {
+    @apply w-full text-sm text-left;
+  }
+  .table th {
+    @apply px-3 py-2 text-xs uppercase tracking-wide text-fg-muted font-semibold border-b border-border;
+  }
+  .table td {
+    @apply px-3 py-2 border-b border-border;
+  }
+  .table tbody tr:hover {
+    @apply bg-bg-hover;
+  }
+}
