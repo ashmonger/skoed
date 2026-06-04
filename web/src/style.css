@@ -2,99 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark mode swap: when <html class="dark">, override the design tokens
-   defined in tailwind.config.js with their Monokai equivalents. Tailwind's
-   `dark:` variant uses `class` strategy, so the toggle in
-   stores/theme.ts only needs to add/remove a class on <html>. */
+/*
+ * Theme system
+ * ============
+ *
+ *   - `html[data-palette="…"]` selects one of four palettes:
+ *       monokai-solarized    (warm cream / classic Monokai Solarized)
+ *       monokai              (vivid Monokai, retro IDE)
+ *       monokai-blue         (blue-tinted, cool)
+ *       monokai-pro          (modern muted, Monokai Pro by Wimer Hazenberg)
+ *
+ *   - `.dark` on <html> toggles between each palette's light and dark
+ *     variant. Tokens are resolved at runtime via the cascade below — no
+ *     CSS variables or runtime class generation needed.
+ *
+ * The Tailwind config keeps the SOLARIZED palette as compile-time defaults.
+ * Every other palette is expressed here as a complete cascade of overrides
+ * (light + dark) anchored on `html[data-palette="…"]`. Adding a fifth
+ * palette = appending another block.
+ */
 @layer base {
-  html {
-    background-color: #FDF6E3;
-    color-scheme: light;
-  }
-  html.dark {
-    background-color: #272822;
-    color-scheme: dark;
-  }
-  html.dark body {
-    @apply text-monokai-fg;
-  }
-  html.dark .bg-bg-canvas {
-    background-color: #272822;
-  }
-  html.dark .bg-bg-card {
-    background-color: #3E3D32;
-  }
-  html.dark .bg-bg-input {
-    background-color: #1E1F1A;
-  }
-  html.dark .bg-bg-hover {
-    background-color: #49483E;
-  }
-  html.dark .text-fg {
-    color: #F8F8F2;
-  }
-  html.dark .text-fg-strong {
-    color: #F8F8F2;
-  }
-  html.dark .text-fg-muted {
-    color: #BDBDB1;
-  }
-  html.dark .text-fg-subtle {
-    color: #75715E;
-  }
-  html.dark .border-border {
-    border-color: #49483E;
-  }
-  html.dark .border-border-strong {
-    border-color: #75715E;
-  }
-  html.dark .text-accent {
-    color: #66D9EF;
-  }
-  html.dark .bg-accent {
-    background-color: #66D9EF;
-    color: #272822;
-  }
-  html.dark .bg-accent:hover {
-    background-color: #4FB8CC;
-  }
-  html.dark .bg-success {
-    background-color: #A6E22E;
-    color: #272822;
-  }
-  html.dark .text-success {
-    color: #A6E22E;
-  }
-  html.dark .bg-success-subtle {
-    background-color: #3E3D32;
-    color: #A6E22E;
-  }
-  html.dark .bg-warning {
-    background-color: #FD971F;
-    color: #272822;
-  }
-  html.dark .text-warning {
-    color: #FD971F;
-  }
-  html.dark .bg-warning-subtle {
-    background-color: #3E3D32;
-    color: #FD971F;
-  }
-  html.dark .bg-danger {
-    background-color: #F92672;
-    color: #F8F8F2;
-  }
-  html.dark .text-danger {
-    color: #F92672;
-  }
-  html.dark .bg-danger-subtle {
-    background-color: #3E3D32;
-    color: #F92672;
-  }
-  html.dark .bg-accent-subtle {
-    background-color: #3E3D32;
-    color: #66D9EF;
-  }
+  html { background-color: #FDF6E3; color-scheme: light; }
 }
 
 @layer components {
@@ -147,3 +75,204 @@
     @apply bg-bg-hover;
   }
 }
+
+/* =========================================================================
+ * Palette: monokai-solarized (DARK variant only — light is the Tailwind
+ * compile-time default). Kept here for symmetry with the other palettes.
+ * ========================================================================= */
+
+html.dark[data-palette="monokai-solarized"] { background-color: #002B36; color-scheme: dark; }
+html.dark[data-palette="monokai-solarized"] body { color: #93A1A1; }
+html.dark[data-palette="monokai-solarized"] .bg-bg-canvas { background-color: #002B36; }
+html.dark[data-palette="monokai-solarized"] .bg-bg-card { background-color: #073642; }
+html.dark[data-palette="monokai-solarized"] .bg-bg-input { background-color: #002B36; }
+html.dark[data-palette="monokai-solarized"] .bg-bg-hover { background-color: #094352; }
+html.dark[data-palette="monokai-solarized"] .text-fg { color: #93A1A1; }
+html.dark[data-palette="monokai-solarized"] .text-fg-strong { color: #EEE8D5; }
+html.dark[data-palette="monokai-solarized"] .text-fg-muted { color: #839496; }
+html.dark[data-palette="monokai-solarized"] .text-fg-subtle { color: #586E75; }
+html.dark[data-palette="monokai-solarized"] .border-border { border-color: #094352; }
+html.dark[data-palette="monokai-solarized"] .text-accent { color: #268BD2; }
+html.dark[data-palette="monokai-solarized"] .bg-accent { background-color: #268BD2; color: #FDF6E3; }
+html.dark[data-palette="monokai-solarized"] .bg-accent:hover { background-color: #1A6FA0; }
+html.dark[data-palette="monokai-solarized"] .text-success { color: #859900; }
+html.dark[data-palette="monokai-solarized"] .bg-success { background-color: #859900; color: #002B36; }
+html.dark[data-palette="monokai-solarized"] .bg-success-subtle { background-color: #073642; color: #859900; }
+html.dark[data-palette="monokai-solarized"] .text-warning { color: #B58900; }
+html.dark[data-palette="monokai-solarized"] .bg-warning { background-color: #B58900; color: #002B36; }
+html.dark[data-palette="monokai-solarized"] .bg-warning-subtle { background-color: #073642; color: #B58900; }
+html.dark[data-palette="monokai-solarized"] .text-danger { color: #DC322F; }
+html.dark[data-palette="monokai-solarized"] .bg-danger { background-color: #DC322F; color: #FDF6E3; }
+html.dark[data-palette="monokai-solarized"] .bg-danger-subtle { background-color: #073642; color: #DC322F; }
+html.dark[data-palette="monokai-solarized"] .bg-accent-subtle { background-color: #073642; color: #268BD2; }
+
+/* =========================================================================
+ * Palette: monokai (classic vivid)
+ *   light: a paper-style cream with Monokai's vivid accents (uncommon but
+ *          useful in bright environments).
+ *   dark : canonical Monokai #272822.
+ * ========================================================================= */
+
+html[data-palette="monokai"]:not(.dark) { background-color: #F5F4EB; color-scheme: light; }
+html[data-palette="monokai"]:not(.dark) body { color: #49483E; }
+html[data-palette="monokai"]:not(.dark) .bg-bg-canvas { background-color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="monokai"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="monokai"]:not(.dark) .bg-bg-hover { background-color: #ECEAD9; }
+html[data-palette="monokai"]:not(.dark) .text-fg { color: #49483E; }
+html[data-palette="monokai"]:not(.dark) .text-fg-strong { color: #272822; }
+html[data-palette="monokai"]:not(.dark) .text-fg-muted { color: #75715E; }
+html[data-palette="monokai"]:not(.dark) .text-fg-subtle { color: #A8A799; }
+html[data-palette="monokai"]:not(.dark) .border-border { border-color: #DDD9C6; }
+html[data-palette="monokai"]:not(.dark) .text-accent { color: #1FA2B8; }
+html[data-palette="monokai"]:not(.dark) .bg-accent { background-color: #1FA2B8; color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-accent:hover { background-color: #15879A; }
+html[data-palette="monokai"]:not(.dark) .text-success { color: #67961F; }
+html[data-palette="monokai"]:not(.dark) .bg-success { background-color: #67961F; color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-success-subtle { background-color: #EFF4DE; color: #67961F; }
+html[data-palette="monokai"]:not(.dark) .text-warning { color: #C26A00; }
+html[data-palette="monokai"]:not(.dark) .bg-warning { background-color: #C26A00; color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-warning-subtle { background-color: #FCEFDA; color: #C26A00; }
+html[data-palette="monokai"]:not(.dark) .text-danger { color: #D3145C; }
+html[data-palette="monokai"]:not(.dark) .bg-danger { background-color: #D3145C; color: #F5F4EB; }
+html[data-palette="monokai"]:not(.dark) .bg-danger-subtle { background-color: #FCDCE6; color: #D3145C; }
+html[data-palette="monokai"]:not(.dark) .bg-accent-subtle { background-color: #DCF3F7; color: #1FA2B8; }
+
+html.dark[data-palette="monokai"] { background-color: #272822; color-scheme: dark; }
+html.dark[data-palette="monokai"] body { color: #F8F8F2; }
+html.dark[data-palette="monokai"] .bg-bg-canvas { background-color: #272822; }
+html.dark[data-palette="monokai"] .bg-bg-card { background-color: #3E3D32; }
+html.dark[data-palette="monokai"] .bg-bg-input { background-color: #1E1F1A; }
+html.dark[data-palette="monokai"] .bg-bg-hover { background-color: #49483E; }
+html.dark[data-palette="monokai"] .text-fg { color: #F8F8F2; }
+html.dark[data-palette="monokai"] .text-fg-strong { color: #F8F8F2; }
+html.dark[data-palette="monokai"] .text-fg-muted { color: #BDBDB1; }
+html.dark[data-palette="monokai"] .text-fg-subtle { color: #75715E; }
+html.dark[data-palette="monokai"] .border-border { border-color: #49483E; }
+html.dark[data-palette="monokai"] .text-accent { color: #66D9EF; }
+html.dark[data-palette="monokai"] .bg-accent { background-color: #66D9EF; color: #272822; }
+html.dark[data-palette="monokai"] .bg-accent:hover { background-color: #4FB8CC; }
+html.dark[data-palette="monokai"] .text-success { color: #A6E22E; }
+html.dark[data-palette="monokai"] .bg-success { background-color: #A6E22E; color: #272822; }
+html.dark[data-palette="monokai"] .bg-success-subtle { background-color: #3E3D32; color: #A6E22E; }
+html.dark[data-palette="monokai"] .text-warning { color: #FD971F; }
+html.dark[data-palette="monokai"] .bg-warning { background-color: #FD971F; color: #272822; }
+html.dark[data-palette="monokai"] .bg-warning-subtle { background-color: #3E3D32; color: #FD971F; }
+html.dark[data-palette="monokai"] .text-danger { color: #F92672; }
+html.dark[data-palette="monokai"] .bg-danger { background-color: #F92672; color: #F8F8F2; }
+html.dark[data-palette="monokai"] .bg-danger-subtle { background-color: #3E3D32; color: #F92672; }
+html.dark[data-palette="monokai"] .bg-accent-subtle { background-color: #3E3D32; color: #66D9EF; }
+
+/* =========================================================================
+ * Palette: monokai-blue
+ *   A cool, blue-tinted variant. Backgrounds shift from cream toward
+ *   slate; accents lean cyan/blue. The "Monokai Night" mood.
+ * ========================================================================= */
+
+html[data-palette="monokai-blue"]:not(.dark) { background-color: #EEF2F8; color-scheme: light; }
+html[data-palette="monokai-blue"]:not(.dark) body { color: #3D4F66; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-bg-canvas { background-color: #EEF2F8; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-bg-card { background-color: #F8FAFD; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-bg-hover { background-color: #DEE6F1; }
+html[data-palette="monokai-blue"]:not(.dark) .text-fg { color: #3D4F66; }
+html[data-palette="monokai-blue"]:not(.dark) .text-fg-strong { color: #1A2842; }
+html[data-palette="monokai-blue"]:not(.dark) .text-fg-muted { color: #6F8099; }
+html[data-palette="monokai-blue"]:not(.dark) .text-fg-subtle { color: #94A3B8; }
+html[data-palette="monokai-blue"]:not(.dark) .border-border { border-color: #CFD9E8; }
+html[data-palette="monokai-blue"]:not(.dark) .text-accent { color: #2563EB; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-accent { background-color: #2563EB; color: #F8FAFD; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-accent:hover { background-color: #1D4FC4; }
+html[data-palette="monokai-blue"]:not(.dark) .text-success { color: #0F855C; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-success { background-color: #0F855C; color: #F8FAFD; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-success-subtle { background-color: #D9F0E5; color: #0F855C; }
+html[data-palette="monokai-blue"]:not(.dark) .text-warning { color: #B45309; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-warning { background-color: #B45309; color: #F8FAFD; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-warning-subtle { background-color: #FAEFDA; color: #B45309; }
+html[data-palette="monokai-blue"]:not(.dark) .text-danger { color: #BE123C; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-danger { background-color: #BE123C; color: #F8FAFD; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-danger-subtle { background-color: #FAD9E0; color: #BE123C; }
+html[data-palette="monokai-blue"]:not(.dark) .bg-accent-subtle { background-color: #DCE8FB; color: #2563EB; }
+
+html.dark[data-palette="monokai-blue"] { background-color: #0F1B2C; color-scheme: dark; }
+html.dark[data-palette="monokai-blue"] body { color: #CBD5E1; }
+html.dark[data-palette="monokai-blue"] .bg-bg-canvas { background-color: #0F1B2C; }
+html.dark[data-palette="monokai-blue"] .bg-bg-card { background-color: #182843; }
+html.dark[data-palette="monokai-blue"] .bg-bg-input { background-color: #0B1422; }
+html.dark[data-palette="monokai-blue"] .bg-bg-hover { background-color: #213557; }
+html.dark[data-palette="monokai-blue"] .text-fg { color: #CBD5E1; }
+html.dark[data-palette="monokai-blue"] .text-fg-strong { color: #F1F5F9; }
+html.dark[data-palette="monokai-blue"] .text-fg-muted { color: #94A3B8; }
+html.dark[data-palette="monokai-blue"] .text-fg-subtle { color: #64748B; }
+html.dark[data-palette="monokai-blue"] .border-border { border-color: #25395E; }
+html.dark[data-palette="monokai-blue"] .text-accent { color: #60A5FA; }
+html.dark[data-palette="monokai-blue"] .bg-accent { background-color: #60A5FA; color: #0F1B2C; }
+html.dark[data-palette="monokai-blue"] .bg-accent:hover { background-color: #4690E6; }
+html.dark[data-palette="monokai-blue"] .text-success { color: #4ADE80; }
+html.dark[data-palette="monokai-blue"] .bg-success { background-color: #4ADE80; color: #0F1B2C; }
+html.dark[data-palette="monokai-blue"] .bg-success-subtle { background-color: #182843; color: #4ADE80; }
+html.dark[data-palette="monokai-blue"] .text-warning { color: #FBBF24; }
+html.dark[data-palette="monokai-blue"] .bg-warning { background-color: #FBBF24; color: #0F1B2C; }
+html.dark[data-palette="monokai-blue"] .bg-warning-subtle { background-color: #182843; color: #FBBF24; }
+html.dark[data-palette="monokai-blue"] .text-danger { color: #F87171; }
+html.dark[data-palette="monokai-blue"] .bg-danger { background-color: #F87171; color: #F8FAFD; }
+html.dark[data-palette="monokai-blue"] .bg-danger-subtle { background-color: #182843; color: #F87171; }
+html.dark[data-palette="monokai-blue"] .bg-accent-subtle { background-color: #182843; color: #60A5FA; }
+
+/* =========================================================================
+ * Palette: monokai-pro
+ *   Wimer Hazenberg's modern Monokai variant — muted, sophisticated.
+ *   Canonical Pro palette: bg #2D2A2E, fg #FCFCFA, comment #727072,
+ *   red #FF6188, orange #FC9867, yellow #FFD866, green #A9DC76,
+ *   blue #78DCE8, purple #AB9DF2.
+ * ========================================================================= */
+
+html[data-palette="monokai-pro"]:not(.dark) { background-color: #FAF4ED; color-scheme: light; }
+html[data-palette="monokai-pro"]:not(.dark) body { color: #5C5B61; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-bg-canvas { background-color: #FAF4ED; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-bg-card { background-color: #FFFCF7; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-bg-hover { background-color: #F0E9DD; }
+html[data-palette="monokai-pro"]:not(.dark) .text-fg { color: #5C5B61; }
+html[data-palette="monokai-pro"]:not(.dark) .text-fg-strong { color: #29242A; }
+html[data-palette="monokai-pro"]:not(.dark) .text-fg-muted { color: #88858B; }
+html[data-palette="monokai-pro"]:not(.dark) .text-fg-subtle { color: #B1AEB3; }
+html[data-palette="monokai-pro"]:not(.dark) .border-border { border-color: #E5DECF; }
+html[data-palette="monokai-pro"]:not(.dark) .text-accent { color: #1A8BAB; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-accent { background-color: #1A8BAB; color: #FFFCF7; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-accent:hover { background-color: #167390; }
+html[data-palette="monokai-pro"]:not(.dark) .text-success { color: #4F8B19; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-success { background-color: #4F8B19; color: #FFFCF7; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-success-subtle { background-color: #E6EFD6; color: #4F8B19; }
+html[data-palette="monokai-pro"]:not(.dark) .text-warning { color: #C26A00; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-warning { background-color: #C26A00; color: #FFFCF7; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-warning-subtle { background-color: #F5E5C8; color: #C26A00; }
+html[data-palette="monokai-pro"]:not(.dark) .text-danger { color: #B83660; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-danger { background-color: #B83660; color: #FFFCF7; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-danger-subtle { background-color: #F4D9E1; color: #B83660; }
+html[data-palette="monokai-pro"]:not(.dark) .bg-accent-subtle { background-color: #D7EEF4; color: #1A8BAB; }
+
+html.dark[data-palette="monokai-pro"] { background-color: #2D2A2E; color-scheme: dark; }
+html.dark[data-palette="monokai-pro"] body { color: #FCFCFA; }
+html.dark[data-palette="monokai-pro"] .bg-bg-canvas { background-color: #2D2A2E; }
+html.dark[data-palette="monokai-pro"] .bg-bg-card { background-color: #403E41; }
+html.dark[data-palette="monokai-pro"] .bg-bg-input { background-color: #221F22; }
+html.dark[data-palette="monokai-pro"] .bg-bg-hover { background-color: #4A484C; }
+html.dark[data-palette="monokai-pro"] .text-fg { color: #FCFCFA; }
+html.dark[data-palette="monokai-pro"] .text-fg-strong { color: #FFFFFF; }
+html.dark[data-palette="monokai-pro"] .text-fg-muted { color: #C1C0C0; }
+html.dark[data-palette="monokai-pro"] .text-fg-subtle { color: #727072; }
+html.dark[data-palette="monokai-pro"] .border-border { border-color: #5B595C; }
+html.dark[data-palette="monokai-pro"] .text-accent { color: #78DCE8; }
+html.dark[data-palette="monokai-pro"] .bg-accent { background-color: #78DCE8; color: #2D2A2E; }
+html.dark[data-palette="monokai-pro"] .bg-accent:hover { background-color: #5BBDC8; }
+html.dark[data-palette="monokai-pro"] .text-success { color: #A9DC76; }
+html.dark[data-palette="monokai-pro"] .bg-success { background-color: #A9DC76; color: #2D2A2E; }
+html.dark[data-palette="monokai-pro"] .bg-success-subtle { background-color: #403E41; color: #A9DC76; }
+html.dark[data-palette="monokai-pro"] .text-warning { color: #FC9867; }
+html.dark[data-palette="monokai-pro"] .bg-warning { background-color: #FC9867; color: #2D2A2E; }
+html.dark[data-palette="monokai-pro"] .bg-warning-subtle { background-color: #403E41; color: #FC9867; }
+html.dark[data-palette="monokai-pro"] .text-danger { color: #FF6188; }
+html.dark[data-palette="monokai-pro"] .bg-danger { background-color: #FF6188; color: #FFFCF7; }
+html.dark[data-palette="monokai-pro"] .bg-danger-subtle { background-color: #403E41; color: #FF6188; }
+html.dark[data-palette="monokai-pro"] .bg-accent-subtle { background-color: #403E41; color: #78DCE8; }
