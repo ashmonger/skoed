@@ -97,6 +97,10 @@ type profileEntry struct {
 	safesearch  []string
 	clientIPs   []net.IP
 	clientCIDRs []*net.IPNet
+	// M3.6 match keys. Lowercased so callers don't have to.
+	clientIDs       []string
+	clientMACs      []string
+	clientHostnames []string
 }
 
 func parsePolicy(s string) BlockPolicy {
@@ -207,6 +211,15 @@ func NewProfiled(cfg *config.Config) *Engine {
 				pe.clientCIDRs = append(pe.clientCIDRs, ipnet)
 			}
 		}
+		for _, s := range p.ClientIDs {
+			pe.clientIDs = append(pe.clientIDs, s)
+		}
+		for _, s := range p.ClientMACs {
+			pe.clientMACs = append(pe.clientMACs, strings.ToLower(s))
+		}
+		for _, s := range p.ClientHostnames {
+			pe.clientHostnames = append(pe.clientHostnames, s)
+		}
 		e.profiles = append(e.profiles, pe)
 	}
 	e.schedules = append([]config.Schedule(nil), cfg.Schedules...)
@@ -214,17 +227,60 @@ func NewProfiled(cfg *config.Config) *Engine {
 	return e
 }
 
-// ProfilesMatching returns every profile id whose client_ips or
-// client_cidrs match the given client IP. If no explicit profile matches,
-// the implicit "default" id is returned (even when no default Profile has
-// been authored — the handler can still proceed with the global
-// allowlist+blocklist semantics).
-func (e *Engine) ProfilesMatching(clientIP net.IP) []string {
+// ClientIdentity bundles the optional M3.6 identity fields for a query.
+// All fields can be empty; the engine falls back to IP-only matching.
+type ClientIdentity struct {
+	ClientID string
+	MAC      string
+	Hostname string
+}
+
+// ProfilesMatching returns every profile id matching the given client.
+// Match priority: ClientID > MAC > hostname > IP/CIDR. Caller passes
+// the optional identity (zero value = IP-only behavior, the M3 default).
+//
+// At most one profile is returned per query EXCEPT for the legacy
+// IP/CIDR pre-M3.6 union behavior, which is preserved. The returned
+// list is "default" only when nothing matches.
+func (e *Engine) ProfilesMatching(clientIP net.IP, id ClientIdentity) []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+
+	// M3.6: prefer the highest-priority identity match. Walk profiles
+	// in priority tiers; the first non-empty tier wins.
+	if id.ClientID != "" {
+		for _, p := range e.profiles {
+			for _, x := range p.clientIDs {
+				if x == id.ClientID {
+					return []string{p.id}
+				}
+			}
+		}
+	}
+	if id.MAC != "" {
+		mac := strings.ToLower(id.MAC)
+		for _, p := range e.profiles {
+			for _, x := range p.clientMACs {
+				if x == mac {
+					return []string{p.id}
+				}
+			}
+		}
+	}
+	if id.Hostname != "" {
+		for _, p := range e.profiles {
+			for _, x := range p.clientHostnames {
+				if x == id.Hostname {
+					return []string{p.id}
+				}
+			}
+		}
+	}
+
+	// Fall back to legacy IP/CIDR matching (M3 behavior).
 	var out []string
 	for _, p := range e.profiles {
-		if matchesProfile(p, clientIP) {
+		if matchesProfileIP(p, clientIP) {
 			out = append(out, p.id)
 		}
 	}
@@ -234,7 +290,7 @@ func (e *Engine) ProfilesMatching(clientIP net.IP) []string {
 	return out
 }
 
-func matchesProfile(p profileEntry, ip net.IP) bool {
+func matchesProfileIP(p profileEntry, ip net.IP) bool {
 	if ip == nil {
 		return p.id == "default"
 	}
@@ -250,7 +306,8 @@ func matchesProfile(p profileEntry, ip net.IP) bool {
 	}
 	// A profile with NO explicit client identification AND id == "default"
 	// matches every client implicitly.
-	if p.id == "default" && len(p.clientIPs) == 0 && len(p.clientCIDRs) == 0 {
+	if p.id == "default" && len(p.clientIPs) == 0 && len(p.clientCIDRs) == 0 &&
+		len(p.clientIDs) == 0 && len(p.clientMACs) == 0 && len(p.clientHostnames) == 0 {
 		return true
 	}
 	return false
@@ -265,6 +322,13 @@ func matchesProfile(p profileEntry, ip net.IP) bool {
 // `now` is the wall-clock for schedule evaluation; pass filter.Now() in
 // production.
 func (e *Engine) EvaluateForClient(domain string, clientIP net.IP, now time.Time) Result {
+	return e.EvaluateForClientID(domain, clientIP, ClientIdentity{}, now)
+}
+
+// EvaluateForClientID is the M3.6 form: same as EvaluateForClient but
+// also honours the optional Client-ID / MAC / hostname for profile
+// matching priority.
+func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientIdentity, now time.Time) Result {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -275,7 +339,7 @@ func (e *Engine) EvaluateForClient(domain string, clientIP net.IP, now time.Time
 		return Result{Disposition: Allow}
 	}
 
-	matched := e.profilesMatchingLocked(clientIP)
+	matched := e.profilesMatchingLockedWithIdentity(clientIP, id)
 
 	// Profile-level allowlists (any matching profile allows → allow).
 	for _, pid := range matched {
@@ -357,9 +421,42 @@ func (e *Engine) isReferenced(blID string) bool {
 }
 
 func (e *Engine) profilesMatchingLocked(ip net.IP) []string {
+	return e.profilesMatchingLockedWithIdentity(ip, ClientIdentity{})
+}
+
+func (e *Engine) profilesMatchingLockedWithIdentity(ip net.IP, id ClientIdentity) []string {
+	// M3.6: priority lookup (Client-ID > MAC > hostname > IP/CIDR).
+	if id.ClientID != "" {
+		for _, p := range e.profiles {
+			for _, x := range p.clientIDs {
+				if x == id.ClientID {
+					return []string{p.id}
+				}
+			}
+		}
+	}
+	if id.MAC != "" {
+		mac := strings.ToLower(id.MAC)
+		for _, p := range e.profiles {
+			for _, x := range p.clientMACs {
+				if x == mac {
+					return []string{p.id}
+				}
+			}
+		}
+	}
+	if id.Hostname != "" {
+		for _, p := range e.profiles {
+			for _, x := range p.clientHostnames {
+				if x == id.Hostname {
+					return []string{p.id}
+				}
+			}
+		}
+	}
 	var out []string
 	for _, p := range e.profiles {
-		if matchesProfile(p, ip) {
+		if matchesProfileIP(p, ip) {
 			out = append(out, p.id)
 		}
 	}
@@ -391,10 +488,15 @@ func (e *Engine) walkGlobalBlocklists(domain string) Result {
 // enabled by every profile matching the given client IP. Used by the DNS
 // handler to decide whether to inject a SafeSearch CNAME rewrite.
 func (e *Engine) SafeSearchProvidersForClient(ip net.IP) []string {
+	return e.SafeSearchProvidersForClientID(ip, ClientIdentity{})
+}
+
+// SafeSearchProvidersForClientID is the M3.6 form honouring identity.
+func (e *Engine) SafeSearchProvidersForClientID(ip net.IP, id ClientIdentity) []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	seen := map[string]struct{}{}
-	for _, pid := range e.profilesMatchingLocked(ip) {
+	for _, pid := range e.profilesMatchingLockedWithIdentity(ip, id) {
 		p := e.findProfile(pid)
 		if p == nil {
 			continue

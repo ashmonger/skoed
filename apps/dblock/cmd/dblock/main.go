@@ -19,6 +19,7 @@ import (
 	"github.com/dblock/dblock/internal/auth"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
+	"github.com/dblock/dblock/internal/dhcp"
 	dnsengine "github.com/dblock/dblock/internal/dns"
 	"github.com/dblock/dblock/internal/filter"
 	filterCats "github.com/dblock/dblock/internal/filter/categories"
@@ -28,7 +29,7 @@ import (
 // buildDNSHandler constructs the DNS query pipeline for the current config.
 // The filter engine getter is wired through App so handler rebuilds after
 // Raft applies pick up the fresh filter.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog) *dnsengine.Handler {
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -44,6 +45,16 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		cache = dnsengine.NewCache(cfg.DNS.Cache.MaxEntries)
 	}
 
+	var dhcpLookup func(ip string) (string, string, string, bool)
+	if dhcpMgr != nil {
+		dhcpLookup = func(ip string) (string, string, string, bool) {
+			if l, ok := dhcpMgr.LookupByIP(ip); ok {
+				return l.Hostname, l.MAC, l.ClientID, true
+			}
+			return "", "", "", false
+		}
+	}
+
 	return dnsengine.NewHandler(dnsengine.HandlerConfig{
 		DNSCfg:        cfg.DNS,
 		FilterEngine:  getEng,
@@ -52,6 +63,7 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		Recursor:      rec,
 		Cache:         cache,
 		QueryLog:      queryLog,
+		DhcpLookup:    dhcpLookup,
 	})
 }
 
@@ -136,11 +148,12 @@ func main() {
 
 	var app *api.App
 	var dnsServer *dnsengine.Server
+	var dhcpMgr *dhcp.Manager // populated below; closure captures by name
 
 	rebuildDNS := func(newCfg *config.Config) error {
 		newCfg.Defaults()
 		mergeNodeLocal(newCfg, node)
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr)
 		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
 			dnsServer.UpdateHandler(newHandler)
 			return nil
@@ -158,8 +171,34 @@ func main() {
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
 
+	// M3.6 — read-only DHCP integration. Node-local; each node polls its
+	// own configured connector. Operators typically point every node at
+	// the same central DHCP source for consistent cluster behavior.
+	if node.Node.DHCP.Enabled {
+		conn, err := dhcp.New(dhcp.Config{
+			Kind:           node.Node.DHCP.Kind,
+			URL:            node.Node.DHCP.URL,
+			FilePath:       node.Node.DHCP.FilePath,
+			Username:       node.Node.DHCP.Username,
+			Password:       node.Node.DHCP.Password,
+			RefreshSeconds: node.Node.DHCP.RefreshSeconds,
+		})
+		if err != nil {
+			log.Fatalf("init DHCP connector: %v", err)
+		}
+		refresh := time.Duration(node.Node.DHCP.RefreshSeconds) * time.Second
+		if refresh <= 0 {
+			refresh = 60 * time.Second
+		}
+		dhcpMgr = dhcp.NewManager(conn, refresh)
+		dhcpMgr.Start()
+		defer dhcpMgr.Shutdown()
+		app.SetDhcpManager(dhcpMgr)
+		log.Printf("DHCP integration enabled (kind=%s refresh=%s)", node.Node.DHCP.Kind, refresh)
+	}
+
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -242,7 +281,7 @@ func main() {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			certFile, keyFile,

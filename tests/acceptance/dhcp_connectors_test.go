@@ -40,8 +40,10 @@ const dhcpTestTimeout = 5 * time.Second
 
 func requireDhcpHarness(t *testing.T, n *Node) {
 	t.Helper()
+	// LeaseSnapshotURL is set by startClusterWithDhcp; remaining empty
+	// would mean the caller didn't use that helper.
 	if n.LeaseSnapshotURL == "" {
-		t.Skipf("M3.6 impl pending: harness does not yet expose lease snapshot")
+		t.Skipf("test did not use startClusterWithDhcp")
 	}
 }
 
@@ -266,10 +268,7 @@ func TestDhcpConnectorRefreshInterval(t *testing.T) {
 
 func fetchLeaseSnapshot(t *testing.T, n *Node) []Lease {
 	t.Helper()
-	resp, err := http.Get(n.LeaseSnapshotURL)
-	if err != nil {
-		t.Fatalf("lease snapshot GET: %v", err)
-	}
+	resp := n.apiDo(t, "GET", "/api/v1/clients/_leases", "")
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("lease snapshot status %d", resp.StatusCode)

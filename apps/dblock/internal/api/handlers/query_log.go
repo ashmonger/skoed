@@ -7,15 +7,18 @@ import (
 )
 
 type queryLogEntry struct {
-	ID          string    `json:"id"`
-	Timestamp   time.Time `json:"timestamp"`
-	Client      string    `json:"client"`
-	Domain      string    `json:"domain"`
-	QueryType   string    `json:"query_type"`
-	Outcome     string    `json:"outcome"`
-	BlocklistID string    `json:"blocklist_id"`
-	Category    string    `json:"category"`
-	ProfileID   string    `json:"profile_id,omitempty"`
+	ID             string    `json:"id"`
+	Timestamp      time.Time `json:"timestamp"`
+	Client         string    `json:"client"`
+	Domain         string    `json:"domain"`
+	QueryType      string    `json:"query_type"`
+	Outcome        string    `json:"outcome"`
+	BlocklistID    string    `json:"blocklist_id"`
+	Category       string    `json:"category"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	ClientHostname string    `json:"client_hostname,omitempty"`
+	ClientMAC      string    `json:"client_mac,omitempty"`
+	ClientID       string    `json:"client_id,omitempty"`
 }
 
 type queryLogResponse struct {
@@ -49,15 +52,18 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 	result := make([]queryLogEntry, len(entries))
 	for i, e := range entries {
 		result[i] = queryLogEntry{
-			ID:          e.ID,
-			Timestamp:   e.Timestamp,
-			Client:      e.Client,
-			Domain:      e.Domain,
-			QueryType:   e.QueryType,
-			Outcome:     string(e.Outcome),
-			BlocklistID: e.BlocklistID,
-			Category:    e.Category,
-			ProfileID:   e.ProfileID,
+			ID:             e.ID,
+			Timestamp:      e.Timestamp,
+			Client:         e.Client,
+			Domain:         e.Domain,
+			QueryType:      e.QueryType,
+			Outcome:        string(e.Outcome),
+			BlocklistID:    e.BlocklistID,
+			Category:       e.Category,
+			ProfileID:      e.ProfileID,
+			ClientHostname: e.ClientHostname,
+			ClientMAC:      e.ClientMAC,
+			ClientID:       e.ClientID,
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/dblock/dblock/internal/auth"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
+	"github.com/dblock/dblock/internal/dhcp"
 	"github.com/dblock/dblock/internal/filter"
 	"github.com/dblock/dblock/internal/log"
 )
@@ -44,6 +45,10 @@ type AppState interface {
 	// GetCluster returns the *cluster.Cluster owned by the app, or nil when the
 	// server is running in M1 (non-clustered) mode.
 	GetCluster() *cluster.Cluster
+
+	// GetDhcpMgr returns the M3.6 DHCP manager, or nil when DHCP
+	// integration is disabled on this node.
+	GetDhcpMgr() *dhcp.Manager
 
 	Dir() string
 }

@@ -26,11 +26,26 @@ type NodeYAML struct {
 // NodeSection holds settings that depend on this host: the Raft identity, the
 // addresses to bind, and the DNS listen port.
 type NodeSection struct {
-	ID          string     `yaml:"id"`
-	RaftAddress string     `yaml:"raft_address"`
-	APIAddress  string     `yaml:"api_address"`
-	DNS         DNSSection `yaml:"dns"`
-	DataDir     string     `yaml:"data_dir"`
+	ID          string      `yaml:"id"`
+	RaftAddress string      `yaml:"raft_address"`
+	APIAddress  string      `yaml:"api_address"`
+	DNS         DNSSection  `yaml:"dns"`
+	DataDir     string      `yaml:"data_dir"`
+	DHCP        DHCPSection `yaml:"dhcp,omitempty"`
+}
+
+// DHCPSection configures the M3.6 read-only DHCP integration. When
+// Enabled is true, dblock polls Kind ("kea"|"dnsmasq"|"http_json") at
+// RefreshSeconds intervals and surfaces hostnames / MACs / Client-IDs
+// in the query log + dashboards. See ROADMAP.md M3.6.
+type DHCPSection struct {
+	Enabled        bool   `yaml:"enabled"`
+	Kind           string `yaml:"kind,omitempty"`
+	URL            string `yaml:"url,omitempty"`
+	FilePath       string `yaml:"file_path,omitempty"`
+	Username       string `yaml:"username,omitempty"`
+	Password       string `yaml:"password,omitempty"`
+	RefreshSeconds int    `yaml:"refresh_seconds,omitempty"`
 }
 
 // DNSSection / ListenSection mirror the shape used in M1's config.yaml so

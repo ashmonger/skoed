@@ -1,19 +1,19 @@
 // Harness extensions for M3.6 DHCP integration tests.
 //
 // Defines the canonical Lease shape the connector tests assert on, the
-// DhcpOpts knobs the test caller passes, and a placeholder
-// startClusterWithDhcp that skips until the production binary + the
-// harness's writeConfigYAML learn how to handle the DHCP section.
+// DhcpOpts knobs the test caller passes, and startClusterWithDhcp which
+// spins a single-node cluster wired to a DHCP source.
 
 package acceptance
 
 import (
+	"fmt"
+	"os"
 	"testing"
 	"time"
 )
 
 // Lease mirrors the canonical lease record produced by every connector.
-// JSON tags match the internal snapshot endpoint's documented shape.
 type Lease struct {
 	IP        string    `json:"ip"`
 	MAC       string    `json:"mac"`
@@ -35,12 +35,32 @@ type DhcpOpts struct {
 }
 
 // startClusterWithDhcp spins a single-node cluster with the given DHCP
-// connector enabled. Until the production binary supports the DHCP
-// section in config.yaml (M3.6 impl), this skips the calling test so
-// the test file remains green against the current master.
+// connector enabled. Sets Node.LeaseSnapshotURL so connector tests can
+// poll /api/v1/clients/_leases.
+//
+// Always enables DBLOCK_TEST_MODE so callers can use EDNS0 LOCAL option
+// 65500 to drive query-log entries from synthetic client IPs (the
+// hostname-enrichment tests need this to verify the lease lookup
+// happens against the right IP).
 func startClusterWithDhcp(t *testing.T, opts DhcpOpts) *Cluster {
 	t.Helper()
-	_ = opts // placeholder until config.yaml support lands
-	t.Skipf("M3.6 impl pending: harness does not yet write the DHCP section into config.yaml")
-	return nil
+	t.Setenv("DBLOCK_TEST_MODE", "1")
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin}
+	cfg := M2NodeConfig{
+		NodeID:   "node-1",
+		DNSPort:  freeUDPPort(t),
+		APIPort:  freeTCPPort(t),
+		RaftPort: freeTCPPort(t),
+		DHCP:     &opts,
+	}
+	cn := c.spawnNode(t, cfg)
+	cn.Node.LeaseSnapshotURL = fmt.Sprintf("http://127.0.0.1:%d/api/v1/clients/_leases", cfg.APIPort)
+	c.nodes = append(c.nodes, cn)
+	waitReady(t, cn.Node)
+	setupAuth(t, c.nodes[0].Node)
+	return c
 }

@@ -38,6 +38,11 @@ type Profile struct {
 	SafeSearch  []string `yaml:"safesearch,omitempty"   json:"safesearch,omitempty"`
 	ClientIPs   []string `yaml:"client_ips,omitempty"   json:"client_ips,omitempty"`
 	ClientCIDRs []string `yaml:"client_cidrs,omitempty" json:"client_cidrs,omitempty"`
+	// M3.6: per-client stable-identity match keys. Priority on lookup:
+	// ClientIDs > ClientMACs > ClientHostnames > ClientIPs/ClientCIDRs.
+	ClientIDs       []string `yaml:"client_ids,omitempty"       json:"client_ids,omitempty"`
+	ClientMACs      []string `yaml:"client_macs,omitempty"      json:"client_macs,omitempty"`
+	ClientHostnames []string `yaml:"client_hostnames,omitempty" json:"client_hostnames,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a

@@ -78,6 +78,8 @@ type M2NodeConfig struct {
 	DoTPort int
 	// M4 ACME: when set, written under node.dns.tls.acme.* in config.yaml.
 	Acme *AcmeOpts
+	// M3.6 DHCP: when set, written under node.dhcp.* in config.yaml.
+	DHCP *DhcpOpts
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
 	// cluster); for joining nodes it carries the leader's API address and the
 	// single-use join token issued by the leader.
@@ -375,6 +377,15 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		DirectoryURL      string   `yaml:"directory_url,omitempty"`
 		HTTPChallengePort int      `yaml:"http_challenge_port,omitempty"`
 	}
+	type dhcpSection struct {
+		Enabled        bool   `yaml:"enabled"`
+		Kind           string `yaml:"kind,omitempty"`
+		URL            string `yaml:"url,omitempty"`
+		FilePath       string `yaml:"file_path,omitempty"`
+		Username       string `yaml:"username,omitempty"`
+		Password       string `yaml:"password,omitempty"`
+		RefreshSeconds int    `yaml:"refresh_seconds,omitempty"`
+	}
 	type tlsSection struct {
 		CertFile string       `yaml:"cert_file,omitempty"`
 		KeyFile  string       `yaml:"key_file,omitempty"`
@@ -385,11 +396,12 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		TLS    *tlsSection   `yaml:"tls,omitempty"`
 	}
 	type nodeSection struct {
-		ID          string     `yaml:"id"`
-		RaftAddress string     `yaml:"raft_address"`
-		APIAddress  string     `yaml:"api_address"`
-		DNS         dnsSection `yaml:"dns"`
-		DataDir     string     `yaml:"data_dir"`
+		ID          string       `yaml:"id"`
+		RaftAddress string       `yaml:"raft_address"`
+		APIAddress  string       `yaml:"api_address"`
+		DNS         dnsSection   `yaml:"dns"`
+		DataDir     string       `yaml:"data_dir"`
+		DHCP        *dhcpSection `yaml:"dhcp,omitempty"`
 	}
 	type bootstrapSection struct {
 		LeaderAddress string `yaml:"leader_address,omitempty"`
@@ -424,6 +436,20 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 				}(),
 			},
 			DataDir: dir,
+			DHCP: func() *dhcpSection {
+				if cfg.DHCP == nil {
+					return nil
+				}
+				return &dhcpSection{
+					Enabled:        true,
+					Kind:           cfg.DHCP.Kind,
+					URL:            cfg.DHCP.URL,
+					FilePath:       cfg.DHCP.FilePath,
+					Username:       cfg.DHCP.Username,
+					Password:       cfg.DHCP.Password,
+					RefreshSeconds: cfg.DHCP.RefreshSeconds,
+				}
+			}(),
 		},
 		Bootstrap: bootstrapSection{
 			LeaderAddress: cfg.BootstrapLeaderAddr,
