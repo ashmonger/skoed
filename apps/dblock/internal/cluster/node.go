@@ -51,11 +51,35 @@ type ListenSection struct {
 }
 
 // TLSSection carries the certificate paths for the M4 DoH/DoT listeners.
-// Both fields empty = dblock auto-generates a self-signed cert under
-// <data_dir>/tls/ on first boot.
+// Both CertFile and KeyFile empty = dblock auto-generates a self-signed
+// cert under <data_dir>/tls/ on first boot. When ACME is enabled, the
+// operator-supplied cert paths are ignored — autocert manages everything.
 type TLSSection struct {
-	CertFile string `yaml:"cert_file,omitempty"`
-	KeyFile  string `yaml:"key_file,omitempty"`
+	CertFile string       `yaml:"cert_file,omitempty"`
+	KeyFile  string       `yaml:"key_file,omitempty"`
+	Acme     *AcmeSection `yaml:"acme,omitempty"`
+}
+
+// AcmeSection configures the M4 ACME / Let's Encrypt integration. When
+// Enabled is true, dblock obtains its DoH+DoT cert via the ACME protocol
+// (HTTP-01 challenge by default) instead of using the self-signed
+// fallback. Renewal is automatic.
+type AcmeSection struct {
+	Enabled bool `yaml:"enabled"`
+	// Email is the ACME account contact — required by Let's Encrypt.
+	Email string `yaml:"email,omitempty"`
+	// Domains is the list of FQDNs the cert covers. SNI on DoH/DoT
+	// connections MUST match one of these names. Required when enabled.
+	Domains []string `yaml:"domains,omitempty"`
+	// DirectoryURL overrides the ACME directory endpoint. Empty = Let's
+	// Encrypt production. Useful for staging (LE staging URL) or for
+	// pointing at Pebble / step-ca / internal CAs.
+	DirectoryURL string `yaml:"directory_url,omitempty"`
+	// HTTPChallengePort is the port autocert listens on for HTTP-01
+	// challenges. Public-facing deployments typically set this to 80
+	// (and either run dblock as root or use authbind / setcap). Default
+	// 80 when Enabled is true and the field is 0.
+	HTTPChallengePort int `yaml:"http_challenge_port,omitempty"`
 }
 
 // BootstrapSection is consumed exactly once on first boot when no bbolt
