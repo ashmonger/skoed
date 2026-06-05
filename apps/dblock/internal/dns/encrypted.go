@@ -54,7 +54,11 @@ type EncryptedServer struct {
 	handler dns.Handler
 	dohPort int
 	dotPort int
-	cert    tls.Certificate
+	// When acme is non-nil, tls.Config.GetCertificate routes through it.
+	// Otherwise cert is used directly (static self-signed or operator
+	// PEMs).
+	cert tls.Certificate
+	acme *AcmeManager
 
 	httpSrv *http.Server
 	dotLn   net.Listener
@@ -64,17 +68,38 @@ type EncryptedServer struct {
 
 // NewEncryptedServer builds a server but doesn't bind anything yet.
 // Either dohPort or dotPort can be zero to disable that transport.
-func NewEncryptedServer(handler dns.Handler, dohPort, dotPort int, certFile, keyFile string) (*EncryptedServer, error) {
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("load TLS keypair: %w", err)
-	}
-	return &EncryptedServer{
+//
+// When acme is nil, the cert at certFile + keyFile is loaded once at
+// startup. When acme is non-nil, autocert's GetCertificate is used per
+// connection; certFile + keyFile become the self-signed fallback the
+// AcmeManager falls back to if ACME is unreachable.
+func NewEncryptedServer(handler dns.Handler, dohPort, dotPort int, certFile, keyFile string, acme *AcmeManager) (*EncryptedServer, error) {
+	s := &EncryptedServer{
 		handler: handler,
 		dohPort: dohPort,
 		dotPort: dotPort,
-		cert:    cert,
-	}, nil
+		acme:    acme,
+	}
+	if acme == nil {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load TLS keypair: %w", err)
+		}
+		s.cert = cert
+	}
+	return s, nil
+}
+
+// tlsConfig returns the *tls.Config the DoH and DoT listeners share.
+// Single source of truth so ACME vs static is handled once.
+func (s *EncryptedServer) tlsConfig() *tls.Config {
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if s.acme != nil {
+		cfg.GetCertificate = s.acme.GetCertificate
+		return cfg
+	}
+	cfg.Certificates = []tls.Certificate{s.cert}
+	return cfg
 }
 
 // Start opens the configured listeners. Returns an error if any listener
@@ -121,10 +146,7 @@ func (s *EncryptedServer) startDoH() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dns-query", s.handleDoH)
 
-	tlsCfg := &tls.Config{
-		Certificates: []tls.Certificate{s.cert},
-		MinVersion:   tls.VersionTLS12,
-	}
+	tlsCfg := s.tlsConfig()
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", s.dohPort),
 		Handler:           mux,
@@ -271,10 +293,7 @@ func remoteHostNoPort(addr string) string {
 // ─── DoT ─────────────────────────────────────────────────────────────────
 
 func (s *EncryptedServer) startDoT() error {
-	tlsCfg := &tls.Config{
-		Certificates: []tls.Certificate{s.cert},
-		MinVersion:   tls.VersionTLS12,
-	}
+	tlsCfg := s.tlsConfig()
 	ln, err := tls.Listen("tcp", fmt.Sprintf(":%d", s.dotPort), tlsCfg)
 	if err != nil {
 		return err

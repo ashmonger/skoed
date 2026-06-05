@@ -76,6 +76,8 @@ type M2NodeConfig struct {
 	// M4: optional encrypted DNS listeners. Zero/unset = disabled.
 	DoHPort int
 	DoTPort int
+	// M4 ACME: when set, written under node.dns.tls.acme.* in config.yaml.
+	Acme *AcmeOpts
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
 	// cluster); for joining nodes it carries the leader's API address and the
 	// single-use join token issued by the leader.
@@ -101,6 +103,46 @@ func startCluster(t *testing.T, initialNodes int) *Cluster {
 // plain UDP/TCP DNS.
 func startClusterEncrypted(t *testing.T, initialNodes int) *Cluster {
 	c := startClusterWithEnvEncrypted(t, initialNodes, nil, true)
+	return c
+}
+
+// AcmeOpts is the set of ACME knobs the harness writes under
+// node.dns.tls.acme.* in the spawned node's config.yaml.
+type AcmeOpts struct {
+	Enabled           bool
+	Email             string
+	Domains           []string
+	DirectoryURL      string
+	HTTPChallengePort int // 0 = harness picks a free port; Node.AcmeHTTPAddr reads it back
+}
+
+// startClusterAcme spins a single-node cluster with DoH/DoT + ACME
+// enabled per the given AcmeOpts. The harness picks a free TCP port for
+// the HTTP-01 challenge listener when HTTPChallengePort is 0.
+func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
+	t.Helper()
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
+	cfg := M2NodeConfig{
+		NodeID:   "node-1",
+		DNSPort:  freeUDPPort(t),
+		APIPort:  freeTCPPort(t),
+		RaftPort: freeTCPPort(t),
+		DoHPort:  freeTCPPort(t),
+		DoTPort:  freeTCPPort(t),
+		Acme:     &opts,
+	}
+	if opts.HTTPChallengePort == 0 {
+		cfg.Acme.HTTPChallengePort = freeTCPPort(t)
+	}
+	cn := c.spawnNode(t, cfg)
+	cn.Node.AcmeHTTPAddr = fmt.Sprintf("127.0.0.1:%d", cfg.Acme.HTTPChallengePort)
+	c.nodes = append(c.nodes, cn)
+	waitReady(t, cn.Node)
+	setupAuth(t, c.nodes[0].Node)
 	return c
 }
 
@@ -326,8 +368,21 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		DoHPort int  `yaml:"doh_port,omitempty"`
 		DoTPort int  `yaml:"dot_port,omitempty"`
 	}
+	type acmeSection struct {
+		Enabled           bool     `yaml:"enabled"`
+		Email             string   `yaml:"email,omitempty"`
+		Domains           []string `yaml:"domains,omitempty"`
+		DirectoryURL      string   `yaml:"directory_url,omitempty"`
+		HTTPChallengePort int      `yaml:"http_challenge_port,omitempty"`
+	}
+	type tlsSection struct {
+		CertFile string       `yaml:"cert_file,omitempty"`
+		KeyFile  string       `yaml:"key_file,omitempty"`
+		Acme     *acmeSection `yaml:"acme,omitempty"`
+	}
 	type dnsSection struct {
 		Listen listenSection `yaml:"listen"`
+		TLS    *tlsSection   `yaml:"tls,omitempty"`
 	}
 	type nodeSection struct {
 		ID          string     `yaml:"id"`
@@ -350,11 +405,25 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 			ID:          cfg.NodeID,
 			RaftAddress: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
 			APIAddress:  fmt.Sprintf("127.0.0.1:%d", cfg.APIPort),
-			DNS: dnsSection{Listen: listenSection{
-				Port: cfg.DNSPort, IPv4: true, IPv6: false,
-				DoHPort: cfg.DoHPort, DoTPort: cfg.DoTPort,
-			}},
-			DataDir:     dir,
+			DNS: dnsSection{
+				Listen: listenSection{
+					Port: cfg.DNSPort, IPv4: true, IPv6: false,
+					DoHPort: cfg.DoHPort, DoTPort: cfg.DoTPort,
+				},
+				TLS: func() *tlsSection {
+					if cfg.Acme == nil {
+						return nil
+					}
+					return &tlsSection{Acme: &acmeSection{
+						Enabled:           cfg.Acme.Enabled,
+						Email:             cfg.Acme.Email,
+						Domains:           cfg.Acme.Domains,
+						DirectoryURL:      cfg.Acme.DirectoryURL,
+						HTTPChallengePort: cfg.Acme.HTTPChallengePort,
+					}}
+				}(),
+			},
+			DataDir: dir,
 		},
 		Bootstrap: bootstrapSection{
 			LeaderAddress: cfg.BootstrapLeaderAddr,

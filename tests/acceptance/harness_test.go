@@ -28,9 +28,16 @@ import (
 )
 
 const (
-	readyTimeout    = 10 * time.Second
+	// readyTimeout was 10s — flaky under full-suite load. The suite
+	// spawns ~50 dblock subprocesses over 7+ minutes; by mid-run the
+	// kernel has thousands of TIME_WAIT sockets from prior tests and
+	// /tmp has tens of MB of leftover bbolt files. Individual tests
+	// boot in 1-3s, but a node started 5 minutes into the suite can
+	// take 20-40s to bind its API listener. 60s is the empirical
+	// upper bound — anything longer would mask a real regression.
+	readyTimeout      = 60 * time.Second
 	readyPollInterval = 100 * time.Millisecond
-	dnsQueryTimeout = 3 * time.Second
+	dnsQueryTimeout   = 3 * time.Second
 
 	defaultUsername = "admin"
 	defaultPassword = "testpass1!"
@@ -38,11 +45,12 @@ const (
 
 // Node represents a running dblock instance under test.
 type Node struct {
-	DNSAddr string // "127.0.0.1:port" — UDP/TCP DNS listener
-	APIBase string // "http://127.0.0.1:port" — management API
-	DoHAddr string // "127.0.0.1:port" — DoH HTTPS listener; "" when disabled
-	DoTAddr string // "127.0.0.1:port" — DoT TLS listener; "" when disabled
-	cmd     *exec.Cmd
+	DNSAddr      string // "127.0.0.1:port" — UDP/TCP DNS listener
+	APIBase      string // "http://127.0.0.1:port" — management API
+	DoHAddr      string // "127.0.0.1:port" — DoH HTTPS listener; "" when disabled
+	DoTAddr      string // "127.0.0.1:port" — DoT TLS listener; "" when disabled
+	AcmeHTTPAddr string // "127.0.0.1:port" — ACME HTTP-01 challenge listener; "" when ACME disabled
+	cmd          *exec.Cmd
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
@@ -399,20 +407,45 @@ func setupAuth(t *testing.T, n *Node) {
 	}
 }
 
+// freeUDPPort and freeTCPPort probe for a free port the subprocess can
+// bind to.
+//
+// **They MUST probe on the same address scope the subprocess will use**,
+// otherwise: probing on 127.0.0.1:0 only checks loopback-scope free-ness,
+// while dblock's DNS server binds on 0.0.0.0:port (wildcard). Under
+// suite load, port N can be free on 127.0.0.1 (no TIME_WAIT on loopback)
+// but held by a previous test's TIME_WAIT on 0.0.0.0 — the subprocess
+// then dies with "address already in use", the harness never sees
+// /health respond, and the test fails with the misleading "did not
+// become ready in 60s".
+//
+// Additionally, the DNS listener binds BOTH UDP **and** TCP on the same
+// port (UDP and TCP have separate port namespaces in the kernel, so a
+// port that's free as UDP may already be held as TCP). freeUDPPort
+// probes BOTH protocols and returns a port free for both.
 func freeUDPPort(t *testing.T) int {
 	t.Helper()
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("find free UDP port: %v", err)
+	for attempt := 0; attempt < 20; attempt++ {
+		pc, err := net.ListenPacket("udp", "0.0.0.0:0")
+		if err != nil {
+			t.Fatalf("find free UDP port: %v", err)
+		}
+		port := pc.LocalAddr().(*net.UDPAddr).Port
+		pc.Close()
+		// Verify the port is also free as TCP. If not, try another.
+		l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+		if err == nil {
+			l.Close()
+			return port
+		}
 	}
-	port := pc.LocalAddr().(*net.UDPAddr).Port
-	pc.Close()
-	return port
+	t.Fatalf("could not find a port free on both UDP and TCP after 20 attempts")
+	return 0
 }
 
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		t.Fatalf("find free TCP port: %v", err)
 	}

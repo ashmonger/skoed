@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"os/signal"
 	"syscall"
 	"time"
@@ -200,7 +201,11 @@ func main() {
 	// EncryptedServer entirely so non-M4 deployments behave exactly like
 	// they did before.
 	var encryptedSrv *dnsengine.EncryptedServer
+	var acmeMgr *dnsengine.AcmeManager
 	if snap.DNS.Listen.DoHPort > 0 || snap.DNS.Listen.DoTPort > 0 {
+		// Always materialise the self-signed cert: it's the ACME fallback
+		// AND it's what serves DoH during the first-boot window before
+		// autocert finishes issuing.
 		certFile, keyFile, err := dnsengine.EnsureSelfSignedCert(
 			node.Node.DataDir,
 			node.Node.DNS.TLS.CertFile,
@@ -210,11 +215,38 @@ func main() {
 		if err != nil {
 			log.Fatalf("prepare TLS cert: %v", err)
 		}
+
+		// ACME wrapper — when enabled, autocert manages the live cert.
+		// Start the HTTP-01 challenge listener BEFORE the DoH/DoT
+		// listeners so the very first cert request (lazy on handshake)
+		// can complete the challenge.
+		if acme := node.Node.DNS.TLS.Acme; acme != nil && acme.Enabled {
+			acmeMgr, err = dnsengine.NewAcmeManager(dnsengine.AcmeConfig{
+				Enabled:           true,
+				Email:             acme.Email,
+				Domains:           acme.Domains,
+				DirectoryURL:      acme.DirectoryURL,
+				HTTPChallengePort: acme.HTTPChallengePort,
+				CacheDir:          filepath.Join(node.Node.DataDir, "tls", "acme-cache"),
+				FallbackCertFile:  certFile,
+				FallbackKeyFile:   keyFile,
+			})
+			if err != nil {
+				log.Fatalf("init ACME: %v", err)
+			}
+			if err := acmeMgr.Start(); err != nil {
+				log.Fatalf("start ACME HTTP-01 listener: %v", err)
+			}
+			log.Printf("ACME enabled (directory=%s domains=%v http=%s)",
+				acmeDirectoryLabel(acme.DirectoryURL), acme.Domains, acmeMgr.Addr())
+		}
+
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
 			buildDNSHandler(snap, app.GetFilterEng, queryLog),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			certFile, keyFile,
+			acmeMgr,
 		)
 		if err != nil {
 			log.Fatalf("build encrypted DNS server: %v", err)
@@ -222,11 +254,15 @@ func main() {
 		if err := encryptedSrv.Start(); err != nil {
 			log.Fatalf("start encrypted DNS server: %v", err)
 		}
+		certLabel := certFile
+		if acmeMgr != nil {
+			certLabel = "ACME-managed"
+		}
 		if snap.DNS.Listen.DoHPort > 0 {
-			log.Printf("DoH server listening on :%d (cert=%s)", snap.DNS.Listen.DoHPort, certFile)
+			log.Printf("DoH server listening on :%d (cert=%s)", snap.DNS.Listen.DoHPort, certLabel)
 		}
 		if snap.DNS.Listen.DoTPort > 0 {
-			log.Printf("DoT server listening on :%d (cert=%s)", snap.DNS.Listen.DoTPort, certFile)
+			log.Printf("DoT server listening on :%d (cert=%s)", snap.DNS.Listen.DoTPort, certLabel)
 		}
 	}
 
@@ -246,7 +282,19 @@ func main() {
 	if encryptedSrv != nil {
 		encryptedSrv.Shutdown()
 	}
+	if acmeMgr != nil {
+		acmeMgr.Shutdown()
+	}
 	log.Println("done")
+}
+
+// acmeDirectoryLabel returns the directory URL or "Let's Encrypt (production)"
+// when empty — just for the startup log line.
+func acmeDirectoryLabel(url string) string {
+	if url == "" {
+		return "Let's Encrypt (production)"
+	}
+	return url
 }
 
 // mergeNodeLocal overlays the node-local DNS listen settings onto a

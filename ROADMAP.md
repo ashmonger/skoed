@@ -157,6 +157,33 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
+### Milestone 3.6 — Read-Only DHCP Integration for Client Identity
+
+**Outcome**: The query log and dashboards display **hostnames** (and optionally MAC addresses) next to client IPs, sourced from the LAN's DHCP server. Profiles can match clients by hostname or MAC in addition to IP/CIDR. Lease changes are reflected on dblock within minutes without operator action.
+
+**Capabilities:**
+- Read-only **DHCP source connectors**, configurable per node:
+  - Kea DHCP REST API (`/kea/ctrl-agent`)
+  - dnsmasq lease file (`/var/lib/misc/dnsmasq.leases`)
+  - ISC DHCP lease file (`/var/lib/dhcp/dhcpd.leases`)
+  - Generic HTTP API returning JSON `[{ ip, mac, hostname, expires_at }, …]`
+- Lease cache in bbolt: refreshed at a configurable interval (default 60 s) — never blocks DNS resolution
+- `GET /api/v1/clients/{ip}` returns `{ ip, mac, hostname, source, expires_at, last_seen }` enriched from the lease cache
+- Query log entries gain optional `client_hostname` and `client_mac` fields (omitted when no lease match)
+- Profile-binding rules accept `client_macs` and `client_hostnames` in addition to `client_ips` / `client_cidrs`
+- Web UI: client list (sortable by hostname / last-seen), per-client drill-down link from Stats and Query Log
+- Settings page: per-connector form (URL, file path, refresh interval, credentials)
+
+**Non-goals:**
+- dblock writing leases (write requests proxy nowhere — this is read-only)
+- DHCPv6 lease parsing (defer; IPv4 first)
+- Sub-second freshness — operator can ride DNS via the IP fallback while leases catch up
+- Active probing (ARP / mDNS) — leases only
+
+**Dependencies:** Milestone 3 complete (profile model). Helpful but not strictly required by M3.5 / M4.
+
+---
+
 ### Milestone 4 — dblock as a DoH/DoT Server
 
 **Outcome**: Devices that *want* encrypted DNS get it from dblock itself, with the same filtering applied. The "fight against DoH" turns into "we serve DoH, just point at us".
