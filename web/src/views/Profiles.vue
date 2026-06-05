@@ -191,6 +191,51 @@
           </div>
         </div>
 
+        <!-- M3.6 — stable identity match keys.
+             Priority on lookup: Client-ID > MAC > hostname > IP/CIDR.
+             Operators sourcing these from DHCP get device-stable matching
+             that survives lease renewals. -->
+        <details class="space-y-2">
+          <summary class="cursor-pointer text-sm text-fg-muted hover:text-fg-strong">
+            DHCP-stable identity (Client-ID / MAC / hostname)
+          </summary>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <div>
+              <label class="label" for="pf-ids">
+                Client-IDs
+                <span class="text-fg-subtle font-normal">(one per line)</span>
+              </label>
+              <textarea id="pf-ids"
+                        v-model="form.clientIdsText"
+                        rows="3"
+                        class="input font-mono text-xs"
+                        placeholder="id:tablet42&#10;01:aa:bb:cc:dd:ee:ff" />
+            </div>
+            <div>
+              <label class="label" for="pf-macs">
+                MACs
+                <span class="text-fg-subtle font-normal">(one per line)</span>
+              </label>
+              <textarea id="pf-macs"
+                        v-model="form.clientMacsText"
+                        rows="3"
+                        class="input font-mono text-xs"
+                        placeholder="aa:bb:cc:dd:ee:ff" />
+            </div>
+            <div>
+              <label class="label" for="pf-hostnames">
+                Hostnames
+                <span class="text-fg-subtle font-normal">(one per line)</span>
+              </label>
+              <textarea id="pf-hostnames"
+                        v-model="form.clientHostnamesText"
+                        rows="3"
+                        class="input font-mono text-xs"
+                        placeholder="kid-tablet&#10;home-laptop" />
+            </div>
+          </div>
+        </details>
+
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" class="btn-secondary" @click="closeModal">Cancel</button>
           <button type="submit" class="btn-primary" :disabled="submitting">
@@ -264,6 +309,9 @@ interface FormState {
   safesearch: string[]
   clientIpsText: string
   clientCidrsText: string
+  clientIdsText: string
+  clientMacsText: string
+  clientHostnamesText: string
 }
 
 const emptyForm = (): FormState => ({
@@ -274,6 +322,9 @@ const emptyForm = (): FormState => ({
   safesearch: [],
   clientIpsText: '',
   clientCidrsText: '',
+  clientIdsText: '',
+  clientMacsText: '',
+  clientHostnamesText: '',
 })
 const form = reactive<FormState>(emptyForm())
 
@@ -329,6 +380,9 @@ function openEdit(p: Profile) {
   form.safesearch = [...(p.safesearch ?? [])]
   form.clientIpsText = (p.client_ips ?? []).join('\n')
   form.clientCidrsText = (p.client_cidrs ?? []).join('\n')
+  form.clientIdsText = (p.client_ids ?? []).join('\n')
+  form.clientMacsText = (p.client_macs ?? []).join('\n')
+  form.clientHostnamesText = (p.client_hostnames ?? []).join('\n')
   formError.value = ''
   showModal.value = true
 }
@@ -365,6 +419,9 @@ async function submitModal() {
   const allowlist = parseLines(form.allowlistText)
   const clientIps = parseLines(form.clientIpsText)
   const clientCidrs = parseLines(form.clientCidrsText)
+  const clientIds = parseLines(form.clientIdsText)
+  const clientMacs = parseLines(form.clientMacsText).map(s => s.toLowerCase())
+  const clientHostnames = parseLines(form.clientHostnamesText)
   const blocklists = [...form.blocklists]
   const safesearch = [...form.safesearch]
 
@@ -379,6 +436,9 @@ async function submitModal() {
         safesearch,
         client_ips: clientIps,
         client_cidrs: clientCidrs,
+        client_ids: clientIds,
+        client_macs: clientMacs,
+        client_hostnames: clientHostnames,
       }
       const created = await createProfile(payload)
       profiles.value = [...profiles.value, created]
@@ -392,6 +452,9 @@ async function submitModal() {
       if (!arraysEqual(safesearch, o.safesearch ?? [])) patch.safesearch = safesearch
       if (!arraysEqual(clientIps, o.client_ips ?? [])) patch.client_ips = clientIps
       if (!arraysEqual(clientCidrs, o.client_cidrs ?? [])) patch.client_cidrs = clientCidrs
+      if (!arraysEqual(clientIds, o.client_ids ?? [])) patch.client_ids = clientIds
+      if (!arraysEqual(clientMacs, o.client_macs ?? [])) patch.client_macs = clientMacs
+      if (!arraysEqual(clientHostnames, o.client_hostnames ?? [])) patch.client_hostnames = clientHostnames
 
       if (Object.keys(patch).length === 0) {
         showModal.value = false

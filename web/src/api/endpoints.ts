@@ -1,9 +1,9 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Blocklist, BlocklistSource, Category, ClientDohStatus, ClusterHealth, ClusterSelf,
-  ClusterStats, ClusterStatus, JoinTokenResponse, LocalDNSEntry, Profile,
-  QueryLogPage, Schedule, ScheduleBinding, Settings,
+  Anomaly, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
+  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, JoinTokenResponse,
+  Lease, LocalDNSEntry, Profile, QueryLogPage, Schedule, ScheduleBinding, Settings,
 } from './types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────
@@ -229,4 +229,26 @@ export function disableCategory(name: string, profile_id: string): Promise<unkno
 
 export function getClientDohStatus(ip: string): Promise<ClientDohStatus> {
   return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}/doh-status`)
+}
+
+// ─── M3.6 — DHCP-enriched clients + anti-spoof ──────────────────────────
+
+export function getClient(ip: string): Promise<ClientRecord> {
+  return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}`)
+}
+
+export function listLeases(): Promise<Lease[]> {
+  return getJSON('/api/v1/clients/_leases')
+}
+
+export function listAnomalies(): Promise<Anomaly[]> {
+  return getJSON('/api/v1/clients/anomalies')
+}
+
+export function acknowledgeAnomaly(id: string): Promise<void> {
+  return postJSON(`/api/v1/clients/anomalies/${encodeURIComponent(id)}/acknowledge`)
+}
+
+export function exportReservationsURL(format: 'dnsmasq' | 'kea' | 'json'): string {
+  return `/api/v1/clients/export-reservations?format=${format}`
 }

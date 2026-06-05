@@ -113,6 +113,7 @@ import {
   QueueListIcon, ChartBarIcon, CpuChipIcon, Cog6ToothIcon,
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
+  DevicePhoneMobileIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -132,6 +133,7 @@ const nav = [
   { name: 'blocklists', label: 'Blocklists', icon: NoSymbolIcon },
   { name: 'allowlist',  label: 'Allowlist',  icon: CheckBadgeIcon },
   { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
+  { name: 'clients',    label: 'Clients',    icon: DevicePhoneMobileIcon },
   { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
   { name: 'schedules',  label: 'Schedules',  icon: ClockIcon },
   { name: 'categories', label: 'Categories', icon: TagIcon },
@@ -146,6 +148,7 @@ const titles: Record<string, string> = {
   blocklists: 'Blocklists',
   allowlist: 'Allowlist',
   'local-dns': 'Local DNS',
+  clients: 'Clients',
   profiles: 'Profiles',
   schedules: 'Schedules',
   categories: 'Categories',

@@ -1,5 +1,30 @@
 <template>
   <div class="space-y-6">
+    <!-- M3.6 — spoof alert (DHCP lease lookalikes). Listed before the DoH
+         alert because identity-spoofing is the more serious signal. -->
+    <div v-if="spoofAlert.length > 0" class="card p-4 border-l-4 border-danger space-y-2">
+      <div class="flex items-center gap-2">
+        <ExclamationTriangleIcon class="w-5 h-5 text-danger" />
+        <h2 class="text-sm font-semibold text-fg-strong">Possible identity spoofing</h2>
+      </div>
+      <p class="text-xs text-fg-muted">
+        DHCP lease changes that look like spoofing. Investigate then acknowledge from the
+        <router-link :to="{ name: 'clients' }" class="text-accent hover:underline">Clients</router-link>
+        page.
+      </p>
+      <ul class="text-sm space-y-0.5">
+        <li v-for="a in spoofAlert" :key="a.id" class="flex items-center gap-2">
+          <span class="badge-warning">{{ kindLabel(a.kind) }}</span>
+          <span class="font-mono text-xs">{{ a.ip }}</span>
+          <span v-if="a.mac" class="text-fg-muted text-xs">mac {{ a.mac }}</span>
+          <router-link
+            class="ml-auto text-xs text-accent hover:underline"
+            :to="{ name: 'clients' }"
+          >Review →</router-link>
+        </li>
+      </ul>
+    </div>
+
     <!-- M3.5 DoH alert — surfaces clients with N+ DoH probes in the last hour -->
     <div v-if="dohAlert.length > 0" class="card p-4 border-l-4 border-warning space-y-2">
       <div class="flex items-center gap-2">
@@ -94,9 +119,11 @@ import StatTile from '@/components/StatTile.vue'
 import Breakdown from '@/components/Breakdown.vue'
 import {
   clusterHealth, clusterStats, clusterStatus,
-  getClientDohStatus, getClusterQueryLog,
+  getClientDohStatus, getClusterQueryLog, listAnomalies,
 } from '@/api/endpoints'
-import type { ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry } from '@/api/types'
+import type {
+  Anomaly, AnomalyKind, ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry,
+} from '@/api/types'
 
 const health = ref<ClusterHealth | null>(null)
 const stats  = ref<ClusterStats | null>(null)
@@ -110,6 +137,25 @@ const memberStr = computed(() => {
 // M3.5 — surface clients suspected of DoH/DoT use.
 interface DohAlertRow { client: string; count: number; provider: string | null }
 const dohAlert = ref<DohAlertRow[]>([])
+
+// M3.6 — surface unacknowledged anti-spoof anomalies. Same shape as
+// the Clients page card; this is the top-of-Dashboard preview.
+const spoofAlert = ref<Anomaly[]>([])
+function kindLabel(k: AnomalyKind): string {
+  switch (k) {
+    case 'mac_changed_for_client_id': return 'MAC changed'
+    case 'client_id_changed_for_mac': return 'Client-ID changed'
+    case 'new_device_steals_hostname': return 'Hostname clash'
+  }
+}
+async function refreshSpoofAlert() {
+  try {
+    const all = await listAnomalies()
+    spoofAlert.value = all.filter(a => !a.acknowledged_at).slice(0, 5)
+  } catch {
+    spoofAlert.value = []
+  }
+}
 
 async function refreshDohAlert() {
   try {
@@ -146,13 +192,16 @@ async function refresh() {
 
 let timer: number | undefined
 let dohTimer: number | undefined
+let spoofTimer: number | undefined
 onMounted(async () => {
-  await Promise.all([refresh(), refreshDohAlert()])
+  await Promise.all([refresh(), refreshDohAlert(), refreshSpoofAlert()])
   timer = window.setInterval(refresh, 10_000)
   dohTimer = window.setInterval(refreshDohAlert, 60_000)
+  spoofTimer = window.setInterval(refreshSpoofAlert, 30_000)
 })
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   if (dohTimer) window.clearInterval(dohTimer)
+  if (spoofTimer) window.clearInterval(spoofTimer)
 })
 </script>

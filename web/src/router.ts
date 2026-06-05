@@ -13,6 +13,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'blocklists', name: 'blocklists', component: () => import('./views/Blocklists.vue') },
       { path: 'allowlist', name: 'allowlist', component: () => import('./views/Allowlist.vue') },
       { path: 'local-dns', name: 'local-dns', component: () => import('./views/LocalDNS.vue') },
+      { path: 'clients', name: 'clients', component: () => import('./views/Clients.vue') },
       { path: 'profiles', name: 'profiles', component: () => import('./views/Profiles.vue') },
       { path: 'schedules', name: 'schedules', component: () => import('./views/Schedules.vue') },
       { path: 'categories', name: 'categories', component: () => import('./views/Categories.vue') },
