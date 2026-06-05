@@ -157,28 +157,36 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
-### Milestone 3.6 — Read-Only DHCP Integration for Client Identity
+### Milestone 3.6 — Read-Only DHCP Integration + Anti-Spoof Detection
 
-**Outcome**: The query log and dashboards display **hostnames** (and optionally MAC addresses) next to client IPs, sourced from the LAN's DHCP server. Profiles can match clients by hostname or MAC in addition to IP/CIDR. Lease changes are reflected on dblock within minutes without operator action.
+**Outcome**: The query log and dashboards display **hostnames** and MAC addresses next to client IPs, sourced from the LAN's DHCP server. Profiles match clients by stable DHCP Client-ID (option 61), MAC, or hostname in addition to IP/CIDR. Lease changes are reflected on dblock within minutes. Spoofing attempts (a known hostname suddenly appearing with a new MAC, or vice versa) raise a dashboard alert.
 
 **Capabilities:**
 - Read-only **DHCP source connectors**, configurable per node:
-  - Kea DHCP REST API (`/kea/ctrl-agent`)
+  - Kea DHCP REST API (`lease4-get-all` via the control-agent)
   - dnsmasq lease file (`/var/lib/misc/dnsmasq.leases`)
-  - ISC DHCP lease file (`/var/lib/dhcp/dhcpd.leases`)
-  - Generic HTTP API returning JSON `[{ ip, mac, hostname, expires_at }, …]`
-- Lease cache in bbolt: refreshed at a configurable interval (default 60 s) — never blocks DNS resolution
-- `GET /api/v1/clients/{ip}` returns `{ ip, mac, hostname, source, expires_at, last_seen }` enriched from the lease cache
-- Query log entries gain optional `client_hostname` and `client_mac` fields (omitted when no lease match)
-- Profile-binding rules accept `client_macs` and `client_hostnames` in addition to `client_ips` / `client_cidrs`
-- Web UI: client list (sortable by hostname / last-seen), per-client drill-down link from Stats and Query Log
+  - Generic HTTP API returning JSON `[{ ip, mac, hostname, client_id, expires_at }, …]`
+  - **ISC DHCP `dhcpd` is intentionally NOT supported** — ISC declared it end-of-life in 2022; operators on `dhcpd` should migrate to Kea
+- **Canonical Lease** record: `{ ip, mac, hostname, client_id, source, expires_at, first_seen, last_seen }`
+- **Lease cache in bbolt** (replicated via Raft so all cluster nodes see consistent hostnames). Configurable refresh interval, default 60 s. Never blocks DNS resolution.
+- **Stable identity priority**: when matching a query's client IP to a lease, prefer Client-ID over MAC over hostname. Client-ID is the hardest to spoof.
+- **Anti-spoof detection** (Layers 1 + 2; see DEMO_NOTE for design):
+  - Lease history tracks `(client_id, mac, hostname)` tuples per device
+  - Anomaly types flagged: MAC changed for known Client-ID; Client-ID changed for known MAC; brand-new MAC matching an existing hostname
+  - Anomalies surface as a Dashboard warning card (similar to the M3.5 DoH alert) and are kept for 7 days
+- `GET /api/v1/clients/{ip}` returns the enriched record + recent-anomaly list
+- Query log entries gain optional `client_hostname`, `client_mac`, `client_id` fields (omitted when no lease match)
+- Profile-binding rules accept `client_macs`, `client_hostnames`, `client_ids` in addition to `client_ips` / `client_cidrs`. Match priority: Client-ID > MAC > hostname > IP/CIDR.
+- Web UI: client list (sortable by hostname / last-seen), per-client drill-down, spoof-anomaly inbox
 - Settings page: per-connector form (URL, file path, refresh interval, credentials)
 
 **Non-goals:**
-- dblock writing leases (write requests proxy nowhere — this is read-only)
+- dblock writing leases (read-only)
 - DHCPv6 lease parsing (defer; IPv4 first)
+- ISC `dhcpd` lease file parser (deprecated upstream)
+- Active probing — ARP/NDP cross-check is Layer 3 of anti-spoofing, deferred to backlog
+- Automatic remediation (alert only; operator decides)
 - Sub-second freshness — operator can ride DNS via the IP fallback while leases catch up
-- Active probing (ARP / mDNS) — leases only
 
 **Dependencies:** Milestone 3 complete (profile model). Helpful but not strictly required by M3.5 / M4.
 
@@ -204,6 +212,26 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 **Risks:**
 - Cert lifecycle in air-gapped deployments — manual cert provisioning supported as fallback.
+
+---
+
+### Milestone 4.5 — API Documentation Browser
+
+**Outcome**: An operator can open `<host>:8080/api/docs` and see the entire management API as an interactive reference — every endpoint, every request/response shape, every status code — sourced from the existing `specs/technical/management-api.openapi.yaml`. "Try it out" buttons hit the live node using the operator's already-authenticated browser session.
+
+**Capabilities:**
+- Swagger UI 5 bundled via `go:embed` (~1.4 MB, ~400 KB gzipped) and mounted under `/api/docs`
+- `/api/openapi.yaml` serves the live spec from the embedded `specs/technical/` snapshot (CI-validated against the actual routes via the existing `tools/traceability/`)
+- Sidebar nav entry "API" linking to `/api/docs`
+- "Try it out" honors the operator's existing Basic Auth — no separate API key
+- Bundle is gated behind a config flag (`api.docs.enabled`, default true) so security-conscious operators can strip it
+
+**Non-goals:**
+- Hosting the docs publicly (the API is on a private interface; docs ride along)
+- Generated client libraries (operators run `openapi-generator` themselves if needed)
+- Redoc / Stoplight alternates — Swagger UI is the chosen renderer
+
+**Dependencies:** None hard; the OpenAPI doc has existed since M1. Naturally pairs with M5's "documentation site" capability.
 
 ---
 
