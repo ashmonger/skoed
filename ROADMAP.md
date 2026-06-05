@@ -179,6 +179,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 - Profile-binding rules accept `client_macs`, `client_hostnames`, `client_ids` in addition to `client_ips` / `client_cidrs`. Match priority: Client-ID > MAC > hostname > IP/CIDR.
 - Web UI: client list (sortable by hostname / last-seen), per-client drill-down, spoof-anomaly inbox
 - Settings page: per-connector form (URL, file path, refresh interval, credentials)
+- **Reservation export**: `GET /api/v1/clients/export-reservations?format=dnsmasq|kea|json` emits operator-pasteable static-reservation syntax derived from the current lease snapshot. Lets the operator bootstrap their DHCP server's reservation table from devices dblock has already observed.
 
 **Non-goals:**
 - dblock writing leases (read-only)

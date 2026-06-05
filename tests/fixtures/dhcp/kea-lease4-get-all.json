@@ -1,0 +1,40 @@
+[
+  {
+    "result": 0,
+    "text": "3 IPv4 lease(s) found.",
+    "arguments": {
+      "leases": [
+        {
+          "ip-address": "192.168.1.42",
+          "hw-address": "aa:bb:cc:dd:ee:42",
+          "hostname": "kid-tablet",
+          "client-id": "id:tablet42",
+          "valid-lft": 3600,
+          "cltt": 9999996400,
+          "subnet-id": 1,
+          "state": 0
+        },
+        {
+          "ip-address": "192.168.1.10",
+          "hw-address": "aa:bb:cc:dd:ee:10",
+          "hostname": "home-laptop",
+          "client-id": "id:laptop10",
+          "valid-lft": 3600,
+          "cltt": 9999996400,
+          "subnet-id": 1,
+          "state": 0
+        },
+        {
+          "ip-address": "192.168.1.51",
+          "hw-address": "11:22:33:44:55:77",
+          "hostname": "desktop",
+          "client-id": "id:desktop01",
+          "valid-lft": 7200,
+          "cltt": 9999992800,
+          "subnet-id": 1,
+          "state": 0
+        }
+      ]
+    }
+  }
+]
