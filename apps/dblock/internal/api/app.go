@@ -41,6 +41,16 @@ type App struct {
 	// matching how every other node.api.* knob works.
 	metricsRequireAuth bool
 
+	// publicLandingEnabled gates the M5.9.5 unauthenticated landing page
+	// + /api/v1/_public/test-blocklist endpoint. Default true; flipped
+	// off from node.api.public_landing.enabled=false. Cached at boot —
+	// operators restart to change it.
+	publicLandingEnabled bool
+
+	// publicTester is the per-IP rate-limited handler for
+	// /api/v1/_public/test-blocklist. Built once; survives Raft applies.
+	publicTester *handlers.PublicTester
+
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
 	rebuildDNS func(*config.Config) error
@@ -100,6 +110,18 @@ func (a *App) SetMetricsRequireAuth(v bool) { a.metricsRequireAuth = v }
 // MetricsRequireAuth reports the current value of the metrics auth gate.
 func (a *App) MetricsRequireAuth() bool { return a.metricsRequireAuth }
 
+// SetPublicLandingEnabled toggles the M5.9.5 unauthenticated landing
+// page (/) and its companion endpoint /api/v1/_public/test-blocklist.
+// Default is true; main.go calls this from the node-local
+// node.api.public_landing.enabled flag. When false, the SPA's
+// landing page is replaced by the normal login redirect and the
+// endpoint returns 404.
+func (a *App) SetPublicLandingEnabled(v bool) { a.publicLandingEnabled = v }
+
+// PublicLandingEnabled reports whether the unauthenticated landing
+// surface is active on this node.
+func (a *App) PublicLandingEnabled() bool { return a.publicLandingEnabled }
+
 // CheckBasicAuth validates Basic credentials against the auth store.
 // Returns true when both auth is configured and credentials are valid.
 // Used by the M5.1 metrics handler when the operator opted into
@@ -125,10 +147,12 @@ func NewApp(
 	rebuildDNS func(*config.Config) error,
 ) *App {
 	a := &App{
-		cluster:    c,
-		authStore:  authStore,
-		queryLog:   queryLog,
-		rebuildDNS: rebuildDNS,
+		cluster:              c,
+		authStore:            authStore,
+		queryLog:             queryLog,
+		rebuildDNS:           rebuildDNS,
+		publicLandingEnabled: true,
+		publicTester:         handlers.NewPublicTester(),
 	}
 	// Prime the cache.
 	if snap, err := c.Store().Snapshot(); err == nil {
@@ -267,6 +291,11 @@ func (a *App) Router() http.Handler {
 		r.Method(http.MethodGet, "/metrics", a.metrics.Handler())
 	}
 
+	// M5.9.5 — public URL tester. Unauthenticated by design; SSRF-guarded
+	// + per-IP rate-limited inside the handler. Returns 404 when the
+	// operator disabled the landing surface (node.api.public_landing.enabled=false).
+	r.Post("/api/v1/_public/test-blocklist", a.publicTesterHandler)
+
 	// The /cluster/join endpoint must be served by the leader. Forwarding
 	// handles that transparently.
 	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
@@ -393,7 +422,11 @@ func (a *App) Router() http.Handler {
 	// /assets/* loads built JS/CSS; every other unmatched GET falls back to
 	// index.html so the SPA's history router can handle the path. No auth:
 	// the SPA renders the login/setup form itself before any API call.
-	r.NotFound(serveSPA)
+	//
+	// M5.9.5 — when the operator disabled the public landing, GET / returns
+	// a 302 to /login (preserving the legacy "no landing, login-only"
+	// posture) before the SPA shell can paint the public Landing view.
+	r.NotFound(a.serveSPAWithLandingGate)
 
 	return r
 }
@@ -406,6 +439,30 @@ func (a *App) docsEnabled() bool {
 		return true
 	}
 	return !cfg.API.Docs.Disabled
+}
+
+// publicTesterHandler gates the M5.9.5 public test endpoint on the
+// node-local public_landing toggle and forwards to the rate-limited
+// tester. Returns 404 when the operator disabled the landing surface.
+func (a *App) publicTesterHandler(w http.ResponseWriter, r *http.Request) {
+	if !a.publicLandingEnabled {
+		http.NotFound(w, r)
+		return
+	}
+	a.publicTester.Handle(w, r)
+}
+
+// serveSPAWithLandingGate wraps serveSPA. When the operator disabled
+// the M5.9.5 public landing page, a GET / is redirected to /login so
+// the legacy "admin-only, no public surface" posture is preserved
+// without re-shipping the SPA. Every other path falls through to the
+// regular SPA fallback (login/setup pages are still SPA-rendered).
+func (a *App) serveSPAWithLandingGate(w http.ResponseWriter, r *http.Request) {
+	if !a.publicLandingEnabled && r.Method == http.MethodGet && r.URL.Path == "/" {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+	serveSPA(w, r)
 }
 
 // serveSPA serves files from the embedded SPA dist FS. Asset paths

@@ -329,6 +329,11 @@ func runDaemon(cfgPath string) {
 	app.SetDNSCache(dnsCache)
 	app.SetMetrics(prom)
 	app.SetMetricsRequireAuth(node.Node.API.Metrics.RequireAuth)
+	// M5.9.5 — public landing page + URL tester. Default ON; operator
+	// flips node.api.public_landing.enabled=false to revert to the
+	// admin-only posture (no unauthenticated surface beyond /health
+	// and /metrics).
+	app.SetPublicLandingEnabled(node.Node.API.PublicLanding.PublicLandingEnabled())
 
 	// M3.6 — read-only DHCP integration. Node-local; each node polls its
 	// own configured connector. Operators typically point every node at

@@ -1,12 +1,13 @@
 // Acceptance tests for M5.9.1 — dblock CLI.
 //
 // FSIDs covered:
-//   FS-CliVersionFlag     → TestCliVersion
-//   FS-CliHealth          → TestCliHealth
-//   FS-CliStatus          → TestCliStatus       ← 3-node
-//   FS-CliTokenCreate     → TestCliTokenCreate
-//   FS-CliBlocklistTest   → TestCliBlocklistTest
-//   FS-CliDaemonStillWorks → TestCliDaemonStillWorks
+//   FS-CliVersionFlag       → TestCliVersion
+//   FS-CliHealth            → TestCliHealth
+//   FS-CliStatus            → TestCliStatus       ← 3-node
+//   FS-CliTokenCreate       → TestCliTokenCreate
+//   FS-CliBlocklistTest     → TestCliBlocklistTest
+//   FS-CliDaemonStillWorks  → TestCliDaemonStillWorks
+//   FS-UrlTesterCliSubcommand → TestCliBlocklistTest (M5.9.5 re-uses the same exec)
 //
 // FS-TuiTopShowsLiveDashboard intentionally NOT tested — bubbletea TUI
 // testing is finicky and the value is low; manual screenshot only.
