@@ -30,7 +30,7 @@ console.log(`saved ${OUTDIR}/m4.5-swagger-ui.png`)
 
 // M4.5: sidebar close-up showing the new "API" entry. Go to Settings so
 // the sidebar is in view and Settings is highlighted.
-await page.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard/settings', { waitUntil: 'networkidle' })
 await page.waitForTimeout(600)
 await page.screenshot({
   path: `${OUTDIR}/m4.5-sidebar-api-entry.png`,

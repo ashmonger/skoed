@@ -27,7 +27,7 @@ await page.evaluate(([u, p]) => {
 
 // Go to the Dashboard — fresh node, no blocklists, no profiles, so
 // the Getting Started card MUST be visible at the top.
-await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard', { waitUntil: 'networkidle' })
 await page.waitForTimeout(800)
 
 // Sanity check: card is in the DOM.

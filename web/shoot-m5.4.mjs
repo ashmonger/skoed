@@ -55,7 +55,7 @@ await postBL({
 // Wait long enough for at least one auto-refresh tick + a stale-window pass.
 await page.waitForTimeout(8000)
 
-await page.goto(BASE + '/blocklists', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard/blocklists', { waitUntil: 'networkidle' })
 await page.waitForTimeout(500)
 await page.screenshot({ path: `${OUTDIR}/m5.4-blocklists-table.png`, fullPage: false })
 console.log(`saved ${OUTDIR}/m5.4-blocklists-table.png`)

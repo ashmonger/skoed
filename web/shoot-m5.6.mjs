@@ -22,7 +22,7 @@ await page.evaluate(([u, p]) => {
   localStorage.setItem('skoed.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
 }, [USER, PASS])
 
-await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard', { waitUntil: 'networkidle' })
 await page.waitForTimeout(800)
 await page.screenshot({ path: `${OUTDIR}/m5.6-upgrade-banner.png`, fullPage: false })
 console.log(`saved ${OUTDIR}/m5.6-upgrade-banner.png`)

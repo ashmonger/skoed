@@ -13,7 +13,7 @@ Type "export PS1='$ '"
 Enter
 Type "export SKOED_AUTH=admin:demopass123"
 Enter
-Type "alias skoed='/home/jcollin/repos/skoed/apps/skoed/skoed --api http://127.0.0.1:18829'"
+Type "alias skoed='/home/jcollin/repos/dblock/apps/skoed/skoed --api http://127.0.0.1:18499'"
 Enter
 Type "clear"
 Enter

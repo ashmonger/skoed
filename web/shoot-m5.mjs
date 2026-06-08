@@ -49,7 +49,7 @@ async function seedAudit() {
 await seedAudit()
 
 // M5.2: Audit log page, full screenshot.
-await page.goto(BASE + '/settings/audit', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard/settings/audit', { waitUntil: 'networkidle' })
 await page.waitForTimeout(700)
 await page.screenshot({ path: `${OUTDIR}/m5.2-audit-log.png`, fullPage: false })
 console.log(`saved ${OUTDIR}/m5.2-audit-log.png`)
@@ -62,7 +62,7 @@ await page.screenshot({ path: `${OUTDIR}/m5.2-audit-log-expanded.png`, fullPage:
 console.log(`saved ${OUTDIR}/m5.2-audit-log-expanded.png`)
 
 // M5.2: Settings page top, showing the audit-log link card.
-await page.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard/settings', { waitUntil: 'networkidle' })
 await page.waitForTimeout(500)
 // Scroll to bottom so the new audit card is in frame.
 await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))

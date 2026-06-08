@@ -29,7 +29,7 @@ for (const { path, name } of [
 }
 
 // Profiles edit modal with DHCP identity section expanded.
-await page.goto(BASE + '/profiles', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/dashboard/profiles', { waitUntil: 'networkidle' })
 await page.waitForTimeout(400)
 await page.click('button:has-text("New profile")', { timeout: 5000 })
 await page.waitForTimeout(300)

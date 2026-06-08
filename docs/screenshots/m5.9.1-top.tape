@@ -10,9 +10,9 @@ Set TypingSpeed 60ms
 Hide
 Type "export SKOED_AUTH=admin:demopass123"
 Enter
-Type "export SKOED_API=http://127.0.0.1:18829"
+Type "export SKOED_API=http://127.0.0.1:18499"
 Enter
-Type "alias skoed='/home/jcollin/repos/skoed/apps/skoed/skoed'"
+Type "alias skoed='/home/jcollin/repos/dblock/apps/skoed/skoed'"
 Enter
 Type "clear"
 Enter
@@ -21,11 +21,8 @@ Show
 Type "skoed top"
 Sleep 200ms
 Enter
-# Let the TUI render and refresh a couple of times.
 Sleep 6s
-# Press 'r' for a manual refresh — shows the hot-key in action.
 Type "r"
 Sleep 3s
-# Quit.
 Type "q"
 Sleep 500ms
