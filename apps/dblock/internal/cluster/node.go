@@ -51,11 +51,33 @@ type ClusterMTLSSection struct {
 }
 
 // APISection holds node-local management-API settings. Today the
-// substructure is M4.6 TLS + M5.1 metrics; future M7 token-auth knobs
-// can live here too.
+// substructure is M4.6 TLS + M5.1 metrics + M5.9.5 public landing;
+// future M7 token-auth knobs can live here too.
 type APISection struct {
-	TLS     APITLSSection     `yaml:"tls,omitempty"`
-	Metrics APIMetricsSection `yaml:"metrics,omitempty"`
+	TLS           APITLSSection           `yaml:"tls,omitempty"`
+	Metrics       APIMetricsSection       `yaml:"metrics,omitempty"`
+	PublicLanding APIPublicLandingSection `yaml:"public_landing,omitempty"`
+}
+
+// APIPublicLandingSection gates the M5.9.5 unauthenticated landing
+// page + /api/v1/_public/test-blocklist endpoint. Default is on:
+// operators who want dblock to be admin-only (no public surface
+// beyond /metrics and /health) flip Enabled to false. When the
+// `enabled:` key is omitted from YAML, LoadConfig synthesises
+// the default (true) so operators don't have to opt in to keep
+// the documented behaviour.
+type APIPublicLandingSection struct {
+	Enabled    *bool `yaml:"enabled,omitempty"`
+}
+
+// PublicLandingEnabled returns true when the operator has not
+// explicitly turned off the public landing page. nil → default
+// true; *false → off; *true → on.
+func (s APIPublicLandingSection) PublicLandingEnabled() bool {
+	if s.Enabled == nil {
+		return true
+	}
+	return *s.Enabled
 }
 
 // APIMetricsSection configures the M5.1 Prometheus /metrics exporter.

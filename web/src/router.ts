@@ -1,11 +1,18 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// M5.9.5: the root path renders the unauthenticated Landing view.
+// The legacy admin Shell + Dashboard moved to /dashboard. The
+// `requiresAuth` route-meta still kicks visitors back to /login,
+// preserving every admin route's existing protection. When the
+// operator disabled the public landing page (node.api.public_landing.enabled=false),
+// the server redirects GET / to /login before this router ever sees it.
 const routes: RouteRecordRaw[] = [
+  { path: '/', name: 'landing', component: () => import('./views/Landing.vue'), meta: { layout: 'blank' } },
   { path: '/login', name: 'login', component: () => import('./views/Login.vue'), meta: { layout: 'blank' } },
   { path: '/setup', name: 'setup', component: () => import('./views/Setup.vue'), meta: { layout: 'blank' } },
   {
-    path: '/',
+    path: '/dashboard',
     component: () => import('./layouts/Shell.vue'),
     meta: { requiresAuth: true },
     children: [
@@ -41,5 +48,10 @@ router.beforeEach(async (to) => {
   }
   if (to.name === 'setup' && auth.isSetup) {
     return { name: 'login' }
+  }
+  // Once an admin is logged in, the landing page is essentially a
+  // marketing surface — they want the dashboard. Bounce them through.
+  if (to.name === 'landing' && auth.isAuthenticated) {
+    return { name: 'dashboard' }
   }
 })
