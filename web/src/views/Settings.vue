@@ -225,6 +225,23 @@
           </button>
         </div>
       </section>
+
+      <!-- ─── Audit log link (M5.2) ─────────────────────────────────────── -->
+      <section class="card p-5">
+        <header class="flex items-center gap-2">
+          <DocumentTextIcon class="h-5 w-5 text-accent" />
+          <h2 class="text-base font-semibold text-fg-strong">Audit log</h2>
+        </header>
+        <p class="text-sm text-fg-muted mt-1">
+          Every state-changing API call is recorded with actor, action, target, and result.
+          Replicated through Raft &mdash; identical on every node.
+        </p>
+        <div class="mt-3">
+          <router-link :to="{ name: 'audit' }" class="btn-secondary">
+            Open audit log
+          </router-link>
+        </div>
+      </section>
     </template>
   </div>
 </template>
@@ -232,7 +249,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import {
-  ClipboardDocumentListIcon, GlobeAltIcon, ShieldCheckIcon,
+  ClipboardDocumentListIcon, DocumentTextIcon, GlobeAltIcon, ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,

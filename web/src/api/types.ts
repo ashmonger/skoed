@@ -201,6 +201,28 @@ export interface DNSCacheStats {
   evictions: number
 }
 
+// M5.2 — audit log entry as returned by /api/v1/audit.
+export interface AuditEntry {
+  id: string
+  seq: number
+  timestamp: string
+  actor: string
+  action: string
+  target?: string
+  result: 'ok' | 'error'
+  error?: string
+  diff?: string
+  node_id?: string
+  request_id?: string
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
 // M3.5 — per-client DoH status
 export interface ClientDohStatus {
   client: string

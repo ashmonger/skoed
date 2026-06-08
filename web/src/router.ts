@@ -21,6 +21,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'stats', name: 'stats', component: () => import('./views/Stats.vue') },
       { path: 'cluster', name: 'cluster', component: () => import('./views/Cluster.vue') },
       { path: 'settings', name: 'settings', component: () => import('./views/Settings.vue') },
+      { path: 'settings/audit', name: 'audit', component: () => import('./views/Audit.vue') },
       { path: 'account', name: 'account', component: () => import('./views/Account.vue') },
     ],
   },

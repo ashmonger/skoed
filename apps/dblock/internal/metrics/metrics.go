@@ -81,6 +81,10 @@ type Metrics struct {
 	// have to mirror them — the cache itself is the source of truth.
 	// Cluster + DHCP work the same way.
 
+	// M5.2 — audit append counter, bumped from the audit middleware on
+	// every successful Raft-replicated append.
+	auditEventsTotal *prometheus.CounterVec
+
 	requireAuth func() bool       // re-read on every request so config edits take effect live
 	authOK      func(*http.Request) bool
 }
@@ -119,6 +123,12 @@ func New(opts Options) *Metrics {
 	}, []string{"outcome"})
 	reg.MustRegister(dnsQueryDur)
 
+	auditEventsTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "dblock_audit_events_total",
+		Help: "Cumulative audit-log entries appended through Raft, by action.",
+	}, []string{"action"})
+	reg.MustRegister(auditEventsTotal)
+
 	// Cache — registered as a custom Collector that reads from the
 	// CacheStatsFunc on every scrape. Wired only when caching is
 	// available; when CacheStats reports Enabled=false the size gauge
@@ -136,12 +146,22 @@ func New(opts Options) *Metrics {
 	}
 
 	return &Metrics{
-		reg:             reg,
-		dnsQueriesTotal: dnsQueriesTotal,
-		dnsQueryDur:     dnsQueryDur,
-		requireAuth:     opts.RequireAuth,
-		authOK:          opts.AuthOK,
+		reg:              reg,
+		dnsQueriesTotal:  dnsQueriesTotal,
+		dnsQueryDur:      dnsQueryDur,
+		auditEventsTotal: auditEventsTotal,
+		requireAuth:      opts.RequireAuth,
+		authOK:           opts.AuthOK,
 	}
+}
+
+// ObserveAudit bumps the audit-event counter for the given action.
+// Called by the audit middleware after a successful Raft append.
+func (m *Metrics) ObserveAudit(action string) {
+	if m == nil || m.auditEventsTotal == nil {
+		return
+	}
+	m.auditEventsTotal.WithLabelValues(action).Inc()
 }
 
 // ObserveQuery records one DNS-handler exit. outcome is the dlog.Outcome

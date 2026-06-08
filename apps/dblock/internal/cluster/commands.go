@@ -37,6 +37,8 @@ const (
 	CmdScheduleBindingPut   CommandKind = "schedule_binding.upsert"
 	CmdScheduleBindingDel   CommandKind = "schedule_binding.delete"
 	CmdCategoryOverridePut  CommandKind = "category_override.upsert"
+	// M5.2 — append a single audit row + lazy 90-day trim in the same commit.
+	CmdAuditAppend          CommandKind = "audit.append"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -182,6 +184,23 @@ type ScheduleBindingDelPayload struct {
 
 type CategoryOverridePutPayload struct {
 	Override config.CategoryOverride `json:"override"`
+}
+
+// AuditAppendPayload is the Raft-replicated form of a single audit row.
+// Fields mirror specs/technical/audit-log.md exactly. Seq is filled in
+// at Apply time so every node assigns the same sequence value to the
+// same Raft log entry.
+type AuditAppendPayload struct {
+	ID         string `json:"id"`
+	TimeUnix   int64  `json:"time_unix"`
+	Actor      string `json:"actor"`
+	Action     string `json:"action"`
+	Target     string `json:"target,omitempty"`
+	Result     string `json:"result"` // "ok" | "error"
+	Error      string `json:"error,omitempty"`
+	Diff       string `json:"diff,omitempty"`
+	NodeID     string `json:"node_id,omitempty"`
+	RequestID  string `json:"request_id,omitempty"`
 }
 
 // HourAggregate is the per-node hourly aggregate written by the
