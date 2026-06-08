@@ -482,6 +482,135 @@ this file.
 
 ---
 
+### Milestone 5.9 — Operator QoL (umbrella)
+
+**Outcome**: dblock feels nice to install, configure, and live with. Less curl, more `dblock <verb>`; faster dev loop; less surprise on first boot; safer URL-tester ergonomics.
+
+Umbrella for five small landings — each lands as a separate PR but they're cheap enough to ship in a single session.
+
+| Sub | Title                                                | Status |
+|-----|------------------------------------------------------|--------|
+| 5.9.1 | `dblock` CLI + TUI (charm-stack, full color)       |        |
+| 5.9.2 | `make dev` — Vite hot-reload for the SPA            |        |
+| 5.9.3 | Docker test cache (go-mod volume)                   |        |
+| 5.9.4 | Getting Started card + docs page                    |        |
+| 5.9.5 | URL tester (CLI + public landing page)              |        |
+
+**Non-goals for the M5.9 umbrella:**
+- Replacing the existing Web UI Vue stack
+- Server-side rendering / no-JS support
+- Public/SaaS posture (dblock stays a private-network admin tool)
+
+**Dependencies:** Each sub-milestone is independent; pick any order.
+
+---
+
+### Milestone 5.9.1 — `dblock` CLI + TUI (charm-stack)
+
+**Outcome**: Operators run `dblock <verb>` for everything they used to `curl -u admin:pwd …`; live cluster overview without leaving the terminal.
+
+**Capabilities:**
+- CLI verbs via [cobra](https://github.com/spf13/cobra) styled with [lipgloss](https://github.com/charmbracelet/lipgloss) (matches the SPA Lipgloss palette — same hexes):
+  - `dblock version` (also: `dblock --version`)
+  - `dblock health` (alias: `dblock ping`)
+  - `dblock status` (cluster nodes + roles + commit index, color-coded)
+  - `dblock token create` (returns the M5.3 join bundle)
+  - `dblock blocklist test <url>` (M5.9.5 hooks here)
+  - `dblock daemon` (current behaviour; default when no subcommand given so existing `dblock --config …` keeps working)
+- TUI dashboard via [bubbletea](https://github.com/charmbracelet/bubbletea):
+  - `dblock top` — live cluster + DNS rate + top blocked domains + audit-log tail. Hot-keys: `q` quit, `r` force refresh, `f` filter.
+- Auth via the same `auth/setup`-set credentials; read from `~/.dblock/credentials` (mode 0600) or `--auth user:pass`. Talks to the management API at `--api http://localhost:8080` (or `DBLOCK_API` env).
+
+**Non-goals:**
+- A full curses TUI for editing config (operators edit YAML or use the Web UI)
+- Shell completion (M5.9.1.1 follow-up; cobra has it built-in, just needs `make completions`)
+
+**Dependencies:** None; everything talks to the existing management API.
+
+---
+
+### Milestone 5.9.2 — `make dev` (SPA hot-reload)
+
+**Outcome**: UI iteration is instant. Edit a `.vue` file → see it in the browser without rebuilding the Go binary.
+
+**Capabilities:**
+- `make dev` starts:
+  - A dblock daemon on a known port (e.g. 18099)
+  - `vite dev` on 5173, proxying `/api/*` and `/metrics` to the daemon
+- Vite HMR (already in the existing config) handles per-file reload
+- `make dev-cluster` (stretch) spins a 3-node cluster + Vite proxy for testing leader-forward UX
+
+**Non-goals:**
+- Replacing the embedded-binary production model (Vite dev is for dev only)
+- Auto-rebuilding the Go binary on `*.go` change (use `air` or `entr` if needed; not bundling another tool)
+
+**Dependencies:** None.
+
+---
+
+### Milestone 5.9.3 — Docker test cache (go-mod volume)
+
+**Outcome**: `make acceptance` runs in ~1 min on warm cache instead of ~10 min.
+
+**Capabilities:**
+- `tests/acceptance/run-in-docker.sh` mounts a persistent named volume at `/go/pkg/mod` and `/root/.cache/go-build`
+- First run downloads + compiles; subsequent runs reuse
+- `make acceptance-clean` clears the volume when a clean run is needed
+- README note about the cache + how to wipe it
+
+**Non-goals:**
+- Caching the test binary itself (changes every commit anyway)
+- Production-image impact (the container image used by run-in-docker.sh is dev-only; production .deb/Docker image are untouched)
+
+**Dependencies:** None.
+
+---
+
+### Milestone 5.9.4 — Getting Started card + docs page
+
+**Outcome**: A new operator who just set the admin password sees a clear "here's what to do next" affordance instead of an empty Dashboard.
+
+**Capabilities:**
+- Dashboard "Getting Started" card, visible iff `blocklists.length === 0 && profiles.length === 0`:
+  - 3-step checklist: 1) Add a blocklist 2) Bootstrap a cluster (optional) 3) Point a client at dblock
+  - Each step is a click that takes operator to the right page
+  - Auto-hides once cluster has any blocklist (no dismiss needed)
+  - Operator-dismissible via `[x]` (stored in `localStorage`); doesn't reappear
+- New docs chapter `first-run/getting-started.md` covering the same flow with copy-pasteable bash
+
+**Non-goals:**
+- A wizard / multi-step modal (operators dislike modals; the dashboard card is enough)
+- Pop-up toasts (zero pop-ups added)
+
+**Dependencies:** M5.8 docs site (so the docs link goes somewhere).
+
+---
+
+### Milestone 5.9.5 — URL tester (CLI + public landing page)
+
+**Outcome**: Operators can sanity-check a blocklist URL **before** they install dblock or set up auth — via CLI or via a public landing page on a running dblock that doesn't require login. dblock stays a private-network admin tool; the landing page is the *one* unauthenticated surface and is SSRF-guarded.
+
+**Capabilities:**
+- **CLI**: `dblock blocklist test <url> [--format hosts|domainlist|adblock|auto]`
+  - Fetches in-process with 30 s timeout; parses; prints a styled summary:
+    `✓  https://… → 12,453 domains (hosts format, 6 skipped)`
+  - No daemon, no auth, no SSRF risk (operator's own process, operator's own network)
+- **Public landing page** at `/`:
+  - Replaces the current "redirect to /login if unauthenticated"
+  - URL tester form + small "Login" button top-right → existing admin UI
+  - Submitted URL is fetched by the dblock daemon; SSRF-guarded by an allow-list (public hosts only — refuses RFC1918 / localhost / link-local / metadata IPs)
+  - Rate-limited (60 req/h per source IP) so a hostile internet visitor can't turn dblock into a port-scan amp
+- Operator can disable the public landing page entirely with `node.api.public_landing.enabled = false` (config default: `true`; M5.9.5.1 may flip the default once we learn whether anyone leaves dblock internet-facing)
+
+**Non-goals:**
+- Authenticated tester (admin already has the Create modal; the public version is for evaluation-before-install)
+- General-purpose admin features without auth (only the tester is unauthenticated)
+- SaaS / multi-tenant posture (dblock stays single-org)
+
+**Dependencies:** M5.9.1 (CLI subcommand framework).
+
+---
+
 ### Milestone 6 — Closing the DoH Gap
 
 **Outcome**: Operators can block hardcoded-resolver-IP DoH/DoT bypasses at their firewall, using dblock-generated rule snippets. Closes the last bypass route M3 + M3.5 leave open.
