@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skoed — logo</title>
+<style>
+  :root{ --bg:#0F0F18; --panel:#16161f; --line:#26263a; --txt:#e7e7f0; --mut:#8a8aa0; --accent:#874BFD; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1060px;margin:0 auto;padding:64px 40px 96px;}
+  h1{font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:0 0 4px;}
+  .lede{font-size:13px;color:var(--mut);margin:0 0 48px;font-family:ui-monospace,'JetBrains Mono',monospace;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;}
+  .card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel);}
+  .card .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:14px 18px;border-bottom:1px solid var(--line);font-family:ui-monospace,monospace;}
+  .stage{display:flex;align-items:center;justify-content:center;min-height:240px;padding:40px;}
+  .stage.dark{background:#0F0F18;}
+  .stage.light{background:#ffffff;}
+  .stage svg{width:140px;height:140px;display:block;}
+  /* sizes row */
+  .sizes{display:flex;align-items:flex-end;gap:40px;flex-wrap:wrap;}
+  .sz{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .sz span{font-size:10px;color:var(--mut);font-family:ui-monospace,monospace;}
+  .sz.s128 svg{width:128px;height:128px}
+  .sz.s64 svg{width:64px;height:64px}
+  .sz.s32 svg{width:32px;height:32px}
+  .sz.s16 svg{width:16px;height:16px}
+  .full{grid-column:1/-1}
+  .wordmark .stage svg{width:auto;height:84px}
+  .wordmark .stage.dark{color:#e7e7f0}
+  .wordmark .stage.light{color:#0F0F18}
+  .mono-stage{color:var(--accent)}
+  .ctx{display:flex;gap:24px;align-items:center;flex-wrap:wrap;}
+  .avatar{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .avatar .chip{width:72px;height:72px;border-radius:16px;background:#0F0F18;border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+  .avatar .chip.round{border-radius:50%}
+  .avatar .chip svg{width:44px;height:44px}
+  .avatar small{font-size:10px;color:var(--mut);font-family:ui-monospace,monospace}
+  .social{grid-column:1/-1}
+  .social .stage{min-height:320px;background:#0F0F18;flex-direction:column;gap:28px}
+  .social .row{display:flex;align-items:center;gap:28px}
+  .social .mark{width:120px;height:120px}
+  .social .mark svg{width:120px;height:120px;display:block}
+  .social .wm{font-size:64px;font-weight:600;letter-spacing:-.03em;color:#e7e7f0}
+  .social .tag{font-family:ui-monospace,monospace;font-size:14px;color:var(--mut);letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>skoed · brand mark</h1>
+  <p class="lede">self-hosted DNS filtering · multi-node Raft clustering · #874BFD / #3F2480</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="lbl">Primary · on dark</div>
+      <div class="stage dark" id="p-dark"></div>
+    </div>
+    <div class="card">
+      <div class="lbl">Primary · on light</div>
+      <div class="stage light" id="p-light"></div>
+    </div>
+
+    <div class="card full">
+      <div class="lbl">Legibility · rasterised down to 16px</div>
+      <div class="stage dark">
+        <div class="sizes">
+          <div class="sz s128"><span id="s128"></span><span>128</span></div>
+          <div class="sz s64"><span id="s64"></span><span>64</span></div>
+          <div class="sz s32"><span id="s32"></span><span>32</span></div>
+          <div class="sz s16"><span id="s16"></span><span>16</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">Mono · currentColor (here: accent)</div>
+      <div class="stage light"><div class="mono-stage" id="m-light"></div></div>
+    </div>
+    <div class="card">
+      <div class="lbl">Mono · currentColor (here: white)</div>
+      <div class="stage dark"><div id="m-dark" style="color:#e7e7f0"></div></div>
+    </div>
+
+    <div class="card full">
+      <div class="lbl">Avatars · GitHub / Docker crops</div>
+      <div class="stage dark">
+        <div class="ctx">
+          <div class="avatar"><div class="chip" id="av-sq"></div><small>rounded</small></div>
+          <div class="avatar"><div class="chip round" id="av-rd"></div><small>circle</small></div>
+          <div class="avatar"><div class="chip" style="background:#fff" id="av-lt"></div><small>light</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full wordmark">
+      <div class="lbl">Wordmark · bonus</div>
+      <div class="stage dark" id="wm-dark"></div>
+    </div>
+
+    <div class="card social">
+      <div class="lbl">1280×640 social preview composition</div>
+      <div class="stage">
+        <div class="row"><div class="mark" id="soc"></div><span class="wm">skoed</span></div>
+        <span class="tag">DNS that stands between you and the noise.</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+async function load(p){const r=await fetch(p);return await r.text();}
+(async()=>{
+  const primary = await load('logo.svg');
+  const mono = await load('logo-mono.svg');
+  const wm = await load('logo-wordmark.svg');
+  const setP = id => document.getElementById(id).innerHTML = primary;
+  ['p-dark','p-light','s128','s64','s32','s16','av-sq','av-rd','av-lt','soc'].forEach(setP);
+  document.getElementById('m-light').innerHTML = mono;
+  document.getElementById('m-dark').innerHTML = mono;
+  document.getElementById('wm-dark').innerHTML = wm;
+})();
+</script>
+</body>
+</html>

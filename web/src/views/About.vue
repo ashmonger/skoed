@@ -4,9 +4,9 @@
     <header class="border-b border-border bg-bg-card">
       <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
         <router-link to="/" class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded bg-accent flex items-center justify-center font-bold text-bg">s</div>
+          <img src="/logo.svg" class="w-7 h-7" alt="" />
           <span class="text-lg font-semibold text-fg-strong">skoed</span>
-          <span class="text-xs text-fg-muted hidden sm:inline">· self-hosted DNS filtering</span>
+          <span class="text-xs text-fg-muted hidden sm:inline">&middot; self-hosted DNS filtering</span>
         </router-link>
         <router-link to="/login" class="btn-primary">
           Login
