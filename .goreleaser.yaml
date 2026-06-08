@@ -1,0 +1,145 @@
+# goreleaser config — multi-arch (amd64 + arm64) tar.gz + .deb + Docker
+# manifest. See specs/technical/multi-arch-builds.md (TS-MultiArchBuilds).
+
+version: 2
+
+before:
+  hooks:
+    - make build-ui
+    - make openapi-sync
+
+builds:
+  - id: dblock
+    dir: apps/dblock
+    main: ./cmd/dblock
+    binary: dblock
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+
+archives:
+  - id: dblock
+    name_template: "dblock_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    files:
+      - LICENSE*
+      - README*
+      - packaging/config.example.yaml
+
+nfpms:
+  - id: dblock
+    package_name: dblock
+    file_name_template: "dblock_{{ .Version }}_{{ .Arch }}"
+    homepage: https://github.com/dblock/dblock
+    description: |
+      Self-hosted DNS filtering with multi-node sync.
+
+      dblock is a drop-in alternative to Pi-hole / AdGuard-Home for
+      households and small offices. Speaks plain DNS, DoH (RFC 8484),
+      DoT (RFC 7858), and forms a Raft-replicated cluster.
+    maintainer: dblock maintainers <maintainers@dblock.io>
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    dependencies:
+      - adduser
+    contents:
+      - src: ./packaging/dblock.service
+        dst: /lib/systemd/system/dblock.service
+      - src: ./packaging/config.example.yaml
+        dst: /etc/dblock/config.yaml
+        type: config|noreplace
+      - dst: /var/lib/dblock
+        type: dir
+        file_info:
+          mode: 0700
+          owner: dblock
+          group: dblock
+      - dst: /var/log/dblock
+        type: dir
+        file_info:
+          mode: 0750
+          owner: dblock
+          group: dblock
+    scripts:
+      preinstall: ./packaging/scripts/preinst.sh
+      postinstall: ./packaging/scripts/postinst.sh
+      preremove: ./packaging/scripts/prerm.sh
+      postremove: ./packaging/scripts/postrm.sh
+
+dockers:
+  - id: dblock-amd64
+    image_templates:
+      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
+      - "ghcr.io/dblock/dblock:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    goarch: amd64
+
+  - id: dblock-arm64
+    image_templates:
+      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
+      - "ghcr.io/dblock/dblock:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/dblock/dblock:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
+      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/dblock/dblock:latest"
+    image_templates:
+      - "ghcr.io/dblock/dblock:latest-amd64"
+      - "ghcr.io/dblock/dblock:latest-arm64"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: dblock
+    name: dblock
+  draft: false
+  prerelease: auto
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 10
+    - title: Documentation
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 20
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - '^Merge'
