@@ -232,11 +232,43 @@ func main() {
 		agg.Observe(e.Client, e.Domain, e.Outcome)
 	})
 
-	apiSrv := api.NewServer(app)
+	// M4.6 — optional HTTPS for the management API. When disabled (the
+	// default), behaviour is identical to M1-M3: plain HTTP on api_address.
+	apiTLSOpts := api.TLSOptions{Enabled: node.Node.API.TLS.Enabled}
+	if apiTLSOpts.Enabled {
+		apiTLSOpts.Mode = node.Node.API.TLS.Mode
+		if apiTLSOpts.Mode == "" {
+			apiTLSOpts.Mode = "single_port"
+		}
+		apiTLSOpts.HTTPSAddress = node.Node.API.TLS.HTTPSAddress
+		apiTLSOpts.HSTS = node.Node.API.TLS.HSTS
+		// Reuse the same cert dblock uses for DoH/DoT. EnsureSelfSignedCert
+		// generates one on first boot if neither cert_file nor ACME is set.
+		certFile, keyFile, err := dnsengine.EnsureSelfSignedCert(
+			node.Node.DataDir,
+			node.Node.DNS.TLS.CertFile,
+			node.Node.DNS.TLS.KeyFile,
+			node.Node.ID,
+		)
+		if err != nil {
+			log.Fatalf("prepare API TLS cert: %v", err)
+		}
+		apiTLSOpts.CertFile = certFile
+		apiTLSOpts.KeyFile = keyFile
+	}
+	apiSrv := api.NewServerWithTLS(app, apiTLSOpts)
 	if err := apiSrv.Start(); err != nil {
 		log.Fatalf("start api server: %v", err)
 	}
-	log.Printf("management API listening on %s", node.Node.APIAddress)
+	if apiTLSOpts.Enabled {
+		log.Printf("management API listening on %s (HTTPS mode=%s hsts=%v)",
+			node.Node.APIAddress, apiTLSOpts.Mode, apiTLSOpts.HSTS)
+		if apiTLSOpts.Mode == "dual_port" && apiTLSOpts.HTTPSAddress != "" {
+			log.Printf("management API HTTPS listening on %s", apiTLSOpts.HTTPSAddress)
+		}
+	} else {
+		log.Printf("management API listening on %s", node.Node.APIAddress)
+	}
 
 	if err := dnsServer.Start(); err != nil {
 		log.Fatalf("start dns server: %v", err)

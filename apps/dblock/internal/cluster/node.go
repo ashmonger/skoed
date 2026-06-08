@@ -32,6 +32,35 @@ type NodeSection struct {
 	DNS         DNSSection  `yaml:"dns"`
 	DataDir     string      `yaml:"data_dir"`
 	DHCP        DHCPSection `yaml:"dhcp,omitempty"`
+	API         APISection  `yaml:"api,omitempty"`
+}
+
+// APISection holds node-local management-API settings. Today the
+// substructure is just M4.6 TLS; future M7 token-auth knobs can live
+// here too.
+type APISection struct {
+	TLS APITLSSection `yaml:"tls,omitempty"`
+}
+
+// APITLSSection configures the M4.6 HTTPS listener for the management
+// API. When Enabled is true, dblock serves the API over HTTPS using the
+// same cert mechanism as DoH/DoT (node.dns.tls.cert_file / key_file,
+// or the ACME-issued cert when node.dns.tls.acme.enabled).
+type APITLSSection struct {
+	Enabled bool `yaml:"enabled"`
+	// Mode is "single_port" (default) or "dual_port".
+	//   single_port: the existing api_address serves HTTPS only; plain
+	//                HTTP on the same port returns 308 → https://.
+	//   dual_port:   api_address keeps plain HTTP; HTTPSAddress hosts
+	//                the HTTPS listener.
+	Mode string `yaml:"mode,omitempty"`
+	// HTTPSAddress is the host:port of the HTTPS listener when Mode is
+	// dual_port. Ignored when Mode is single_port.
+	HTTPSAddress string `yaml:"https_address,omitempty"`
+	// HSTS adds Strict-Transport-Security on HTTPS responses. Off by
+	// default — LAN deployments without DNS rebinding protection
+	// shouldn't advertise HSTS.
+	HSTS bool `yaml:"hsts,omitempty"`
 }
 
 // DHCPSection configures the M3.6 read-only DHCP integration. When

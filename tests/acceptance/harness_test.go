@@ -11,6 +11,7 @@ package acceptance
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,7 +55,11 @@ type Node struct {
 	// when a DHCP connector is configured. "" when DHCP is disabled or
 	// the binary doesn't yet implement M3.6 (tests then auto-skip).
 	LeaseSnapshotURL string
-	cmd              *exec.Cmd
+	// M4.6: HTTPS base URL for the management API when api.tls.enabled.
+	// In single_port mode this is the same port as APIBase but with
+	// https:// scheme; in dual_port mode it's a separate port.
+	APIHTTPSBase string
+	cmd          *exec.Cmd
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
@@ -210,14 +215,26 @@ func (n *Node) apiDo(t *testing.T, method, path, body string) *http.Response {
 	return n.apiDoAs(t, method, path, body, defaultUsername, defaultPassword)
 }
 
-// apiDoAs sends an HTTP request with explicit credentials.
+// apiDoAs sends an HTTP request with explicit credentials. When the
+// node serves HTTPS (M4.6 — Node.APIHTTPSBase set), routes through
+// the HTTPS URL with an InsecureSkipVerify client (test cert).
 func (n *Node) apiDoAs(t *testing.T, method, path, body, username, password string) *http.Response {
 	t.Helper()
 	var bodyReader io.Reader
 	if body != "" {
 		bodyReader = strings.NewReader(body)
 	}
-	req, err := http.NewRequest(method, n.APIBase+path, bodyReader)
+	base := n.APIBase
+	client := http.DefaultClient
+	if n.APIHTTPSBase != "" {
+		base = n.APIHTTPSBase
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test code
+			},
+		}
+	}
+	req, err := http.NewRequest(method, base+path, bodyReader)
 	if err != nil {
 		t.Fatalf("build request %s %s: %v", method, path, err)
 	}
@@ -227,7 +244,7 @@ func (n *Node) apiDoAs(t *testing.T, method, path, body, username, password stri
 	if username != "" {
 		req.SetBasicAuth(username, password)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("request %s %s: %v", method, path, err)
 	}
@@ -395,13 +412,25 @@ func setupAuth(t *testing.T, n *Node) {
 		"username": defaultUsername,
 		"password": defaultPassword,
 	})
-	req, err := http.NewRequest(http.MethodPost, n.APIBase+"/api/v1/auth/setup",
-		bytes.NewBufferString(body))
+	// In M4.6 HTTPS modes the API listener serves TLS only. Prefer the
+	// HTTPS URL when set (skipping cert verification — test cert).
+	url := n.APIBase + "/api/v1/auth/setup"
+	if n.APIHTTPSBase != "" {
+		url = n.APIHTTPSBase + "/api/v1/auth/setup"
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatalf("build auth setup request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	// Test-only client that accepts the harness's self-signed cert when
+	// the request goes over HTTPS.
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test code
+		},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("auth setup: %v", err)
 	}
