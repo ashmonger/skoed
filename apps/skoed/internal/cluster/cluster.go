@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
+	"github.com/skoed/skoed/internal/dohresolvers"
 	"github.com/hashicorp/raft"
 )
 
@@ -518,6 +519,49 @@ func (c *Cluster) DeleteScheduleBinding(scheduleID, profileID, blocklistID strin
 // named built-in category.
 func (c *Cluster) UpsertCategoryOverride(o config.CategoryOverride) error {
 	return c.applyAsLeader(CmdCategoryOverridePut, CategoryOverridePutPayload{Override: o}, 0)
+}
+
+// UpsertDohResolverSnapshot replicates a fresh DoH/DoT resolver
+// snapshot through Raft. Only the leader calls this — the
+// dohresolvers.Scheduler ensures that — but for defensive symmetry
+// applyAsLeader still gates on IsLeader().
+func (c *Cluster) UpsertDohResolverSnapshot(snap dohresolvers.Snapshot) error {
+	p := DohResolverSnapshotReplacePayload{
+		SnapshotID:           snap.SnapshotID,
+		SourceURL:            snap.SourceURL,
+		FetchedAt:            snap.FetchedAt,
+		LastRefreshAttemptAt: snap.LastRefreshAttemptAt,
+		LastRefreshSuccessAt: snap.LastRefreshSuccessAt,
+		LastRefreshError:     snap.LastRefreshError,
+		Resolvers:            make([]DohResolverEntryPayload, len(snap.Resolvers)),
+	}
+	for i, e := range snap.Resolvers {
+		p.Resolvers[i] = DohResolverEntryPayload{
+			ID:        e.ID,
+			Name:      e.Name,
+			IPv4:      e.IPv4,
+			IPv6:      e.IPv6,
+			SourceURL: e.SourceURL,
+		}
+	}
+	return c.applyAsLeader(CmdDohResolverSnapshotReplace, p, 10*time.Second)
+}
+
+// RecordDohResolverRefreshFailure replicates only the failure-only
+// metadata (last_refresh_attempt_at + last_refresh_error). The snapshot
+// blob itself is left intact so the cluster keeps serving the prior
+// good list (FS-DohResolverDbUpstreamFailureKeepsLastGoodSnapshot).
+func (c *Cluster) RecordDohResolverRefreshFailure(attemptedAt time.Time, reason string) error {
+	return c.applyAsLeader(CmdDohResolverRefreshFailure, DohResolverRefreshFailurePayload{
+		AttemptedAt: attemptedAt.UTC().Format(time.RFC3339),
+		Error:       reason,
+	}, 0)
+}
+
+// CurrentDohSnapshot is the typed read-path used by the scheduler and
+// the API handlers. Returns (nil, nil) when no snapshot exists yet.
+func (c *Cluster) CurrentDohSnapshot() (*dohresolvers.Snapshot, error) {
+	return c.store.DohResolverSnapshot()
 }
 
 // EnsureDefaultProfile creates the reserved "default" profile if missing.

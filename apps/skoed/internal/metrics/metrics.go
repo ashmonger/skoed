@@ -73,6 +73,21 @@ type BlocklistSnapshot struct {
 	Failures      uint64
 }
 
+// DohResolverStatusFunc returns the current state of the M6 DoH/DoT
+// resolver snapshot. Optional: when nil the doh_resolver_* series are
+// not registered (operators without the M6 surface see no ghost zeros).
+type DohResolverStatusFunc func() DohResolverSnapshotInfo
+
+// DohResolverSnapshotInfo is the subset of resolver-snapshot state the
+// exporter exposes. Counters are absolute since process start; the
+// gauge values reflect the current replicated snapshot.
+type DohResolverSnapshotInfo struct {
+	Successes        uint64
+	Failures         uint64
+	ResolverCount    int
+	LastRefreshUnix  int64 // zero ⇒ never refreshed
+}
+
 // DhcpSnapshot is the subset of DHCP state the exporter needs.
 type DhcpSnapshot struct {
 	Source            string
@@ -103,19 +118,25 @@ type Metrics struct {
 	// a label.
 	testDomainTotal *prometheus.CounterVec
 
+	// M6 — firewall-rule-generator request counter. Cardinality bounded
+	// at 5 series total (one per supported platform); scope/action are
+	// deliberately NOT labels.
+	firewallRulesTotal *prometheus.CounterVec
+
 	requireAuth func() bool       // re-read on every request so config edits take effect live
 	authOK      func(*http.Request) bool
 }
 
 // Options bundles every dependency needed at construction.
 type Options struct {
-	Build       BuildInfo
-	CacheStats  CacheStatsFunc      // required; return Enabled=false when caching is off
-	Cluster     ClusterStatusFunc   // required
-	Dhcp        DhcpStatusFunc      // optional: nil disables every dhcp_* series
-	Blocklists  BlocklistStatusFunc // optional: nil disables every blocklist_* series
-	RequireAuth func() bool         // required; returns the live value of node.api.metrics.require_auth
-	AuthOK      func(r *http.Request) bool
+	Build         BuildInfo
+	CacheStats    CacheStatsFunc        // required; return Enabled=false when caching is off
+	Cluster       ClusterStatusFunc     // required
+	Dhcp          DhcpStatusFunc        // optional: nil disables every dhcp_* series
+	Blocklists    BlocklistStatusFunc   // optional: nil disables every blocklist_* series
+	DohResolvers  DohResolverStatusFunc // optional: nil disables every doh_resolver_* series
+	RequireAuth   func() bool           // required; returns the live value of node.api.metrics.require_auth
+	AuthOK        func(r *http.Request) bool
 }
 
 // New wires up a fresh metrics surface.
@@ -154,6 +175,12 @@ func New(opts Options) *Metrics {
 	}, []string{"surface", "verdict"})
 	reg.MustRegister(testDomainTotal)
 
+	firewallRulesTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "skoed_firewall_rules_generated_total",
+		Help: "Cumulative M6 firewall-rule generator successful renders, by target platform.",
+	}, []string{"platform"})
+	reg.MustRegister(firewallRulesTotal)
+
 	// Cache — registered as a custom Collector that reads from the
 	// CacheStatsFunc on every scrape. Wired only when caching is
 	// available; when CacheStats reports Enabled=false the size gauge
@@ -175,14 +202,20 @@ func New(opts Options) *Metrics {
 		reg.MustRegister(&blocklistCollector{stats: opts.Blocklists})
 	}
 
+	// M6 — curated DoH/DoT resolver snapshot health.
+	if opts.DohResolvers != nil {
+		reg.MustRegister(&dohResolverCollector{stats: opts.DohResolvers})
+	}
+
 	return &Metrics{
-		reg:              reg,
-		dnsQueriesTotal:  dnsQueriesTotal,
-		dnsQueryDur:      dnsQueryDur,
-		auditEventsTotal: auditEventsTotal,
-		testDomainTotal:  testDomainTotal,
-		requireAuth:      opts.RequireAuth,
-		authOK:           opts.AuthOK,
+		reg:                reg,
+		dnsQueriesTotal:    dnsQueriesTotal,
+		dnsQueryDur:        dnsQueryDur,
+		auditEventsTotal:   auditEventsTotal,
+		testDomainTotal:    testDomainTotal,
+		firewallRulesTotal: firewallRulesTotal,
+		requireAuth:        opts.RequireAuth,
+		authOK:             opts.AuthOK,
 	}
 }
 
@@ -195,6 +228,17 @@ func (m *Metrics) ObserveTestDomain(surface, verdict string) {
 		return
 	}
 	m.testDomainTotal.WithLabelValues(surface, verdict).Inc()
+}
+
+// ObserveFirewallRulesGenerated bumps the M6 firewall-rule generator
+// counter for one successful render.
+//
+//	platform ∈ {"iptables","nftables","mikrotik","opnsense","unifi"}
+func (m *Metrics) ObserveFirewallRulesGenerated(platform string) {
+	if m == nil || m.firewallRulesTotal == nil {
+		return
+	}
+	m.firewallRulesTotal.WithLabelValues(platform).Inc()
 }
 
 // ObserveAudit bumps the audit-event counter for the given action.
@@ -358,4 +402,28 @@ func (b *blocklistCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(descBlocklistLastRefresh, prometheus.GaugeValue, ts, bl.ID)
 		ch <- prometheus.MustNewConstMetric(descBlocklistFailures, prometheus.CounterValue, float64(bl.Failures), bl.ID)
 	}
+}
+
+var (
+	descDohResolverRefreshTotal       = prometheus.NewDesc("skoed_doh_resolver_refresh_total", "Cumulative DoH/DoT resolver snapshot refresh attempts since process start, by outcome.", []string{"outcome"}, nil)
+	descDohResolverCount              = prometheus.NewDesc("skoed_doh_resolver_count", "Number of resolver entries in the current snapshot.", nil, nil)
+	descDohResolverLastRefreshSeconds = prometheus.NewDesc("skoed_doh_resolver_last_refresh_timestamp_seconds", "Unix timestamp of the last successful resolver-snapshot refresh.", nil, nil)
+)
+
+type dohResolverCollector struct{ stats DohResolverStatusFunc }
+
+func (d *dohResolverCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- descDohResolverRefreshTotal
+	ch <- descDohResolverCount
+	ch <- descDohResolverLastRefreshSeconds
+}
+
+func (d *dohResolverCollector) Collect(ch chan<- prometheus.Metric) {
+	s := d.stats()
+	// Always emit both outcome series so PromQL queries don't go
+	// missing-series on a fresh cluster (cardinality bound = 2).
+	ch <- prometheus.MustNewConstMetric(descDohResolverRefreshTotal, prometheus.CounterValue, float64(s.Successes), "success")
+	ch <- prometheus.MustNewConstMetric(descDohResolverRefreshTotal, prometheus.CounterValue, float64(s.Failures), "failure")
+	ch <- prometheus.MustNewConstMetric(descDohResolverCount, prometheus.GaugeValue, float64(s.ResolverCount))
+	ch <- prometheus.MustNewConstMetric(descDohResolverLastRefreshSeconds, prometheus.GaugeValue, float64(s.LastRefreshUnix))
 }

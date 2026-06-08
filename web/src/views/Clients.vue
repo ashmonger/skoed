@@ -88,6 +88,7 @@
             <th>Client-ID</th>
             <th>Source</th>
             <th class="text-right">Expires</th>
+            <th class="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -98,6 +99,42 @@
             <td class="font-mono text-xs text-fg-muted">{{ l.client_id || '—' }}</td>
             <td><span class="badge bg-accent-subtle text-accent">{{ l.source }}</span></td>
             <td class="text-right text-xs text-fg-muted">{{ fmtExpiry(l.expires_at) }}</td>
+            <td class="text-right whitespace-nowrap">
+              <div class="relative inline-block text-left">
+                <button class="btn-ghost"
+                        type="button"
+                        aria-haspopup="menu"
+                        :aria-expanded="openMenuIP === l.ip"
+                        :data-testid="`client-row-actions-${l.ip}`"
+                        :title="`Actions for ${l.ip}`"
+                        @click.stop="toggleMenu(l.ip)">
+                  <EllipsisHorizontalIcon class="h-4 w-4" />
+                </button>
+                <div v-if="openMenuIP === l.ip"
+                     role="menu"
+                     class="absolute right-0 mt-1 z-10 card p-1 min-w-[14rem]"
+                     @click.stop>
+                  <button type="button"
+                          role="menuitem"
+                          class="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-fg
+                                 hover:bg-bg-hover rounded text-left"
+                          :data-testid="`copy-doh-gap-rules-${l.ip}`"
+                          @click="openFwRules({ kind: 'client', ip: l.ip })">
+                    <ClipboardDocumentListIcon class="h-4 w-4" />
+                    <span>Copy DoH-gap rules (this IP)</span>
+                  </button>
+                  <button v-if="subnetFor(l.ip)"
+                          type="button"
+                          role="menuitem"
+                          class="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-fg
+                                 hover:bg-bg-hover rounded text-left"
+                          @click="openFwRules({ kind: 'subnet', cidr: subnetFor(l.ip)! })">
+                    <ClipboardDocumentListIcon class="h-4 w-4" />
+                    <span>Copy DoH-gap rules (this /24)</span>
+                  </button>
+                </div>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -105,18 +142,27 @@
         {{ filtered.length }} of {{ leases.length }} clients
       </p>
     </div>
+
+    <!-- M6 — Copy DoH-gap rules modal (per-row action / per-subnet action). -->
+    <FirewallRulesModal
+      v-if="fwRuleScope"
+      :scope="fwRuleScope"
+      @close="fwRuleScope = null" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  ArrowDownTrayIcon, ArrowPathIcon, ExclamationTriangleIcon, MagnifyingGlassIcon,
+  ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentListIcon,
+  EllipsisHorizontalIcon, ExclamationTriangleIcon, MagnifyingGlassIcon,
 } from '@heroicons/vue/24/outline'
 import {
   acknowledgeAnomaly, exportReservationsURL, listAnomalies, listLeases,
 } from '@/api/endpoints'
+import type { FwRuleScope } from '@/api/endpoints'
 import type { Anomaly, AnomalyKind, Lease } from '@/api/types'
+import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 const leases = ref<Lease[]>([])
 const anomalies = ref<Anomaly[]>([])
@@ -124,6 +170,30 @@ const loading = ref(false)
 const search = ref('')
 const sortKey = ref<'ip' | 'hostname' | 'source'>('ip')
 const exportOpen = ref(false)
+
+// M6 — per-row "Copy DoH-gap rules" overflow menu + modal scope.
+const openMenuIP = ref<string | null>(null)
+const fwRuleScope = ref<FwRuleScope | null>(null)
+
+function toggleMenu(ip: string) {
+  openMenuIP.value = openMenuIP.value === ip ? null : ip
+}
+function openFwRules(scope: FwRuleScope) {
+  fwRuleScope.value = scope
+  openMenuIP.value = null
+}
+// Derive the /24 CIDR for a v4 IP — pure client-side, sent verbatim to
+// the server which re-validates per FS-FwRuleRejectsInvalidSubnet.
+function subnetFor(ip: string): string | null {
+  const parts = ip.split('.')
+  if (parts.length !== 4) return null
+  if (parts.some(p => !/^\d{1,3}$/.test(p))) return null
+  return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`
+}
+
+function onDocClick() {
+  openMenuIP.value = null
+}
 
 const activeAnomalies = computed(() =>
   anomalies.value.filter(a => !a.acknowledged_at),
@@ -211,8 +281,10 @@ let timer: number | undefined
 onMounted(async () => {
   await refresh()
   timer = window.setInterval(refresh, 30_000)
+  window.addEventListener('click', onDocClick)
 })
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  window.removeEventListener('click', onDocClick)
 })
 </script>

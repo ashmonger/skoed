@@ -39,6 +39,9 @@ const (
 	CmdCategoryOverridePut  CommandKind = "category_override.upsert"
 	// M5.2 — append a single audit row + lazy 90-day trim in the same commit.
 	CmdAuditAppend          CommandKind = "audit.append"
+	// M6 — curated DoH/DoT resolver IP snapshot.
+	CmdDohResolverSnapshotReplace CommandKind = "doh_resolver.snapshot_replace"
+	CmdDohResolverRefreshFailure  CommandKind = "doh_resolver.refresh_failure"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -201,6 +204,36 @@ type AuditAppendPayload struct {
 	Diff       string `json:"diff,omitempty"`
 	NodeID     string `json:"node_id,omitempty"`
 	RequestID  string `json:"request_id,omitempty"`
+}
+
+// DohResolverSnapshotReplacePayload carries the full replicated snapshot
+// document. The shape mirrors dohresolvers.Snapshot 1:1 (duplicated here
+// so this file does not import the dohresolvers package; the dedicated
+// doh_resolvers.go apply helpers do that conversion at the bbolt edge).
+type DohResolverSnapshotReplacePayload struct {
+	SnapshotID           string                    `json:"snapshot_id"`
+	SourceURL            string                    `json:"source_url"`
+	FetchedAt            string                    `json:"fetched_at"`
+	LastRefreshAttemptAt string                    `json:"last_refresh_attempt_at"`
+	LastRefreshSuccessAt string                    `json:"last_refresh_success_at"`
+	LastRefreshError     string                    `json:"last_refresh_error"`
+	Resolvers            []DohResolverEntryPayload `json:"resolvers"`
+}
+
+// DohResolverRefreshFailurePayload carries only the failure metadata —
+// the snapshot blob itself is left untouched.
+type DohResolverRefreshFailurePayload struct {
+	AttemptedAt string `json:"attempted_at"`
+	Error       string `json:"error"`
+}
+
+// DohResolverEntryPayload mirrors dohresolvers.ResolverEntry.
+type DohResolverEntryPayload struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	IPv4      []string `json:"ipv4"`
+	IPv6      []string `json:"ipv6"`
+	SourceURL string   `json:"source_url"`
 }
 
 // HourAggregate is the per-node hourly aggregate written by the

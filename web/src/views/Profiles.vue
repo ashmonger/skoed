@@ -67,6 +67,12 @@
               </td>
               <td class="text-right whitespace-nowrap" @click.stop>
                 <button class="btn-ghost"
+                        :title="`Copy DoH-gap rules for ${p.id}`"
+                        :data-testid="`copy-doh-gap-rules-profile-${p.id}`"
+                        @click="openFwRules({ kind: 'profile', profileId: p.id })">
+                  <ClipboardDocumentListIcon class="h-4 w-4" />
+                </button>
+                <button class="btn-ghost"
                         title="Edit profile"
                         @click="openEdit(p)">
                   <PencilSquareIcon class="h-4 w-4" />
@@ -247,6 +253,12 @@
       </form>
     </div>
 
+    <!-- M6 — Copy DoH-gap rules modal (per-profile scope). -->
+    <FirewallRulesModal
+      v-if="fwRuleScope"
+      :scope="fwRuleScope"
+      @close="fwRuleScope = null" />
+
     <!-- Delete confirmation modal -->
     <div v-if="pendingDelete"
          class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -275,12 +287,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  PencilSquareIcon, PlusIcon, TrashIcon,
+  ClipboardDocumentListIcon, PencilSquareIcon, PlusIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
 import {
   createProfile, deleteProfile, listBlocklists, listProfiles, updateProfile,
 } from '@/api/endpoints'
+import type { FwRuleScope } from '@/api/endpoints'
 import type { Blocklist, Profile } from '@/api/types'
+import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -330,6 +344,12 @@ const form = reactive<FormState>(emptyForm())
 
 const pendingDelete = ref<Profile | null>(null)
 const deleting = ref(false)
+
+// M6 — "Copy DoH-gap rules" modal scoped to a profile.
+const fwRuleScope = ref<FwRuleScope | null>(null)
+function openFwRules(scope: FwRuleScope) {
+  fwRuleScope.value = scope
+}
 
 // ─── Derived ─────────────────────────────────────────────────────────────
 
