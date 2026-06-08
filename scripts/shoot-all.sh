@@ -316,7 +316,7 @@ run_optional() {
     return 0
 }
 
-for s in shoot-m3.6.mjs shoot-m4x.mjs shoot-m5.mjs shoot-m5.4.mjs shoot-m5.6.mjs shoot-m5.9.5.mjs; do
+for s in shoot-m3.6.mjs shoot-m4x.mjs shoot-m5.mjs shoot-m5.4.mjs shoot-m5.6.mjs shoot-m5.9.5.mjs shoot-m5.9.7.mjs; do
     run_optional "$s" "http://127.0.0.1:$LEADER_API"
 done
 run_optional shoot-m5.9.4.mjs "http://127.0.0.1:$EMPTY_API"
