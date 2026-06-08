@@ -16,7 +16,7 @@ x-fsid-links:
 ```yaml
 node:
   upgrade:
-    feed_url: https://releases.dblock.io/feed.json
+    feed_url: https://releases.skoed.io/feed.json
     poll_interval_seconds: 21600     # 6h
     require_signature: false         # M5.6 v1; M5.6.1 flips default
     cosign_pub_key: ""               # PEM; required when require_signature
@@ -29,14 +29,14 @@ release:
 {
   "version": "0.5.1",
   "published_at": "2026-07-01T09:00:00Z",
-  "release_notes_url": "https://github.com/dblock/dblock/releases/tag/v0.5.1",
+  "release_notes_url": "https://github.com/skoed/skoed/releases/tag/v0.5.1",
   "assets": {
-    "linux_amd64": "https://releases.dblock.io/0.5.1/dblock_0.5.1_linux_amd64.tar.gz",
-    "linux_arm64": "https://releases.dblock.io/0.5.1/dblock_0.5.1_linux_arm64.tar.gz"
+    "linux_amd64": "https://releases.skoed.io/0.5.1/skoed_0.5.1_linux_amd64.tar.gz",
+    "linux_arm64": "https://releases.skoed.io/0.5.1/skoed_0.5.1_linux_arm64.tar.gz"
   },
   "signatures": {
-    "linux_amd64": "https://releases.dblock.io/0.5.1/dblock_0.5.1_linux_amd64.tar.gz.cosign",
-    "linux_arm64": "https://releases.dblock.io/0.5.1/dblock_0.5.1_linux_arm64.tar.gz.cosign"
+    "linux_amd64": "https://releases.skoed.io/0.5.1/skoed_0.5.1_linux_amd64.tar.gz.cosign",
+    "linux_arm64": "https://releases.skoed.io/0.5.1/skoed_0.5.1_linux_arm64.tar.gz.cosign"
   }
 }
 ```
@@ -61,7 +61,7 @@ Response shape for `/check`:
   "current_version":   "0.5.0",
   "available_version": "0.5.1",
   "upgrade_available": true,
-  "release_notes_url": "https://github.com/dblock/dblock/releases/tag/v0.5.1",
+  "release_notes_url": "https://github.com/skoed/skoed/releases/tag/v0.5.1",
   "published_at":      "2026-07-01T09:00:00Z",
   "checked_at":        "2026-07-01T10:23:11Z"
 }

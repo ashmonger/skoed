@@ -5,7 +5,7 @@ Feature: Category-Based Blocking
   So that I can enable "adult content" or "gambling" with one click.
 
   Background:
-    Given the dblock binary ships an embedded `category-catalog` mapping each
+    Given the skoed binary ships an embedded `category-catalog` mapping each
     category name to a default upstream blocklist URL
     And the catalog covers: adult, gambling, social, gaming, streaming, doh
 
@@ -46,7 +46,7 @@ Feature: Category-Based Blocking
 
   @fsid:FS-CategoryDohEnabledByDefault
   Scenario: The `doh` category is enabled on the default profile out of the box
-    Given a freshly bootstrapped single-node dblock
+    Given a freshly bootstrapped single-node skoed
     When the admin GETs /api/v1/categories
     Then the `doh` category shows `enabled_for_profiles: ["default"]`
     And queries for "cloudflare-dns.com", "dns.google", "dns.adguard.com" return NXDOMAIN

@@ -4,7 +4,7 @@ Feature: SafeSearch Enforcement
   So that explicit content is filtered out at the search layer.
 
   Background:
-    Given dblock can rewrite responses for specific hostnames to point at
+    Given skoed can rewrite responses for specific hostnames to point at
     each provider's "SafeSearch" or "restricted-content" edge
 
   @fsid:FS-SafeSearchGoogle

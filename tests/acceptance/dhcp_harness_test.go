@@ -38,16 +38,16 @@ type DhcpOpts struct {
 // connector enabled. Sets Node.LeaseSnapshotURL so connector tests can
 // poll /api/v1/clients/_leases.
 //
-// Always enables DBLOCK_TEST_MODE so callers can use EDNS0 LOCAL option
+// Always enables SKOED_TEST_MODE so callers can use EDNS0 LOCAL option
 // 65500 to drive query-log entries from synthetic client IPs (the
 // hostname-enrichment tests need this to verify the lease lookup
 // happens against the right IP).
 func startClusterWithDhcp(t *testing.T, opts DhcpOpts) *Cluster {
 	t.Helper()
-	t.Setenv("DBLOCK_TEST_MODE", "1")
-	bin := dblockBinary(t)
+	t.Setenv("SKOED_TEST_MODE", "1")
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin}
 	cfg := M2NodeConfig{

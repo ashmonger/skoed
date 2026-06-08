@@ -57,7 +57,7 @@ func fetchDohStatus(t *testing.T, n *Node, clientIP string) (clientDohStatus, in
 
 // FS-ClientDohStatusEndpointShape
 func TestClientDohStatusEndpointShape(t *testing.T) {
-	t.Setenv("DBLOCK_TEST_MODE", "1") // EDNS0 client-IP spoofing only honored in test mode
+	t.Setenv("SKOED_TEST_MODE", "1") // EDNS0 client-IP spoofing only honored in test mode
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -170,11 +170,11 @@ func TestClientDohStatusSuspectedProvider(t *testing.T) {
 	}
 	for i, tc := range cases {
 		t.Run(tc.domain, func(t *testing.T) {
-			t.Setenv("DBLOCK_TEST_MODE", "1") // EDNS0 client-IP spoof only in test mode
+			t.Setenv("SKOED_TEST_MODE", "1") // EDNS0 client-IP spoof only in test mode
 			c := startCluster(t, 1)
 			n := c.Leader(t).Node
 
-			// Use a unique client IP per case so DBLOCK_TEST_NOW-driven
+			// Use a unique client IP per case so SKOED_TEST_NOW-driven
 			// "last probe" semantics don't get polluted by prior cases.
 			clientIP := []string{
 				"10.0.50.1", "10.0.50.2", "10.0.50.3",

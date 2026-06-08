@@ -1,20 +1,20 @@
 Feature: URL tester (CLI + public landing page)
-  As an operator evaluating dblock for the first time
+  As an operator evaluating skoed for the first time
   I want to sanity-check a blocklist URL before committing to install
-  And the dblock daemon to expose that same tester at / without auth
+  And the skoed daemon to expose that same tester at / without auth
   So I can answer "does this list parse?" in 30 seconds — locally via CLI
-  or remotely against a running dblock that someone else set up.
+  or remotely against a running skoed that someone else set up.
 
   Background:
-    Given dblock can be reached on the public LAN interface
-    And the operator's CLI binary is available at $PATH/dblock
+    Given skoed can be reached on the public LAN interface
+    And the operator's CLI binary is available at $PATH/skoed
     And the daemon's node config has `node.api.public_landing.enabled` set
       (default: true)
 
   @fsid:FS-UrlTesterCliSubcommand
-  Scenario: `dblock blocklist test <url>` already works (M5.9.1)
+  Scenario: `skoed blocklist test <url>` already works (M5.9.1)
     Given a hosts-format blocklist URL is reachable
-    When the operator runs `dblock blocklist test https://example.com/hosts.txt`
+    When the operator runs `skoed blocklist test https://example.com/hosts.txt`
     Then exit code is 0
     And stdout reports a domain count and the detected format
     And no daemon is required — the parse runs in-process
@@ -53,7 +53,7 @@ Feature: URL tester (CLI + public landing page)
       to /api/v1/_public/test-blocklist
     Then the HTTP response is 403
     And the body contains an explanation referencing the refused address
-    And no outbound fetch is attempted by the dblock daemon
+    And no outbound fetch is attempted by the skoed daemon
 
   @fsid:FS-UrlTesterRateLimited
   Scenario: The endpoint rate-limits a single source IP
@@ -72,7 +72,7 @@ Feature: URL tester (CLI + public landing page)
     And POST /api/v1/_public/test-blocklist returns HTTP 404
 
   Non-goals:
-    - "Try it on dblock.io" hosted demo — dblock stays private-network for v1.
+    - "Try it on skoed.io" hosted demo — skoed stays private-network for v1.
     - Authenticated tester from the public surface (admin already has the
       Create Blocklist modal — this exists solely for the unauth landing).
     - Sharing test results between browsers / persistence across requests.

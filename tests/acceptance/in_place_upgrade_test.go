@@ -63,7 +63,7 @@ func TestUpgradeCheckRequiresAuth(t *testing.T) {
 // FS-UpgradeCheckEndpoint
 func TestUpgradeCheckEndpoint(t *testing.T) {
 	feed := startFeedServer(t, "99.0.0")
-	c := startClusterWithEnv(t, 1, []string{"DBLOCK_UPGRADE_FEED_URL=" + feed.URL})
+	c := startClusterWithEnv(t, 1, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	n := c.Leader(t).Node
 
 	resp := n.apiDo(t, "GET", "/api/v1/upgrade/check", "")
@@ -91,7 +91,7 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 		t.Errorf("current_version should be non-empty")
 	}
 	if ck.AvailableVersion == "" {
-		t.Skipf("feed never polled within 5s (DBLOCK_UPGRADE_FEED_URL plumbing may be missing): %+v", ck)
+		t.Skipf("feed never polled within 5s (SKOED_UPGRADE_FEED_URL plumbing may be missing): %+v", ck)
 	}
 	if !ck.UpgradeAvailable {
 		t.Errorf("upgrade_available: want true (99.0.0 > current), got false")
@@ -106,7 +106,7 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 // observed.
 func TestUpgradeStartForwardedToLeader(t *testing.T) {
 	feed := startFeedServer(t, "99.0.0")
-	c := startClusterWithEnv(t, 3, []string{"DBLOCK_UPGRADE_FEED_URL=" + feed.URL})
+	c := startClusterWithEnv(t, 3, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	leader := c.Leader(t)
 	var follower *ClusterNode
 	for _, n := range c.nodes {
@@ -145,7 +145,7 @@ func TestUpgradeStartForwardedToLeader(t *testing.T) {
 // FS-UpgradeStartRecordedInAudit
 func TestUpgradeStartRecordedInAudit(t *testing.T) {
 	feed := startFeedServer(t, "99.0.0")
-	c := startClusterWithEnv(t, 1, []string{"DBLOCK_UPGRADE_FEED_URL=" + feed.URL})
+	c := startClusterWithEnv(t, 1, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	n := c.Leader(t).Node
 	waitUpgradeAvailable(t, n, 5*time.Second)
 

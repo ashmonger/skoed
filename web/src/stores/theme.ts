@@ -8,7 +8,7 @@ interface ThemeState {
   palette: Palette
 }
 
-const STORAGE_KEY = 'dblock.theme'
+const STORAGE_KEY = 'skoed.theme'
 
 function load(): ThemeState {
   const raw = localStorage.getItem(STORAGE_KEY)

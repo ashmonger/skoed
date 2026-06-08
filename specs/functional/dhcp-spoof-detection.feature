@@ -1,10 +1,10 @@
 Feature: Anti-spoof detection via lease history
   As a household admin
-  I want dblock to flag MAC / hostname / Client-ID changes that look like spoofing
+  I want skoed to flag MAC / hostname / Client-ID changes that look like spoofing
   So that I notice when a device's identity unexpectedly shifts
 
   Background:
-    Given dblock records lease history in bbolt: `(client_id, mac, hostname, first_seen, last_seen)` tuples
+    Given skoed records lease history in bbolt: `(client_id, mac, hostname, first_seen, last_seen)` tuples
     And anomalies are kept for 7 days then evicted
     And the lease cache currently contains:
       | client_id   | mac               | hostname    |

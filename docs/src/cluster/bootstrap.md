@@ -1,6 +1,6 @@
 # Bootstrap a 3-node cluster
 
-A dblock cluster is a Raft consensus group: one leader, two or more
+A skoed cluster is a Raft consensus group: one leader, two or more
 followers. Every replicated mutation (blocklists, profiles, settings,
 password, audit log entries) goes through Raft so every node converges.
 
@@ -8,22 +8,22 @@ password, audit log entries) goes through Raft so every node converges.
 
 Recommended: **3 nodes** (single-node tolerates zero failures; 3
 nodes tolerate one). 5+ nodes only if you genuinely have a hostile
-single-fault domain. dblock is not active-active — only the leader
+single-fault domain. skoed is not active-active — only the leader
 accepts writes, but every node serves reads.
 
 ## Per-node config
 
-Each node ships with `/etc/dblock/config.yaml`. Edit the `node`
+Each node ships with `/etc/skoed/config.yaml`. Edit the `node`
 section to give each a unique `id`, distinct `raft_address`, and a
-shared `data_dir` (e.g. `/var/lib/dblock`).
+shared `data_dir` (e.g. `/var/lib/skoed`).
 
 ```yaml
-# /etc/dblock/config.yaml on node-1
+# /etc/skoed/config.yaml on node-1
 node:
-  id: dblock-1
+  id: skoed-1
   raft_address: 192.168.1.10:7000
   api_address:  192.168.1.10:8080
-  data_dir: /var/lib/dblock
+  data_dir: /var/lib/skoed
   dns:
     listen:
       port: 53
@@ -38,7 +38,7 @@ node:
 ## Bootstrap node-1
 
 ```sh
-sudo systemctl enable --now dblock
+sudo systemctl enable --now skoed
 # Sets the admin password on the freshly-bootstrapped cluster.
 curl -fsS -X POST http://192.168.1.10:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
@@ -49,7 +49,7 @@ Confirm it's a leader:
 
 ```sh
 curl -fsS -u admin:<password> http://192.168.1.10:8080/api/v1/cluster/self | jq
-# { "node_id":"dblock-1", "role":"leader", "raft_term":2, "commit_index":… }
+# { "node_id":"skoed-1", "role":"leader", "raft_term":2, "commit_index":… }
 ```
 
 ## Issue a join token on node-1
@@ -66,7 +66,7 @@ echo "$TOKEN"
 ## Join node-2 and node-3
 
 Each joining node needs its `bootstrap:` section in
-`/etc/dblock/config.yaml`:
+`/etc/skoed/config.yaml`:
 
 ```yaml
 bootstrap:
@@ -77,8 +77,8 @@ bootstrap:
 Then:
 
 ```sh
-sudo systemctl restart dblock
-journalctl -u dblock -n 30 --no-pager
+sudo systemctl restart skoed
+journalctl -u skoed -n 30 --no-pager
 # expect: "enrolled into cluster via http://192.168.1.10:8080 (response: …)"
 ```
 

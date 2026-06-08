@@ -34,16 +34,16 @@ import (
 // We can't use the existing startNode() helper because it writes the
 // legacy M1-shape config without a `node:` section.
 //
-// allowPrivate=true sets DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1 in the
+// allowPrivate=true sets SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1 in the
 // daemon's environment so the SSRF guard accepts the httptest server's
 // 127.0.0.1 binding for the OK-path test. Production binaries leave
 // this unset.
 func startNodeForPublicTester(t *testing.T, publicLandingEnabled *bool, allowPrivate bool) *Node {
 	t.Helper()
 
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s", bin)
+		t.Skipf("skoed binary not found at %s", bin)
 	}
 
 	dir := t.TempDir()
@@ -93,14 +93,14 @@ api:
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
 	if allowPrivate {
-		cmd.Env = append(cmd.Env, "DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1")
+		cmd.Env = append(cmd.Env, "SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1")
 	}
 	if testing.Verbose() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start dblock: %v", err)
+		t.Fatalf("start skoed: %v", err)
 	}
 
 	n := &Node{
@@ -163,7 +163,7 @@ func postPublicTest(t *testing.T, n *Node, body testBlocklistRequest, xff string
 
 // FS-UrlTesterPublicEndpointReturnsCountAndFormat — POST a real
 // hosts list to the daemon and expect a parsed count back. The test
-// runs the daemon with DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1 so the
+// runs the daemon with SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1 so the
 // SSRF guard accepts httptest.NewServer's 127.0.0.1 binding; production
 // builds never set that env var.
 func TestPublicTestBlocklistOK(t *testing.T) {

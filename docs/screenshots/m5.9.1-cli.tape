@@ -1,4 +1,4 @@
-Output ../../docs/screenshots/m5.9.1-dblock-cli.gif
+Output ../../docs/screenshots/m5.9.1-skoed-cli.gif
 
 Set Theme "Catppuccin Mocha"
 Set FontSize 16
@@ -11,26 +11,26 @@ Set PlaybackSpeed 1.5
 Hide
 Type "export PS1='$ '"
 Enter
-Type "export DBLOCK_AUTH=admin:demopass123"
+Type "export SKOED_AUTH=admin:demopass123"
 Enter
-Type "alias dblock='/home/jcollin/repos/dblock/apps/dblock/dblock --api http://127.0.0.1:18829'"
+Type "alias skoed='/home/jcollin/repos/skoed/apps/skoed/skoed --api http://127.0.0.1:18829'"
 Enter
 Type "clear"
 Enter
 Show
 
-Type "dblock --version"
+Type "skoed --version"
 Enter
 Sleep 1500ms
 
-Type "dblock health"
+Type "skoed health"
 Enter
 Sleep 2500ms
 
-Type "dblock status"
+Type "skoed status"
 Enter
 Sleep 2500ms
 
-Type "dblock token create"
+Type "skoed token create"
 Enter
 Sleep 3500ms

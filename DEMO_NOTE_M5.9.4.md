@@ -25,13 +25,13 @@ existing `/blocklists` and `/profiles` lists and persists dismissal in
   1. **Add a blocklist** → router-link to `/blocklists`.
   2. **Bootstrap a cluster (optional)** → `/docs/cluster/bootstrap.html`,
      plus inline router-link to `/cluster` for the join-token UI.
-  3. **Point a client at dblock** → inline `<details>` toggle revealing
-     a copy-pasteable `dig @<dblock-host> example.com` (the host is
+  3. **Point a client at skoed** → inline `<details>` toggle revealing
+     a copy-pasteable `dig @<skoed-host> example.com` (the host is
      auto-filled from `window.location.hostname`).
   Plus a footer link to the new docs chapter.
 - **Dismiss [x] button**: top-right, `XMarkIcon`, `aria-label="Dismiss
   Getting Started card"`. Sets
-  `localStorage["dblock.gettingStarted.dismissed"] = "true"` and
+  `localStorage["skoed.gettingStarted.dismissed"] = "true"` and
   unmounts the card immediately.
 - **Visibility predicate**:
   ```
@@ -74,7 +74,7 @@ scripts during this PR:
   a fresh node (Lipgloss dark, 1440×900) showing the accent-bordered
   Getting Started card above the empty stat tiles.
 
-Re-capture: boot a fresh dblock node, set password, then:
+Re-capture: boot a fresh skoed node, set password, then:
 
 ```sh
 cd web && node shoot-m5.9.4.mjs
@@ -114,18 +114,18 @@ DEMO_NOTE_M5.9.4.md                            (this file)
 ## Demo
 
 ```bash
-# 1. Boot a fresh single-node dblock.
+# 1. Boot a fresh single-node skoed.
 mkdir -p /tmp/m5.9.4/data
 cat > /tmp/m5.9.4/config.yaml <<'EOF'
 node:
-  id: dblock-1
+  id: skoed-1
   raft_address: 127.0.0.1:18994
   api_address: 127.0.0.1:18995
   data_dir: /tmp/m5.9.4/data
   dns:
     listen: { port: 18996, ipv4: true, ipv6: false }
 EOF
-./apps/dblock/dblock --config /tmp/m5.9.4/config.yaml &
+./apps/skoed/skoed --config /tmp/m5.9.4/config.yaml &
 
 # 2. Set the admin password (first-run flow).
 curl -fsS -X POST http://127.0.0.1:18995/api/v1/auth/setup \
@@ -144,7 +144,7 @@ curl -fsS -u admin:demopass123 -X POST http://127.0.0.1:18995/api/v1/blocklists 
        "domains":["example.test"]}'
 
 # 5. Alternatively, on a fresh node click the [x] — refresh — card
-#    stays gone (localStorage["dblock.gettingStarted.dismissed"]="true").
+#    stays gone (localStorage["skoed.gettingStarted.dismissed"]="true").
 ```
 
 ## Next

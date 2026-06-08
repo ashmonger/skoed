@@ -189,7 +189,7 @@ blocklist to the default profile so DoH detection is on out of the box.
 `tests/acceptance/profiles_test.go` exercises FS-ProfileAssignByIp,
 ByCidr, DefaultFallback, PerClientAllowlist, ApiCrud, SharedClientGroups.
 `tests/acceptance/schedules_test.go` covers FS-Schedule*. Both run against
-single-node clusters with `DBLOCK_TEST_MODE=1`.
+single-node clusters with `SKOED_TEST_MODE=1`.
 
 ## Non-goals (explicit)
 

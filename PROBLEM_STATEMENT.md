@@ -24,11 +24,11 @@ Home network administrators and parents experience uncontrolled ad traffic, trac
 
 | Outcome | Observable measure |
 |---------|-------------------|
-| Single node operational | dblock serves DNS and blocks ads within 10 minutes of install on a fresh Linux host |
+| Single node operational | skoed serves DNS and blocks ads within 10 minutes of install on a fresh Linux host |
 | Second node joins cluster | A replica enrolls and receives full config in ≤ 5 manual steps; config changes appear on replica within 10 s |
 | Config is portable | A full export imported on a fresh node restores identical behavior |
 | Parental control is active | A child device is blocked from adult categories on a schedule, verified in the query log |
-| Container deployment works | A single `docker run` or `helm install` starts a functional dblock node |
+| Container deployment works | A single `docker run` or `helm install` starts a functional skoed node |
 
 ## Scope
 

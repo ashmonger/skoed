@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "skoed.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "skoed.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: curlimages/curl:8.10.1
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+          # Cluster health endpoint requires auth; we hit /api/v1/health which is open.
+          status=$(curl --max-time 5 -s -o /dev/null -w '%{http_code}' \
+            "http://{{ include "skoed.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.api.port }}/api/v1/health")
+          [ "$status" = "200" ] || { echo "expected HTTP 200, got $status"; exit 1; }
+          echo "skoed health endpoint responded 200"

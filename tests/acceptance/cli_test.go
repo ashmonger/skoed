@@ -1,4 +1,4 @@
-// Acceptance tests for M5.9.1 — dblock CLI.
+// Acceptance tests for M5.9.1 — skoed CLI.
 //
 // FSIDs covered:
 //   FS-CliVersionFlag       → TestCliVersion
@@ -27,15 +27,15 @@ import (
 	"time"
 )
 
-// runCli runs the dblock binary with the given args and returns
+// runCli runs the skoed binary with the given args and returns
 // (stdout, stderr, exit). Skips when the binary isn't built (CLI not
 // yet wired) or when --version returns nonzero (subcommand framework
 // not present).
 func runCli(t *testing.T, env []string, args ...string) (string, string, int) {
 	t.Helper()
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); err != nil {
-		t.Skipf("dblock binary missing: %v", err)
+		t.Skipf("skoed binary missing: %v", err)
 	}
 	cmd := exec.Command(bin, args...)
 	cmd.Env = append(os.Environ(), env...)
@@ -46,7 +46,7 @@ func runCli(t *testing.T, env []string, args ...string) (string, string, int) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return stdout.String(), stderr.String(), exitErr.ExitCode()
 		}
-		t.Fatalf("run dblock %v: %v", args, err)
+		t.Fatalf("run skoed %v: %v", args, err)
 	}
 	return stdout.String(), stderr.String(), 0
 }
@@ -55,10 +55,10 @@ func runCli(t *testing.T, env []string, args ...string) (string, string, int) {
 func TestCliVersion(t *testing.T) {
 	stdout, _, exit := runCli(t, nil, "--version")
 	if exit != 0 {
-		t.Skipf("M5.9.1 impl pending: dblock --version exit=%d", exit)
+		t.Skipf("M5.9.1 impl pending: skoed --version exit=%d", exit)
 	}
-	// Shape: dblock <semver-or-dev> (commit=<hex-or-unknown>, go=go1.<x>)
-	if !strings.Contains(stdout, "dblock") || !strings.Contains(stdout, "go=go1.") {
+	// Shape: skoed <semver-or-dev> (commit=<hex-or-unknown>, go=go1.<x>)
+	if !strings.Contains(stdout, "skoed") || !strings.Contains(stdout, "go=go1.") {
 		t.Errorf("version output shape unexpected: %q", stdout)
 	}
 }
@@ -67,14 +67,14 @@ func TestCliVersion(t *testing.T) {
 func TestCliHealth(t *testing.T) {
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
-	auth := fmt.Sprintf("DBLOCK_AUTH=%s:%s", defaultUsername, defaultPassword)
+	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
 	apiFlag := []string{"health", "--api", n.APIBase}
 	stdout, stderr, exit := runCli(t, []string{auth}, apiFlag...)
 	if strings.Contains(stderr, "unknown command") {
 		t.Skip("M5.9.1 impl pending: health subcommand missing")
 	}
 	if exit != 0 {
-		t.Errorf("dblock health: exit=%d, stderr=%q", exit, stderr)
+		t.Errorf("skoed health: exit=%d, stderr=%q", exit, stderr)
 	}
 	low := strings.ToLower(stdout + stderr)
 	if !strings.Contains(low, "ok") {
@@ -87,13 +87,13 @@ func TestCliHealth(t *testing.T) {
 func TestCliStatus(t *testing.T) {
 	c := startCluster(t, 3)
 	n := c.Leader(t).Node
-	auth := fmt.Sprintf("DBLOCK_AUTH=%s:%s", defaultUsername, defaultPassword)
+	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
 	stdout, stderr, exit := runCli(t, []string{auth}, "status", "--api", n.APIBase)
 	if strings.Contains(stderr, "unknown command") {
 		t.Skip("M5.9.1 impl pending: status subcommand missing")
 	}
 	if exit != 0 {
-		t.Errorf("dblock status: exit=%d, stderr=%q", exit, stderr)
+		t.Errorf("skoed status: exit=%d, stderr=%q", exit, stderr)
 	}
 	// Each node-id should appear in the table.
 	for _, cn := range c.nodes {
@@ -110,13 +110,13 @@ func TestCliStatus(t *testing.T) {
 func TestCliTokenCreate(t *testing.T) {
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
-	auth := fmt.Sprintf("DBLOCK_AUTH=%s:%s", defaultUsername, defaultPassword)
+	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
 	stdout, stderr, exit := runCli(t, []string{auth}, "token", "create", "--api", n.APIBase)
 	if strings.Contains(stderr, "unknown command") {
 		t.Skip("M5.9.1 impl pending: token subcommand missing")
 	}
 	if exit != 0 {
-		t.Errorf("dblock token create: exit=%d, stderr=%q", exit, stderr)
+		t.Errorf("skoed token create: exit=%d, stderr=%q", exit, stderr)
 	}
 	// Should reference leader_address + token field somewhere.
 	if !strings.Contains(stdout, "token") || !strings.Contains(stdout, n.APIBase) {
@@ -138,7 +138,7 @@ func TestCliBlocklistTest(t *testing.T) {
 		t.Skip("M5.9.1 impl pending: blocklist subcommand missing")
 	}
 	if exit != 0 {
-		t.Errorf("dblock blocklist test: exit=%d, stderr=%q", exit, stderr)
+		t.Errorf("skoed blocklist test: exit=%d, stderr=%q", exit, stderr)
 	}
 	// Output should reference the count.
 	if !strings.Contains(stdout, "3") {
@@ -146,10 +146,10 @@ func TestCliBlocklistTest(t *testing.T) {
 	}
 }
 
-// FS-CliDaemonStillWorks — invoking dblock with no subcommand and
+// FS-CliDaemonStillWorks — invoking skoed with no subcommand and
 // just --config <path> behaves like the existing daemon flow.
 func TestCliDaemonStillWorks(t *testing.T) {
-	// startCluster already invokes `dblock --config <path>` (no
+	// startCluster already invokes `skoed --config <path>` (no
 	// subcommand). If we got this far in the suite, the daemon
 	// subcommand fallback works. This test makes the assertion
 	// explicit by running a brand-new node and waiting for it.

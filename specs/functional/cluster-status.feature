@@ -4,7 +4,7 @@ Feature: Cluster Status
   So that I can verify the cluster's health and diagnose replication problems.
 
   Background:
-    Given a 3-node dblock cluster (one leader, two followers)
+    Given a 3-node skoed cluster (one leader, two followers)
     And the administrator is authenticated
 
   @fsid:FS-ClusterStatusListsAllNodes

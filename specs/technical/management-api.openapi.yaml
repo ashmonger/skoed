@@ -11,7 +11,7 @@ x-fsid-links:
   - FS-BlocklistStats
   - FS-BlocklistWildcardEntry
   - FS-BlocklistParseHostsFormat
-  - FS-BlocklistParseAdblockFormat
+  - FS-BlocklistParseAskoedFormat
   - FS-AllowlistAddDomain
   - FS-AllowlistRemoveDomain
   - FS-AllowlistWildcardEntry
@@ -62,7 +62,7 @@ x-fsid-links:
   - FS-ConfigShadowYamlUpdatesAfterWrite
 
 info:
-  title: dblock Management API
+  title: skoed Management API
   version: "2.0.0"
   x-cluster-write-semantics: |
     As of M2, every mutating endpoint under /api/v1 (blocklists, allowlist,
@@ -81,7 +81,7 @@ info:
 
     See specs/technical/raft-fsm.md for the FSM command set and write path.
   description: >
-    REST API for managing a dblock node. All endpoints require HTTP Basic
+    REST API for managing a skoed node. All endpoints require HTTP Basic
     authentication except POST /api/v1/auth/setup (first-run only).
     DNS port 53 is never gated by this API's authentication.
 
@@ -117,7 +117,7 @@ components:
           description: Required when type=url.
         format:
           type: string
-          enum: [auto, hosts, domainlist, adblock]
+          enum: [auto, hosts, domainlist, askoed]
           default: auto
 
     Blocklist:

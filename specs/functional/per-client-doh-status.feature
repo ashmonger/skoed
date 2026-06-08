@@ -4,7 +4,7 @@ Feature: Per-client DoH/DoT status surfacing
   So that I know which devices need attention (firewall rule, talk to the user)
 
   Background:
-    Given dblock has the M3 DoH category enabled on the default profile
+    Given skoed has the M3 DoH category enabled on the default profile
     And the query log captures every blocked DoH probe with blocklist_id="cat:doh"
 
   @fsid:FS-ClientDohStatusEndpointShape
@@ -72,6 +72,6 @@ Feature: Per-client DoH/DoT status surfacing
   Non-goals:
     - Per-client *aggregate* over arbitrary windows (1h is enough for M3.5)
     - Real-time push (admin polls; UI auto-refresh every 60s is enough)
-    - SNI inspection (belongs at the firewall, not in dblock)
+    - SNI inspection (belongs at the firewall, not in skoed)
     - Automated firewall rule generation (skipped per UoR for M3.5)
     - Resolver-IP database refresh (skipped — same track as firewall)

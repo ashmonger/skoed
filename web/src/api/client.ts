@@ -1,13 +1,13 @@
 import axios, { AxiosError, type AxiosInstance } from 'axios'
 
 // The SPA is served from the same origin as the API in production (embedded
-// in the dblock binary). In dev, vite.config.ts proxies /api → :8080.
+// in the skoed binary). In dev, vite.config.ts proxies /api → :8080.
 const baseURL = ''
 
 // Credentials live in sessionStorage so they survive page navigation but
 // don't leak across browser sessions. Basic Auth header is rebuilt from
 // here on every request.
-const CREDS_KEY = 'dblock.creds'
+const CREDS_KEY = 'skoed.creds'
 
 interface Creds { user: string; pass: string }
 

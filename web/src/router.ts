@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 // the server redirects GET / to /login before this router ever sees it.
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'landing', component: () => import('./views/Landing.vue'), meta: { layout: 'blank' } },
+  { path: '/about', name: 'about', component: () => import('./views/About.vue'), meta: { layout: 'blank' } },
   { path: '/login', name: 'login', component: () => import('./views/Login.vue'), meta: { layout: 'blank' } },
   { path: '/setup', name: 'setup', component: () => import('./views/Setup.vue'), meta: { layout: 'blank' } },
   {

@@ -4,22 +4,22 @@ This document defines shared terms used throughout the repository. All specs, te
 
 ## Actors
 
-- **Network Administrator**: A person who installs, configures, and operates dblock on a home or lab network.
-- **Client**: A network device (laptop, phone, IoT device) identified by its IP address that sends DNS queries to a dblock node.
+- **Network Administrator**: A person who installs, configures, and operates skoed on a home or lab network.
+- **Client**: A network device (laptop, phone, IoT device) identified by its IP address that sends DNS queries to a skoed node.
 
 ## Core Domain Terms
 
 | Term | Definition |
 |------|-----------|
-| **Node** | A running dblock instance on a host that serves DNS queries and enforces filtering rules. |
-| **Primary node** | The single authoritative configuration source in a dblock cluster. All configuration changes originate here and are pushed to replicas. |
-| **Replica node** | A dblock instance that mirrors configuration from the primary node. It serves DNS independently even when the primary is unreachable. |
-| **Cluster** | A set of dblock nodes (1 primary + 0..N replicas) sharing the same configuration. |
+| **Node** | A running skoed instance on a host that serves DNS queries and enforces filtering rules. |
+| **Primary node** | The single authoritative configuration source in a skoed cluster. All configuration changes originate here and are pushed to replicas. |
+| **Replica node** | A skoed instance that mirrors configuration from the primary node. It serves DNS independently even when the primary is unreachable. |
+| **Cluster** | A set of skoed nodes (1 primary + 0..N replicas) sharing the same configuration. |
 | **Blocklist** | A named collection of domain rules sourced from a provider URL or entered manually. |
 | **Allowlist** | A named collection of domains explicitly permitted, overriding all blocklist matches. |
 | **Client profile** | A named set of rules (active blocklists, allowlists, schedule rules) assigned to one or more clients. |
-| **Local DNS entry** | A manually configured A, AAAA, or CNAME record served by dblock for home or lab hostnames. |
-| **Upstream resolver** | An external DNS server to which non-blocked queries are forwarded when root DNS resolution is not used. dblock ships with Quad9 (9.9.9.9) as the default — a Swiss-based foundation with no personal-data logging and malicious-domain blocking. Google DNS (8.8.8.8) is intentionally not a default. |
+| **Local DNS entry** | A manually configured A, AAAA, or CNAME record served by skoed for home or lab hostnames. |
+| **Upstream resolver** | An external DNS server to which non-blocked queries are forwarded when root DNS resolution is not used. skoed ships with Quad9 (9.9.9.9) as the default — a Swiss-based foundation with no personal-data logging and malicious-domain blocking. Google DNS (8.8.8.8) is intentionally not a default. |
 | **Root DNS resolution** | Recursive DNS resolution starting from IANA root nameservers. No third-party upstream is required. |
 | **SafeSearch rewrite** | A DNS response override that resolves a search engine or video platform domain to its safe-search endpoint. |
 | **Config sync** | The mechanism by which the primary node propagates configuration changes to all replica nodes. |
@@ -32,7 +32,7 @@ This document defines shared terms used throughout the repository. All specs, te
 | **Wildcard entry** | A domain pattern of the form `*.example.com` that matches the apex domain (`example.com`) and all subdomains at any depth. Valid in both blocklists and allowlists. |
 | **Client group** | A named set of rules (blocklists, allowlists) that can be assigned to one or more clients. A client may belong to multiple groups; effective rules are the union of all assigned group rules. |
 | **Default group** | The built-in group whose rules apply to any client not assigned to any explicit group. |
-| **DHCP integration** | An optional connection to a DHCP server that allows dblock to resolve client IP addresses to MAC addresses and hostnames using current lease data. Supported sources: Kea DHCP REST API, dnsmasq lease file, ISC DHCP lease file, generic HTTP API. |
+| **DHCP integration** | An optional connection to a DHCP server that allows skoed to resolve client IP addresses to MAC addresses and hostnames using current lease data. Supported sources: Kea DHCP REST API, dnsmasq lease file, ISC DHCP lease file, generic HTTP API. |
 
 ## Forbidden and Ambiguous Terms
 

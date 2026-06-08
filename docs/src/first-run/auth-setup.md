@@ -1,11 +1,11 @@
 # Set the admin password
 
-dblock ships with NO admin credentials. The first request to the
+skoed ships with NO admin credentials. The first request to the
 management API must be a `POST /api/v1/auth/setup` that creates
 them.
 
 ```sh
-# Replace <HOST> with the IP / hostname of your dblock node.
+# Replace <HOST> with the IP / hostname of your skoed node.
 curl -fsS -X POST http://<HOST>:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
   -d '{"username":"admin","password":"<your-password>"}'
@@ -27,10 +27,10 @@ You'll land on the Dashboard:
 - Cluster nodes table
 
 Any of these cards may be empty until a few DNS queries run through
-the resolver — point a client at the dblock IP, browse a couple of
+the resolver — point a client at the skoed IP, browse a couple of
 sites, refresh.
 
-## Point a client at dblock
+## Point a client at skoed
 
 The simplest test: a one-shot `dig`:
 
@@ -39,7 +39,7 @@ dig @<HOST> example.com
 ```
 
 Real clients (router DHCP option 6, OS network settings) need the
-dblock IP set as their resolver. dblock listens on UDP/TCP 53 by
+skoed IP set as their resolver. skoed listens on UDP/TCP 53 by
 default; if you want DoH or DoT serving instead, see
 [DoH / DoT serving](../configuration/doh-dot.md).
 

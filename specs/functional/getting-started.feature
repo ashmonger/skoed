@@ -5,7 +5,7 @@ Feature: Getting Started card on the Dashboard
   So I know what to do next instead of staring at empty stat tiles.
 
   Background:
-    Given a freshly-installed dblock node
+    Given a freshly-installed skoed node
     And the admin has set the password via POST /api/v1/auth/setup
     And the admin is logged into the Web UI
 
@@ -20,7 +20,7 @@ Feature: Getting Started card on the Dashboard
       | step | label                                                |
       | 1    | Add a blocklist                                      |
       | 2    | (optional) Bootstrap a cluster                       |
-      | 3    | Point a client at dblock                             |
+      | 3    | Point a client at skoed                             |
     And each step links to the matching page or docs anchor
 
   @fsid:FS-GettingStartedAutoHidesAfterFirstBlocklist
@@ -37,7 +37,7 @@ Feature: Getting Started card on the Dashboard
     And the "Getting Started" card is visible
     When the admin clicks the [x] dismiss button on the card
     Then the card disappears immediately
-    And `localStorage["dblock.gettingStarted.dismissed"]` is `"true"`
+    And `localStorage["skoed.gettingStarted.dismissed"]` is `"true"`
     When the admin reloads the Dashboard
     Then the "Getting Started" card is still not visible
     Even though the cluster is otherwise still fresh

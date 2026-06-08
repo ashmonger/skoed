@@ -16,7 +16,7 @@ Feature: Blocklist management
   @fsid:FS-BlocklistAddFromUrl
   Scenario: Admin adds a blocklist from a URL
     When the admin adds a blocklist named "ads" with source URL "https://example.com/ads.txt"
-    Then dblock downloads the list from the URL
+    Then skoed downloads the list from the URL
     And parses the domains from the supported format
     And the blocklist "ads" is active with the parsed domains
 
@@ -51,7 +51,7 @@ Feature: Blocklist management
   Scenario: Admin manually refreshes a URL-based blocklist
     Given a blocklist "ads" was added from a URL
     When the admin triggers a manual refresh of the blocklist "ads"
-    Then dblock downloads the latest version from the source URL
+    Then skoed downloads the latest version from the source URL
     And replaces the domain set with the newly parsed domains
 
   @fsid:FS-BlocklistParseHostsFormat
@@ -60,7 +60,7 @@ Feature: Blocklist management
     Then the blocklist contains "ads.example.com" and "tracker.example.org"
     And does not contain "0.0.0.0" or "127.0.0.1" as blocked domains
 
-  @fsid:FS-BlocklistParseAdblockFormat
+  @fsid:FS-BlocklistParseAskoedFormat
   Scenario: Blocklist in AdBlock/ABP format is parsed correctly
     When the admin adds a blocklist with content "||ads.example.com^\n! comment line\n||tracker.example.org^"
     Then the blocklist contains "ads.example.com" and "tracker.example.org"

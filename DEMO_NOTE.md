@@ -1,16 +1,16 @@
 # Milestone 1 Demo Note
 
 **Date:** 2026-05-29  
-**Branch:** dblock-m1  
+**Branch:** skoed-m1  
 **Acceptance tests:** 58/58 green
 
 ## Setup
 
-Two Docker containers on a shared bridge network (`dblock-demo`):
+Two Docker containers on a shared bridge network (`skoed-demo`):
 
 | Container | Image | Role |
 |-----------|-------|------|
-| `dblock-demo` | `dblock:demo` (Alpine 3.20, ~12 MB) | dblock server — DNS :53, API :8080 |
+| `skoed-demo` | `skoed:demo` (Alpine 3.20, ~12 MB) | skoed server — DNS :53, API :8080 |
 | one-shot client | `alpine:3.20` | DNS client — `dig` queries |
 
 Multi-stage Dockerfile: builder uses `golang:1.24-alpine`, final image is `alpine:3.20` with the static binary copied in. No libc dependency.
@@ -26,7 +26,7 @@ Multi-stage Dockerfile: builder uses `golang:1.24-alpine`, final image is `alpin
 ## Scope implemented in M1
 
 - [x] DNS forwarding (UDP/TCP, dual-stack listener)
-- [x] Domain filtering — hosts, domainlist, adblock format parsers
+- [x] Domain filtering — hosts, domainlist, askoed format parsers
 - [x] Subdomain blocking by apex entry
 - [x] Per-blocklist and global block policy (NXDOMAIN / NULL / NODATA)
 - [x] Allowlist overrides blocklist

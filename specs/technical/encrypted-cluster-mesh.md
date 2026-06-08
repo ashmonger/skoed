@@ -19,7 +19,7 @@ node:
     mtls:
       enabled: false        # default off; cluster-wide flip required
       # ca_cert_file / ca_key_file: optional operator-supplied CA. When
-      # absent on the bootstrap node, dblock generates a fresh ECDSA P-256
+      # absent on the bootstrap node, skoed generates a fresh ECDSA P-256
       # CA + leaf at boot.
       ca_cert_file: ""
       ca_key_file: ""
@@ -85,7 +85,7 @@ Reuses the M4.6 HTTPS listener. When `mtls.enabled=true`:
 5. Start Raft transport with TLS StreamLayer.
 
 **Join (a new node enrolls into an existing cluster):**
-1. Operator runs `dblock --config config.yaml` with a bootstrap token.
+1. Operator runs `skoed --config config.yaml` with a bootstrap token.
 2. Joining node POSTs `/api/v1/cluster/join` with the token AND a
    freshly-generated CSR for its own leaf cert.
 3. Leader signs the CSR with the cluster CA, returns:

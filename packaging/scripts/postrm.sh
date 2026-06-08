@@ -1,16 +1,16 @@
 #!/bin/sh
-# postrm — clean up systemd state on full purge. /var/lib/dblock is
+# postrm — clean up systemd state on full purge. /var/lib/skoed is
 # only deleted on `apt purge`, never on plain `remove`.
 set -eu
 
 case "${1:-}" in
     purge)
-        rm -rf /var/lib/dblock /var/log/dblock /etc/dblock
-        if getent passwd dblock >/dev/null 2>&1; then
-            deluser --quiet dblock >/dev/null 2>&1 || true
+        rm -rf /var/lib/skoed /var/log/skoed /etc/skoed
+        if getent passwd skoed >/dev/null 2>&1; then
+            deluser --quiet skoed >/dev/null 2>&1 || true
         fi
-        if getent group dblock >/dev/null 2>&1; then
-            delgroup --quiet dblock >/dev/null 2>&1 || true
+        if getent group skoed >/dev/null 2>&1; then
+            delgroup --quiet skoed >/dev/null 2>&1 || true
         fi
         ;;
     *)

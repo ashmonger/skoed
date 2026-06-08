@@ -1,11 +1,11 @@
 Feature: HTTPS for the Management API
-  As an operator running dblock on a publicly-reachable host
+  As an operator running skoed on a publicly-reachable host
   I want the management API and Web UI to be reachable over HTTPS
-  using the same cert dblock already manages for DoH/DoT
-  So I don't need a reverse proxy in front of dblock just for TLS
+  using the same cert skoed already manages for DoH/DoT
+  So I don't need a reverse proxy in front of skoed just for TLS
 
   Background:
-    Given a dblock node with the M1 management API on node.api_address
+    Given a skoed node with the M1 management API on node.api_address
     And the M4 DoH/DoT cert mechanism (ACME or operator-supplied PEMs)
     And node.api.tls.enabled = false by default — the API stays plain HTTP
 

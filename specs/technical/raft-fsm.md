@@ -21,7 +21,7 @@ x-fsid-links:
 
 # TS-RaftFsm — Raft Finite State Machine
 
-This document defines dblock's Raft FSM: the command set, snapshot format,
+This document defines skoed's Raft FSM: the command set, snapshot format,
 and apply / snapshot / restore semantics. Implementation library:
 [`github.com/hashicorp/raft`](https://github.com/hashicorp/raft) with
 [`github.com/hashicorp/raft-boltdb/v2`](https://github.com/hashicorp/raft-boltdb)

@@ -11,13 +11,13 @@ to GitHub Pages by a workflow that fires on any change under
 
 - **`docs/book.toml`** — mdBook config with the dark "navy" theme,
   fold-by-section navigation, and `edit-url-template` pointing back
-  to `github.com/dblock/dblock/edit/main/docs/src/{path}` so any
+  to `github.com/skoed/skoed/edit/main/docs/src/{path}` so any
   page has a one-click "edit on GitHub" link.
 - **`docs/src/SUMMARY.md`** — the table of contents. 5 sections:
   Install / First run / Cluster / Configuration / Operations /
   Reference.
 - **5 seed chapters covering the operator's first-hour path**:
-  - `introduction.md` — what dblock is + deployment shapes + non-goals.
+  - `introduction.md` — what skoed is + deployment shapes + non-goals.
   - `install/debian-ubuntu.md` — `.deb` install via apt.
   - `install/proxmox-lxc.md` — `scripts/proxmox-create.sh` walkthrough.
   - `first-run/auth-setup.md` — first POST `/api/v1/auth/setup`.
@@ -69,7 +69,7 @@ every push touching `docs/`.
 - **API reference auto-gen** — M4.5 Swagger UI already serves
   `/api/docs/` on every live node; the docs site links to it.
 - **Comment threads / forums** — explicit non-goal.
-- **Custom domain `docs.dblock.io`** — operator/owner DNS work,
+- **Custom domain `docs.skoed.io`** — operator/owner DNS work,
   outside the repo.
 
 ### Files added

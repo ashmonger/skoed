@@ -4,7 +4,7 @@ Feature: Leader Failover
   So that configuration changes remain possible without human intervention during outages.
 
   Background:
-    Given a 3-node dblock cluster (one leader, two followers)
+    Given a 3-node skoed cluster (one leader, two followers)
     And all nodes are at the same Raft commit index
 
   @fsid:FS-LeaderFailoverAutomaticElection

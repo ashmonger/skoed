@@ -19,7 +19,7 @@
                :key="f"
                class="block px-3 py-1.5 text-sm hover:bg-bg-hover rounded cursor-pointer text-fg"
                :href="exportURL(f)"
-               :download="`dblock-reservations.${f === 'json' ? 'json' : f === 'kea' ? 'json' : 'conf'}`"
+               :download="`skoed-reservations.${f === 'json' ? 'json' : f === 'kea' ? 'json' : 'conf'}`"
                @click="exportOpen = false">
               {{ f }}
             </a>

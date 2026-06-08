@@ -34,7 +34,7 @@ any node, or by opening **Settings → Audit log** in the Web UI.
   the append — no background sweeper goroutine.
 - **`GET /api/v1/audit`** — paginated (default 50, max 500), newest-first,
   filters: `actor`, `action` (prefix), `result`. Auth-gated.
-- **`dblock_audit_events_total{action}` Prometheus counter** — bumped
+- **`skoed_audit_events_total{action}` Prometheus counter** — bumped
   on every successful append; lives next to the M5.1 series.
 - **Web UI page** `/settings/audit` — filter bar (actor / action /
   result / page size), table with click-to-expand row showing `id`,
@@ -87,8 +87,8 @@ verifies every node sees the same entry within 2 s of the POST:
 
 ```bash
 # Boot a fresh single-node cluster
-cd apps/dblock && make build
-./dblock --config /tmp/m5.2/config.yaml &
+cd apps/skoed && make build
+./skoed --config /tmp/m5.2/config.yaml &
 curl -fsS -X POST http://127.0.0.1:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
   -d '{"username":"admin","password":"demopass123"}'
@@ -105,9 +105,9 @@ curl -u admin:demopass123 -X POST http://127.0.0.1:8080/api/v1/allowlist \
 curl -u admin:demopass123 http://127.0.0.1:8080/api/v1/audit?limit=10 | jq
 
 # Per-action Prometheus counter
-curl -fsS http://127.0.0.1:8080/metrics | grep dblock_audit_events_total
-# dblock_audit_events_total{action="allowlist.create"} 1
-# dblock_audit_events_total{action="blocklist.create"} 1
+curl -fsS http://127.0.0.1:8080/metrics | grep skoed_audit_events_total
+# skoed_audit_events_total{action="allowlist.create"} 1
+# skoed_audit_events_total{action="blocklist.create"} 1
 ```
 
 ## Next

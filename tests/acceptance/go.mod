@@ -1,4 +1,4 @@
-module dblock/acceptance
+module skoed/acceptance
 
 go 1.22
 

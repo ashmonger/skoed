@@ -1,17 +1,17 @@
 # Milestone 2.6 Demo Note — Web UI
 
 **Date:** 2026-06-04
-**Branch:** dblock-m2.6
-**Image:** `dblock:m2.6` (multi-stage build from `apps/dblock/Dockerfile`,
+**Branch:** skoed-m2.6
+**Image:** `skoed:m2.6` (multi-stage build from `apps/skoed/Dockerfile`,
 ~11 MB final, ~400 KB growth over M2 from the embedded SPA)
 
 ## Setup
 
 ```sh
-docker run -d --name dblock-ui-demo \
-  -v /tmp/dblock-ui-demo:/var/lib/dblock \
+docker run -d --name skoed-ui-demo \
+  -v /tmp/skoed-ui-demo:/var/lib/skoed \
   -p 8090:8080 -p 5390:53/udp \
-  dblock:m2.6 --config /var/lib/dblock/config.yaml
+  skoed:m2.6 --config /var/lib/skoed/config.yaml
 
 # First-run admin setup
 curl -X POST http://localhost:8090/api/v1/auth/setup \

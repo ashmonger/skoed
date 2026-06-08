@@ -56,10 +56,10 @@ slow-response / partial-response.
 
 ### Option B — Live dnsmasq in Docker
 
-Add a `dnsmasq` test container next to the dblock test container,
+Add a `dnsmasq` test container next to the skoed test container,
 share a docker network, run dnsmasq as DHCP server on a private
 subnet, attach a synthetic client container that DHCP-leases an IP,
-then point dblock's dnsmasq-file connector at the shared lease file.
+then point skoed's dnsmasq-file connector at the shared lease file.
 
 - Pros: real lifecycle, real file format edge cases.
 - Cons: tied to docker availability in CI (we don't have it for the
@@ -78,7 +78,7 @@ lease format we need.
 ## Recommendation: Option A
 
 Plus one "smoke" demo recipe in `DEMO_NOTE_M3.6.md` that walks an
-operator through `docker run dnsmasq` + `dblock` for hands-on
+operator through `docker run dnsmasq` + `skoed` for hands-on
 verification before they trust it on their LAN. The demo is not in CI.
 
 ### Test inventory (proposed)

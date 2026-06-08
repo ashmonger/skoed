@@ -80,8 +80,8 @@ return the full blocklist row — the new fields surface for free.
 ## Metrics
 
 ```
-dblock_blocklist_last_refresh_seconds{id="…"}   gauge (epoch seconds)
-dblock_blocklist_refresh_failures_total{id="…"} counter
+skoed_blocklist_last_refresh_seconds{id="…"}   gauge (epoch seconds)
+skoed_blocklist_refresh_failures_total{id="…"} counter
 ```
 
 Wired through the existing `internal/metrics` package as a custom

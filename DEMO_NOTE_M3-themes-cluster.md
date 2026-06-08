@@ -2,11 +2,11 @@
 
 **Date:** 2026-06-04
 **Branch:** master (M3 already merged)
-**Image:** `dblock:m3`
+**Image:** `skoed:m3`
 
 ## What this proves
 
-1. The dblock Web UI ships with **four palettes** (Monokai Solarized,
+1. The skoed Web UI ships with **four palettes** (Monokai Solarized,
    Monokai vivid, Monokai Blue, Monokai Pro) and a light/dark toggle
    per palette — eight visual combinations in total.
 2. An **n=5 Raft cluster** comes up cleanly via the same join-token
@@ -18,15 +18,15 @@
 
 | Container | Role     | API host port | DNS host port |
 |-----------|----------|---------------|---------------|
-| dblock-1  | leader   | 8091          | 5391          |
-| dblock-2  | follower | 8092          | 5392          |
-| dblock-3  | follower | 8093          | 5393          |
-| dblock-4  | follower | 8094          | 5394          |
-| dblock-5  | follower | 8095          | 5395          |
+| skoed-1  | leader   | 8091          | 5391          |
+| skoed-2  | follower | 8092          | 5392          |
+| skoed-3  | follower | 8093          | 5393          |
+| skoed-4  | follower | 8094          | 5394          |
+| skoed-5  | follower | 8095          | 5395          |
 
-All five on the user-defined network `dblock-m3`, leader bootstrapped
+All five on the user-defined network `skoed-m3`, leader bootstrapped
 with default config, the four followers enrolled via single-use
-tokens minted by dblock-1.
+tokens minted by skoed-1.
 
 Seed state: one inline blocklist (`ads` with 3 domains), one profile
 (`kids` scoped to `192.168.10.0/24` with SafeSearch enabled for Google
@@ -71,25 +71,25 @@ Implementation notes:
 Captured via Playwright (`web/shoot-cluster.mjs`) against the live
 5-node cluster. Each shot shows:
 
-- The header card: `MODE = cluster`, `STATUS = ok`, `LEADER = dblock-1`,
+- The header card: `MODE = cluster`, `STATUS = ok`, `LEADER = skoed-1`,
   `RAFT TERM = 2`, `MEMBERS = 5 / 5`.
 - The nodes table: 5 rows, leader row's role badge in the palette's
   accent color, all sync states green ("in sync"), commit indices all
   equal (36), last_contact "just now".
 - The "Add a node" panel with the Generate token CTA.
-- The sidebar's status block at the bottom (`node dblock-1`, `role leader`,
+- The sidebar's status block at the bottom (`node skoed-1`, `role leader`,
   `mode cluster`, `term 2 commit 36`).
 
 ## Verification commands
 
 ```sh
 # bring up the 5-node cluster
-docker network create dblock-m3
-docker run -d --name dblock-1 --network dblock-m3 --hostname dblock-1 \
-  -v /tmp/dblock-m3/n1:/var/lib/dblock -p 8091:8080 -p 5391:53/udp \
-  dblock:m3 --config /var/lib/dblock/config.yaml
+docker network create skoed-m3
+docker run -d --name skoed-1 --network skoed-m3 --hostname skoed-1 \
+  -v /tmp/skoed-m3/n1:/var/lib/skoed -p 8091:8080 -p 5391:53/udp \
+  skoed:m3 --config /var/lib/skoed/config.yaml
 # (write config.yaml with bootstrap.token + bootstrap.leader_address
-#  for n2…n5; tokens minted via POST /api/v1/cluster/tokens on dblock-1)
+#  for n2…n5; tokens minted via POST /api/v1/cluster/tokens on skoed-1)
 
 # verify
 curl -s -u admin:demo1234 http://localhost:8091/api/v1/cluster/health
@@ -102,7 +102,7 @@ cd web && node shoot-cluster.mjs
 ## Cleanup
 
 ```sh
-docker rm -f dblock-{1..5}
-docker network rm dblock-m3
-sudo rm -rf /tmp/dblock-m3
+docker rm -f skoed-{1..5}
+docker network rm skoed-m3
+sudo rm -rf /tmp/skoed-m3
 ```

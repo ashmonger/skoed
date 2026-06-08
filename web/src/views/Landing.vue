@@ -4,7 +4,7 @@
     <header class="flex items-center justify-between px-6 py-4 border-b border-border">
       <div class="flex items-center gap-2">
         <img src="/favicon.svg" class="w-7 h-7" alt="" />
-        <span class="text-lg font-semibold text-fg-strong">dblock</span>
+        <span class="text-lg font-semibold text-fg-strong">skoed</span>
         <span class="text-xs text-fg-muted ml-2 hidden sm:inline">
           self-hosted DNS filtering
         </span>
@@ -19,10 +19,10 @@
       <div class="text-center max-w-2xl">
         <h1 class="text-3xl sm:text-4xl font-semibold text-fg-strong">
           Sanity-check any blocklist
-          <span class="text-accent">before</span> you install dblock.
+          <span class="text-accent">before</span> you install skoed.
         </h1>
         <p class="mt-3 text-fg-muted text-sm sm:text-base">
-          dblock is self-hosted DNS filtering with multi-node sync, profiles,
+          skoed is self-hosted DNS filtering with multi-node sync, profiles,
           schedules, and DoH/DoT.
           Paste a blocklist URL below to see what it would do.
         </p>
@@ -50,7 +50,7 @@
               <option value="auto">auto (detect)</option>
               <option value="hosts">hosts</option>
               <option value="domainlist">domainlist</option>
-              <option value="adblock">adblock</option>
+              <option value="askoed">askoed</option>
             </select>
           </div>
           <button
@@ -99,7 +99,7 @@
         <div class="card p-4">
           <div class="text-accent font-semibold mb-1">Multi-node sync</div>
           <div class="text-fg-muted text-xs">
-            Raft-replicated config across every dblock node in the cluster.
+            Raft-replicated config across every skoed node in the cluster.
           </div>
         </div>
         <div class="card p-4">
@@ -113,10 +113,11 @@
 
     <!-- Footer. -->
     <footer class="px-6 py-4 border-t border-border flex flex-wrap items-center justify-between text-xs text-fg-muted">
-      <span>dblock — self-hosted DNS filtering · v1</span>
+      <span>skoed &mdash; self-hosted DNS filtering &middot; v1</span>
       <span class="flex gap-4">
-        <a href="https://docs.dblock.io" class="hover:text-accent" target="_blank" rel="noopener">docs</a>
-        <a href="https://github.com/dblock/dblock" class="hover:text-accent" target="_blank" rel="noopener">github</a>
+        <router-link to="/about" class="hover:text-accent">about</router-link>
+        <a href="https://docs.skoed.io" class="hover:text-accent" target="_blank" rel="noopener">docs</a>
+        <a href="https://github.com/skoed/skoed" class="hover:text-accent" target="_blank" rel="noopener">github</a>
       </span>
     </footer>
   </div>
@@ -135,7 +136,7 @@ type TestResult = {
 }
 
 const url = ref('')
-const format = ref<'auto' | 'hosts' | 'domainlist' | 'adblock'>('auto')
+const format = ref<'auto' | 'hosts' | 'domainlist' | 'askoed'>('auto')
 const loading = ref(false)
 const result = ref<TestResult | null>(null)
 

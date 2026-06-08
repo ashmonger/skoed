@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run the dblock acceptance suite inside a Docker container.
+# Run the skoed acceptance suite inside a Docker container.
 #
 # Why container: running on the host accumulates TIME_WAIT sockets and
 # host-specific port-allocation quirks that flake the suite around
@@ -12,17 +12,17 @@
 # downloaded modules and compiled artefacts instead of re-doing the
 # ~10-minute cold build:
 #
-#   dblock-gomod-cache    -> /go/pkg/mod           (GOMODCACHE)
-#   dblock-gobuild-cache  -> /root/.cache/go-build (GOCACHE)
+#   skoed-gomod-cache    -> /go/pkg/mod           (GOMODCACHE)
+#   skoed-gobuild-cache  -> /root/.cache/go-build (GOCACHE)
 #
 # Wipe both with: `make acceptance-clean`
-# (or manually: `docker volume rm dblock-gomod-cache dblock-gobuild-cache`)
+# (or manually: `docker volume rm skoed-gomod-cache skoed-gobuild-cache`)
 #
 # Disable the cache for a single invocation:
-#   DBLOCK_TEST_NO_CACHE=1 ./tests/acceptance/run-in-docker.sh
+#   SKOED_TEST_NO_CACHE=1 ./tests/acceptance/run-in-docker.sh
 #
 # Override the volume names (e.g. parallel branches):
-#   DBLOCK_GOMOD_VOLUME=foo DBLOCK_GOBUILD_VOLUME=bar ./...run-in-docker.sh
+#   SKOED_GOMOD_VOLUME=foo SKOED_GOBUILD_VOLUME=bar ./...run-in-docker.sh
 # ----------------------------------------------------------------------
 #
 # Usage (from repo root or anywhere):
@@ -34,14 +34,14 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 IMG="golang:1.24-alpine"
 
-GOMOD_VOL="${DBLOCK_GOMOD_VOLUME:-dblock-gomod-cache}"
-GOBUILD_VOL="${DBLOCK_GOBUILD_VOLUME:-dblock-gobuild-cache}"
+GOMOD_VOL="${SKOED_GOMOD_VOLUME:-skoed-gomod-cache}"
+GOBUILD_VOL="${SKOED_GOBUILD_VOLUME:-skoed-gobuild-cache}"
 
 # Pre-pull the golang image so the first run isn't dominated by download.
 docker image inspect "$IMG" >/dev/null 2>&1 || docker pull "$IMG"
 
 cache_mounts=""
-if [ "${DBLOCK_TEST_NO_CACHE:-0}" != "1" ]; then
+if [ "${SKOED_TEST_NO_CACHE:-0}" != "1" ]; then
   docker volume create "$GOMOD_VOL"   >/dev/null
   docker volume create "$GOBUILD_VOL" >/dev/null
   cache_mounts="-v ${GOMOD_VOL}:/go/pkg/mod -v ${GOBUILD_VOL}:/root/.cache/go-build"
@@ -52,12 +52,12 @@ docker run --rm \
   --network bridge \
   -v "$ROOT":/src \
   $cache_mounts \
-  -w /src/apps/dblock \
+  -w /src/apps/skoed \
   -e CGO_ENABLED=0 \
-  -e DBLOCK_TEST_MODE=1 \
+  -e SKOED_TEST_MODE=1 \
   "$IMG" sh -c '
     apk add --no-cache bind-tools >/dev/null
-    go build -ldflags="-s -w" -o /tmp/dblock ./cmd/dblock/
+    go build -ldflags="-s -w" -o /tmp/skoed ./cmd/skoed/
     cd /src/tests/acceptance
-    DBLOCK_BINARY=/tmp/dblock exec go test -timeout 900s "$@" ./...
+    SKOED_BINARY=/tmp/skoed exec go test -timeout 900s "$@" ./...
   ' -- "$@"

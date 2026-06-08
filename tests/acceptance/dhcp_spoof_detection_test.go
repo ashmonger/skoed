@@ -234,10 +234,10 @@ func TestSpoofAnomaliesInResponse(t *testing.T) {
 }
 
 // FS-SpoofAnomalyRetention — older anomalies are evicted.
-// This requires a test affordance (DBLOCK_TEST_NOW shift) to fast-forward
+// This requires a test affordance (SKOED_TEST_NOW shift) to fast-forward
 // the retention sweep. Skip until that's wired.
 func TestSpoofAnomalyRetention(t *testing.T) {
-	t.Skipf("M3.6 impl pending — requires DBLOCK_TEST_NOW affordance for the retention sweep")
+	t.Skipf("M3.6 impl pending — requires SKOED_TEST_NOW affordance for the retention sweep")
 }
 
 // FS-SpoofAcknowledge

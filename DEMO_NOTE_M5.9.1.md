@@ -1,33 +1,33 @@
-# DEMO NOTE — M5.9.1 `dblock` CLI + TUI (charm-stack)
+# DEMO NOTE — M5.9.1 `skoed` CLI + TUI (charm-stack)
 
 ## Scope
 
 Operators stop reaching for `curl -u admin:pwd …`. Every common
-operation has a `dblock <verb>` subcommand styled with the same
+operation has a `skoed <verb>` subcommand styled with the same
 Lipgloss palette as the Web UI; live cluster overview lives in a
-bubbletea TUI (`dblock top`). The existing systemd-driven daemon
-invocation (`dblock --config /etc/dblock/config.yaml`) keeps working
+bubbletea TUI (`skoed top`). The existing systemd-driven daemon
+invocation (`skoed --config /etc/skoed/config.yaml`) keeps working
 unchanged.
 
 ### Implemented
 
-- **Cobra command tree** rooted at `dblock`:
-  - `dblock --version` (and `dblock version`) — prints
-    `dblock <version> (commit=<hex>, go=go1.<x>)`.
-  - `dblock daemon [--config FILE]` — explicit daemon mode.
-    Subcommand-less `dblock --config …` falls through to `daemon`,
+- **Cobra command tree** rooted at `skoed`:
+  - `skoed --version` (and `skoed version`) — prints
+    `skoed <version> (commit=<hex>, go=go1.<x>)`.
+  - `skoed daemon [--config FILE]` — explicit daemon mode.
+    Subcommand-less `skoed --config …` falls through to `daemon`,
     so the systemd unit shipped in M5.5 keeps working without edits.
-  - `dblock health` — local node's cluster health as a styled
+  - `skoed health` — local node's cluster health as a styled
     key/value list. Exit 0 when `status=ok`, 1 when `degraded`.
-  - `dblock status` — cluster nodes as a Lipgloss table. The
+  - `skoed status` — cluster nodes as a Lipgloss table. The
     leader row is highlighted with reverse-video accent.
-  - `dblock token create` — issues a join token + prints the
+  - `skoed token create` — issues a join token + prints the
     operator-pasteable `bootstrap:` YAML block inside a rounded-border
     Lipgloss box.
-  - `dblock blocklist test <url>` — fetches + parses entirely
+  - `skoed blocklist test <url>` — fetches + parses entirely
     in-process. No daemon required; no auth; no SSRF risk.
     Sets the stage for M5.9.5.
-  - `dblock top` — live TUI (bubbletea) cluster + DNS + top-blocked
+  - `skoed top` — live TUI (bubbletea) cluster + DNS + top-blocked
     dashboard, hot-keys `q` quit / `r` refresh. Auto-refreshes
     every 2 s. `--snapshot` flag renders one frame and exits (used
     by docs + smoke).
@@ -37,9 +37,9 @@ unchanged.
   `web/src/styles/theme/lipgloss.css`, so terminal + browser feel
   like one product.
 - **`internal/cli/credentials.go`** resolves credentials in priority
-  order: `--auth`, `DBLOCK_AUTH` env, `~/.dblock/credentials`
+  order: `--auth`, `SKOED_AUTH` env, `~/.skoed/credentials`
   (JSON, mode 0600 enforced — refuses world-readable creds with a
-  clear error), default. API URL from `--api`, `DBLOCK_API`, file,
+  clear error), default. API URL from `--api`, `SKOED_API`, file,
   or `http://127.0.0.1:8080`.
 - **`internal/cli/client.go`** — auth-aware HTTP client with
   `InsecureSkipVerify` (admin-tools posture; operator's box, operator's
@@ -72,49 +72,49 @@ Recorded with [`charmbracelet/vhs`](https://github.com/charmbracelet/vhs) —
 `.tape` files committed alongside the outputs so anyone can re-record
 on demand. Theme: Catppuccin Mocha (closest to the SPA's Lipgloss dark).
 
-- `docs/screenshots/m5.9.1-dblock-cli.gif` — animated walkthrough of
+- `docs/screenshots/m5.9.1-skoed-cli.gif` — animated walkthrough of
   `--version → health → status → token create` (~8 s).
-- `docs/screenshots/m5.9.1-dblock-top.gif` — animated `dblock top` TUI
+- `docs/screenshots/m5.9.1-skoed-top.gif` — animated `skoed top` TUI
   showing the live dashboard, hot-key refresh (`r`), and quit (`q`).
-- `docs/screenshots/m5.9.1-dblock-cli.png` — static composite of the
+- `docs/screenshots/m5.9.1-skoed-cli.png` — static composite of the
   same CLI verbs (kept as a fallback for markdown renderers that
   don't animate GIFs).
-- `docs/screenshots/m5.9.1-dblock-top.png` — static `dblock top
+- `docs/screenshots/m5.9.1-skoed-top.png` — static `skoed top
   --snapshot` frame.
 
 Re-record with `cd docs/screenshots && vhs m5.9.1-cli.tape && vhs
-m5.9.1-top.tape` (requires a running dblock daemon on the configured
+m5.9.1-top.tape` (requires a running skoed daemon on the configured
 port — see the tape files for the alias setup).
 
 ### Not implemented (deferred / non-goals)
 
-- **Shell completion** — cobra ships `dblock completion bash|zsh|fish`
+- **Shell completion** — cobra ships `skoed completion bash|zsh|fish`
   for free; the binary exposes it but `make completions` for /etc/
   install is M5.9.1.1 follow-up.
 - **JSON output mode** — operators wanting JSON use the API directly.
 - **Curses YAML editor** — operators edit the file or use the Web UI.
-- **Interactive credentials prompt** — for v1, set `~/.dblock/credentials`
-  or `DBLOCK_AUTH`. A bubbles/huh-style first-run prompt is M5.9.1.2.
+- **Interactive credentials prompt** — for v1, set `~/.skoed/credentials`
+  or `SKOED_AUTH`. A bubbles/huh-style first-run prompt is M5.9.1.2.
 
 ### Files added
 
 ```
-apps/dblock/internal/cli/
+apps/skoed/internal/cli/
   style.go         — Lipgloss palette + shared styles
   credentials.go   — auth resolution chain
   client.go        — auth-aware HTTP client
   root.go          — cobra root + subcommand wire-up
-  cmd_health.go    — dblock health
-  cmd_status.go    — dblock status
-  cmd_token.go     — dblock token create
-  cmd_blocklist.go — dblock blocklist test <url>
-  cmd_top.go       — dblock top (bubbletea TUI + --snapshot)
+  cmd_health.go    — skoed health
+  cmd_status.go    — skoed status
+  cmd_token.go     — skoed token create
+  cmd_blocklist.go — skoed blocklist test <url>
+  cmd_top.go       — skoed top (bubbletea TUI + --snapshot)
 
-apps/dblock/cmd/dblock/main.go  (refactored: runDaemon body + cli.Execute wrapper)
+apps/skoed/cmd/skoed/main.go  (refactored: runDaemon body + cli.Execute wrapper)
 
 tests/acceptance/cli_test.go    (6 FSIDs, includes 3-node TestCliStatus)
-specs/functional/dblock-cli.feature
-specs/technical/dblock-cli.md
+specs/functional/skoed-cli.feature
+specs/technical/skoed-cli.md
 
 web/shoot-cli-tui.mjs    (TUI screenshot helper)
 web/shoot-cli-verbs.mjs  (CLI verbs composite screenshot helper)
@@ -124,15 +124,15 @@ web/shoot-cli-verbs.mjs  (CLI verbs composite screenshot helper)
 
 ```sh
 # Version line.
-$ dblock --version
-dblock 0.5.0 (commit=8bc61d4, go=go1.24.0)
+$ skoed --version
+skoed 0.5.0 (commit=8bc61d4, go=go1.24.0)
 
 # Cluster health (one-shot).
-$ dblock health --api http://127.0.0.1:8080
-dblock cluster health
+$ skoed health --api http://127.0.0.1:8080
+skoed cluster health
 
 status        ok
-node          dblock-1
+node          skoed-1
 role          ● leader
 mode          single-node
 members       1 / 1 reachable
@@ -140,19 +140,19 @@ raft term     2
 commit index  17
 
 # Cluster table.
-$ dblock status --api http://127.0.0.1:8080
-dblock cluster — term 4
+$ skoed status --api http://127.0.0.1:8080
+skoed cluster — term 4
 
 NODE          ROLE        SYNC        API                   COMMIT
-dblock-1      leader      in_sync     192.168.1.10:8080     1247
-dblock-2      follower    in_sync     192.168.1.11:8080     1247
-dblock-3      follower    in_sync     192.168.1.12:8080     1247
+skoed-1      leader      in_sync     192.168.1.10:8080     1247
+skoed-2      follower    in_sync     192.168.1.11:8080     1247
+skoed-3      follower    in_sync     192.168.1.12:8080     1247
 
 # Join token in copy-paste-friendly box.
-$ dblock token create
+$ skoed token create
 Cluster join token
-Paste this `bootstrap:` block into the joining node's /etc/dblock/config.yaml,
-then `systemctl restart dblock`.
+Paste this `bootstrap:` block into the joining node's /etc/skoed/config.yaml,
+then `systemctl restart skoed`.
 
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │  bootstrap:                                                                  │
@@ -163,14 +163,14 @@ then `systemctl restart dblock`.
 Token expires at: 2026-06-08T13:01:14Z. Single-use.
 
 # URL tester — runs in-process, no daemon, no auth.
-$ dblock blocklist test https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+$ skoed blocklist test https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
 ✓ https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
   format    auto (auto-detected)
   domains   162,481
   elapsed   2.3s
 
 # Live dashboard.
-$ dblock top
+$ skoed top
 [fullscreen TUI with cluster strip + nodes + DNS bars + top-blocked]
 ```
 

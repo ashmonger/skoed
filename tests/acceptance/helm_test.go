@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	helmReleaseName = "my-dblock"
-	helmChartDir    = "../../deploy/helm/dblock"
+	helmReleaseName = "my-skoed"
+	helmChartDir    = "../../deploy/helm/skoed"
 )
 
 type renderedDoc struct {

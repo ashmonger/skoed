@@ -1,10 +1,10 @@
 Feature: Web UI
   As an administrator
-  I want a browser-based interface for every dblock management operation
+  I want a browser-based interface for every skoed management operation
   So that I do not have to compose JSON or remember API paths.
 
   Background:
-    Given a running dblock node with the SPA embedded in the binary
+    Given a running skoed node with the SPA embedded in the binary
     And an authenticated admin session (basic auth credentials accepted)
 
   @fsid:FS-WebUiServedAtRoot

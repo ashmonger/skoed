@@ -36,13 +36,13 @@ const (
 	tokenTTL                = 15 * time.Minute
 )
 
-// Cluster represents a set of dblock nodes participating in a single Raft cluster.
+// Cluster represents a set of skoed nodes participating in a single Raft cluster.
 type Cluster struct {
 	t     *testing.T
 	bin   string
 	nodes []*ClusterNode
 	// defaultEnv is appended to every spawnNode's Env so tests can apply a
-	// cluster-wide override (e.g. DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS) without
+	// cluster-wide override (e.g. SKOED_TEST_AGGREGATE_FLUSH_SECONDS) without
 	// threading env through every helper.
 	defaultEnv []string
 	// encryptedDNS opt-in: when true, every node spawned in this cluster gets
@@ -64,7 +64,7 @@ type ClusterNode struct {
 	APIPort  int
 	RaftPort int
 	// Env is passed verbatim to every Start/Restart of this node so that
-	// DBLOCK_TEST_* overrides survive process restarts.
+	// SKOED_TEST_* overrides survive process restarts.
 	Env    []string
 	cmd    *exec.Cmd
 	killed bool
@@ -82,7 +82,7 @@ type M2NodeConfig struct {
 	// M4 ACME: when set, written under node.dns.tls.acme.* in config.yaml.
 	Acme *AcmeOpts
 	// M4 FS-DohConfiguredCert: when both set, written under
-	// node.dns.tls.cert_file / key_file. dblock then uses these PEMs
+	// node.dns.tls.cert_file / key_file. skoed then uses these PEMs
 	// directly instead of generating a self-signed cert.
 	TLSCertFile string
 	TLSKeyFile  string
@@ -104,7 +104,7 @@ type M2NodeConfig struct {
 	// without the harness clobbering them.
 	SkipWriteNodeYAML bool
 	// Env passes extra environment variables to the subprocess. Used by tests
-	// that need DBLOCK_TEST_* overrides (token TTL, aggregate flush interval).
+	// that need SKOED_TEST_* overrides (token TTL, aggregate flush interval).
 	Env []string
 }
 
@@ -132,9 +132,9 @@ func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
 	if initialNodes < 1 {
 		t.Fatalf("startClusterMTLS: need at least 1 node, got %d", initialNodes)
 	}
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin, mtls: true}
 	c.bootstrapFirst(t)
@@ -163,9 +163,9 @@ type AcmeOpts struct {
 // the HTTP-01 challenge listener when HTTPChallengePort is 0.
 func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
 	t.Helper()
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 	cfg := M2NodeConfig{
@@ -194,9 +194,9 @@ func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, 
 	if initialNodes < 1 {
 		t.Fatalf("startCluster: need at least 1 node, got %d", initialNodes)
 	}
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin, defaultEnv: env, encryptedDNS: encryptedDNS}
 	c.bootstrapFirst(t)
@@ -218,9 +218,9 @@ func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster 
 		t.Fatalf("startCluster: need at least 1 node, got %d", initialNodes)
 	}
 
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env}
@@ -371,7 +371,7 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 	return cn
 }
 
-// startProcess starts (or restarts) the dblock process for a ClusterNode,
+// startProcess starts (or restarts) the skoed process for a ClusterNode,
 // re-using its DataDir and Env. Used by both spawnNode and RestartNode so
 // env-var overrides survive restarts.
 func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
@@ -386,7 +386,7 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 		cmd.Stderr = os.Stderr
 	}
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start dblock (node %s): %v", cn.NodeID, err)
+		t.Fatalf("start skoed (node %s): %v", cn.NodeID, err)
 	}
 	cn.cmd = cmd
 	cn.Node.cmd = cmd

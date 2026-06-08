@@ -4,7 +4,7 @@ Feature: Per-Client Profiles
   So that a child's tablet has stricter filtering than the family TV.
 
   Background:
-    Given a running dblock cluster with two blocklists ("ads" and "social")
+    Given a running skoed cluster with two blocklists ("ads" and "social")
     And a default profile that uses only the "ads" blocklist
     And a "kids" profile that uses both "ads" and "social"
 

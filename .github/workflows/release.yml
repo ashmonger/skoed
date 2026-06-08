@@ -62,7 +62,7 @@ jobs:
         if: ${{ inputs.snapshot }}
         uses: actions/upload-artifact@v4
         with:
-          name: dblock-snapshot
+          name: skoed-snapshot
           path: dist/
           if-no-files-found: error
           retention-days: 7

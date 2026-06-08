@@ -1,10 +1,10 @@
-Feature: dblock as a DoH/DoT server
+Feature: skoed as a DoH/DoT server
   As a device administrator who can configure encrypted DNS
-  I want dblock to serve queries over DoH and DoT
+  I want skoed to serve queries over DoH and DoT
   So that clients which insist on encrypted DNS still get my filter applied
 
   Background:
-    Given a dblock node with the M1 DNS engine working over UDP/TCP
+    Given a skoed node with the M1 DNS engine working over UDP/TCP
     And the same filter, allowlist, local-DNS, and query-log pipeline that plain DNS uses
 
   @fsid:FS-DohServerListens

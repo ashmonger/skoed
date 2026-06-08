@@ -29,8 +29,8 @@ statically.
 ### 1. helm lint
 
 ```
-$ helm lint deploy/helm/dblock
-==> Linting deploy/helm/dblock
+$ helm lint deploy/helm/skoed
+==> Linting deploy/helm/skoed
 [INFO] Chart.yaml: icon is recommended
 1 chart(s) linted, 0 chart(s) failed
 ```
@@ -50,15 +50,15 @@ via `kubeconform`:
 ### 3. Topology check
 
 - **DaemonSet** (1 pod per K8s node) — correct shape: every K8s node
-  becomes a dblock instance binding hostPort 53/UDP+TCP, so cluster
+  becomes a skoed instance binding hostPort 53/UDP+TCP, so cluster
   DNS works regardless of which node a client resolves through.
 - **Service** (ClusterIP, port 8080) — for in-cluster API access.
 - **ConfigMap** — carries cluster-replicated config + per-pod
   entrypoint wrapper script that synthesizes a node section from
   `$POD_NAME`/`$POD_IP` on first start.
-- **Secret** (`dblock-bootstrap`) — random per-install token + the
+- **Secret** (`skoed-bootstrap`) — random per-install token + the
   in-cluster Service URL of the leader, picked up by joining pods.
-- **ServiceAccount** — placeholder; no RBAC needed (dblock doesn't
+- **ServiceAccount** — placeholder; no RBAC needed (skoed doesn't
   touch the K8s API).
 - **Helm test Pod** — curl-based smoke connection probe.
 

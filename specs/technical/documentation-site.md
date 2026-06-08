@@ -19,7 +19,7 @@ VitePress because:
 - No npm dependency in the docs build (CI already does npm for the
   SPA; keeping docs static-only avoids drift).
 - Built-in left-nav + search (no template hunting).
-- Operators reading dblock docs are already operating Linux daemons;
+- Operators reading skoed docs are already operating Linux daemons;
   a Rust-built static site is the right vibe.
 
 [Pagefind](https://pagefind.app/) layered on top for full-text search
@@ -71,16 +71,16 @@ docs/
 
 ```toml
 [book]
-title = "dblock"
-authors = ["dblock maintainers"]
+title = "skoed"
+authors = ["skoed maintainers"]
 language = "en"
 src = "src"
 
 [output.html]
 default-theme = "navy"
 preferred-dark-theme = "navy"
-git-repository-url = "https://github.com/dblock/dblock"
-edit-url-template = "https://github.com/dblock/dblock/edit/main/docs/src/{path}"
+git-repository-url = "https://github.com/skoed/skoed"
+edit-url-template = "https://github.com/skoed/skoed/edit/main/docs/src/{path}"
 no-section-label = true
 ```
 
@@ -142,8 +142,8 @@ jobs:
 The full chapter tree above is the target; **v1 ships the scaffolding
 + five seed chapters** covering the operator's first-hour path:
 
-- `introduction.md` — what dblock is + the three deployment shapes.
-- `install/debian-ubuntu.md` — `apt install ./dblock_*.deb`.
+- `introduction.md` — what skoed is + the three deployment shapes.
+- `install/debian-ubuntu.md` — `apt install ./skoed_*.deb`.
 - `install/proxmox-lxc.md` — `scripts/proxmox-create.sh`.
 - `first-run/auth-setup.md` — POST `/api/v1/auth/setup`.
 - `cluster/bootstrap.md` — token-based three-node join.

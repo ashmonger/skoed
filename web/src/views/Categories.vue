@@ -59,7 +59,7 @@
               {{ cat.url }}
             </code>
             <span v-else class="text-xs text-fg-muted italic flex-1 min-w-0">
-              bundled in dblock — no remote URL
+              bundled in skoed — no remote URL
             </span>
             <button class="btn-ghost shrink-0"
                     title="Edit upstream URL"
@@ -228,7 +228,7 @@ import type { Category, Profile } from '@/api/types'
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
-const FORMATS = ['hosts', 'domainlist', 'adblock'] as const
+const FORMATS = ['hosts', 'domainlist', 'askoed'] as const
 
 // ─── State ───────────────────────────────────────────────────────────────
 

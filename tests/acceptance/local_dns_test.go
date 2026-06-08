@@ -189,7 +189,7 @@ func TestLocalDnsEntryPriorityOverUpstream(t *testing.T) {
 	assertAnswerA(t, r, "192.168.1.50")
 
 	if upstreamContacted {
-		t.Fatal("dblock contacted the upstream resolver for a local DNS entry")
+		t.Fatal("skoed contacted the upstream resolver for a local DNS entry")
 	}
 }
 
@@ -298,7 +298,7 @@ func TestLocalDnsEntryNxdomainWhenNoUpstream(t *testing.T) {
 	assertStatus(t, resp, http.StatusNoContent)
 	resp.Body.Close()
 
-	// Upstream returns NXDOMAIN; dblock must propagate it
+	// Upstream returns NXDOMAIN; skoed must propagate it
 	r := dnsQuery(t, n.DNSAddr, "internal.home", dns.TypeA)
 	assertRcode(t, r, dns.RcodeNameError)
 }

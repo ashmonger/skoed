@@ -5,9 +5,9 @@
 import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18080'
-const USER = process.env.DBLOCK_USER ?? 'admin'
-const PASS = process.env.DBLOCK_PASS ?? 'demopass123'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18080'
+const USER = process.env.SKOED_USER ?? 'admin'
+const PASS = process.env.SKOED_PASS ?? 'demopass123'
 const OUTDIR = '../docs/audit'
 
 await mkdir(OUTDIR, { recursive: true })
@@ -67,14 +67,14 @@ const page = await ctx.newPage()
 // One-time login
 await page.goto(BASE + '/login')
 await page.evaluate(([u, p]) => {
-  sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
+  sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
 }, [USER, PASS])
 
 const report = []
 
 for (const { palette, mode, slug } of COMBOS) {
   await page.evaluate(([pal, m]) => {
-    localStorage.setItem('dblock.theme', JSON.stringify({ palette: pal, mode: m }))
+    localStorage.setItem('skoed.theme', JSON.stringify({ palette: pal, mode: m }))
   }, [palette, mode])
 
   await page.goto(BASE + '/', { waitUntil: 'networkidle' })

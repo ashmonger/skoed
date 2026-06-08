@@ -2,7 +2,7 @@
 
 ## Scope
 
-Every dblock node exposes a `GET /metrics` endpoint in standard
+Every skoed node exposes a `GET /metrics` endpoint in standard
 Prometheus text exposition format. Operators can drop a scrape config
 into any Prometheus / VictoriaMetrics / OpenMetrics-compatible system
 and immediately graph DNS throughput, cache health, cluster state,
@@ -13,22 +13,22 @@ existing JSON `/api/v1/...` endpoints.
 
 - **Series catalogue** (≤ 60 series total per node, bounded by
   cardinality budget in `specs/technical/prometheus-metrics.md`):
-  - `dblock_build_info{version,commit,go}` — gauge, always 1
-  - `dblock_dns_queries_total{outcome,transport}` — counter
+  - `skoed_build_info{version,commit,go}` — gauge, always 1
+  - `skoed_dns_queries_total{outcome,transport}` — counter
     - `outcome` ∈ {`forwarded`, `blocked`, `cached`, `local`}
     - `transport` ∈ {`udp`, `doh`, `dot`}
-  - `dblock_dns_query_duration_seconds{outcome}` — histogram
+  - `skoed_dns_query_duration_seconds{outcome}` — histogram
     (buckets: 1 ms, 10 ms, 100 ms, 1 s, 5 s)
-  - `dblock_dns_cache_size`, `_max_entries` — gauges
-  - `dblock_dns_cache_{hits,misses,evictions}_total` — counters
+  - `skoed_dns_cache_size`, `_max_entries` — gauges
+  - `skoed_dns_cache_{hits,misses,evictions}_total` — counters
     (wires the existing M4.7 counters that previously only landed in
     `/api/v1/dns/cache/stats`)
-  - `dblock_cluster_node_role{role="leader|follower"}` — gauge
+  - `skoed_cluster_node_role{role="leader|follower"}` — gauge
     (both label values always emitted so PromQL queries never have
     to deal with missing series)
-  - `dblock_cluster_raft_term`, `_commit_index`, `_members`,
+  - `skoed_cluster_raft_term`, `_commit_index`, `_members`,
     `_reachable_members` — gauges
-  - `dblock_dhcp_leases{source}`, `_anomalies_open`,
+  - `skoed_dhcp_leases{source}`, `_anomalies_open`,
     `_last_poll_age_seconds{source}`, `_poll_errors_total{source}` —
     only registered when DHCP integration is enabled; absent
     otherwise (no ghost zeros on nodes without DHCP).
@@ -37,7 +37,7 @@ existing JSON `/api/v1/...` endpoints.
   `node.api.metrics.require_auth: true` to gate on Basic Auth — for
   nodes reachable from untrusted networks.
 - **Dedicated registry** — never `prometheus.DefaultRegisterer`.
-  Keeps Go runtime metrics (`process_*`, `go_*`) out of dblock's
+  Keeps Go runtime metrics (`process_*`, `go_*`) out of skoed's
   public surface (which we'd have to support forever once shipped).
 - **Live read** — cache / cluster / DHCP series are populated by
   custom Collectors that read from the source at scrape time. No
@@ -81,7 +81,7 @@ pollution).
 - **OpenTelemetry / OTLP** — Prometheus exposition only for M5.1.
 - **Per-route HTTP-handler timings** — scrape-interval averages cover
   the operational need.
-- **Recording rules / alerting rules shipped with dblock** — the
+- **Recording rules / alerting rules shipped with skoed** — the
   operator's job; we ship raw series.
 - **Push-mode (Pushgateway)** — pull-mode scraping only.
 - **High-cardinality labels** (per-client IP, per-domain) — explicit
@@ -94,8 +94,8 @@ issuing queries:
 
 ```bash
 # Boot a fresh single-node cluster.
-cd apps/dblock && make build
-./dblock --config /tmp/dblock-m5.1/config.yaml &
+cd apps/skoed && make build
+./skoed --config /tmp/skoed-m5.1/config.yaml &
 # First setup
 curl -fsS -X POST http://127.0.0.1:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
@@ -105,20 +105,20 @@ curl -fsS -X POST http://127.0.0.1:8080/api/v1/auth/setup \
 for n in a b c d e; do dig @127.0.0.1 "${n}.example" +short; done
 
 # Scrape.
-curl -fsS http://127.0.0.1:8080/metrics | grep -E '^dblock_'
+curl -fsS http://127.0.0.1:8080/metrics | grep -E '^skoed_'
 ```
 
 Expected highlights in the output:
 
 ```
-dblock_build_info{commit="…",go="go1.24.x",version="dev"} 1
-dblock_cluster_node_role{role="leader"} 1
-dblock_cluster_node_role{role="follower"} 0
-dblock_cluster_members 1
-dblock_dns_cache_max_entries 10000
-dblock_dns_queries_total{outcome="forwarded",transport="udp"} 5
-dblock_dns_query_duration_seconds_bucket{outcome="forwarded",le="0.001"} 0
-dblock_dns_query_duration_seconds_bucket{outcome="forwarded",le="0.01"} 1
+skoed_build_info{commit="…",go="go1.24.x",version="dev"} 1
+skoed_cluster_node_role{role="leader"} 1
+skoed_cluster_node_role{role="follower"} 0
+skoed_cluster_members 1
+skoed_dns_cache_max_entries 10000
+skoed_dns_queries_total{outcome="forwarded",transport="udp"} 5
+skoed_dns_query_duration_seconds_bucket{outcome="forwarded",le="0.001"} 0
+skoed_dns_query_duration_seconds_bucket{outcome="forwarded",le="0.01"} 1
 …
 ```
 
@@ -126,10 +126,10 @@ dblock_dns_query_duration_seconds_bucket{outcome="forwarded",le="0.01"} 1
 
 ```yaml
 scrape_configs:
-  - job_name: dblock
+  - job_name: skoed
     scrape_interval: 30s
     static_configs:
-      - targets: ['dblock-node-1.lan:8080','dblock-node-2.lan:8080','dblock-node-3.lan:8080']
+      - targets: ['skoed-node-1.lan:8080','skoed-node-2.lan:8080','skoed-node-3.lan:8080']
 ```
 
 (Per-node — every node serves its own metrics. Sum / `max by(...)`
@@ -137,21 +137,21 @@ on the Prometheus side to get cluster-wide views.)
 
 ### Suggested Grafana panels
 
-- **Throughput** — `rate(dblock_dns_queries_total[5m])` faceted by
+- **Throughput** — `rate(skoed_dns_queries_total[5m])` faceted by
   `outcome`. Stacked area gives operator the "what's the load shape"
   view.
-- **Cache hit ratio** — `rate(dblock_dns_cache_hits_total[5m]) /
-  (rate(dblock_dns_cache_hits_total[5m]) +
-   rate(dblock_dns_cache_misses_total[5m]))`. Drop below 60 % =
+- **Cache hit ratio** — `rate(skoed_dns_cache_hits_total[5m]) /
+  (rate(skoed_dns_cache_hits_total[5m]) +
+   rate(skoed_dns_cache_misses_total[5m]))`. Drop below 60 % =
   cache is undersized.
-- **Cluster health** — `dblock_cluster_reachable_members /
-  dblock_cluster_members`. Drop below 1 = peer partition.
-- **DHCP staleness** — `dblock_dhcp_last_poll_age_seconds > 300` =
+- **Cluster health** — `skoed_cluster_reachable_members /
+  skoed_cluster_members`. Drop below 1 = peer partition.
+- **DHCP staleness** — `skoed_dhcp_last_poll_age_seconds > 300` =
   alert; the connector hasn't refreshed in 5+ minutes.
 
 ## Next
 
 M5.2 — Audit log (every state-changing API call recorded with actor,
-target, diff, timestamp). M5.1 adds `dblock_audit_events_total` once
+target, diff, timestamp). M5.1 adds `skoed_audit_events_total` once
 M5.2 lands. The auth gate built here generalises to M7 token
 attribution.

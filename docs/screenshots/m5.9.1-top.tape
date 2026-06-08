@@ -1,4 +1,4 @@
-Output ../../docs/screenshots/m5.9.1-dblock-top.gif
+Output ../../docs/screenshots/m5.9.1-skoed-top.gif
 
 Set Theme "Catppuccin Mocha"
 Set FontSize 16
@@ -8,17 +8,17 @@ Set Padding 24
 Set TypingSpeed 60ms
 
 Hide
-Type "export DBLOCK_AUTH=admin:demopass123"
+Type "export SKOED_AUTH=admin:demopass123"
 Enter
-Type "export DBLOCK_API=http://127.0.0.1:18829"
+Type "export SKOED_API=http://127.0.0.1:18829"
 Enter
-Type "alias dblock='/home/jcollin/repos/dblock/apps/dblock/dblock'"
+Type "alias skoed='/home/jcollin/repos/skoed/apps/skoed/skoed'"
 Enter
 Type "clear"
 Enter
 Show
 
-Type "dblock top"
+Type "skoed top"
 Sleep 200ms
 Enter
 # Let the TUI render and refresh a couple of times.

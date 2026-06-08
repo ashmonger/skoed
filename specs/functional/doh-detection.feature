@@ -1,11 +1,11 @@
 Feature: DoH/DoT Detection and Layer-2 Blocking
   As an administrator
-  I want clients that try to bypass dblock by switching to public DoH/DoT
+  I want clients that try to bypass skoed by switching to public DoH/DoT
   resolvers to be detected and (where the hostname approach can stop them)
   blocked at the DNS layer.
 
   Background:
-    Given a freshly bootstrapped dblock cluster
+    Given a freshly bootstrapped skoed cluster
     And the default `doh` category is enabled on the default profile
 
   @fsid:FS-DohDetectionResolverBlocklist
@@ -20,8 +20,8 @@ Feature: DoH/DoT Detection and Layer-2 Blocking
   Scenario: Firefox's "use-application-dns.net" canary always returns NXDOMAIN
     Given a Firefox client that probes "use-application-dns.net" before
       enabling DoH-by-default
-    When the canary query reaches dblock
-    Then dblock returns NXDOMAIN regardless of any profile/allowlist setting
+    When the canary query reaches skoed
+    Then skoed returns NXDOMAIN regardless of any profile/allowlist setting
     And the log entry's category is "doh-canary"
     And the entry is NEVER allowlist-overridable (operators cannot accidentally
       undo Firefox's auto-disable safety net)
@@ -29,7 +29,7 @@ Feature: DoH/DoT Detection and Layer-2 Blocking
   @fsid:FS-DohDetectionDdrProbe
   Scenario: RFC 9462 DDR probes are logged and never answered usefully
     Given a client issues a DDR SVCB query for "_dns.resolver.arpa"
-    When the query reaches dblock
+    When the query reaches skoed
     Then the response is NODATA (no SVCB record)
     And the entry appears in the query log with category="ddr-probe"
 

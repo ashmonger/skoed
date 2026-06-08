@@ -1,6 +1,6 @@
 Feature: Documentation Site
-  As a new operator landing on the dblock repo
-  I want a hosted docs site at docs.dblock.io
+  As a new operator landing on the skoed repo
+  I want a hosted docs site at docs.skoed.io
   With install / config / cluster / troubleshooting / how-to sections
   So I'm not parsing specs/ to figure out what to run.
 
@@ -37,7 +37,7 @@ Feature: Documentation Site
     Given the docs/ tree changes
     When the change lands on main
     Then `.github/workflows/docs.yml` fires
-    And the site at docs.dblock.io (or the gh-pages branch) updates
+    And the site at docs.skoed.io (or the gh-pages branch) updates
 
   Non-goals:
     - Translated docs (English only)

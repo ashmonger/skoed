@@ -1,12 +1,12 @@
 #!/bin/sh
-# preinst — create the dblock system user/group if missing.
+# preinst — create the skoed system user/group if missing.
 set -eu
 
-if ! getent group dblock >/dev/null 2>&1; then
-    addgroup --system dblock
+if ! getent group skoed >/dev/null 2>&1; then
+    addgroup --system skoed
 fi
-if ! getent passwd dblock >/dev/null 2>&1; then
-    adduser --system --ingroup dblock --home /var/lib/dblock \
+if ! getent passwd skoed >/dev/null 2>&1; then
+    adduser --system --ingroup skoed --home /var/lib/skoed \
             --no-create-home --shell /usr/sbin/nologin \
-            --gecos "dblock service" dblock
+            --gecos "skoed service" skoed
 fi

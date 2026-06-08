@@ -1,12 +1,12 @@
 Feature: Audit Log
-  As an operator who shares dblock administration with one or two
+  As an operator who shares skoed administration with one or two
   housemates / sysadmins
   I want every state-changing API call recorded with who / when / what
   So I can answer "who turned cat:doh off at 2 AM?" — and so the next
   M7 token attribution work has somewhere to send its writes.
 
   Background:
-    Given a running dblock cluster with at least one node
+    Given a running skoed cluster with at least one node
 
   @fsid:FS-AuditWriteRecorded
   Scenario: A successful mutating API call writes one audit entry
@@ -74,9 +74,9 @@ Feature: Audit Log
 
   @fsid:FS-AuditMetricsCounter
   Scenario: Each audit write increments a Prometheus counter
-    Given a baseline value of dblock_audit_events_total{action="blocklist.create"} = N
+    Given a baseline value of skoed_audit_events_total{action="blocklist.create"} = N
     When the admin POSTs /api/v1/blocklists
-    Then /metrics shows dblock_audit_events_total{action="blocklist.create"} = N + 1
+    Then /metrics shows skoed_audit_events_total{action="blocklist.create"} = N + 1
 
   Non-goals:
     - Tamper-evident hash chain (Raft replication already provides

@@ -21,14 +21,14 @@ import (
 	"github.com/miekg/dns"
 )
 
-// startNodeNoAuth starts a dblock node without calling setupAuth.
+// startNodeNoAuth starts a skoed node without calling setupAuth.
 // Use this when the test needs to interact with the node before credentials exist.
 func startNodeNoAuth(t *testing.T, cfg NodeConfig) *Node {
 	t.Helper()
 
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 
 	dir := t.TempDir()
@@ -51,7 +51,7 @@ func startNodeNoAuth(t *testing.T, cfg NodeConfig) *Node {
 		cmd.Stderr = os.Stderr
 	}
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start dblock: %v", err)
+		t.Fatalf("start skoed: %v", err)
 	}
 
 	n := &Node{

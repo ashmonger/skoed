@@ -7,7 +7,7 @@
     >
       <div class="px-5 h-12 border-b border-border flex items-center gap-2">
         <img src="/favicon.svg" alt="" class="w-6 h-6" />
-        <span class="font-semibold text-fg-strong tracking-tight">dblock</span>
+        <span class="font-semibold text-fg-strong tracking-tight">skoed</span>
         <span
           v-if="health"
           class="ml-auto"
@@ -168,7 +168,7 @@ const titles: Record<string, string> = {
   settings: 'Settings',
   account: 'Account',
 }
-const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'dblock')
+const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'skoed')
 
 function onPaletteChange(e: Event) {
   const v = (e.target as HTMLSelectElement).value as

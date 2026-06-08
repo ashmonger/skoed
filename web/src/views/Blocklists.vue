@@ -147,7 +147,7 @@
               <option value="auto">auto</option>
               <option value="hosts">hosts</option>
               <option value="domainlist">domainlist</option>
-              <option value="adblock">adblock</option>
+              <option value="askoed">askoed</option>
             </select>
           </div>
         </div>

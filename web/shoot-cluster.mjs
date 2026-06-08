@@ -27,8 +27,8 @@ try {
     }
 
     await page.evaluate(({ mode, palette, creds }) => {
-      sessionStorage.setItem('dblock.creds', JSON.stringify(creds));
-      localStorage.setItem('dblock.theme', JSON.stringify({ mode, palette }));
+      sessionStorage.setItem('skoed.creds', JSON.stringify(creds));
+      localStorage.setItem('skoed.theme', JSON.stringify({ mode, palette }));
     }, { mode, palette, creds: CREDS });
 
     const r2 = await page.goto(`${BASE}/cluster`, { waitUntil: 'networkidle' });

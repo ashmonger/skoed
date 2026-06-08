@@ -11,7 +11,7 @@ x-fsid-links:
 
 ## Context
 
-The dblock acceptance suite runs inside a disposable
+The skoed acceptance suite runs inside a disposable
 `golang:1.24-alpine` container via `tests/acceptance/run-in-docker.sh`
 (see memory: `feedback-tests-in-docker.md`). Today the container has no
 shared cache, so every invocation re-downloads every Go module
@@ -30,8 +30,8 @@ Two named Docker volumes, mounted by `run-in-docker.sh` by default:
 
 | Volume name              | Mount path inside container | Purpose                |
 |--------------------------|------------------------------|------------------------|
-| `dblock-gomod-cache`     | `/go/pkg/mod`                | go module download cache (`GOMODCACHE`) |
-| `dblock-gobuild-cache`   | `/root/.cache/go-build`      | go build cache (`GOCACHE` default for root in alpine) |
+| `skoed-gomod-cache`     | `/go/pkg/mod`                | go module download cache (`GOMODCACHE`) |
+| `skoed-gobuild-cache`   | `/root/.cache/go-build`      | go build cache (`GOCACHE` default for root in alpine) |
 
 Why named volumes (not bind mounts to `$HOME/go/pkg/mod`):
 
@@ -50,11 +50,11 @@ The runner gains a header comment documenting the cache, two
 the `docker run` invocation:
 
 ```sh
-GOMOD_VOL="${DBLOCK_GOMOD_VOLUME:-dblock-gomod-cache}"
-GOBUILD_VOL="${DBLOCK_GOBUILD_VOLUME:-dblock-gobuild-cache}"
+GOMOD_VOL="${SKOED_GOMOD_VOLUME:-skoed-gomod-cache}"
+GOBUILD_VOL="${SKOED_GOBUILD_VOLUME:-skoed-gobuild-cache}"
 
 mount_args=""
-if [ "${DBLOCK_TEST_NO_CACHE:-0}" != "1" ]; then
+if [ "${SKOED_TEST_NO_CACHE:-0}" != "1" ]; then
   docker volume create "$GOMOD_VOL"  >/dev/null
   docker volume create "$GOBUILD_VOL" >/dev/null
   mount_args="-v $GOMOD_VOL:/go/pkg/mod -v $GOBUILD_VOL:/root/.cache/go-build"
@@ -64,11 +64,11 @@ docker run --rm \
   --network bridge \
   -v "$ROOT":/src \
   $mount_args \
-  -w /src/apps/dblock \
+  -w /src/apps/skoed \
   …
 ```
 
-`DBLOCK_TEST_NO_CACHE=1` disables the mounts entirely for environments
+`SKOED_TEST_NO_CACHE=1` disables the mounts entirely for environments
 that prefer ephemeral caches (a CI runner already using
 `actions/cache` for `GOMODCACHE`, an `unshare`d sandbox, …).
 
@@ -78,7 +78,7 @@ A new phony target:
 
 ```make
 acceptance-clean:
-	docker volume rm dblock-gomod-cache dblock-gobuild-cache || true
+	docker volume rm skoed-gomod-cache skoed-gobuild-cache || true
 ```
 
 `|| true` so the target is idempotent (no error when the volumes
@@ -103,11 +103,11 @@ matches the M5.7 multi-arch convention):
 
 1. `make acceptance-clean` — ensure a cold baseline.
 2. `time tests/acceptance/run-in-docker.sh` — first run; record
-   wall-clock time and confirm `docker volume ls | grep dblock`
+   wall-clock time and confirm `docker volume ls | grep skoed`
    shows both volumes.
 3. `time tests/acceptance/run-in-docker.sh` — second run; record
    wall-clock time. The delta is the operator-visible win.
-4. `DBLOCK_TEST_NO_CACHE=1 tests/acceptance/run-in-docker.sh` —
+4. `SKOED_TEST_NO_CACHE=1 tests/acceptance/run-in-docker.sh` —
    confirms the override path still works and skips the mounts.
 5. `make acceptance-clean` — confirms wipe works and idempotency
    when re-run on already-removed volumes.

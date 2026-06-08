@@ -11,18 +11,18 @@ hashicorp/raft, prometheus/client_golang, miekg/dns, the
 charmbracelet stack, and friends.
 
 This milestone mounts two persistent named Docker volumes
-(`dblock-gomod-cache`, `dblock-gobuild-cache`) at the container's
+(`skoed-gomod-cache`, `skoed-gobuild-cache`) at the container's
 Go cache paths so warm reruns reuse downloads + compiled artefacts.
 
 ### Implemented
 
 - **`tests/acceptance/run-in-docker.sh`** now:
   - Creates two named volumes idempotently before the `docker run`:
-    - `dblock-gomod-cache` → `/go/pkg/mod` (GOMODCACHE)
-    - `dblock-gobuild-cache` → `/root/.cache/go-build` (GOCACHE)
-  - Honours `DBLOCK_TEST_NO_CACHE=1` to skip both mounts entirely
+    - `skoed-gomod-cache` → `/go/pkg/mod` (GOMODCACHE)
+    - `skoed-gobuild-cache` → `/root/.cache/go-build` (GOCACHE)
+  - Honours `SKOED_TEST_NO_CACHE=1` to skip both mounts entirely
     (CI environments with their own `actions/cache` use this).
-  - Honours `DBLOCK_GOMOD_VOLUME` / `DBLOCK_GOBUILD_VOLUME` env
+  - Honours `SKOED_GOMOD_VOLUME` / `SKOED_GOBUILD_VOLUME` env
     vars to override the volume names (parallel branches with
     isolated caches).
   - Carries a header comment documenting the cache + cleanup +
@@ -30,7 +30,7 @@ Go cache paths so warm reruns reuse downloads + compiled artefacts.
 - **`Makefile`** gains `make acceptance-clean`:
   ```make
   acceptance-clean:
-      docker volume rm dblock-gomod-cache dblock-gobuild-cache || true
+      docker volume rm skoed-gomod-cache skoed-gobuild-cache || true
   ```
   Idempotent — harmless when the volumes are already gone.
 
@@ -43,10 +43,10 @@ convention as M5.7 multi-arch and M5.5 native packaging.)
 
 | FSID                                | Validation                                       |
 |-------------------------------------|--------------------------------------------------|
-| FS-DockerTestCacheColdWarmsCache    | `docker volume ls \| grep dblock` after first run shows both volumes; volume contents non-empty (`docker run -v dblock-gomod-cache:/m alpine ls /m` lists `github.com/`, `golang.org/`, …) |
+| FS-DockerTestCacheColdWarmsCache    | `docker volume ls \| grep skoed` after first run shows both volumes; volume contents non-empty (`docker run -v skoed-gomod-cache:/m alpine ls /m` lists `github.com/`, `golang.org/`, …) |
 | FS-DockerTestCacheWarmRunIsFast     | Wall-clock comparison cold vs warm — see below   |
 | FS-DockerTestCacheCleanWipesVolumes | `make acceptance-clean` removes both; second invocation is a no-op (returns 0) |
-| FS-DockerTestCacheCanBeDisabled     | `DBLOCK_TEST_NO_CACHE=1 ./run-in-docker.sh` does NOT create the volumes (verified: `docker volume ls \| grep dblock` empty after the run) |
+| FS-DockerTestCacheCanBeDisabled     | `SKOED_TEST_NO_CACHE=1 ./run-in-docker.sh` does NOT create the volumes (verified: `docker volume ls \| grep skoed` empty after the run) |
 
 ### Wall-clock validation (this dev box)
 
@@ -75,11 +75,11 @@ benchmark.
 | Cold | **30 s**   | ~20 s setup + 10 s tests        |
 | Warm | **13 s**   | ~3 s setup + 10 s tests          |
 
-**4. NO_CACHE override (`DBLOCK_TEST_NO_CACHE=1`, `TestCliVersion`):**
+**4. NO_CACHE override (`SKOED_TEST_NO_CACHE=1`, `TestCliVersion`):**
 
 | Mode | Wall-clock | Notes                          |
 |------|------------|--------------------------------|
-| Cold | **21 s**   | Same as legacy: full download every time; no volumes created (`docker volume ls \| grep dblock` empty) |
+| Cold | **21 s**   | Same as legacy: full download every time; no volumes created (`docker volume ls \| grep skoed` empty) |
 
 The non-test (build + download) portion shrinks ~17–20 s per run.
 On the full M5.9.x acceptance suite (~10 min cold, ~40 packages,
@@ -91,41 +91,41 @@ runs land in the ~1 minute range the roadmap targets.
 ```sh
 # Cold baseline.
 $ make acceptance-clean
-docker volume rm dblock-gomod-cache dblock-gobuild-cache || true
-Error response from daemon: get dblock-gomod-cache: no such volume
-Error response from daemon: get dblock-gobuild-cache: no such volume
+docker volume rm skoed-gomod-cache skoed-gobuild-cache || true
+Error response from daemon: get skoed-gomod-cache: no such volume
+Error response from daemon: get skoed-gobuild-cache: no such volume
 
-$ docker volume ls | grep dblock
+$ docker volume ls | grep skoed
 (empty)
 
 # First run — warms the cache.
 $ time ./tests/acceptance/run-in-docker.sh -run TestCliVersion
-ok  	dblock/acceptance	0.007s
+ok  	skoed/acceptance	0.007s
 
 real    0m15.231s
 
-$ docker volume ls | grep dblock
-local     dblock-gobuild-cache
-local     dblock-gomod-cache
+$ docker volume ls | grep skoed
+local     skoed-gobuild-cache
+local     skoed-gomod-cache
 
 # Second run — reuses the cache.
 $ time ./tests/acceptance/run-in-docker.sh -run TestCliVersion
-ok  	dblock/acceptance	0.004s
+ok  	skoed/acceptance	0.004s
 
 real    0m3.118s
 
 # Override to skip the cache (CI with its own actions/cache).
 $ make acceptance-clean
-$ DBLOCK_TEST_NO_CACHE=1 ./tests/acceptance/run-in-docker.sh -run TestCliVersion
-ok  	dblock/acceptance	0.014s
-$ docker volume ls | grep dblock
+$ SKOED_TEST_NO_CACHE=1 ./tests/acceptance/run-in-docker.sh -run TestCliVersion
+ok  	skoed/acceptance	0.014s
+$ docker volume ls | grep skoed
 (empty — override skipped the mounts entirely)
 
 # Wipe.
 $ make acceptance-clean
-docker volume rm dblock-gomod-cache dblock-gobuild-cache || true
-dblock-gomod-cache
-dblock-gobuild-cache
+docker volume rm skoed-gomod-cache skoed-gobuild-cache || true
+skoed-gomod-cache
+skoed-gobuild-cache
 ```
 
 ### Not implemented (deferred / non-goals)
@@ -138,7 +138,7 @@ dblock-gobuild-cache
   Docker volume is the operator-friendly answer.
 - **Multi-host shared cache** (e.g. NFS-backed `GOMODCACHE`).
   Single-dev-box scope; CI gets its own caching via
-  `actions/cache` (and can opt-in via `DBLOCK_TEST_NO_CACHE=1`).
+  `actions/cache` (and can opt-in via `SKOED_TEST_NO_CACHE=1`).
 - **Production-image impact.** The release Dockerfile (M5.7,
   distroless static) is a separate lineage from the dev runner's
   `golang:1.24-alpine`. Nothing about the release pipeline

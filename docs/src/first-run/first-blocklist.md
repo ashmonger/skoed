@@ -1,6 +1,6 @@
 # Add your first blocklist
 
-A blocklist is a named set of domain rules. dblock supports three
+A blocklist is a named set of domain rules. skoed supports three
 source types:
 
 - **`url`** — fetched from an HTTP(S) URL on a schedule

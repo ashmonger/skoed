@@ -8,7 +8,7 @@ Feature: Allowlist management
     - Allowlist entries do not apply to local DNS entries (local entries are always served)
 
   Background:
-    Given dblock is running
+    Given skoed is running
     And a blocklist "ads" is active containing "allowed-but-blocked.example.com"
 
   @fsid:FS-AllowlistAddDomain
@@ -20,7 +20,7 @@ Feature: Allowlist management
   Scenario: Allowlisted domain is resolved even when it appears on a blocklist
     Given "allowed-but-blocked.example.com" is in the global allowlist
     When a client sends an A query for "allowed-but-blocked.example.com"
-    Then dblock forwards the query to an upstream resolver
+    Then skoed forwards the query to an upstream resolver
     And returns the upstream answer
     And does not return a block response
 
@@ -35,15 +35,15 @@ Feature: Allowlist management
     Given "*.safe.example.com" is in the global allowlist
     And "safe.example.com" is on an active blocklist
     When a client sends an A query for "safe.example.com"
-    Then dblock forwards the query and returns the upstream answer
+    Then skoed forwards the query and returns the upstream answer
     When a client sends an A query for "sub.safe.example.com"
-    Then dblock forwards the query and returns the upstream answer
+    Then skoed forwards the query and returns the upstream answer
     When a client sends an A query for "deep.sub.safe.example.com"
-    Then dblock forwards the query and returns the upstream answer
+    Then skoed forwards the query and returns the upstream answer
 
   @fsid:FS-AllowlistDoesNotAffectUnblockedDomains
   Scenario: Allowlist entry for a non-blocked domain has no visible effect
     Given "safe.example.com" is in the global allowlist
     And "safe.example.com" is not on any active blocklist
     When a client sends an A query for "safe.example.com"
-    Then dblock forwards the query and returns the upstream answer
+    Then skoed forwards the query and returns the upstream answer

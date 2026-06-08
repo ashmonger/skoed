@@ -66,11 +66,11 @@ func TestMetricsEndpointAvailable(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	s := string(body)
-	if !strings.Contains(s, "# HELP dblock_build_info") {
-		t.Errorf("body missing `# HELP dblock_build_info`:\n%s", s)
+	if !strings.Contains(s, "# HELP skoed_build_info") {
+		t.Errorf("body missing `# HELP skoed_build_info`:\n%s", s)
 	}
-	if !strings.Contains(s, "# TYPE dblock_build_info gauge") {
-		t.Errorf("body missing `# TYPE dblock_build_info gauge`:\n%s", s)
+	if !strings.Contains(s, "# TYPE skoed_build_info gauge") {
+		t.Errorf("body missing `# TYPE skoed_build_info gauge`:\n%s", s)
 	}
 }
 
@@ -78,11 +78,11 @@ func TestMetricsEndpointAvailable(t *testing.T) {
 func TestMetricsBuildInfo(t *testing.T) {
 	n := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, n)
-	// Match: dblock_build_info{commit="...",go="...",version="..."} 1
+	// Match: skoed_build_info{commit="...",go="...",version="..."} 1
 	// Label order is alphabetic per Prometheus exposition format.
-	re := regexp.MustCompile(`dblock_build_info\{[^}]*commit="[^"]*"[^}]*go="[^"]*"[^}]*version="[^"]*"[^}]*\}\s+1`)
+	re := regexp.MustCompile(`skoed_build_info\{[^}]*commit="[^"]*"[^}]*go="[^"]*"[^}]*version="[^"]*"[^}]*\}\s+1`)
 	if !re.MatchString(body) {
-		t.Errorf("dblock_build_info{...} 1 with labels {commit,go,version} not found:\n%s", body)
+		t.Errorf("skoed_build_info{...} 1 with labels {commit,go,version} not found:\n%s", body)
 	}
 }
 
@@ -98,13 +98,13 @@ func TestMetricsDnsQueryCounter(t *testing.T) {
 		dnsQuery(t, n.DNSAddr, "metrics-test.example.", dns.TypeA)
 	}
 	body := fetchMetrics(t, n)
-	if !strings.Contains(body, "dblock_dns_queries_total") {
-		t.Skipf("M5.1 impl pending: dblock_dns_queries_total absent")
+	if !strings.Contains(body, "skoed_dns_queries_total") {
+		t.Skipf("M5.1 impl pending: skoed_dns_queries_total absent")
 	}
 	// Find at least one series line with outcome="forwarded" and a positive value.
-	got := sumSeriesByLabel(t, body, "dblock_dns_queries_total", "outcome", "forwarded")
+	got := sumSeriesByLabel(t, body, "skoed_dns_queries_total", "outcome", "forwarded")
 	if got < 1 {
-		t.Errorf("dblock_dns_queries_total{outcome=\"forwarded\"} want >= 1, got %g", got)
+		t.Errorf("skoed_dns_queries_total{outcome=\"forwarded\"} want >= 1, got %g", got)
 	}
 }
 
@@ -114,13 +114,13 @@ func TestMetricsDnsQueryHistogram(t *testing.T) {
 	n := startNode(t, NodeConfig{UpstreamResolvers: []string{upstream}})
 	dnsQuery(t, n.DNSAddr, "histogram-test.example.", dns.TypeA)
 	body := fetchMetrics(t, n)
-	if !strings.Contains(body, "dblock_dns_query_duration_seconds") {
+	if !strings.Contains(body, "skoed_dns_query_duration_seconds") {
 		t.Skipf("M5.1 impl pending: histogram absent")
 	}
 	for _, want := range []string{
-		"dblock_dns_query_duration_seconds_bucket",
-		"dblock_dns_query_duration_seconds_count",
-		"dblock_dns_query_duration_seconds_sum",
+		"skoed_dns_query_duration_seconds_bucket",
+		"skoed_dns_query_duration_seconds_count",
+		"skoed_dns_query_duration_seconds_sum",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("histogram series %q missing", want)
@@ -132,23 +132,23 @@ func TestMetricsDnsQueryHistogram(t *testing.T) {
 func TestMetricsCacheGauges(t *testing.T) {
 	n := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, n)
-	if !strings.Contains(body, "dblock_dns_cache_max_entries") {
+	if !strings.Contains(body, "skoed_dns_cache_max_entries") {
 		t.Skipf("M5.1 impl pending: cache gauges absent")
 	}
 	for _, want := range []string{
-		"dblock_dns_cache_size",
-		"dblock_dns_cache_max_entries",
-		"dblock_dns_cache_hits_total",
-		"dblock_dns_cache_misses_total",
-		"dblock_dns_cache_evictions_total",
+		"skoed_dns_cache_size",
+		"skoed_dns_cache_max_entries",
+		"skoed_dns_cache_hits_total",
+		"skoed_dns_cache_misses_total",
+		"skoed_dns_cache_evictions_total",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cache series %q missing", want)
 		}
 	}
 	// max_entries should be > 0 (harness sets it to 1000).
-	if v := scalarSeriesValue(t, body, "dblock_dns_cache_max_entries"); v <= 0 {
-		t.Errorf("dblock_dns_cache_max_entries: want > 0, got %g", v)
+	if v := scalarSeriesValue(t, body, "skoed_dns_cache_max_entries"); v <= 0 {
+		t.Errorf("skoed_dns_cache_max_entries: want > 0, got %g", v)
 	}
 }
 
@@ -157,41 +157,41 @@ func TestMetricsClusterGauges(t *testing.T) {
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	body := fetchMetrics(t, n)
-	if !strings.Contains(body, "dblock_cluster_node_role") {
+	if !strings.Contains(body, "skoed_cluster_node_role") {
 		t.Skipf("M5.1 impl pending: cluster gauges absent")
 	}
 	// Single-node bootstrap should report leader=1, follower=0.
-	leader := sumSeriesByLabel(t, body, "dblock_cluster_node_role", "role", "leader")
-	follower := sumSeriesByLabel(t, body, "dblock_cluster_node_role", "role", "follower")
+	leader := sumSeriesByLabel(t, body, "skoed_cluster_node_role", "role", "leader")
+	follower := sumSeriesByLabel(t, body, "skoed_cluster_node_role", "role", "follower")
 	if leader != 1 {
-		t.Errorf("dblock_cluster_node_role{role=\"leader\"}: want 1, got %g", leader)
+		t.Errorf("skoed_cluster_node_role{role=\"leader\"}: want 1, got %g", leader)
 	}
 	if follower != 0 {
-		t.Errorf("dblock_cluster_node_role{role=\"follower\"}: want 0, got %g", follower)
+		t.Errorf("skoed_cluster_node_role{role=\"follower\"}: want 0, got %g", follower)
 	}
 	for _, want := range []string{
-		"dblock_cluster_raft_term",
-		"dblock_cluster_commit_index",
-		"dblock_cluster_members",
-		"dblock_cluster_reachable_members",
+		"skoed_cluster_raft_term",
+		"skoed_cluster_commit_index",
+		"skoed_cluster_members",
+		"skoed_cluster_reachable_members",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cluster series %q missing", want)
 		}
 	}
-	if members := scalarSeriesValue(t, body, "dblock_cluster_members"); members != 1 {
-		t.Errorf("dblock_cluster_members: want 1 (single-node), got %g", members)
+	if members := scalarSeriesValue(t, body, "skoed_cluster_members"); members != 1 {
+		t.Errorf("skoed_cluster_members: want 1 (single-node), got %g", members)
 	}
 }
 
 // FS-MetricsDhcpGaugesWhenEnabled — when DHCP integration is configured,
-// /metrics MUST expose dblock_dhcp_* series. When DHCP is not configured,
+// /metrics MUST expose skoed_dhcp_* series. When DHCP is not configured,
 // the series MUST be absent (no zero-valued ghost series).
 func TestMetricsDhcpGaugesWhenEnabled(t *testing.T) {
 	// Without DHCP enabled, the DHCP gauges should be absent.
 	plain := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, plain)
-	if strings.Contains(body, "dblock_dhcp_") {
+	if strings.Contains(body, "skoed_dhcp_") {
 		t.Errorf("DHCP series leaked when DHCP integration is disabled")
 	}
 	// The "with DHCP enabled" branch needs the cluster harness's

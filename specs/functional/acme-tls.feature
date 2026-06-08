@@ -1,10 +1,10 @@
 Feature: ACME / Let's Encrypt TLS certificates for DoH and DoT
-  As an operator running dblock on a publicly-reachable host
-  I want dblock to obtain and renew its TLS certificate automatically via ACME
+  As an operator running skoed on a publicly-reachable host
+  I want skoed to obtain and renew its TLS certificate automatically via ACME
   So that DoH and DoT clients trust the cert without operator-supplied PEMs
 
   Background:
-    Given dblock supports DoH and DoT via the M4 EncryptedServer
+    Given skoed supports DoH and DoT via the M4 EncryptedServer
     And the operator has a public DNS name pointing at the node's address
 
   @fsid:FS-AcmeEnabledFromConfig

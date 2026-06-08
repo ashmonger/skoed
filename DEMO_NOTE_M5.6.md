@@ -13,17 +13,17 @@ asset matrix to verify against.
 ### Implemented
 
 - **`internal/upgrade/checker.go`** — single goroutine per node polls
-  `DBLOCK_UPGRADE_FEED_URL` on `poll_interval` (6 h prod, 500 ms in
-  `DBLOCK_TEST_MODE`). Cached snapshot served from memory by the API.
+  `SKOED_UPGRADE_FEED_URL` on `poll_interval` (6 h prod, 500 ms in
+  `SKOED_TEST_MODE`). Cached snapshot served from memory by the API.
 - **Feed format** (JSON):
   ```json
   { "version": "0.5.1",
     "published_at": "2026-07-01T09:00:00Z",
-    "release_notes_url": "https://github.com/dblock/dblock/releases/tag/v0.5.1" }
+    "release_notes_url": "https://github.com/skoed/skoed/releases/tag/v0.5.1" }
   ```
 - **Relaxed-semver compare** (`splitVersion`, no `golang.org/x/mod`
   dependency): pre-release suffixes stripped, integer-tuple compare.
-  Good enough for dblock's X.Y.Z release cadence.
+  Good enough for skoed's X.Y.Z release cadence.
 - **API**:
   - `GET /api/v1/upgrade/check` → `{current_version, available_version,
     upgrade_available, release_notes_url, published_at, checked_at}`.
@@ -79,14 +79,14 @@ mkdir -p /tmp/feed && cat > /tmp/feed/feed.json <<'EOF'
 {
   "version": "0.9.0",
   "published_at": "2026-07-01T09:00:00Z",
-  "release_notes_url": "https://github.com/dblock/dblock/releases/tag/v0.9.0"
+  "release_notes_url": "https://github.com/skoed/skoed/releases/tag/v0.9.0"
 }
 EOF
 (cd /tmp/feed && python3 -m http.server 8801) &
 
-# Boot dblock pointed at it.
-DBLOCK_UPGRADE_FEED_URL=http://127.0.0.1:8801/feed.json \
-  ./dblock --config /tmp/m5.6/config.yaml &
+# Boot skoed pointed at it.
+SKOED_UPGRADE_FEED_URL=http://127.0.0.1:8801/feed.json \
+  ./skoed --config /tmp/m5.6/config.yaml &
 curl -fsS -X POST http://127.0.0.1:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
   -d '{"username":"admin","password":"demopass123"}'
@@ -97,7 +97,7 @@ curl -fsS -u admin:demopass123 http://127.0.0.1:8080/api/v1/upgrade/check | jq
 #   "current_version":   "dev",
 #   "available_version": "0.9.0",
 #   "upgrade_available": true,
-#   "release_notes_url": "https://github.com/dblock/dblock/releases/tag/v0.9.0",
+#   "release_notes_url": "https://github.com/skoed/skoed/releases/tag/v0.9.0",
 #   "published_at":      "2026-07-01T09:00:00Z",
 #   "checked_at":        "2026-06-08T11:47:09Z"
 # }

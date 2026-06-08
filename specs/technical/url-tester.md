@@ -16,24 +16,24 @@ x-fsid-links:
 
 The CLI subcommand and the public HTTP endpoint share the same fetch +
 parse path (`internal/filter.Download`). Format detection, parser
-selection (`hosts`/`adblock`/`domainlist`), and the 30 s fetch timeout
+selection (`hosts`/`askoed`/`domainlist`), and the 30 s fetch timeout
 are identical — operators see the same answer either way.
 
 | Surface             | Trust          | Auth | SSRF risk        | Rate limit          |
 |---------------------|----------------|------|------------------|---------------------|
-| `dblock blocklist test` (CLI) | operator's process | none | none (their network) | none |
+| `skoed blocklist test` (CLI) | operator's process | none | none (their network) | none |
 | `POST /api/v1/_public/test-blocklist` (HTTP) | unauthenticated visitor | none | resolved-IP guard | per-source-IP token bucket |
 
 ## CLI (M5.9.1 — already shipped)
 
-Implemented at `apps/dblock/internal/cli/cmd_blocklist.go`. The
+Implemented at `apps/skoed/internal/cli/cmd_blocklist.go`. The
 M5.9.5 work only verifies it still passes its FSID and references
 the existing implementation. No code change there.
 
 Invocation:
 
 ```
-$ dblock blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
+$ skoed blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
 ✓ https://github.com/.../hosts
   format    auto (auto-detected)
   domains   162,481
@@ -52,7 +52,7 @@ Request:
 ```json
 {
   "url": "https://example.com/hosts.txt",
-  "format": "hosts" | "domainlist" | "adblock" | "auto"
+  "format": "hosts" | "domainlist" | "askoed" | "auto"
 }
 ```
 
@@ -135,7 +135,7 @@ Other admin paths are unaffected — `/api/v1/health` stays open,
 
 ```
 ┌── header ──────────────────────────────────────┐
-│  [logo] dblock                       [Login]   │
+│  [logo] skoed                       [Login]   │
 ├── hero ────────────────────────────────────────┤
 │  Sanity-check any blocklist before install     │
 │  [URL input          ] [format ▼] [Test]       │
@@ -160,13 +160,13 @@ marketing page after login.
 ## Layout
 
 ```
-apps/dblock/internal/api/
+apps/skoed/internal/api/
   handlers/
     public.go          (NEW — POST /api/v1/_public/test-blocklist)
   app.go               (wires the endpoint + SPA landing gate)
-apps/dblock/internal/cluster/
+apps/skoed/internal/cluster/
   node.go              (NodeYAML APISection.PublicLanding *bool)
-apps/dblock/cmd/dblock/
+apps/skoed/cmd/skoed/
   main.go              (SetPublicLandingEnabled call)
 web/src/
   views/Landing.vue    (NEW — public landing UI)

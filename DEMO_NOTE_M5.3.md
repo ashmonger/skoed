@@ -87,7 +87,7 @@ node:
   id: node-1   # node-2 / node-3 for the others
   raft_address: 192.168.1.10:7000
   api_address:  192.168.1.10:8080
-  data_dir: /var/lib/dblock
+  data_dir: /var/lib/skoed
   cluster:
     mtls:
       enabled: true
@@ -98,8 +98,8 @@ bootstrap:
   token:          <token-issued-by-node-1>
 
 # Inspect the generated CA.
-openssl x509 -in /var/lib/dblock/tls/cluster/ca.crt -noout -subject -dates
-# subject=O = dblock, CN = dblock cluster CA
+openssl x509 -in /var/lib/skoed/tls/cluster/ca.crt -noout -subject -dates
+# subject=O = skoed, CN = skoed cluster CA
 # notBefore=...     notAfter=10 years out
 
 # Tcpdump confirms Raft traffic is TLS (port 7000).

@@ -24,7 +24,7 @@ x-fsid-links:
 
 ## Overview
 
-The DNS engine is the core component of dblock. It listens on UDP and TCP port 53 on both IPv4 and IPv6 interfaces, processes incoming queries through the filtering engine, and resolves non-blocked queries via upstream forwarding or recursive root resolution.
+The DNS engine is the core component of skoed. It listens on UDP and TCP port 53 on both IPv4 and IPv6 interfaces, processes incoming queries through the filtering engine, and resolves non-blocked queries via upstream forwarding or recursive root resolution.
 
 Library: `github.com/miekg/dns`
 
@@ -91,7 +91,7 @@ Both listeners start on node startup. Either can be disabled via configuration i
 - Default timeout per upstream attempt: 3 seconds (configurable).
 - If all upstreams fail: return SERVFAIL to client.
 - Supported upstream formats: `9.9.9.9:53`, `9.9.9.9` (port 53 implied), `tls://9.9.9.9:853` (DoT, M4), `https://dns.quad9.net/dns-query` (DoH, M4).
-- Default resolvers shipped with dblock: Quad9 primary (`9.9.9.9`) and secondary (`149.112.112.112`). Google DNS (`8.8.8.8`) is intentionally excluded from defaults.
+- Default resolvers shipped with skoed: Quad9 primary (`9.9.9.9`) and secondary (`149.112.112.112`). Google DNS (`8.8.8.8`) is intentionally excluded from defaults.
 - Other supported privacy-respecting resolvers (user-configurable): Mullvad (`194.242.2.2`, `194.242.2.3`), AdGuard DNS (`94.140.14.14`, `94.140.15.15`), Cloudflare (`1.1.1.1`, `1.0.0.1`, `1.1.1.2` for malware blocking).
 
 ---
@@ -110,8 +110,8 @@ Both listeners start on node startup. Either can be disabled via configuration i
 
 - If the incoming query has the DO (DNSSEC OK) bit set in the OPT record, the DO bit is forwarded to the upstream resolver unchanged.
 - DNSSEC records (RRSIG, DNSKEY, DS, NSEC, NSEC3) in upstream responses are passed through to the client unchanged.
-- dblock does not set the AD (Authenticated Data) bit.
-- dblock does not validate signatures or manage trust anchors.
+- skoed does not set the AD (Authenticated Data) bit.
+- skoed does not validate signatures or manage trust anchors.
 - DNSSEC records are never returned for locally resolved entries (local DNS, block responses).
 
 ---
@@ -154,7 +154,7 @@ Matching is applied to both blocklist lookups and allowlist lookups.
 | Upstream timeout (all upstreams) | SERVFAIL |
 | Root resolution failure (NXDOMAIN from authoritative) | NXDOMAIN |
 | Root resolution — client not in trusted subnet | REFUSED |
-| Query type not supported by dblock's local handling | Forward upstream |
+| Query type not supported by skoed's local handling | Forward upstream |
 
 ---
 

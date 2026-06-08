@@ -1,5 +1,5 @@
 Feature: Encrypted Cluster Mesh
-  As an operator deploying dblock across two or more hosts
+  As an operator deploying skoed across two or more hosts
   I want every inter-node connection (Raft + cluster-internal API)
   encrypted and mutually authenticated
   So replicated state (blocklists, password hashes, query-log aggregates)

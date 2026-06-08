@@ -33,7 +33,7 @@ type Category struct {
     Name        string
     Description string
     DefaultURL  string
-    Format      string // hosts | domainlist | adblock
+    Format      string // hosts | domainlist | askoed
 }
 
 var Catalog = map[string]Category{
@@ -139,7 +139,7 @@ The Stats view gains a "DoH attempts today" panel:
 - Per-client table: client IP / probe count / last seen / suggested
   action (the Stats view links to `/query-log?client=<ip>&category=doh-probe`).
 - A small one-line note: "These clients tried to use a public DoH/DoT
-  resolver. dblock blocked the hostname lookup; harden by also blocking
+  resolver. skoed blocked the hostname lookup; harden by also blocking
   the resolver IPs at your firewall (see M3.5)."
 
 ## Cluster-wide replication

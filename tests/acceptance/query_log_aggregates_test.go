@@ -22,12 +22,12 @@ import (
 //
 // Aggregates normally flush either on the hour boundary OR after 60s — both
 // too long for a tight test. Per specs/technical/cluster-store.md, setting
-// DBLOCK_TEST_MODE=1 + DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS=1 reduces the flush
+// SKOED_TEST_MODE=1 + SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1 reduces the flush
 // interval to 1 second so a short sleep is enough to observe per-node rows.
 func TestQueryLogAggregatesPerNodePerHour(t *testing.T) {
 	c := startClusterWithEnv(t, 2, []string{
-		"DBLOCK_TEST_MODE=1",
-		"DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS=1",
+		"SKOED_TEST_MODE=1",
+		"SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1",
 	})
 	c.MustCreateBlocklist(t, c.Leader(t), "ads", "tracker.example.com")
 
@@ -52,8 +52,8 @@ func TestQueryLogAggregatesPerNodePerHour(t *testing.T) {
 // FS-QueryLogAggregatesClusterStats
 func TestQueryLogAggregatesClusterStats(t *testing.T) {
 	c := startClusterWithEnv(t, 3, []string{
-		"DBLOCK_TEST_MODE=1",
-		"DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS=1",
+		"SKOED_TEST_MODE=1",
+		"SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1",
 	})
 	c.MustCreateBlocklist(t, c.Leader(t), "ads", "tracker.example.com")
 
