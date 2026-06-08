@@ -85,6 +85,11 @@ type M2NodeConfig struct {
 	TLSKeyFile  string
 	// M3.6 DHCP: when set, written under node.dhcp.* in config.yaml.
 	DHCP *DhcpOpts
+	// M4.6 management-API TLS: when set, written under node.api.tls.*.
+	APITLSEnabled  bool
+	APITLSMode     string // "single_port" | "dual_port"
+	APITLSHTTPSPort int   // when mode == dual_port
+	APITLSHSTS     bool
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
 	// cluster); for joining nodes it carries the leader's API address and the
 	// single-use join token issued by the leader.
@@ -391,6 +396,15 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		Password       string `yaml:"password,omitempty"`
 		RefreshSeconds int    `yaml:"refresh_seconds,omitempty"`
 	}
+	type apiTLSSection struct {
+		Enabled      bool   `yaml:"enabled"`
+		Mode         string `yaml:"mode,omitempty"`
+		HTTPSAddress string `yaml:"https_address,omitempty"`
+		HSTS         bool   `yaml:"hsts,omitempty"`
+	}
+	type apiSection struct {
+		TLS *apiTLSSection `yaml:"tls,omitempty"`
+	}
 	type tlsSection struct {
 		CertFile string       `yaml:"cert_file,omitempty"`
 		KeyFile  string       `yaml:"key_file,omitempty"`
@@ -407,6 +421,7 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		DNS         dnsSection   `yaml:"dns"`
 		DataDir     string       `yaml:"data_dir"`
 		DHCP        *dhcpSection `yaml:"dhcp,omitempty"`
+		API         *apiSection  `yaml:"api,omitempty"`
 	}
 	type bootstrapSection struct {
 		LeaderAddress string `yaml:"leader_address,omitempty"`
@@ -448,6 +463,20 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 				}(),
 			},
 			DataDir: dir,
+			API: func() *apiSection {
+				if !cfg.APITLSEnabled {
+					return nil
+				}
+				ts := &apiTLSSection{
+					Enabled: true,
+					Mode:    cfg.APITLSMode,
+					HSTS:    cfg.APITLSHSTS,
+				}
+				if cfg.APITLSHTTPSPort > 0 {
+					ts.HTTPSAddress = fmt.Sprintf("127.0.0.1:%d", cfg.APITLSHTTPSPort)
+				}
+				return &apiSection{TLS: ts}
+			}(),
 			DHCP: func() *dhcpSection {
 				if cfg.DHCP == nil {
 					return nil
