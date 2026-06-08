@@ -49,6 +49,9 @@ type Cluster struct {
 	// freshly-allocated DoH + DoT ports written into its config.yaml. M4 tests
 	// flip this via startClusterEncrypted.
 	encryptedDNS bool
+	// mtls opt-in: when true, every node spawned in this cluster gets
+	// node.cluster.mtls.enabled=true. M5.3 tests flip this via startClusterMTLS.
+	mtls bool
 }
 
 // ClusterNode wraps a Node with the bookkeeping needed to kill and restart it.
@@ -90,6 +93,8 @@ type M2NodeConfig struct {
 	APITLSMode     string // "single_port" | "dual_port"
 	APITLSHTTPSPort int   // when mode == dual_port
 	APITLSHSTS     bool
+	// M5.3 cluster mTLS: when true, written under node.cluster.mtls.enabled.
+	ClusterMTLSEnabled bool
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
 	// cluster); for joining nodes it carries the leader's API address and the
 	// single-use join token issued by the leader.
@@ -115,6 +120,31 @@ func startCluster(t *testing.T, initialNodes int) *Cluster {
 // plain UDP/TCP DNS.
 func startClusterEncrypted(t *testing.T, initialNodes int) *Cluster {
 	c := startClusterWithEnvEncrypted(t, initialNodes, nil, true)
+	return c
+}
+
+// startClusterMTLS is startCluster + every node boots with
+// node.cluster.mtls.enabled=true. Cluster CA is generated on node-1;
+// joining nodes receive the CA + a freshly-signed leaf in their join
+// response. M5.3 tests use this.
+func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
+	t.Helper()
+	if initialNodes < 1 {
+		t.Fatalf("startClusterMTLS: need at least 1 node, got %d", initialNodes)
+	}
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin, mtls: true}
+	c.bootstrapFirst(t)
+	setupAuth(t, c.nodes[0].Node)
+	for i := 1; i < initialNodes; i++ {
+		c.AddNode(t)
+	}
+	if initialNodes > 1 {
+		c.WaitConverged(t)
+	}
 	return c
 }
 
@@ -221,6 +251,9 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 		cfg.DoHPort = freeTCPPort(t)
 		cfg.DoTPort = freeTCPPort(t)
 	}
+	if c.mtls {
+		cfg.ClusterMTLSEnabled = true
+	}
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
@@ -235,14 +268,18 @@ func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 	token := c.mustCreateToken(t, leader)
 
 	nodeID := fmt.Sprintf("node-%d", len(c.nodes)+1)
-	cn := c.spawnNode(t, M2NodeConfig{
+	cfg := M2NodeConfig{
 		NodeID:              nodeID,
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
 		RaftPort:            freeTCPPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
-	})
+	}
+	if c.mtls {
+		cfg.ClusterMTLSEnabled = true
+	}
+	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
 	c.WaitConverged(t)
@@ -405,6 +442,12 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	type apiSection struct {
 		TLS *apiTLSSection `yaml:"tls,omitempty"`
 	}
+	type clusterMTLSSection struct {
+		Enabled bool `yaml:"enabled"`
+	}
+	type clusterSection struct {
+		MTLS *clusterMTLSSection `yaml:"mtls,omitempty"`
+	}
 	type tlsSection struct {
 		CertFile string       `yaml:"cert_file,omitempty"`
 		KeyFile  string       `yaml:"key_file,omitempty"`
@@ -415,13 +458,14 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 		TLS    *tlsSection   `yaml:"tls,omitempty"`
 	}
 	type nodeSection struct {
-		ID          string       `yaml:"id"`
-		RaftAddress string       `yaml:"raft_address"`
-		APIAddress  string       `yaml:"api_address"`
-		DNS         dnsSection   `yaml:"dns"`
-		DataDir     string       `yaml:"data_dir"`
-		DHCP        *dhcpSection `yaml:"dhcp,omitempty"`
-		API         *apiSection  `yaml:"api,omitempty"`
+		ID          string          `yaml:"id"`
+		RaftAddress string          `yaml:"raft_address"`
+		APIAddress  string          `yaml:"api_address"`
+		DNS         dnsSection      `yaml:"dns"`
+		DataDir     string          `yaml:"data_dir"`
+		DHCP        *dhcpSection    `yaml:"dhcp,omitempty"`
+		API         *apiSection     `yaml:"api,omitempty"`
+		Cluster     *clusterSection `yaml:"cluster,omitempty"`
 	}
 	type bootstrapSection struct {
 		LeaderAddress string `yaml:"leader_address,omitempty"`
@@ -490,6 +534,12 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 					Password:       cfg.DHCP.Password,
 					RefreshSeconds: cfg.DHCP.RefreshSeconds,
 				}
+			}(),
+			Cluster: func() *clusterSection {
+				if !cfg.ClusterMTLSEnabled {
+					return nil
+				}
+				return &clusterSection{MTLS: &clusterMTLSSection{Enabled: true}}
 			}(),
 		},
 		Bootstrap: bootstrapSection{

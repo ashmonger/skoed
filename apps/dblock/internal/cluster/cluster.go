@@ -2,10 +2,12 @@ package cluster
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -35,6 +37,32 @@ type Cluster struct {
 	// applyCounter increments after every committed FSM apply. Tests and the
 	// shadow YAML writer use it to detect "something changed".
 	applyCounter atomic.Uint64
+
+	// M5.3 — mTLS material, only populated when MTLSEnabled.
+	mtlsEnabled  bool
+	mtlsCA       []byte
+	mtlsLeafCert []byte
+	mtlsLeafKey  []byte
+}
+
+// MTLSEnabled reports whether this cluster runs with the M5.3 encrypted
+// mesh on. Used by internal forwarders to pick HTTPS+client-cert dials.
+func (c *Cluster) MTLSEnabled() bool { return c.mtlsEnabled }
+
+// MTLSConfig returns a *tls.Config suitable for both serving and
+// dialling cluster-internal HTTPS endpoints. Nil when mTLS is off.
+func (c *Cluster) MTLSConfig() *tls.Config {
+	if !c.mtlsEnabled {
+		return nil
+	}
+	cfg, _ := BuildClusterTLSConfig(c.mtlsCA, c.mtlsLeafCert, c.mtlsLeafKey)
+	return cfg
+}
+
+// MTLSBundle exposes the raw CA + leaf PEMs. The join handler uses this
+// to ship a freshly-signed leaf to a joining node.
+func (c *Cluster) MTLSBundle() (caCert, leafCert, leafKey []byte) {
+	return c.mtlsCA, c.mtlsLeafCert, c.mtlsLeafKey
 }
 
 // raftLoggerFn allows the test harness to suppress raft chatter.
@@ -49,6 +77,10 @@ type Options struct {
 	// SuppressRaftLog hides hashicorp/raft's verbose stderr output. Useful in
 	// tests; production should leave it enabled.
 	SuppressRaftLog bool
+	// MTLSEnabled flips on the M5.3 encrypted cluster mesh — Raft transport
+	// and internal-API peer dials use mTLS verified against a shared cluster
+	// CA. Cluster-wide flip; mixed-mode topologies are not supported.
+	MTLSEnabled bool
 }
 
 // New opens the bbolt store, starts the Raft node, and returns a ready
@@ -77,13 +109,59 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		logWriter = nil
 	}
 
+	// M5.3 — build the TLS StreamLayer when mTLS is on. The bootstrap
+	// node generates the CA (cert+key); joining nodes received the CA
+	// cert + their own leaf via /api/v1/cluster/mtls-bootstrap BEFORE
+	// reaching here, so they only LOAD from disk (no CA private key on
+	// the follower, by design).
+	var streamLayer *TLSStreamLayer
+	if opts.MTLSEnabled {
+		var caCertPEM, caKeyPEM []byte
+		var err error
+		if wantBootstrap {
+			caCertPEM, caKeyPEM, err = GenerateClusterCA(node.Node.DataDir)
+		} else {
+			caCertPEM, caKeyPEM, err = LoadClusterCA(node.Node.DataDir)
+		}
+		if err != nil {
+			store.Close()
+			return nil, fmt.Errorf("cluster CA: %w", err)
+		}
+		leafCertPEM, leafKeyPEM, err := EnsureNodeLeaf(node.Node.DataDir, node.Node.ID, caCertPEM, caKeyPEM)
+		if err != nil {
+			store.Close()
+			return nil, fmt.Errorf("node leaf: %w", err)
+		}
+		tlsCfg, err := BuildClusterTLSConfig(caCertPEM, leafCertPEM, leafKeyPEM)
+		if err != nil {
+			store.Close()
+			return nil, fmt.Errorf("tls config: %w", err)
+		}
+		// Resolve advertise address so peers reach us by the right host:port.
+		advAddr, err := net.ResolveTCPAddr("tcp", node.Node.RaftAddress)
+		if err != nil {
+			store.Close()
+			return nil, fmt.Errorf("resolve raft advertise: %w", err)
+		}
+		streamLayer, err = NewTLSStreamLayer(node.Node.RaftAddress, advAddr, tlsCfg)
+		if err != nil {
+			store.Close()
+			return nil, fmt.Errorf("tls stream layer: %w", err)
+		}
+		c.mtlsCA = caCertPEM
+		c.mtlsLeafCert = leafCertPEM
+		c.mtlsLeafKey = leafKeyPEM
+		c.mtlsEnabled = true
+	}
+
 	rn, err := newRaftNode(raftOptions{
-		NodeID:        node.Node.ID,
-		BindAddr:      node.Node.RaftAddress,
-		AdvertiseAddr: node.Node.RaftAddress,
-		DataDir:       node.Node.DataDir,
-		Bootstrap:     wantBootstrap,
-		Logger:        logWriter,
+		NodeID:         node.Node.ID,
+		BindAddr:       node.Node.RaftAddress,
+		AdvertiseAddr:  node.Node.RaftAddress,
+		DataDir:        node.Node.DataDir,
+		Bootstrap:      wantBootstrap,
+		Logger:         logWriter,
+		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
 		store.Close()
@@ -568,6 +646,46 @@ type JoinResult struct {
 	CommitIndexAtJoin uint64
 }
 
+// MintLeafForJoin validates a join token (without consuming it) and
+// returns a freshly-signed leaf cert + the cluster CA. Used by joining
+// nodes in mTLS mode BEFORE they bring up their own Raft, so they can
+// then handshake with the cluster mesh. The full join (which consumes
+// the token and runs AddVoter) happens via EnrollNode afterwards.
+//
+// Returns ErrNotLeader when called on a follower, JoinError when the
+// token is invalid/expired/already-consumed, or a generic error.
+func (c *Cluster) MintLeafForJoin(token, nodeID string) (caCert, leafCert, leafKey []byte, err error) {
+	if err := c.requireLeader(); err != nil {
+		return nil, nil, nil, err
+	}
+	if !c.mtlsEnabled {
+		return nil, nil, nil, fmt.Errorf("cluster is not running mTLS")
+	}
+	hash := HashToken(token)
+	ti, terr := c.store.Token(hash)
+	if terr != nil {
+		return nil, nil, nil, terr
+	}
+	if ti == nil {
+		return nil, nil, nil, &JoinError{Reason: "invalid token"}
+	}
+	if ti.ConsumedUnix != 0 {
+		return nil, nil, nil, &JoinError{Reason: "token already consumed"}
+	}
+	if time.Now().Unix() > ti.ExpiresUnix {
+		return nil, nil, nil, &JoinError{Reason: "token expired"}
+	}
+	caKeyPEM, rerr := os.ReadFile(MtlsPaths(c.node.Node.DataDir).CAKeyFile)
+	if rerr != nil {
+		return nil, nil, nil, fmt.Errorf("read CA key: %w", rerr)
+	}
+	cert, key, ierr := IssueLeafCert(c.mtlsCA, caKeyPEM, nodeID, nil)
+	if ierr != nil {
+		return nil, nil, nil, fmt.Errorf("mint leaf for %s: %w", nodeID, ierr)
+	}
+	return c.mtlsCA, cert, key, nil
+}
+
 // EnrollNode is called on the leader by a joining node's HTTP request.
 // Validates the token, consumes it via Raft, then issues AddVoter. Returns
 // when the new node has caught up (or after timeout). On token failure
@@ -615,6 +733,10 @@ func (c *Cluster) EnrollNode(token, nodeID, raftAddress, apiAddress string) (*Jo
 		return nil, err
 	}
 
+	// M5.3 — when mTLS is on, the joining node has already received its
+	// leaf via MintLeafForJoin (separate pre-Raft endpoint). The /join
+	// call only consumes the token + runs AddVoter; the leaf is NOT
+	// re-issued here.
 	return &JoinResult{
 		ClusterID:         "",
 		CommitIndexAtJoin: c.raft.CommitIndex(),

@@ -254,6 +254,12 @@ func (a *App) Router() http.Handler {
 	// handles that transparently.
 	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
 
+	// M5.3 — pre-Raft mTLS bootstrap. The joining node fetches the cluster
+	// CA + a freshly-signed leaf BEFORE it starts its own Raft transport,
+	// so the subsequent join's AddVoter can reach a TLS-listening peer.
+	// Token is validated but NOT consumed here.
+	r.Post("/api/v1/cluster/mtls-bootstrap", a.forward(h.ClusterMTLSBootstrap))
+
 	// Internal cluster-to-cluster channel for follower → leader aggregate
 	// forwarding. Authenticated by the replicated cluster secret in the
 	// X-Cluster-Secret header — peers do not have admin credentials.

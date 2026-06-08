@@ -52,6 +52,21 @@ type joinResp struct {
 	CommitIndexAtJoin uint64 `json:"commit_index_at_join"`
 }
 
+// mtlsBootstrapReq is the POST body for /api/v1/cluster/mtls-bootstrap.
+type mtlsBootstrapReq struct {
+	Token  string `json:"token"`
+	NodeID string `json:"node_id"`
+}
+
+// mtlsBootstrapResp ships the cluster CA + a freshly-minted leaf cert
+// to the joining node. The token is NOT consumed; the subsequent
+// /api/v1/cluster/join call (after Raft is up) does that.
+type mtlsBootstrapResp struct {
+	CACertPEM   []byte `json:"ca_cert_pem"`
+	LeafCertPEM []byte `json:"leaf_cert_pem"`
+	LeafKeyPEM  []byte `json:"leaf_key_pem"`
+}
+
 type clusterNodeEntry struct {
 	NodeID      string `json:"node_id"`
 	Role        string `json:"role"` // leader | follower | learner | removed
@@ -239,6 +254,49 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, joinResp{
 		ClusterID:         res.ClusterID,
 		CommitIndexAtJoin: res.CommitIndexAtJoin,
+	})
+}
+
+// ClusterMTLSBootstrap handles POST /api/v1/cluster/mtls-bootstrap.
+// In mTLS-enabled clusters, joining nodes call this BEFORE bringing up
+// their own Raft so they can write the cluster CA + leaf cert to disk
+// and start a TLS-wrapped Raft transport. The token is validated but
+// NOT consumed — the subsequent /join call consumes it and runs AddVoter.
+func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
+	c := h.requireCluster(w)
+	if c == nil {
+		return
+	}
+	var req mtlsBootstrapReq
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.Token == "" || req.NodeID == "" {
+		writeError(w, http.StatusBadRequest, "token and node_id are required")
+		return
+	}
+	if !c.IsLeader() {
+		writeLeaderRedirect(w, c, "not the leader")
+		return
+	}
+	ca, leaf, key, err := c.MintLeafForJoin(req.Token, req.NodeID)
+	if err != nil {
+		var je *cluster.JoinError
+		if errors.As(err, &je) {
+			writeError(w, http.StatusForbidden, je.Error())
+			return
+		}
+		if errors.Is(err, cluster.ErrNotLeader) {
+			writeLeaderRedirect(w, c, "not the leader")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, mtlsBootstrapResp{
+		CACertPEM:   ca,
+		LeafCertPEM: leaf,
+		LeafKeyPEM:  key,
 	})
 }
 

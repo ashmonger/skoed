@@ -41,6 +41,8 @@ type raftOptions struct {
 	// peers configured. We create a fresh single-node configuration.
 	Bootstrap bool
 	Logger    io.Writer
+	// M5.3: optional TLS stream layer. Non-nil ⇒ mTLS-wrapped Raft transport.
+	TLSStreamLayer *TLSStreamLayer
 }
 
 func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
@@ -73,9 +75,15 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve advertise %q: %w", advertise, err)
 	}
-	transport, err := raft.NewTCPTransport(opts.BindAddr, advAddr, 3, 10*time.Second, opts.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("raft transport: %w", err)
+	var transport *raft.NetworkTransport
+	if opts.TLSStreamLayer != nil {
+		// M5.3: TLS-wrapped Raft transport.
+		transport = raft.NewNetworkTransport(opts.TLSStreamLayer, 3, 10*time.Second, opts.Logger)
+	} else {
+		transport, err = raft.NewTCPTransport(opts.BindAddr, advAddr, 3, 10*time.Second, opts.Logger)
+		if err != nil {
+			return nil, fmt.Errorf("raft transport: %w", err)
+		}
 	}
 
 	cfg := raft.DefaultConfig()

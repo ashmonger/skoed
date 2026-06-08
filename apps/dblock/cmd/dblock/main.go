@@ -100,19 +100,33 @@ func main() {
 	hasRaft := raftStateExists(node)
 	wantBootstrap := !hasRaft && node.Bootstrap.Token == ""
 	suppressRaft := os.Getenv("DBLOCK_TEST_MODE") == "1"
+	mtlsEnabled := node.Node.Cluster.MTLS.Enabled
+
+	// M5.3 — when joining with mTLS enabled, fetch the cluster CA + a
+	// freshly-signed leaf cert from the leader BEFORE cluster.New so the
+	// TLS-wrapped Raft transport can bind. This does NOT consume the
+	// token — the regular join (below, async) consumes it and runs
+	// AddVoter once our Raft is up and reachable.
+	if !hasRaft && node.Bootstrap.Token != "" && mtlsEnabled {
+		if err := mtlsBootstrapFromLeader(node); err != nil {
+			log.Fatalf("mtls bootstrap: %v", err)
+		}
+	}
 
 	c, err := cluster.New(node, cluster.Options{
 		Bootstrap:       wantBootstrap,
 		SuppressRaftLog: suppressRaft,
+		MTLSEnabled:     mtlsEnabled,
 	})
 	if err != nil {
 		log.Fatalf("start cluster: %v", err)
 	}
 	defer c.Close()
 
-	// Self-enrol path: this is a fresh node with a join token. Kick the join
-	// in a background goroutine so HTTP can come up to answer health probes
-	// while we wait for the leader to AddVoter us.
+	// Self-enrol path: kick the join in a background goroutine so HTTP
+	// comes up to answer health probes while we wait for the leader to
+	// AddVoter us. Runs in mTLS mode too — by the time the leader does
+	// AddVoter, our Raft is already listening on TLS.
 	if !hasRaft && node.Bootstrap.Token != "" {
 		go func() {
 			if err := joinExistingCluster(node); err != nil {
@@ -474,6 +488,75 @@ func countOpenAnomalies(anomalies []dhcp.Anomaly) int {
 		}
 	}
 	return n
+}
+
+// mtlsBootstrapFromLeader POSTs the join token to the leader's pre-Raft
+// mTLS bootstrap endpoint and writes the returned CA + leaf to disk.
+// Runs synchronously BEFORE cluster.New so the TLS-wrapped Raft
+// transport has its keypair on disk at bind time.
+//
+// The leader validates the token but does NOT consume it; the regular
+// /api/v1/cluster/join call (kicked off post-cluster.New) consumes the
+// token and runs AddVoter once our Raft is up.
+func mtlsBootstrapFromLeader(node *cluster.NodeYAML) error {
+	body, err := json.Marshal(map[string]string{
+		"token":   node.Bootstrap.Token,
+		"node_id": node.Node.ID,
+	})
+	if err != nil {
+		return err
+	}
+	url := node.Bootstrap.LeaderAddress + "/api/v1/cluster/mtls-bootstrap"
+	deadline := time.Now().Add(30 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		buf, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			var r struct {
+				CACertPEM   []byte `json:"ca_cert_pem"`
+				LeafCertPEM []byte `json:"leaf_cert_pem"`
+				LeafKeyPEM  []byte `json:"leaf_key_pem"`
+			}
+			if err := json.Unmarshal(buf, &r); err != nil {
+				return fmt.Errorf("decode mtls-bootstrap response: %w", err)
+			}
+			dir := cluster.MtlsDir(node.Node.DataDir)
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				return err
+			}
+			p := cluster.MtlsPaths(node.Node.DataDir)
+			if err := os.WriteFile(p.CACertFile, r.CACertPEM, 0644); err != nil {
+				return err
+			}
+			if err := os.WriteFile(p.NodeCert, r.LeafCertPEM, 0644); err != nil {
+				return err
+			}
+			if err := os.WriteFile(p.NodeKey, r.LeafKeyPEM, 0600); err != nil {
+				return err
+			}
+			log.Printf("mTLS bundle from %s persisted under %s", node.Bootstrap.LeaderAddress, dir)
+			return nil
+		}
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			return fmt.Errorf("mtls-bootstrap rejected (status %d): %s", resp.StatusCode, string(buf))
+		}
+		lastErr = fmt.Errorf("mtls-bootstrap status %d: %s", resp.StatusCode, string(buf))
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("mtls-bootstrap: %w", lastErr)
 }
 
 // mergeNodeLocal overlays the node-local DNS listen settings onto a
