@@ -26,3 +26,4 @@ web/dist/
 # Traceability tool output (regenerated on demand)
 traceability-report.md
 web/tsconfig.tsbuildinfo
+dist/

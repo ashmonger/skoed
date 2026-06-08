@@ -1,0 +1,64 @@
+# nfpm config for the dblock .deb / .rpm.
+#
+# Build with: make deb (root Makefile target). Multi-arch by overriding
+# `arch:` and re-running, or via `nfpm pkg --arch arm64` etc.
+
+name: dblock
+arch: amd64
+platform: linux
+version: ${DBLOCK_VERSION}
+release: 1
+section: net
+priority: optional
+maintainer: dblock maintainers <maintainers@dblock.io>
+description: |
+  Self-hosted DNS filtering with multi-node sync.
+
+  dblock is a drop-in alternative to Pi-hole / AdGuard-Home for
+  households and small offices. It speaks plain DNS, DoH (RFC 8484),
+  DoT (RFC 7858), and forms a Raft-replicated cluster for
+  multi-node HA on commodity hardware.
+
+vendor: dblock
+homepage: https://github.com/dblock/dblock
+license: MIT
+
+depends:
+  - adduser
+
+contents:
+  - src: ./apps/dblock/dblock
+    dst: /usr/bin/dblock
+    file_info:
+      mode: 0755
+
+  - src: ./packaging/dblock.service
+    dst: /lib/systemd/system/dblock.service
+    file_info:
+      mode: 0644
+
+  - src: ./packaging/config.example.yaml
+    dst: /etc/dblock/config.yaml
+    type: config|noreplace
+    file_info:
+      mode: 0644
+
+  - dst: /var/lib/dblock
+    type: dir
+    file_info:
+      mode: 0700
+      owner: dblock
+      group: dblock
+
+  - dst: /var/log/dblock
+    type: dir
+    file_info:
+      mode: 0750
+      owner: dblock
+      group: dblock
+
+scripts:
+  preinstall: ./packaging/scripts/preinst.sh
+  postinstall: ./packaging/scripts/postinst.sh
+  preremove: ./packaging/scripts/prerm.sh
+  postremove: ./packaging/scripts/postrm.sh
