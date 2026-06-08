@@ -329,3 +329,60 @@ export interface TestDomainResponse {
 export function testDomain(req: TestDomainRequest): Promise<TestDomainResponse> {
   return postJSON('/api/v1/test-domain', req)
 }
+
+// ─── M6 — Firewall rule generator (TS-FwRuleGen, consumed by TS-FwRuleUi) ─
+
+export type FwRulePlatform =
+  | 'iptables' | 'nftables' | 'mikrotik' | 'opnsense' | 'unifi'
+
+export const FW_RULE_PLATFORMS: FwRulePlatform[] = [
+  'iptables', 'nftables', 'mikrotik', 'opnsense', 'unifi',
+]
+
+export type FwRuleAction = 'drop' | 'reject'
+
+export type FwRuleScope =
+  | { kind: 'client'; ip: string }       // expands to scope=subnet&subnet=<ip>/32
+  | { kind: 'subnet'; cidr: string }
+  | { kind: 'profile'; profileId: string }
+  | { kind: 'all' }
+
+// getFirewallRules calls the M6 firewall-rule generator endpoint
+// (TS-FwRuleGen). Returns the raw text payload — the UI renders it
+// verbatim in a <pre> block per TS-FwRuleUi.
+export async function getFirewallRules(
+  scope: FwRuleScope,
+  platform: FwRulePlatform,
+  action: FwRuleAction = 'drop',
+): Promise<string> {
+  const params: Record<string, string> = {
+    platform,
+    action,
+  }
+  switch (scope.kind) {
+    case 'client':
+      params.scope = 'subnet'
+      params.subnet = `${scope.ip}/32`
+      break
+    case 'subnet':
+      params.scope = 'subnet'
+      params.subnet = scope.cidr
+      break
+    case 'profile':
+      params.scope = 'profile'
+      params.profile = scope.profileId
+      break
+    case 'all':
+      params.scope = 'all'
+      break
+  }
+  // The endpoint returns text/plain; axios's default `responseType: 'json'`
+  // would yield a string anyway for non-JSON bodies, but make it explicit
+  // so axios doesn't try to JSON.parse the rule blob.
+  const r = await api.get<string>('/api/v1/firewall-rules', {
+    params,
+    responseType: 'text',
+    transformResponse: [(d) => d],
+  })
+  return r.data
+}

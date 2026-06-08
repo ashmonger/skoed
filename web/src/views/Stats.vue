@@ -17,6 +17,52 @@
       </button>
     </div>
 
+    <!-- M6 — "Closing the DoH gap" callout (above the fold).
+         Lets the operator generate firewall rules for any subnet
+         observed on the cluster (or a free-form CIDR) without leaving
+         the Stats page. Delegates to the same generator endpoint as
+         the Clients-row modal — single source of truth. -->
+    <section class="card p-4 space-y-3" data-testid="closing-doh-gap-callout">
+      <header class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-fg-strong flex items-center gap-2">
+            <LockClosedIcon class="h-4 w-4" />
+            <span>Closing the DoH gap</span>
+          </h2>
+          <p class="text-xs text-fg-muted">
+            Generate router/firewall rules that block traffic to known DoH/DoT
+            resolvers, so clients can't tunnel around skoed.
+          </p>
+        </div>
+      </header>
+
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="flex-1 min-w-[14rem]">
+          <label class="label" for="doh-gap-subnet">Subnet</label>
+          <input id="doh-gap-subnet"
+                 v-model="dohGapSubnet"
+                 class="input font-mono text-xs"
+                 :list="dohGapSubnet ? undefined : 'doh-gap-subnet-options'"
+                 spellcheck="false"
+                 autocomplete="off"
+                 placeholder="10.0.0.0/24"
+                 data-testid="doh-gap-subnet-input" />
+          <datalist id="doh-gap-subnet-options">
+            <option v-for="s in candidateSubnets" :key="s.cidr" :value="s.cidr">
+              {{ s.cidr }} ({{ s.count }} client{{ s.count === 1 ? '' : 's' }})
+            </option>
+          </datalist>
+        </div>
+      </div>
+
+      <FirewallRulesModal v-if="dohGapScope"
+                          :scope="dohGapScope"
+                          inline />
+      <p v-else class="text-xs text-fg-muted">
+        Enter a subnet above to preview rules.
+      </p>
+    </section>
+
     <!-- Loading state -->
     <div v-if="!stats && loading" class="card p-8 text-center text-sm text-fg-muted">
       Loading cluster stats…
@@ -178,11 +224,39 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ArrowPathIcon, ArrowRightIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
 import StatTile from '@/components/StatTile.vue'
-import { clusterStats, getClusterQueryLog } from '@/api/endpoints'
-import type { ClusterStats, HourAggregate, QueryLogEntry } from '@/api/types'
+import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
+import { clusterStats, getClusterQueryLog, listLeases } from '@/api/endpoints'
+import type { FwRuleScope } from '@/api/endpoints'
+import type { ClusterStats, HourAggregate, Lease, QueryLogEntry } from '@/api/types'
 
 const stats = ref<ClusterStats | null>(null)
 const loading = ref(false)
+
+// ─── "Closing the DoH gap" callout (M6, FS-FwRuleUiStatsSubnetCallout) ──
+// Default mock-up subnet per TS-FwRuleUi.
+const dohGapSubnet = ref<string>('10.0.0.0/24')
+const dohGapLeases = ref<Lease[]>([])
+const CIDR_RE = /^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/
+const dohGapScope = computed<FwRuleScope | null>(() => {
+  const s = dohGapSubnet.value.trim()
+  if (!CIDR_RE.test(s)) return null
+  return { kind: 'subnet', cidr: s }
+})
+// Picker is pre-populated with subnets observed on the cluster — every
+// distinct lease IP is grouped into a /24 candidate, sorted by
+// client-count descending.
+const candidateSubnets = computed(() => {
+  const counts = new Map<string, number>()
+  for (const l of dohGapLeases.value) {
+    const parts = l.ip.split('.')
+    if (parts.length !== 4) continue
+    if (parts.some(p => !/^\d{1,3}$/.test(p))) continue
+    const cidr = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`
+    counts.set(cidr, (counts.get(cidr) ?? 0) + 1)
+  }
+  return Array.from(counts, ([cidr, count]) => ({ cidr, count }))
+    .sort((a, b) => b.count - a.count || a.cidr.localeCompare(b.cidr))
+})
 
 const topDomains = computed(() => stats.value?.top_domains?.slice(0, 20) ?? [])
 const topClients = computed(() => stats.value?.top_clients?.slice(0, 20) ?? [])
@@ -273,10 +347,18 @@ async function refreshDoH() {
   }
 }
 
+async function refreshDohGapLeases() {
+  try {
+    dohGapLeases.value = await listLeases()
+  } catch {
+    /* picker stays empty — free-form input still works */
+  }
+}
+
 let timer: number | undefined
 let dohTimer: number | undefined
 onMounted(async () => {
-  await Promise.all([refresh(), refreshDoH()])
+  await Promise.all([refresh(), refreshDoH(), refreshDohGapLeases()])
   timer = window.setInterval(refresh, 30_000)
   dohTimer = window.setInterval(refreshDoH, 60_000)
 })
