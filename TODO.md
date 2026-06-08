@@ -40,10 +40,6 @@ None.
 
 ### Active
 
-- HTTPS for the management API / Web UI. M4 ACME currently only covers
-  DoH and DoT; `api_address` is still plain HTTP. Pending design call:
-  single-port swap (HTTP → 308 → HTTPS) vs dual-port (keep HTTP on LAN,
-  add HTTPS for public). — added 2026-06-05.
 - "Block dynamic-lease clients" category (M3.7 candidate). Requires
   per-connector knowledge of static-vs-dynamic origin. dnsmasq lease
   file alone doesn't surface this — would need a separate `dhcp-host=`
