@@ -26,13 +26,28 @@ type NodeYAML struct {
 // NodeSection holds settings that depend on this host: the Raft identity, the
 // addresses to bind, and the DNS listen port.
 type NodeSection struct {
-	ID          string      `yaml:"id"`
-	RaftAddress string      `yaml:"raft_address"`
-	APIAddress  string      `yaml:"api_address"`
-	DNS         DNSSection  `yaml:"dns"`
-	DataDir     string      `yaml:"data_dir"`
-	DHCP        DHCPSection `yaml:"dhcp,omitempty"`
-	API         APISection  `yaml:"api,omitempty"`
+	ID          string         `yaml:"id"`
+	RaftAddress string         `yaml:"raft_address"`
+	APIAddress  string         `yaml:"api_address"`
+	DNS         DNSSection     `yaml:"dns"`
+	DataDir     string         `yaml:"data_dir"`
+	DHCP        DHCPSection    `yaml:"dhcp,omitempty"`
+	API         APISection     `yaml:"api,omitempty"`
+	Cluster     ClusterSection `yaml:"cluster,omitempty"`
+}
+
+// ClusterSection groups node-local cluster behaviour knobs. M5.3 adds
+// the encrypted cluster mesh; future milestones can hang more here.
+type ClusterSection struct {
+	MTLS ClusterMTLSSection `yaml:"mtls,omitempty"`
+}
+
+// ClusterMTLSSection enables the M5.3 encrypted cluster mesh. When
+// Enabled is true, the bootstrap node generates an ECDSA P-256 cluster
+// CA at first boot; joining nodes receive the CA + a freshly-signed
+// leaf cert in their join response.
+type ClusterMTLSSection struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // APISection holds node-local management-API settings. Today the
