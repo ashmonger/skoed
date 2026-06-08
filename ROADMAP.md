@@ -496,7 +496,7 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 | 5.9.4 | Getting Started card + docs page                    | shipped |
 | 5.9.5 | URL tester (CLI + public landing page)              | shipped |
 | 5.9.6 | Rename dblock → skoed + About page                   | shipped |
-| 5.9.7 | "Would this domain be blocked?" tester              |         |
+| 5.9.7 | "Would this domain be blocked?" tester              | shipped |
 
 **Non-goals for the M5.9 umbrella:**
 - Replacing the existing Web UI Vue stack

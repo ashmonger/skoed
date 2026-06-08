@@ -100,6 +100,12 @@ func auditExempt(r *http.Request) bool {
 	if strings.HasPrefix(r.URL.Path, "/api/v1/cluster/_internal/") {
 		return true
 	}
+	// M5.9.7 — domain tester is read-only (no state change); skip the
+	// audit append. Keeps bbolt + the audit page free of "user
+	// scanned 200 random domains via the curl loop" noise.
+	if r.URL.Path == "/api/v1/test-domain" {
+		return true
+	}
 	return false
 }
 

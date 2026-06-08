@@ -123,7 +123,7 @@ import {
   QueueListIcon, ChartBarIcon, CpuChipIcon, Cog6ToothIcon,
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
-  DevicePhoneMobileIcon, CodeBracketIcon,
+  DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -150,6 +150,7 @@ const nav = [
   { name: 'query-log',  label: 'Query log',  icon: QueueListIcon },
   { name: 'stats',      label: 'Stats',      icon: ChartBarIcon },
   { name: 'cluster',    label: 'Cluster',    icon: CpuChipIcon },
+  { name: 'test-domain', label: 'Test a domain', icon: BeakerIcon },
   { name: 'settings',   label: 'Settings',   icon: Cog6ToothIcon },
 ]
 
@@ -165,6 +166,7 @@ const titles: Record<string, string> = {
   'query-log': 'Query log',
   stats: 'Stats',
   cluster: 'Cluster',
+  'test-domain': 'Test a domain',
   settings: 'Settings',
   account: 'Account',
 }

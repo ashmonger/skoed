@@ -88,6 +88,64 @@
         </div>
       </div>
 
+      <!-- Domain tester card (M5.9.7). -->
+      <div class="card w-full max-w-2xl p-6 space-y-4" data-testid="domain-tester-card">
+        <div>
+          <label class="label" for="domain-input">
+            Would this domain be blocked?
+          </label>
+          <input
+            id="domain-input"
+            v-model="domain"
+            class="input font-mono text-xs"
+            placeholder="doubleclick.net"
+            spellcheck="false"
+            autocomplete="off"
+            @keyup.enter="testDomain"
+            data-testid="domain-input"
+          />
+          <p class="text-xs text-fg-muted mt-1">
+            Verdict for the default profile. Log in for the full chain
+            (matched profile, blocklist, schedule).
+          </p>
+        </div>
+        <div class="flex justify-end">
+          <button
+            class="btn-primary px-5"
+            :disabled="domainLoading || !domain"
+            @click="testDomain"
+            data-testid="domain-test-btn"
+          >
+            {{ domainLoading ? 'Testing…' : 'Test' }}
+          </button>
+        </div>
+
+        <div v-if="domainResult" class="rounded border border-border p-4 text-sm space-y-1.5"
+             :class="domainVerdictClass"
+             data-testid="domain-tester-result">
+          <div v-if="domainResult.ok && domainResult.would_block === true"
+               class="flex items-center gap-2 text-danger font-medium">
+            <ShieldExclamationIcon class="w-5 h-5" />
+            <span>Blocked</span>
+          </div>
+          <div v-else-if="domainResult.ok && domainResult.would_block === false"
+               class="flex items-center gap-2 text-success font-medium">
+            <CheckCircleIcon class="w-5 h-5" />
+            <span>Allowed</span>
+          </div>
+          <div v-else class="flex items-center gap-2 text-danger font-medium">
+            <ExclamationTriangleIcon class="w-5 h-5" />
+            <span>Could not test this domain</span>
+          </div>
+
+          <dl v-if="domainResult.ok" class="grid grid-cols-[8rem_1fr] gap-y-1 text-xs mt-2">
+            <dt class="text-fg-muted">reason</dt>
+            <dd class="font-mono">{{ domainResult.reason }}</dd>
+          </dl>
+          <p v-else class="text-xs text-danger font-mono mt-1">{{ domainResult.error }}</p>
+        </div>
+      </div>
+
       <!-- Tagline strip. -->
       <div class="grid sm:grid-cols-3 gap-4 max-w-3xl w-full text-sm">
         <div class="card p-4">
@@ -124,8 +182,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { computed, ref } from 'vue'
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ShieldExclamationIcon,
+} from '@heroicons/vue/24/outline'
 
 type TestResult = {
   ok: boolean
@@ -139,6 +201,53 @@ const url = ref('')
 const format = ref<'auto' | 'hosts' | 'domainlist' | 'askoed'>('auto')
 const loading = ref(false)
 const result = ref<TestResult | null>(null)
+
+// M5.9.7 — domain tester (guest endpoint).
+type DomainResult = {
+  ok: boolean
+  would_block?: boolean
+  reason?: string
+  error?: string
+}
+const domain = ref('')
+const domainLoading = ref(false)
+const domainResult = ref<DomainResult | null>(null)
+const domainVerdictClass = computed(() => {
+  if (!domainResult.value?.ok) return 'bg-danger-subtle'
+  return domainResult.value.would_block ? 'bg-danger-subtle' : 'bg-success-subtle'
+})
+
+async function testDomain() {
+  if (!domain.value) return
+  domainResult.value = null
+  domainLoading.value = true
+  try {
+    const resp = await fetch('/api/v1/_public/test-domain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: domain.value.trim() }),
+    })
+    const body = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      domainResult.value = {
+        ok: false,
+        error:
+          body?.error ||
+          (resp.status === 429
+            ? 'Rate limited — try again in a minute.'
+            : resp.status === 404
+            ? 'The public tester is disabled on this node.'
+            : `HTTP ${resp.status}`),
+      }
+      return
+    }
+    domainResult.value = { ok: true, ...body }
+  } catch (err: any) {
+    domainResult.value = { ok: false, error: err?.message || 'Network error.' }
+  } finally {
+    domainLoading.value = false
+  }
+}
 
 async function testUrl() {
   if (!url.value) return

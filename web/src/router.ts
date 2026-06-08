@@ -30,6 +30,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'cluster', name: 'cluster', component: () => import('./views/Cluster.vue') },
       { path: 'settings', name: 'settings', component: () => import('./views/Settings.vue') },
       { path: 'settings/audit', name: 'audit', component: () => import('./views/Audit.vue') },
+      { path: 'tools/test-domain', name: 'test-domain', component: () => import('./views/TestDomain.vue') },
       { path: 'account', name: 'account', component: () => import('./views/Account.vue') },
     ],
   },

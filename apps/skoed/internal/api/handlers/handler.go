@@ -59,6 +59,11 @@ type AppState interface {
 	// when node.upgrade.feed_url is unset.
 	GetUpgradeChecker() UpgradeChecker
 
+	// ObserveTestDomain bumps the M5.9.7
+	// skoed_test_domain_requests_total{surface,verdict} counter.
+	// No-op when metrics aren't wired.
+	ObserveTestDomain(surface, verdict string)
+
 	Dir() string
 }
 
