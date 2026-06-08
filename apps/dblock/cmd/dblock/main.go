@@ -24,6 +24,14 @@ import (
 	"github.com/dblock/dblock/internal/filter"
 	filterCats "github.com/dblock/dblock/internal/filter/categories"
 	dlog "github.com/dblock/dblock/internal/log"
+	"github.com/dblock/dblock/internal/metrics"
+)
+
+// Build metadata. Override at link time with:
+//   go build -ldflags "-X main.version=v1.2.3 -X main.commit=$(git rev-parse --short HEAD)"
+var (
+	version = "dev"
+	commit  = "unknown"
 )
 
 // buildDNSHandler constructs the DNS query pipeline for the current config.
@@ -34,7 +42,10 @@ import (
 // — config edits (blocklist add, profile rename, etc.) used to wipe the
 // whole cache as a side effect of constructing a fresh handler-and-cache
 // pair. Hot domains had to be re-fetched after any change.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache) *dnsengine.Handler {
+//
+// M5.1: when m is non-nil, every query exit observes outcome+duration
+// via m.ObserveQuery so /metrics counters reflect live traffic.
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -55,6 +66,11 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		}
 	}
 
+	var observe func(string, time.Duration)
+	if m != nil {
+		observe = m.ObserveQuery
+	}
+
 	return dnsengine.NewHandler(dnsengine.HandlerConfig{
 		DNSCfg:        cfg.DNS,
 		FilterEngine:  getEng,
@@ -64,6 +80,7 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		Cache:         cache,
 		QueryLog:      queryLog,
 		DhcpLookup:    dhcpLookup,
+		ObserveQuery:  observe,
 	})
 }
 
@@ -159,6 +176,54 @@ func main() {
 		dnsCache = dnsengine.NewCache(snap.DNS.Cache.MaxEntries)
 	}
 
+	// M5.1 — Prometheus exporter. Built before the App so we can pass it
+	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
+	// callbacks because all three pointers may be reallocated after
+	// boot (cache on max_entries change, dhcp manager on enable/disable).
+	prom := metrics.New(metrics.Options{
+		Build: metrics.BuildInfo{Version: version, Commit: commit},
+		CacheStats: func() metrics.CacheSnapshot {
+			if dnsCache == nil {
+				return metrics.CacheSnapshot{Enabled: false}
+			}
+			s := dnsCache.Snapshot()
+			return metrics.CacheSnapshot{
+				Size: s.Size, MaxEntries: s.MaxEntries,
+				Hits: s.Hits, Misses: s.Misses, Evictions: s.Evictions,
+				Enabled: true,
+			}
+		},
+		Cluster: func() metrics.ClusterSnapshot {
+			servers := c.MembersFromRaftConfig()
+			return metrics.ClusterSnapshot{
+				IsLeader:         c.IsLeader(),
+				RaftTerm:         c.Raft().CurrentTerm(),
+				CommitIndex:      c.Raft().CommitIndex(),
+				Members:          len(servers),
+				ReachableMembers: len(servers), // best-effort; full probe lives in /cluster/health
+			}
+		},
+		Dhcp: func() *metrics.DhcpSnapshot {
+			if dhcpMgr == nil {
+				return nil
+			}
+			last := dhcpMgr.LastPollAt()
+			var age float64
+			if !last.IsZero() {
+				age = time.Since(last).Seconds()
+			}
+			return &metrics.DhcpSnapshot{
+				Source:          dhcpMgr.Source(),
+				Leases:          len(dhcpMgr.Snapshot()),
+				AnomaliesOpen:   countOpenAnomalies(dhcpMgr.Anomalies()),
+				LastPollAgeSecs: age,
+				PollErrorsTotal: dhcpMgr.PollErrorsTotal(),
+			}
+		},
+		RequireAuth: func() bool { return node.Node.API.Metrics.RequireAuth },
+		AuthOK:      func(r *http.Request) bool { return app != nil && app.CheckBasicAuth(r) },
+	})
+
 	rebuildDNS := func(newCfg *config.Config) error {
 		newCfg.Defaults()
 		mergeNodeLocal(newCfg, node)
@@ -175,7 +240,7 @@ func main() {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -200,6 +265,8 @@ func main() {
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
 	app.SetDNSCache(dnsCache)
+	app.SetMetrics(prom)
+	app.SetMetricsRequireAuth(node.Node.API.Metrics.RequireAuth)
 
 	// M3.6 — read-only DHCP integration. Node-local; each node polls its
 	// own configured connector. Operators typically point every node at
@@ -228,7 +295,7 @@ func main() {
 	}
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -342,7 +409,7 @@ func main() {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			certFile, keyFile,
@@ -395,6 +462,18 @@ func acmeDirectoryLabel(url string) string {
 		return "Let's Encrypt (production)"
 	}
 	return url
+}
+
+// countOpenAnomalies returns the number of unacknowledged anomalies in
+// the slice. Used by the M5.1 dhcp_anomalies_open gauge.
+func countOpenAnomalies(anomalies []dhcp.Anomaly) int {
+	n := 0
+	for _, a := range anomalies {
+		if a.AcknowledgedAt == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // mergeNodeLocal overlays the node-local DNS listen settings onto a

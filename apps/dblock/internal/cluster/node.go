@@ -36,10 +36,19 @@ type NodeSection struct {
 }
 
 // APISection holds node-local management-API settings. Today the
-// substructure is just M4.6 TLS; future M7 token-auth knobs can live
-// here too.
+// substructure is M4.6 TLS + M5.1 metrics; future M7 token-auth knobs
+// can live here too.
 type APISection struct {
-	TLS APITLSSection `yaml:"tls,omitempty"`
+	TLS     APITLSSection     `yaml:"tls,omitempty"`
+	Metrics APIMetricsSection `yaml:"metrics,omitempty"`
+}
+
+// APIMetricsSection configures the M5.1 Prometheus /metrics exporter.
+// The endpoint is always served; RequireAuth flips it from open (the
+// default — operator-internal metrics on LAN deployments) to Basic-auth
+// gated (paranoid mode for nodes reachable from untrusted networks).
+type APIMetricsSection struct {
+	RequireAuth bool `yaml:"require_auth"`
 }
 
 // APITLSSection configures the M4.6 HTTPS listener for the management

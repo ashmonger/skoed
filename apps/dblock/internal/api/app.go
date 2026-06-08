@@ -16,6 +16,7 @@ import (
 	dnsengine "github.com/dblock/dblock/internal/dns"
 	"github.com/dblock/dblock/internal/filter"
 	dlog "github.com/dblock/dblock/internal/log"
+	"github.com/dblock/dblock/internal/metrics"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -30,6 +31,12 @@ type App struct {
 	queryLog  *dlog.QueryLog
 	dhcpMgr   *dhcp.Manager     // optional; nil when DHCP integration is disabled
 	dnsCache  *dnsengine.Cache  // M4.7 — long-lived; survives Raft applies
+	metrics   *metrics.Metrics  // M5.1 — Prometheus exporter; nil disables /metrics
+
+	// metricsRequireAuth is node-local config (node.api.metrics.require_auth).
+	// Cached at construction; today operators restart the process to flip it,
+	// matching how every other node.api.* knob works.
+	metricsRequireAuth bool
 
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
@@ -60,6 +67,36 @@ func (a *App) SetDNSCache(c *dnsengine.Cache) { a.dnsCache = c }
 // GetDNSCache returns the live DNS cache, or nil when caching is
 // disabled in config.
 func (a *App) GetDNSCache() *dnsengine.Cache { return a.dnsCache }
+
+// SetMetrics wires the M5.1 Prometheus exporter. Pass nil to keep
+// /metrics disabled (mainly useful for unit tests).
+func (a *App) SetMetrics(m *metrics.Metrics) { a.metrics = m }
+
+// GetMetrics returns the Prometheus exporter, or nil if not wired.
+func (a *App) GetMetrics() *metrics.Metrics { return a.metrics }
+
+// SetMetricsRequireAuth flips /metrics from open (default) to
+// Basic-auth gated. Called by main.go from the node-local
+// node.api.metrics.require_auth flag.
+func (a *App) SetMetricsRequireAuth(v bool) { a.metricsRequireAuth = v }
+
+// MetricsRequireAuth reports the current value of the metrics auth gate.
+func (a *App) MetricsRequireAuth() bool { return a.metricsRequireAuth }
+
+// CheckBasicAuth validates Basic credentials against the auth store.
+// Returns true when both auth is configured and credentials are valid.
+// Used by the M5.1 metrics handler when the operator opted into
+// authenticated /metrics.
+func (a *App) CheckBasicAuth(r *http.Request) bool {
+	if !a.authStore.IsConfigured() {
+		return false
+	}
+	u, p, ok := r.BasicAuth()
+	if !ok {
+		return false
+	}
+	return a.authStore.Verify(u, p)
+}
 
 // NewApp wires up the facade. cluster must be already running (Raft started);
 // authStore and queryLog are node-local services. rebuildDNS may be nil if
@@ -205,6 +242,13 @@ func (a *App) Router() http.Handler {
 	// Health and first-run setup never require auth.
 	r.Get("/api/v1/health", h.Health)
 	r.Post("/api/v1/auth/setup", a.forward(h.AuthSetup))
+
+	// M5.1 — Prometheus /metrics. Unauthenticated by default; the
+	// metrics package gates on its own RequireAuth callback when
+	// node.api.metrics.require_auth is true.
+	if a.metrics != nil {
+		r.Method(http.MethodGet, "/metrics", a.metrics.Handler())
+	}
 
 	// The /cluster/join endpoint must be served by the leader. Forwarding
 	// handles that transparently.

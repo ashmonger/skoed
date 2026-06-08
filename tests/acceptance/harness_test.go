@@ -392,18 +392,37 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 func waitReady(t *testing.T, n *Node) {
 	t.Helper()
 	deadline := time.Now().Add(readyTimeout)
+	// Phase 1: HTTP /health responds. The API listener binds first.
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(n.APIBase + "/api/v1/health")
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == 200 || resp.StatusCode == 401 {
-				// 401 means auth not set up yet — node is running
-				return
+				// 401 means auth not set up yet — API is running.
+				goto dnsCheck
 			}
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("dblock did not become ready within %s at %s", readyTimeout, n.APIBase)
+	t.Fatalf("dblock API did not become ready within %s at %s", readyTimeout, n.APIBase)
+
+dnsCheck:
+	// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
+	// the API listener; a test that fires a DNS query the moment
+	// waitReady returns can otherwise see "connection refused" on the
+	// still-unbound port. dblock binds both UDP and TCP on the same
+	// DNS port, so a TCP dial proves the listener is up WITHOUT
+	// sending a DNS message — no query-log pollution, no upstream
+	// contact, no SafeSearch rewrite.
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", n.DNSAddr, 500*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return
+		}
+		time.Sleep(readyPollInterval)
+	}
+	t.Fatalf("dblock DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 }
 
 func setupAuth(t *testing.T, n *Node) {
