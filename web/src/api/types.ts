@@ -156,6 +156,10 @@ export interface Profile {
   safesearch?: string[]
   client_ips?: string[]
   client_cidrs?: string[]
+  // M3.6: stable identity match keys (priority: ids > macs > hostnames > IP)
+  client_ids?: string[]
+  client_macs?: string[]
+  client_hostnames?: string[]
 }
 
 export type ScheduleMode = 'block_only_inside' | 'allow_only_inside'
@@ -195,4 +199,44 @@ export interface ClientDohStatus {
   doh_probes_1h: number
   last_doh_query: string | null
   suspected_provider: string | null
+}
+
+// ─── M3.6 — DHCP integration ─────────────────────────────────────────────
+
+export interface Lease {
+  ip: string
+  mac: string
+  hostname: string
+  client_id: string
+  source: string                // "kea" | "dnsmasq" | "http_json"
+  expires_at: string            // RFC3339
+}
+
+export type AnomalyKind =
+  | 'mac_changed_for_client_id'
+  | 'client_id_changed_for_mac'
+  | 'new_device_steals_hostname'
+
+export interface Anomaly {
+  id: string
+  kind: AnomalyKind
+  detected_at: string
+  ip: string
+  mac?: string
+  hostname?: string
+  client_id?: string
+  prior_mac?: string
+  prior_client_id?: string
+  prior_hostname?: string
+  acknowledged_at?: string | null
+}
+
+export interface ClientRecord {
+  ip: string
+  mac: string
+  hostname: string
+  client_id: string
+  source: string                // "kea" | "dnsmasq" | "http_json" | "none"
+  last_seen?: string | null
+  anomalies?: Anomaly[]
 }

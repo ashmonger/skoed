@@ -22,29 +22,36 @@ type HandlerConfig struct {
 	Recursor      *Recursor  // nil when mode=forwarding
 	Cache         *Cache
 	QueryLog      *dlog.QueryLog
+	// M3.6: optional DHCP lookup. When DhcpLookup is non-nil, the handler
+	// resolves hostname / MAC / Client-ID for each query's client IP and
+	// stamps them onto the query-log entry. Signature mirrors
+	// (*dhcp.Manager).LookupByIP without dragging in the dhcp package.
+	DhcpLookup func(ip string) (hostname, mac, clientID string, ok bool)
 }
 
 // Handler implements dns.Handler and processes all incoming DNS queries.
 type Handler struct {
-	cfg config.DNSConfig
-	fe  func() *filter.Engine
-	lr  *LocalResolver
-	fwd *Forwarder
-	rec *Recursor
-	ch  *Cache
-	ql  *dlog.QueryLog
+	cfg    config.DNSConfig
+	fe     func() *filter.Engine
+	lr     *LocalResolver
+	fwd    *Forwarder
+	rec    *Recursor
+	ch     *Cache
+	ql     *dlog.QueryLog
+	dhcpFn func(ip string) (hostname, mac, clientID string, ok bool)
 }
 
 // NewHandler constructs a Handler from the provided configuration.
 func NewHandler(cfg HandlerConfig) *Handler {
 	return &Handler{
-		cfg: cfg.DNSCfg,
-		fe:  cfg.FilterEngine,
-		lr:  cfg.LocalResolver,
-		fwd: cfg.Forwarder,
-		rec: cfg.Recursor,
-		ch:  cfg.Cache,
-		ql:  cfg.QueryLog,
+		cfg:    cfg.DNSCfg,
+		fe:     cfg.FilterEngine,
+		lr:     cfg.LocalResolver,
+		fwd:    cfg.Forwarder,
+		rec:    cfg.Recursor,
+		ch:     cfg.Cache,
+		ql:     cfg.QueryLog,
+		dhcpFn: cfg.DhcpLookup,
 	}
 }
 
@@ -107,7 +114,18 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// SafeSearch for a matching provider, rewrite via CNAME before any
 	// blocklist evaluation.
 	fe := h.fe()
-	if target, ok := filter.SafeSearchRewrite(name, fe.SafeSearchProvidersForClient(clientIP)); ok && (qtype == dns.TypeA || qtype == dns.TypeAAAA) {
+	// M3.6: derive optional Client-ID / MAC / hostname from the DHCP
+	// lease cache so profile matching can use stable identity instead
+	// of fragile IPs.
+	var ident filter.ClientIdentity
+	if h.dhcpFn != nil {
+		if host, mac, cid, ok := h.dhcpFn(clientIPStr); ok {
+			ident.ClientID = cid
+			ident.MAC = mac
+			ident.Hostname = host
+		}
+	}
+	if target, ok := filter.SafeSearchRewrite(name, fe.SafeSearchProvidersForClientID(clientIP, ident)); ok && (qtype == dns.TypeA || qtype == dns.TypeAAAA) {
 		resp := h.buildSafeSearchResponse(r, q, target)
 		_ = w.WriteMsg(resp)
 		h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeLocal), "")
@@ -117,7 +135,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// Block if the domain matches any active blocklist for this client's
 	// matched profile(s). Per-client evaluation falls back to the global
 	// blocklists when no Profile object exists yet.
-	result := fe.EvaluateForClient(name, clientIP, filter.Now())
+	result := fe.EvaluateForClientID(name, clientIP, ident, filter.Now())
 	if result.Disposition == filter.Block {
 		policy := fe.EffectivePolicy(result)
 		resp := h.buildBlockResponse(r, q, policy)
@@ -285,12 +303,13 @@ func (h *Handler) logEntry(clientIP, domain, qtype string, outcome dlog.Outcome,
 }
 
 // logCategorised is the M3 form that also carries a category tag (e.g.
-// "doh-probe") and a profile id (best-effort).
+// "doh-probe") and a profile id (best-effort). M3.6 adds optional
+// hostname / MAC / Client-ID enrichment from the DHCP lease cache.
 func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID, category, profileID string) {
 	if h.ql == nil {
 		return
 	}
-	h.ql.Append(dlog.Entry{
+	e := dlog.Entry{
 		Client:      clientIP,
 		Domain:      domain,
 		QueryType:   qtype,
@@ -299,7 +318,15 @@ func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Ou
 		BlocklistID: blocklistID,
 		Category:    category,
 		ProfileID:   profileID,
-	})
+	}
+	if h.dhcpFn != nil {
+		if host, mac, cid, ok := h.dhcpFn(clientIP); ok {
+			e.ClientHostname = host
+			e.ClientMAC = mac
+			e.ClientID = cid
+		}
+	}
+	h.ql.Append(e)
 }
 
 // extractIP returns the host part of a net.Addr string (strips the port).

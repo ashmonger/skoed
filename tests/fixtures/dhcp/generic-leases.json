@@ -1,0 +1,16 @@
+[
+  {
+    "ip": "192.168.1.42",
+    "mac": "aa:bb:cc:dd:ee:42",
+    "hostname": "kid-tablet",
+    "client_id": "id:tablet42",
+    "expires_at": "2287-11-09T11:46:39Z"
+  },
+  {
+    "ip": "192.168.1.10",
+    "mac": "aa:bb:cc:dd:ee:10",
+    "hostname": "home-laptop",
+    "client_id": "id:laptop10",
+    "expires_at": "2287-11-09T11:46:39Z"
+  }
+]

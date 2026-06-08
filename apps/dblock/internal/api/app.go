@@ -11,6 +11,7 @@ import (
 	"github.com/dblock/dblock/internal/auth"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
+	"github.com/dblock/dblock/internal/dhcp"
 	"github.com/dblock/dblock/internal/filter"
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,7 @@ type App struct {
 	cluster   *cluster.Cluster
 	authStore *auth.Store
 	queryLog  *dlog.QueryLog
+	dhcpMgr   *dhcp.Manager // optional; nil when DHCP integration is disabled
 
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
@@ -36,6 +38,15 @@ type App struct {
 	cfg       *config.Config
 	filterEng *filter.Engine
 }
+
+// SetDhcpManager wires the optional M3.6 DHCP manager in after App
+// construction. main.go calls this after the manager is built so the
+// API handlers can reach it via app.GetDhcpMgr().
+func (a *App) SetDhcpManager(m *dhcp.Manager) { a.dhcpMgr = m }
+
+// GetDhcpMgr returns the configured DHCP manager, or nil when M3.6
+// integration is disabled.
+func (a *App) GetDhcpMgr() *dhcp.Manager { return a.dhcpMgr }
 
 // NewApp wires up the facade. cluster must be already running (Raft started);
 // authStore and queryLog are node-local services. rebuildDNS may be nil if
@@ -252,6 +263,14 @@ func (a *App) Router() http.Handler {
 
 		// M3.5 — Per-client DoH status (local query-log read; never forwarded)
 		r.Get("/api/v1/clients/{ip}/doh-status", h.GetClientDohStatus)
+
+		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
+		// + reservation export. All node-local reads; never forwarded.
+		r.Get("/api/v1/clients/anomalies", h.ListAnomalies)
+		r.Post("/api/v1/clients/anomalies/{id}/acknowledge", h.AcknowledgeAnomaly)
+		r.Get("/api/v1/clients/export-reservations", h.ExportReservations)
+		r.Get("/api/v1/clients/_leases", h.LeaseSnapshot) // debug/harness
+		r.Get("/api/v1/clients/{ip}", h.GetClient)
 
 		// Cluster endpoints — most write paths forwarded.
 		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))

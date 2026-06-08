@@ -50,7 +50,11 @@ type Node struct {
 	DoHAddr      string // "127.0.0.1:port" — DoH HTTPS listener; "" when disabled
 	DoTAddr      string // "127.0.0.1:port" — DoT TLS listener; "" when disabled
 	AcmeHTTPAddr string // "127.0.0.1:port" — ACME HTTP-01 challenge listener; "" when ACME disabled
-	cmd          *exec.Cmd
+	// M3.6: URL for the internal lease-snapshot debug endpoint exposed
+	// when a DHCP connector is configured. "" when DHCP is disabled or
+	// the binary doesn't yet implement M3.6 (tests then auto-skip).
+	LeaseSnapshotURL string
+	cmd              *exec.Cmd
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.

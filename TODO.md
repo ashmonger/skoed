@@ -36,6 +36,20 @@ Current phase: **Phase 1 — Functional Specifications**
 
 None.
 
+## Backlog (post-M4)
+
+- HTTPS for the management API / Web UI. M4 ACME currently only covers
+  DoH and DoT; `api_address` is still plain HTTP. Pending design call:
+  single-port swap (HTTP → 308 → HTTPS) vs dual-port (keep HTTP on LAN,
+  add HTTPS for public). — added 2026-06-05.
+- "Block dynamic-lease clients" category (M3.7 candidate). Requires
+  per-connector knowledge of static-vs-dynamic origin. dnsmasq lease
+  file alone doesn't surface this — would need a separate `dhcp-host=`
+  config parser, OR a dblock-owned static-pin list (duplicates state),
+  OR a "known vs unknown" approximation. Defer until after M3.6 ships
+  the export endpoint, which closes most of the bootstrapping pain
+  this category was supposed to address. — added 2026-06-05.
+
 ## Open questions
 
 None for M2 design (see QUESTIONS_AND_ANSWERS.md for resolved M2 decisions).

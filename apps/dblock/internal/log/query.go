@@ -19,15 +19,20 @@ const (
 
 // Entry is a single DNS query log record.
 type Entry struct {
-	ID          string    // hex-encoded 16 random bytes
+	ID          string // hex-encoded 16 random bytes
 	Timestamp   time.Time
-	Client      string    // IP address string
+	Client      string // IP address string
 	Domain      string
-	QueryType   string    // "A", "AAAA", "MX", etc.
+	QueryType   string // "A", "AAAA", "MX", etc.
 	Outcome     Outcome
-	BlocklistID string    // set when Outcome == OutcomeBlocked
-	Category    string    // M3: "", "doh-probe", "doh-canary", "ddr-probe"
-	ProfileID   string    // M3: which profile decided the outcome (best-effort)
+	BlocklistID string // set when Outcome == OutcomeBlocked
+	Category    string // M3: "", "doh-probe", "doh-canary", "ddr-probe"
+	ProfileID   string // M3: which profile decided the outcome (best-effort)
+	// M3.6 — DHCP enrichment. All optional; absent when no DHCP lease
+	// matched the client IP.
+	ClientHostname string `json:",omitempty"`
+	ClientMAC      string `json:",omitempty"`
+	ClientID       string `json:",omitempty"`
 }
 
 // newEntryID generates a random 16-byte hex string for use as an entry ID.
