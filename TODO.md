@@ -102,22 +102,26 @@ None.
   cluster-wide identity consistency at the cost of leader-only-polls.
 - **DHCPv6 lease parsing** (M3.6 follow-on).
 
-### Conflicts with current non-goals — needs UoR decision
+### Under reconsideration — needs UoR decision
 
-These contradict the **permanent non-goals** list in
-`PROBLEM_STATEMENT.md` and `ROADMAP.md`. Listed here because the UoR
-asked for them; need a separate decision to either (a) revise the
-non-goals or (b) keep them parked indefinitely as "wishful but out
-of scope". — added 2026-06-05.
+These were previously listed as permanent non-goals and have since
+moved to the "Non-goals under reconsideration" sections of
+`PROBLEM_STATEMENT.md` and `ROADMAP.md`. Each needs a separate
+decision to either (a) commit to a milestone or (b) push back to
+permanent non-goal. — added 2026-06-05.
 
 - **Transparent proxy mode.** Operate as a transparent L4 proxy so
   clients with hardcoded resolver IPs are redirected to dblock
-  regardless of their DNS settings. Today's roadmap lists VPN/proxy
-  as a permanent non-goal — this would partially overlap.
+  regardless of their DNS settings. Was "VPN or proxy" non-goal.
 - **Deep-packet inspection / HTTP filtering.** Inspect cleartext HTTP
-  to enforce content rules at a level DNS can't reach. Explicit
-  permanent non-goal today; rethinking would be a major scope pivot
-  (puts dblock into the same category as Squid / e2guardian).
+  to enforce content rules at a level DNS can't reach. Puts dblock
+  into the same category as Squid / e2guardian.
+- **Mobile application.** Native iOS / Android admin app — read-only
+  dashboards at minimum, full management as a stretch. Probably needs
+  the M5 audit log + API tokens first so revocation works cleanly.
+- **Cloud-hosted SaaS.** Run dblock as a managed service (per-customer
+  cluster, billing, multi-tenant isolation). Big strategic pivot;
+  contradicts the self-hosted-first thesis but worth a thought.
 
 ## Open questions
 

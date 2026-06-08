@@ -278,15 +278,14 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 ## Non-goals (permanent)
 
 - DHCP server
-- Mobile application
-- Cloud-hosted SaaS
 
 ## Non-goals under reconsideration
 
 These items were previously listed as permanent non-goals; they're being
-re-evaluated in TODO.md ("Conflicts with current non-goals — needs UoR
-decision"). Listed here so the contradiction stays visible until a
+re-evaluated. Listed here so the open status stays visible until a UoR
 decision lands.
 
 - Transparent proxy mode (was: "VPN or proxy")
 - Deep packet inspection / HTTP filtering
+- Mobile application
+- Cloud-hosted SaaS

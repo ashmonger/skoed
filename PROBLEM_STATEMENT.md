@@ -46,9 +46,13 @@ Home network administrators and parents experience uncontrolled ad traffic, trac
 ### Out of scope
 - DHCP server
 - Network topology management
+
+### Under reconsideration
+Previously listed as out of scope; now being re-evaluated. See
+`ROADMAP.md` "Non-goals under reconsideration" for the live list and
+TODO.md for the tracking entries.
+
+- Deep packet inspection / HTTP filtering
+- Transparent proxy mode (was: "VPN or proxy functionality")
 - Mobile application
 - Cloud-hosted SaaS offering
-
-(Deep-packet inspection / HTTP filtering and transparent proxy mode were
-previously out of scope; both are now under reconsideration — see TODO.md
-"Conflicts with current non-goals" subsection.)
