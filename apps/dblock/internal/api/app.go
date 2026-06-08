@@ -13,6 +13,7 @@ import (
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/dhcp"
+	dnsengine "github.com/dblock/dblock/internal/dns"
 	"github.com/dblock/dblock/internal/filter"
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/go-chi/chi/v5"
@@ -27,7 +28,8 @@ type App struct {
 	cluster   *cluster.Cluster
 	authStore *auth.Store
 	queryLog  *dlog.QueryLog
-	dhcpMgr   *dhcp.Manager // optional; nil when DHCP integration is disabled
+	dhcpMgr   *dhcp.Manager     // optional; nil when DHCP integration is disabled
+	dnsCache  *dnsengine.Cache  // M4.7 — long-lived; survives Raft applies
 
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
@@ -48,6 +50,16 @@ func (a *App) SetDhcpManager(m *dhcp.Manager) { a.dhcpMgr = m }
 // GetDhcpMgr returns the configured DHCP manager, or nil when M3.6
 // integration is disabled.
 func (a *App) GetDhcpMgr() *dhcp.Manager { return a.dhcpMgr }
+
+// SetDNSCache wires the long-lived M4.7 DNS cache into the App so the
+// /api/v1/dns/cache/* handlers reach it via GetDNSCache(). main.go
+// constructs the cache once at boot and keeps the same pointer across
+// every Raft-driven handler rebuild.
+func (a *App) SetDNSCache(c *dnsengine.Cache) { a.dnsCache = c }
+
+// GetDNSCache returns the live DNS cache, or nil when caching is
+// disabled in config.
+func (a *App) GetDNSCache() *dnsengine.Cache { return a.dnsCache }
 
 // NewApp wires up the facade. cluster must be already running (Raft started);
 // authStore and queryLog are node-local services. rebuildDNS may be nil if
@@ -264,6 +276,10 @@ func (a *App) Router() http.Handler {
 
 		// M3.5 — Per-client DoH status (local query-log read; never forwarded)
 		r.Get("/api/v1/clients/{ip}/doh-status", h.GetClientDohStatus)
+
+		// M4.7 — DNS cache controls (local node only; never forwarded)
+		r.Get("/api/v1/dns/cache/stats", h.GetDNSCacheStats)
+		r.Post("/api/v1/dns/cache/purge", h.PurgeDNSCache)
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.

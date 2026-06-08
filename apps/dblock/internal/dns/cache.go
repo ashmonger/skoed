@@ -2,6 +2,7 @@ package dns
 
 import (
 	"container/list"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,12 @@ type Cache struct {
 	maxEntries int
 	items      map[cacheKey]*list.Element
 	order      *list.List // front = most recently used
+	// M4.7 counters. Hits/misses/evictions are lifetime-cumulative;
+	// /api/v1/dns/cache/stats exposes them so operators can spot a
+	// hot-but-undersized cache without process restart.
+	hits      uint64
+	misses    uint64
+	evictions uint64
 }
 
 type cacheListItem struct {
@@ -55,6 +62,7 @@ func (c *Cache) get(key cacheKey) (*dns.Msg, bool) {
 
 	elem, ok := c.items[key]
 	if !ok {
+		c.misses++
 		return nil, false
 	}
 
@@ -64,8 +72,11 @@ func (c *Cache) get(key cacheKey) (*dns.Msg, bool) {
 		// Expired: evict.
 		c.order.Remove(elem)
 		delete(c.items, key)
+		c.evictions++
+		c.misses++
 		return nil, false
 	}
+	c.hits++
 
 	// Move to front (most recently used).
 	c.order.MoveToFront(elem)
@@ -134,6 +145,7 @@ func (c *Cache) set(key cacheKey, msg *dns.Msg) {
 		if oldest != nil {
 			c.order.Remove(oldest)
 			delete(c.items, oldest.Value.(*cacheListItem).key)
+			c.evictions++
 		}
 	}
 
@@ -146,4 +158,66 @@ func (c *Cache) size() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.order.Len()
+}
+
+// Stats is the operator-facing snapshot exposed by /api/v1/dns/cache/stats.
+type Stats struct {
+	Size       int    `json:"size"`
+	MaxEntries int    `json:"max_entries"`
+	Hits       uint64 `json:"hits"`
+	Misses     uint64 `json:"misses"`
+	Evictions  uint64 `json:"evictions"`
+}
+
+// Snapshot returns the current cache stats. Cheap; safe to call from
+// API handlers on every request.
+func (c *Cache) Snapshot() Stats {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return Stats{
+		Size:       c.order.Len(),
+		MaxEntries: c.maxEntries,
+		Hits:       c.hits,
+		Misses:     c.misses,
+		Evictions:  c.evictions,
+	}
+}
+
+// PurgeAll empties the cache and returns how many entries were evicted.
+// Counters (hits/misses) are preserved across purges so operators see
+// continuous traffic data.
+func (c *Cache) PurgeAll() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := c.order.Len()
+	c.items = make(map[cacheKey]*list.Element, c.maxEntries)
+	c.order = list.New()
+	return n
+}
+
+// PurgeDomain drops every cached entry matching the given FQDN across
+// all qtypes. Returns how many entries were removed.
+//
+// Matching is exact: a wildcard allowlist that affects sub.example.com
+// should call PurgeDomain("example.com") AND any other affected name —
+// the caller decides scope; the cache does not pattern-match.
+func (c *Cache) PurgeDomain(domain string) int {
+	if domain == "" {
+		return 0
+	}
+	// Normalise to a fully-qualified, lower-case form for comparison.
+	target := dns.Fqdn(domain)
+	target = strings.ToLower(target)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var purged int
+	for k, elem := range c.items {
+		if strings.EqualFold(k.Name, target) {
+			c.order.Remove(elem)
+			delete(c.items, k)
+			purged++
+		}
+	}
+	return purged
 }
