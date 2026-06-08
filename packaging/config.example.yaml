@@ -1,0 +1,32 @@
+# dblock — default config installed under /etc/dblock/config.yaml.
+# Edit, then `systemctl restart dblock`.
+#
+# This is a single-node, plain-HTTP, no-cluster config that's safe to
+# enable on a fresh box without any further setup beyond first-run
+# /api/v1/auth/setup over http://<host>:8080.
+#
+# For cluster / mTLS / HTTPS API / ACME-managed DoH+DoT / DHCP
+# integration / encrypted mesh, see specs/technical/*.md in the repo
+# or the docs site (M5.8).
+
+node:
+  id: dblock-1
+  raft_address: 127.0.0.1:7000
+  api_address: 0.0.0.0:8080
+  data_dir: /var/lib/dblock
+
+  dns:
+    listen:
+      port: 53
+      ipv4: true
+      ipv6: true
+
+  # Uncomment to expose Prometheus /metrics with Basic Auth gating.
+  # api:
+  #   metrics:
+  #     require_auth: true
+
+  # Uncomment for cluster mTLS (M5.3). Cluster-wide flip; restart.
+  # cluster:
+  #   mtls:
+  #     enabled: true
