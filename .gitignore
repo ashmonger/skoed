@@ -26,4 +26,8 @@ web/dist/
 # Traceability tool output (regenerated on demand)
 traceability-report.md
 web/tsconfig.tsbuildinfo
+
+# Release artefacts (goreleaser / make deb output)
 dist/
+# …except the embedded SPA bundle the Go binary needs at compile time.
+!apps/dblock/internal/api/static/dist/
