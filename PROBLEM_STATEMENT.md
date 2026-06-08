@@ -44,9 +44,11 @@ Home network administrators and parents experience uncontrolled ad traffic, trac
 - Docker image and Helm chart
 
 ### Out of scope
-- Deep packet inspection or layer 7 filtering
-- VPN or proxy functionality
 - DHCP server
 - Network topology management
 - Mobile application
 - Cloud-hosted SaaS offering
+
+(Deep-packet inspection / HTTP filtering and transparent proxy mode were
+previously out of scope; both are now under reconsideration — see TODO.md
+"Conflicts with current non-goals" subsection.)
