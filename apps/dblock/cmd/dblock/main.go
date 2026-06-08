@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/dblock/dblock/internal/api"
 	"github.com/dblock/dblock/internal/auth"
+	"github.com/dblock/dblock/internal/cli"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/dhcp"
@@ -86,11 +86,27 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 	})
 }
 
+// main wires cobra over the legacy daemon entry point. Subcommands
+// (version, health, status, top, token, blocklist test) all funnel
+// through internal/cli; `dblock --config /etc/dblock/config.yaml` with
+// no subcommand falls through to runDaemon so the existing systemd
+// unit keeps working.
 func main() {
-	cfgPath := flag.String("config", "config.yaml", "path to config.yaml")
-	flag.Parse()
+	cli.SetBuildInfo(version, commit)
+	if err := cli.Execute(func(cfgPath string) error {
+		runDaemon(cfgPath)
+		return nil
+	}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
 
-	node, m1Snapshot, err := cluster.LoadConfig(*cfgPath)
+// runDaemon is the existing main() body, hoisted under a name so cli
+// can call it on `dblock` / `dblock daemon`. Startup errors still
+// log.Fatalf — they're fatal regardless of how we got here.
+func runDaemon(cfgPath string) {
+	node, m1Snapshot, err := cluster.LoadConfig(cfgPath)
 	if err != nil {
 		log.Fatalf("load config.yaml: %v", err)
 	}
