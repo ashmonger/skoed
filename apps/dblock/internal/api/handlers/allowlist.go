@@ -61,6 +61,12 @@ func (h *Handler) AddAllowlistEntry(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "rebuild filter: "+err.Error())
 		return
 	}
+	// M4.7 — surgical cache invalidation: drop the cached response for
+	// this name so the next query sees the allowlist decision, not the
+	// stale upstream answer.
+	if cache := h.app.GetDNSCache(); cache != nil {
+		cache.PurgeDomain(req.Domain)
+	}
 
 	writeJSON(w, http.StatusCreated, map[string]string{"domain": req.Domain})
 }

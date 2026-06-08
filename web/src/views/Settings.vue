@@ -96,6 +96,25 @@
           </div>
         </div>
 
+        <!-- M4.7 — DNS cache stats + purge button -->
+        <div class="border-t border-border pt-3 space-y-2" v-if="dnsForm.cacheEnabled">
+          <div class="flex items-center justify-between">
+            <span class="label !mb-0">DNS cache</span>
+            <button class="btn-secondary text-xs"
+                    :disabled="cachePurging"
+                    @click="onPurgeCache">
+              {{ cachePurging ? 'Purging…' : 'Clear DNS cache' }}
+            </button>
+          </div>
+          <div v-if="cacheStats" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs text-fg-muted">
+            <span>size <b class="text-fg-strong">{{ cacheStats.size }}</b> / {{ cacheStats.max_entries }}</span>
+            <span>hits <b class="text-fg-strong">{{ cacheStats.hits }}</b></span>
+            <span>misses <b class="text-fg-strong">{{ cacheStats.misses }}</b></span>
+            <span>evictions <b class="text-fg-strong">{{ cacheStats.evictions }}</b></span>
+            <span v-if="cachePurgedAt" class="text-success">Purged {{ cachePurgedCount }}.</span>
+          </div>
+        </div>
+
         <div class="flex items-center justify-end gap-3 pt-1">
           <span v-if="dnsSavedAt" class="text-xs text-success">Saved.</span>
           <button class="btn-primary"
@@ -215,8 +234,10 @@ import { onMounted, reactive, ref } from 'vue'
 import {
   ClipboardDocumentListIcon, GlobeAltIcon, ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
-import { getSettings, patchSettings } from '@/api/endpoints'
-import type { DNSConfig, Settings } from '@/api/types'
+import {
+  getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
+} from '@/api/endpoints'
+import type { DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -266,12 +287,40 @@ const dnsSavedAt = ref(0)
 const filteringSavedAt = ref(0)
 const queryLogSavedAt = ref(0)
 
+// M4.7 — DNS cache controls
+const cacheStats = ref<DNSCacheStats | null>(null)
+const cachePurging = ref(false)
+const cachePurgedAt = ref(0)
+const cachePurgedCount = ref(0)
+
+async function refreshCacheStats() {
+  try {
+    cacheStats.value = await getDNSCacheStats()
+  } catch { /* leave previous snapshot in place */ }
+}
+
+async function onPurgeCache() {
+  cachePurging.value = true
+  try {
+    const out = await purgeDNSCache()
+    cachePurgedCount.value = out.purged
+    cachePurgedAt.value = Date.now()
+    await refreshCacheStats()
+    window.setTimeout(() => { cachePurgedAt.value = 0 }, 4000)
+  } catch (err) {
+    dnsError.value = errMsg(err, 'Failed to purge DNS cache')
+  } finally {
+    cachePurging.value = false
+  }
+}
+
 // ─── Loading ───────────────────────────────────────────────────────────────
 
 onMounted(async () => {
   try {
     const s = await getSettings()
     applySettings(s)
+    await refreshCacheStats()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load settings')
   } finally {

@@ -2,8 +2,9 @@
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
   Anomaly, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
-  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, JoinTokenResponse,
-  Lease, LocalDNSEntry, Profile, QueryLogPage, Schedule, ScheduleBinding, Settings,
+  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
+  JoinTokenResponse, Lease, LocalDNSEntry, Profile, QueryLogPage, Schedule,
+  ScheduleBinding, Settings,
 } from './types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────
@@ -251,4 +252,15 @@ export function acknowledgeAnomaly(id: string): Promise<void> {
 
 export function exportReservationsURL(format: 'dnsmasq' | 'kea' | 'json'): string {
   return `/api/v1/clients/export-reservations?format=${format}`
+}
+
+// ─── M4.7 — DNS cache controls ──────────────────────────────────────────
+
+export function getDNSCacheStats(): Promise<DNSCacheStats> {
+  return getJSON('/api/v1/dns/cache/stats')
+}
+
+export function purgeDNSCache(domain?: string): Promise<{ purged: number }> {
+  const q = domain ? `?domain=${encodeURIComponent(domain)}` : ''
+  return postJSON('/api/v1/dns/cache/purge' + q)
 }

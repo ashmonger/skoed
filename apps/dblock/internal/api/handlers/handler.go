@@ -12,6 +12,7 @@ import (
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
 	"github.com/dblock/dblock/internal/dhcp"
+	dnsengine "github.com/dblock/dblock/internal/dns"
 	"github.com/dblock/dblock/internal/filter"
 	"github.com/dblock/dblock/internal/log"
 )
@@ -49,6 +50,10 @@ type AppState interface {
 	// GetDhcpMgr returns the M3.6 DHCP manager, or nil when DHCP
 	// integration is disabled on this node.
 	GetDhcpMgr() *dhcp.Manager
+
+	// GetDNSCache returns the live DNS cache used by the current DNS
+	// handler. Nil when caching is disabled in config.
+	GetDNSCache() *dnsengine.Cache
 
 	Dir() string
 }

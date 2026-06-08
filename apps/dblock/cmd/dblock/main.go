@@ -29,7 +29,12 @@ import (
 // buildDNSHandler constructs the DNS query pipeline for the current config.
 // The filter engine getter is wired through App so handler rebuilds after
 // Raft applies pick up the fresh filter.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager) *dnsengine.Handler {
+//
+// M4.7: cache is now provided by the caller and persists across rebuilds
+// — config edits (blocklist add, profile rename, etc.) used to wipe the
+// whole cache as a side effect of constructing a fresh handler-and-cache
+// pair. Hot domains had to be re-fetched after any change.
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -38,11 +43,6 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		rec = dnsengine.NewRecursor(cfg.DNS.TrustedSubnets)
 	} else {
 		fwd = dnsengine.NewForwarder(cfg.DNS)
-	}
-
-	var cache *dnsengine.Cache
-	if cfg.DNS.Cache.Enabled {
-		cache = dnsengine.NewCache(cfg.DNS.Cache.MaxEntries)
 	}
 
 	var dhcpLookup func(ip string) (string, string, string, bool)
@@ -150,11 +150,32 @@ func main() {
 	var dnsServer *dnsengine.Server
 	var encryptedSrv *dnsengine.EncryptedServer // populated below; closure captures by name
 	var dhcpMgr *dhcp.Manager                   // populated below; closure captures by name
+	// M4.7: long-lived DNS cache. Survives every Raft apply (config
+	// edits used to wipe the whole cache as a side effect of
+	// constructing a fresh handler-and-cache pair). Allocated once
+	// before rebuildDNS is called.
+	var dnsCache *dnsengine.Cache
+	if snap.DNS.Cache.Enabled {
+		dnsCache = dnsengine.NewCache(snap.DNS.Cache.MaxEntries)
+	}
 
 	rebuildDNS := func(newCfg *config.Config) error {
 		newCfg.Defaults()
 		mergeNodeLocal(newCfg, node)
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr)
+		// M4.7: rebuild the cache only when caching toggles on/off or
+		// max_entries changes. Otherwise reuse the existing pointer so
+		// hot entries survive config edits.
+		if newCfg.DNS.Cache.Enabled {
+			if dnsCache == nil || dnsCache.Snapshot().MaxEntries != newCfg.DNS.Cache.MaxEntries {
+				dnsCache = dnsengine.NewCache(newCfg.DNS.Cache.MaxEntries)
+			}
+		} else {
+			dnsCache = nil
+		}
+		if app != nil {
+			app.SetDNSCache(dnsCache)
+		}
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -178,6 +199,7 @@ func main() {
 	}
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
+	app.SetDNSCache(dnsCache)
 
 	// M3.6 — read-only DHCP integration. Node-local; each node polls its
 	// own configured connector. Operators typically point every node at
@@ -206,7 +228,7 @@ func main() {
 	}
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -320,7 +342,7 @@ func main() {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			certFile, keyFile,

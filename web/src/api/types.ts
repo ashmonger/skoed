@@ -192,6 +192,15 @@ export interface Category {
   enabled_for_profiles: string[]
 }
 
+// M4.7 — DNS cache snapshot exposed by /api/v1/dns/cache/stats.
+export interface DNSCacheStats {
+  size: number
+  max_entries: number
+  hits: number
+  misses: number
+  evictions: number
+}
+
 // M3.5 — per-client DoH status
 export interface ClientDohStatus {
   client: string
