@@ -236,6 +236,24 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
+### Milestone 4.6 — HTTPS for the Management API
+
+**Outcome**: The Web UI and management API are reachable over HTTPS using the same ACME-issued cert M4 already manages for DoH and DoT. Operators on a public-facing host stop needing a reverse proxy in front of dblock.
+
+**Capabilities:**
+- New `node.api.tls.enabled` toggle. When on, dblock binds an HTTPS listener on `api_address` and reuses the cert from M4 (`node.dns.tls.acme.*` or `node.dns.tls.cert_file`)
+- Two listen modes (operator picks): **single-port swap** (plain HTTP returns 308 → HTTPS) or **dual-port** (HTTP on `api_address`, HTTPS on `api_tls_address`) for LAN-script compatibility
+- HSTS header on the HTTPS listener (configurable, off by default for LAN deployments)
+- Same Basic Auth applies (API tokens land later in M7)
+
+**Non-goals:**
+- A separate cert from DoH/DoT — one cert, one renewal
+- mTLS / client certs
+
+**Dependencies:** M4 ACME. Closes the open TODO entry from 2026-06-05.
+
+---
+
 ### Milestone 5 — Production Hardening
 
 **Outcome**: dblock is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
@@ -256,14 +274,140 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
-## Post-Milestone 5 (backlog, not committed)
+### Milestone 5.5 — Native Packaging
 
-- Active-active cluster mode (any-node writes, Raft-based consensus)
-- DoH3 / HTTP/3 server endpoint
-- DNSCrypt server endpoint
-- API token authentication (replace basic auth)
-- IPv6-only and dual-stack network support validation
-- Operator (Kubernetes) for lifecycle management
+**Outcome**: dblock installs on Debian/Ubuntu/Raspberry Pi OS via `apt`, and on Proxmox via a one-shot LXC bootstrap script. The single-binary release stays available, but most operators move to the OS-managed install path.
+
+**Capabilities:**
+- `.deb` packages for amd64 and arm64 (`dblock`, `dblock-cluster` — the latter pulls in the cluster bootstrap helpers)
+- systemd unit file; default config at `/etc/dblock/config.yaml`; data at `/var/lib/dblock`; `dblock` system user
+- apt repo hosted alongside GitHub releases
+- Proxmox LXC bootstrap script (`pveam` + `pct create` + first-run config wizard)
+- All packages reuse the M5 in-place upgrade path on `apt upgrade` / `pct exec`
+
+**Non-goals:**
+- RPM / Arch / Alpine native packages (community-driven; the static binary stays available for those)
+- A homebrew formula (macOS isn't a target host)
+
+**Dependencies:** M5 (in-place upgrade hook).
+
+---
+
+### Milestone 6 — Closing the DoH Gap
+
+**Outcome**: Operators can block hardcoded-resolver-IP DoH/DoT bypasses at their firewall, using dblock-generated rule snippets. Closes the last bypass route M3 + M3.5 leave open.
+
+**Capabilities:**
+- Firewall-rule generators for `iptables`, `nftables`, MikroTik RouterOS, OpnSense / pfSense, UniFi controllers
+- Curated database of public DoH/DoT resolver IPs, refreshed daily from a tracked upstream
+- Web UI: per-platform "Copy rules" button on the Clients / Stats pages, scoped to client subnets
+- Documentation: "Closing the DoH gap" guide covering placement, monitoring, and false-positive recovery
+
+**Non-goals:**
+- dblock pushing rules into routers automatically (operator copy-paste only)
+- SNI-based blocking (belongs at the firewall, not in dblock)
+
+**Dependencies:** M3.5 detection track.
+
+---
+
+### Milestone 6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases
+
+**Outcome**: The M3.6 anti-spoof detector gains a third layer (ARP/NDP cross-check), the lease cache replicates across the cluster, and dblock can finally name a "dynamic vs static" lease.
+
+**Capabilities:**
+- ARP/NDP cross-check via netlink: flag when DHCP's view of `(IP → MAC)` disagrees with the kernel's ARP table on this node
+- Raft-replicated lease cache: only the leader polls; followers see leases via FSM replication
+- DHCPv6 lease parsing (Kea + dnsmasq paths)
+- Per-connector static-vs-dynamic origin tagging on `Lease`
+- New "block-dynamic-clients" rule on profiles, gated on `Lease.IsStatic == false`
+
+**Non-goals:**
+- Active mitigation (still detect-only; operator decides)
+- DHCP failover protocol awareness
+
+**Dependencies:** M3.6.
+
+---
+
+### Milestone 7 — API Token Authentication
+
+**Outcome**: Operators authenticate to the management API with revocable, scoped tokens. HTTP Basic Auth stays available as a migration path but is no longer the recommended default.
+
+**Capabilities:**
+- Token store in bbolt (replicated): `(id, scopes, created_at, last_used, expires_at)`
+- New endpoints: `POST /api/v1/tokens`, `GET /api/v1/tokens`, `DELETE /api/v1/tokens/{id}`
+- `Authorization: Bearer …` honored alongside `Authorization: Basic …`
+- Per-token audit-log entries (pairs with M5 audit log)
+- Web UI: token management page under Account
+- Migration guide: how to flip a deployment from Basic Auth to tokens
+
+**Non-goals:**
+- OAuth2 / OIDC integration (overkill for self-hosted)
+- LDAP / SAML federation
+
+**Dependencies:** M5 audit log.
+
+---
+
+### Milestone 8 — Encrypted DNS Expansion (DoH3 + DNSCrypt)
+
+**Outcome**: dblock serves the two remaining encrypted-DNS dialects so clients that prefer them get filtered DNS too.
+
+**Capabilities:**
+- **DoH3** on a configurable UDP/QUIC port (HTTP/3 transport, RFC 9230)
+- **DNSCrypt v2** server with per-cluster certificate rotation
+- Both reuse the same filter + query-log + cert pipeline as M4 DoH/DoT
+- Per-listen-protocol enable/disable
+
+**Non-goals:**
+- ODoH (Oblivious DoH) — niche; defer
+- Anonymized DNSCrypt relays
+
+**Dependencies:** M4 DoH/DoT.
+
+---
+
+### Milestone 9 — Kubernetes Operator
+
+**Outcome**: A native operator manages dblock clusters on Kubernetes via CRDs — supersedes the M2.5 Helm chart for serious K8s users.
+
+**Capabilities:**
+- CRDs: `DblockCluster`, `DblockNode`
+- Automatic cluster scaling, ACME cert rotation, lease-data PVC management
+- Helm chart kept as a thin wrapper for non-operator deployments
+- Status conditions surface Raft health to `kubectl get dblockcluster`
+
+**Non-goals:**
+- Multi-cluster / federation
+- Custom CNI integration
+
+**Dependencies:** M2.5 Helm chart (lessons learned), M5 hardening.
+
+---
+
+### Milestone 10 — Active-Active Cluster
+
+**Outcome**: Any node accepts writes; Raft handles consensus transparently. Multi-DC deployments stop pinning writes to the leader.
+
+**Capabilities:**
+- Multi-leader writes via Raft pre-vote + log shipping
+- Per-namespace write sharding (auth state replicates everywhere; per-node telemetry stays local)
+- Conflict-free state types where possible (counters, log appends); last-writer-wins with explicit metadata where not
+- API responses surface "served by" + "committed at" so clients can reason about staleness
+
+**Non-goals:**
+- Geo-distributed write tolerance (assumes ≤ 50 ms RTT between voters)
+- Eventual-consistency mode
+
+**Dependencies:** M2 Raft + M5 hardening + significant testing.
+
+---
+
+## Pre-1.0 release tasks (no milestone number)
+
+- **Find a better name.** Trademark / GitHub / crates.io search; secure a domain. Probably happens between M5 and M5.5.
+- **IPv6-only / dual-stack validation.** Already-coded features need real-world IPv6-only deploy sign-off. Lightweight; rides alongside any milestone.
 
 ## Dependencies and risks (cross-milestone)
 
