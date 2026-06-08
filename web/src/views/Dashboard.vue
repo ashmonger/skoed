@@ -1,5 +1,80 @@
 <template>
   <div class="space-y-6">
+    <!-- M5.9.4 — Getting Started card. Shows only on a fresh cluster
+         (0 blocklists, 0 profiles) and only until the operator either
+         adds something or clicks [x]. Sits above all alert cards so a
+         new admin sees it first; existing alerts (spoof/upgrade/stale/DoH)
+         stay in their established order beneath. -->
+    <div v-if="showGettingStarted"
+         class="card p-4 border-l-4 border-accent space-y-3 relative">
+      <button class="absolute top-2 right-2 text-fg-muted hover:text-fg-strong"
+              aria-label="Dismiss Getting Started card"
+              @click="dismissGettingStarted">
+        <XMarkIcon class="w-4 h-4" />
+      </button>
+      <div class="flex items-center gap-2">
+        <RocketLaunchIcon class="w-5 h-5 text-accent" />
+        <h2 class="text-sm font-semibold text-fg-strong">Getting started</h2>
+      </div>
+      <p class="text-xs text-fg-muted">
+        A few minutes to a working dblock. Each step links to the right
+        page or doc — finish step 1 and this card hides itself.
+      </p>
+      <ol class="space-y-2 text-sm">
+        <li class="flex items-start gap-3">
+          <span class="font-mono text-xs text-accent w-5 flex-shrink-0 mt-0.5">①</span>
+          <div class="flex-1">
+            <router-link :to="{ name: 'blocklists' }"
+                         class="text-accent hover:underline font-medium">
+              Add a blocklist
+            </router-link>
+            <p class="text-xs text-fg-muted">
+              Paste a hosts-format URL (e.g. Hagezi Pro) on the Blocklists page.
+              dblock will fetch, parse, and start blocking on next DNS query.
+            </p>
+          </div>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="font-mono text-xs text-accent w-5 flex-shrink-0 mt-0.5">②</span>
+          <div class="flex-1">
+            <a href="/docs/cluster/bootstrap.html"
+               target="_blank" rel="noopener"
+               class="text-accent hover:underline font-medium">
+              Bootstrap a cluster
+            </a>
+            <span class="text-xs text-fg-muted">(optional)</span>
+            <p class="text-xs text-fg-muted">
+              Single-node is fine. Issue a join token from
+              <router-link :to="{ name: 'cluster' }" class="text-accent hover:underline">Cluster</router-link>
+              when you're ready to add HA.
+            </p>
+          </div>
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="font-mono text-xs text-accent w-5 flex-shrink-0 mt-0.5">③</span>
+          <div class="flex-1">
+            <span class="text-fg-strong font-medium">Point a client at dblock</span>
+            <p class="text-xs text-fg-muted">
+              Set your router's DHCP "DNS server" option to this node, or test
+              one query first:
+            </p>
+            <details class="mt-1">
+              <summary class="text-xs text-accent hover:underline cursor-pointer">
+                Show the dig command
+              </summary>
+              <pre class="mt-1 text-xs font-mono bg-bg-hover text-fg-strong p-2 rounded overflow-x-auto"><code>dig @{{ dblockHost }} example.com</code></pre>
+            </details>
+          </div>
+        </li>
+      </ol>
+      <p class="text-xs text-fg-muted">
+        See the full walk-through:
+        <a href="/docs/first-run/getting-started.html"
+           target="_blank" rel="noopener"
+           class="text-accent hover:underline">Getting started →</a>
+      </p>
+    </div>
+
     <!-- M3.6 — spoof alert (DHCP lease lookalikes). Listed before the DoH
          alert because identity-spoofing is the more serious signal. -->
     <div v-if="spoofAlert.length > 0" class="card p-4 border-l-4 border-danger space-y-2">
@@ -163,17 +238,62 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ArrowUpCircleIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import {
+  ArrowUpCircleIcon, ExclamationTriangleIcon, RocketLaunchIcon, XMarkIcon,
+} from '@heroicons/vue/24/outline'
 import StatTile from '@/components/StatTile.vue'
 import Breakdown from '@/components/Breakdown.vue'
 import {
   checkUpgrade, clusterHealth, clusterStats, clusterStatus,
   getClientDohStatus, getClusterQueryLog, listAnomalies, listBlocklists,
-  startUpgrade, type UpgradeCheck,
+  listProfiles, startUpgrade, type UpgradeCheck,
 } from '@/api/endpoints'
 import type {
   Anomaly, AnomalyKind, Blocklist, ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry,
 } from '@/api/types'
+
+// M5.9.4 — Getting Started card. Visible only while the cluster has
+// neither blocklists nor profiles AND the operator hasn't dismissed.
+// Auto-hides on first blocklist; dismissal sticks via localStorage.
+const GETTING_STARTED_KEY = 'dblock.gettingStarted.dismissed'
+const blocklistsCount = ref<number | null>(null)
+const profilesCount = ref<number | null>(null)
+const gettingStartedDismissed = ref<boolean>(
+  typeof window !== 'undefined' &&
+    window.localStorage.getItem(GETTING_STARTED_KEY) === 'true',
+)
+const showGettingStarted = computed(() =>
+  !gettingStartedDismissed.value &&
+  blocklistsCount.value === 0 &&
+  profilesCount.value === 0,
+)
+const dblockHost = computed(() =>
+  typeof window !== 'undefined' ? window.location.hostname || '<dblock-host>' : '<dblock-host>',
+)
+function dismissGettingStarted() {
+  gettingStartedDismissed.value = true
+  try {
+    window.localStorage.setItem(GETTING_STARTED_KEY, 'true')
+  } catch {
+    /* private mode / storage disabled — runtime hide still applies */
+  }
+}
+async function refreshGettingStarted() {
+  if (gettingStartedDismissed.value) return
+  try {
+    const [bl, pr] = await Promise.all([listBlocklists(), listProfiles()])
+    // Count only operator-created entities. A fresh node already ships
+    // with the bundled "cat:doh" category and a "default" profile —
+    // those don't count as "the operator has done something."
+    blocklistsCount.value = bl.filter((b) => !b.id.startsWith('cat:')).length
+    profilesCount.value   = pr.filter((p) => p.id !== 'default').length
+  } catch {
+    // On error, leave counts null so the card stays hidden — we never
+    // want to flash a fresh-install card at an established operator.
+    blocklistsCount.value = blocklistsCount.value ?? -1
+    profilesCount.value = profilesCount.value ?? -1
+  }
+}
 
 const health = ref<ClusterHealth | null>(null)
 const stats  = ref<ClusterStats | null>(null)
@@ -306,7 +426,7 @@ let upgradeTimer: number | undefined
 onMounted(async () => {
   await Promise.all([
     refresh(), refreshDohAlert(), refreshSpoofAlert(),
-    refreshStaleBlocklists(), refreshUpgrade(),
+    refreshStaleBlocklists(), refreshUpgrade(), refreshGettingStarted(),
   ])
   timer = window.setInterval(refresh, 10_000)
   dohTimer = window.setInterval(refreshDohAlert, 60_000)

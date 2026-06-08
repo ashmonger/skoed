@@ -10,9 +10,9 @@ Feature: Getting Started card on the Dashboard
     And the admin is logged into the Web UI
 
   @fsid:FS-GettingStartedShownWhenEmpty
-  Scenario: Card appears when the cluster has no blocklists and no profiles
-    Given the cluster has 0 blocklists
-    And the cluster has 0 profiles
+  Scenario: Card appears when the cluster has no operator-added blocklists or profiles
+    Given the cluster has no operator-added blocklists (bundled "cat:*" categories don't count)
+    And the cluster has no operator-added profiles (the seeded "default" profile doesn't count)
     And the admin has not previously dismissed the card
     When the admin opens the Dashboard
     Then a "Getting Started" card is visible above any alert cards
@@ -24,25 +24,23 @@ Feature: Getting Started card on the Dashboard
     And each step links to the matching page or docs anchor
 
   @fsid:FS-GettingStartedAutoHidesAfterFirstBlocklist
-  Scenario: Card auto-hides once the cluster has any blocklist
-    Given the cluster has 0 blocklists
-    And the cluster has 0 profiles
+  Scenario: Card auto-hides once the operator adds their first blocklist
+    Given the cluster has no operator-added blocklists or profiles
     And the "Getting Started" card is visible
-    When the admin adds a blocklist via the API
+    When the admin adds a blocklist via the API (any id that isn't a bundled "cat:*")
     And the admin reloads the Dashboard
     Then the "Getting Started" card is no longer visible
 
   @fsid:FS-GettingStartedDismissPersists
   Scenario: Operator-dismissed card stays dismissed across reloads
-    Given the cluster has 0 blocklists
-    And the cluster has 0 profiles
+    Given the cluster has no operator-added blocklists or profiles
     And the "Getting Started" card is visible
     When the admin clicks the [x] dismiss button on the card
     Then the card disappears immediately
     And `localStorage["dblock.gettingStarted.dismissed"]` is `"true"`
     When the admin reloads the Dashboard
     Then the "Getting Started" card is still not visible
-    Even though the cluster still has 0 blocklists and 0 profiles
+    Even though the cluster is otherwise still fresh
 
   @fsid:FS-GettingStartedDocsChapter
   Scenario: A docs chapter covers the same flow as the card

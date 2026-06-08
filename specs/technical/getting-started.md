@@ -28,10 +28,20 @@ dismissal in `localStorage`.
 The card renders iff **all** of:
 
 ```
-blocklists.length === 0
-  AND profiles.length === 0
+userBlocklists.length === 0
+  AND userProfiles.length === 0
   AND localStorage["dblock.gettingStarted.dismissed"] !== "true"
 ```
+
+Where:
+
+- `userBlocklists` = `listBlocklists().filter(b => !b.id.startsWith("cat:"))`
+- `userProfiles`   = `listProfiles().filter(p => p.id !== "default")`
+
+A fresh node ships pre-seeded with the bundled `cat:doh` category
+blocklist and a `default` profile that uses it — neither counts as
+"the operator has done something useful." Counting them would mean
+the card is never visible on a real fresh install.
 
 | Condition                       | Card visible? |
 |---------------------------------|---------------|
