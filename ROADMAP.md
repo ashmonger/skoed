@@ -254,6 +254,31 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
+### Milestone 4.7 — DNS Cache Controls
+
+**Outcome**: Operators can purge the DNS cache on demand and see cache health from outside the process. Config edits stop bulldozing the entire cache as a side effect of handler rebuilds.
+
+**Today's gap** (`apps/dblock/internal/dns/cache.go`):
+- No `Clear()` / `Purge()` method on `Cache`; no API endpoint; no UI button.
+- Every Raft apply (allowlist add, profile rename, even a settings tweak) wipes the cache as an unintended side effect, because `rebuildDNS` constructs a fresh handler-and-cache pair on every apply. Hot domains have to be re-fetched after any config change.
+- No visibility — operators can't tell if the cache is hot, full, or even running.
+
+**Capabilities:**
+- **Explicit purge API**: `POST /api/v1/dns/cache/purge` (full purge) and `POST /api/v1/dns/cache/purge?domain=<fqdn>` (targeted purge for one name across all qtypes). Audit-logged in M5.
+- **Web UI button**: "Clear DNS cache" on Settings → DNS, with a confirmation modal showing the current cache size.
+- **Targeted invalidation on config change**: rebuildDNS preserves the existing `*Cache` (atomic swap of the cache pointer instead of recreating); allowlist / blocklist mutations trigger surgical purges of the affected names only. Local-DNS / profile-match changes still invalidate matching keys, not the whole cache.
+- **Cache visibility**: `GET /api/v1/dns/cache/stats` returns `{ size, max_entries, hits_24h, misses_24h, evictions_24h, oldest_expiry, newest_expiry }`. Stats page gets a "DNS cache" card next to "DoH attempts today".
+- **Metrics hook**: counters (hits/misses/evictions/size) wired so the M5 Prometheus exporter surfaces them at `dblock_dns_cache_*`.
+
+**Non-goals:**
+- Persistent cache across restarts (the cache is by design ephemeral)
+- Per-client cache namespaces (M3.6 profile matching could deviate by profile; defer until anyone asks)
+- Negative-result cache (NXDOMAIN caching) — separate scope decision
+
+**Dependencies:** None hard. Cache rework lives entirely inside `internal/dns/`. Metrics hook anticipates M5's Prometheus endpoint.
+
+---
+
 ### Milestone 5 — Production Hardening
 
 **Outcome**: dblock is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
