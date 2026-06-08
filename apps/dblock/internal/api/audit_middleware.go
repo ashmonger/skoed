@@ -203,6 +203,7 @@ var auditActionCatalogue = map[string]string{
 	"DELETE /api/v1/cluster/nodes/{node_id}":                     "cluster.remove_node",
 	"POST /api/v1/config/import":                                 "config.import",
 	"POST /api/v1/dns/cache/purge":                               "dns_cache.purge",
+	"POST /api/v1/upgrade/start":                                 "upgrade.start",
 }
 
 // targetFromPath returns "<resource>:<id>" when an id is available

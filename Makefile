@@ -4,11 +4,13 @@
 DBLOCK_VERSION ?= 0.5.0
 DBLOCK_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-.PHONY: help build test acceptance deb deb-arm64 test-deb clean
+.PHONY: help build build-ui openapi-sync test acceptance deb deb-arm64 test-deb clean
 
 help:
 	@echo "Top-level targets:"
 	@echo "  build         - build the dblock binary (cd apps/dblock && make build)"
+	@echo "  build-ui      - rebuild the SPA + stage it under apps/dblock/internal/api/static"
+	@echo "  openapi-sync  - stage the OpenAPI spec for the binary's embedded swagger-ui"
 	@echo "  test          - run unit + acceptance tests in Docker"
 	@echo "  acceptance    - run acceptance tests in Docker (alias)"
 	@echo "  deb           - build dist/dblock_<version>_amd64.deb via nfpm"
@@ -18,6 +20,12 @@ help:
 
 build:
 	$(MAKE) -C apps/dblock build
+
+build-ui:
+	$(MAKE) -C apps/dblock build-ui
+
+openapi-sync:
+	$(MAKE) -C apps/dblock openapi-sync
 
 test acceptance:
 	tests/acceptance/run-in-docker.sh

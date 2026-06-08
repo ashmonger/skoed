@@ -25,6 +25,31 @@
       </ul>
     </div>
 
+    <!-- M5.6 — upgrade-available banner. Only the leader's feed cache
+         is authoritative, but every node serves /upgrade/check. -->
+    <div v-if="upgrade && upgrade.upgrade_available" class="card p-4 border-l-4 border-accent space-y-2">
+      <div class="flex items-center gap-2">
+        <ArrowUpCircleIcon class="w-5 h-5 text-accent" />
+        <h2 class="text-sm font-semibold text-fg-strong">Upgrade available</h2>
+      </div>
+      <p class="text-sm">
+        dblock <span class="font-mono text-accent">{{ upgrade.available_version }}</span> is
+        out. You're on <span class="font-mono text-fg-muted">{{ upgrade.current_version || 'dev' }}</span>.
+      </p>
+      <div class="flex items-center gap-3 text-sm">
+        <a v-if="upgrade.release_notes_url"
+           :href="upgrade.release_notes_url"
+           target="_blank" rel="noopener"
+           class="text-accent hover:underline">Release notes</a>
+        <button class="btn-primary ml-auto"
+                :disabled="upgradeStarting"
+                @click="onUpgradeStart">
+          {{ upgradeStarting ? 'Starting…' : 'Upgrade now' }}
+        </button>
+      </div>
+      <p v-if="upgradeStatus" class="text-xs text-fg-muted">{{ upgradeStatus }}</p>
+    </div>
+
     <!-- M5.4 — stale blocklist alert. Blocklist hasn't refreshed in 2× its interval. -->
     <div v-if="staleBlocklists.length > 0" class="card p-4 border-l-4 border-warning space-y-2">
       <div class="flex items-center gap-2">
@@ -138,12 +163,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { ArrowUpCircleIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import StatTile from '@/components/StatTile.vue'
 import Breakdown from '@/components/Breakdown.vue'
 import {
-  clusterHealth, clusterStats, clusterStatus,
+  checkUpgrade, clusterHealth, clusterStats, clusterStatus,
   getClientDohStatus, getClusterQueryLog, listAnomalies, listBlocklists,
+  startUpgrade, type UpgradeCheck,
 } from '@/api/endpoints'
 import type {
   Anomaly, AnomalyKind, Blocklist, ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry,
@@ -201,6 +227,31 @@ async function refreshStaleBlocklists() {
   }
 }
 
+// M5.6 — release-feed banner state.
+const upgrade = ref<UpgradeCheck | null>(null)
+const upgradeStarting = ref(false)
+const upgradeStatus = ref('')
+async function refreshUpgrade() {
+  try {
+    upgrade.value = await checkUpgrade()
+  } catch {
+    upgrade.value = null
+  }
+}
+async function onUpgradeStart() {
+  upgradeStarting.value = true
+  upgradeStatus.value = ''
+  try {
+    await startUpgrade()
+    upgradeStatus.value = 'Upgrade triggered. Watch the audit log for the binary-swap result.'
+  } catch (err) {
+    const e = err as { message?: string }
+    upgradeStatus.value = e?.message || 'Upgrade failed; see audit log.'
+  } finally {
+    upgradeStarting.value = false
+  }
+}
+
 function formatRelative(iso?: string): string {
   if (!iso) return 'never'
   const then = new Date(iso).getTime()
@@ -251,17 +302,23 @@ let timer: number | undefined
 let dohTimer: number | undefined
 let spoofTimer: number | undefined
 let staleTimer: number | undefined
+let upgradeTimer: number | undefined
 onMounted(async () => {
-  await Promise.all([refresh(), refreshDohAlert(), refreshSpoofAlert(), refreshStaleBlocklists()])
+  await Promise.all([
+    refresh(), refreshDohAlert(), refreshSpoofAlert(),
+    refreshStaleBlocklists(), refreshUpgrade(),
+  ])
   timer = window.setInterval(refresh, 10_000)
   dohTimer = window.setInterval(refreshDohAlert, 60_000)
   spoofTimer = window.setInterval(refreshSpoofAlert, 30_000)
   staleTimer = window.setInterval(refreshStaleBlocklists, 60_000)
+  upgradeTimer = window.setInterval(refreshUpgrade, 5 * 60_000)
 })
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   if (dohTimer) window.clearInterval(dohTimer)
   if (spoofTimer) window.clearInterval(spoofTimer)
   if (staleTimer) window.clearInterval(staleTimer)
+  if (upgradeTimer) window.clearInterval(upgradeTimer)
 })
 </script>

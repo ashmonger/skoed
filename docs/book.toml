@@ -1,0 +1,18 @@
+[book]
+title = "dblock"
+authors = ["dblock maintainers"]
+language = "en"
+src = "src"
+description = "Self-hosted DNS filtering with multi-node sync."
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/dblock/dblock"
+edit-url-template = "https://github.com/dblock/dblock/edit/main/docs/src/{path}"
+no-section-label = true
+additional-css = ["theme/custom.css"]
+
+[output.html.fold]
+enable = true
+level = 1

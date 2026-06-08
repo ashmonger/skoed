@@ -55,6 +55,10 @@ type AppState interface {
 	// handler. Nil when caching is disabled in config.
 	GetDNSCache() *dnsengine.Cache
 
+	// GetUpgradeChecker returns the M5.6 upgrade-feed cache, or nil
+	// when node.upgrade.feed_url is unset.
+	GetUpgradeChecker() UpgradeChecker
+
 	Dir() string
 }
 

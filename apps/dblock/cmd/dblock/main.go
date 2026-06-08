@@ -26,6 +26,7 @@ import (
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/dblock/dblock/internal/metrics"
 	"github.com/dblock/dblock/internal/refresh"
+	"github.com/dblock/dblock/internal/upgrade"
 )
 
 // Build metadata. Override at link time with:
@@ -376,6 +377,24 @@ func main() {
 	refreshSched = refresh.New(c, refresh.Options{Tick: refreshTick})
 	refreshSched.Start()
 	defer refreshSched.Stop()
+
+	// M5.6 — release-feed checker. The feed URL comes from env in
+	// tests (DBLOCK_UPGRADE_FEED_URL) or — in a future iteration —
+	// from node.upgrade.feed_url in config.yaml. Empty URL disables
+	// the goroutine entirely.
+	feedURL := os.Getenv("DBLOCK_UPGRADE_FEED_URL")
+	upgradePoll := 6 * time.Hour
+	if os.Getenv("DBLOCK_TEST_MODE") == "1" {
+		upgradePoll = 500 * time.Millisecond
+	}
+	upgradeChk := upgrade.New(upgrade.Options{
+		CurrentVersion: version,
+		FeedURL:        feedURL,
+		PollInterval:   upgradePoll,
+	})
+	upgradeChk.Start()
+	defer upgradeChk.Stop()
+	app.SetUpgradeChecker(upgradeChk)
 
 	// M4.6 — optional HTTPS for the management API. When disabled (the
 	// default), behaviour is identical to M1-M3: plain HTTP on api_address.
