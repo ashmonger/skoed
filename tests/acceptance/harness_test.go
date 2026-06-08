@@ -1,10 +1,10 @@
-// Package acceptance contains black-box acceptance tests for dblock.
-// Tests start the dblock binary as a subprocess and interact with it
+// Package acceptance contains black-box acceptance tests for skoed.
+// Tests start the skoed binary as a subprocess and interact with it
 // exclusively through port 53 (DNS) and the HTTP management API.
 //
 // Prerequisites:
-//   - Build the dblock binary: cd apps/dblock && go build -o dblock .
-//   - Set DBLOCK_BINARY to override the default binary path.
+//   - Build the skoed binary: cd apps/skoed && go build -o skoed .
+//   - Set SKOED_BINARY to override the default binary path.
 //
 // Run: go test ./... -v
 package acceptance
@@ -30,7 +30,7 @@ import (
 
 const (
 	// readyTimeout was 10s — flaky under full-suite load. The suite
-	// spawns ~50 dblock subprocesses over 7+ minutes; by mid-run the
+	// spawns ~50 skoed subprocesses over 7+ minutes; by mid-run the
 	// kernel has thousands of TIME_WAIT sockets from prior tests and
 	// /tmp has tens of MB of leftover bbolt files. Individual tests
 	// boot in 1-3s, but a node started 5 minutes into the suite can
@@ -44,7 +44,7 @@ const (
 	defaultPassword = "testpass1!"
 )
 
-// Node represents a running dblock instance under test.
+// Node represents a running skoed instance under test.
 type Node struct {
 	DNSAddr      string // "127.0.0.1:port" — UDP/TCP DNS listener
 	APIBase      string // "http://127.0.0.1:port" — management API
@@ -71,23 +71,23 @@ type NodeConfig struct {
 	// Auth is always set up automatically with defaultUsername / defaultPassword.
 }
 
-// dblockBinary returns the path to the binary under test.
-func dblockBinary(t *testing.T) string {
+// skoedBinary returns the path to the binary under test.
+func skoedBinary(t *testing.T) string {
 	t.Helper()
-	if b := os.Getenv("DBLOCK_BINARY"); b != "" {
+	if b := os.Getenv("SKOED_BINARY"); b != "" {
 		return b
 	}
-	return filepath.Join("..", "..", "apps", "dblock", "dblock")
+	return filepath.Join("..", "..", "apps", "skoed", "skoed")
 }
 
-// startNode starts a dblock node. The test is skipped if the binary is missing.
+// startNode starts a skoed node. The test is skipped if the binary is missing.
 // Cleanup (process kill) is registered automatically via t.Cleanup.
 func startNode(t *testing.T, cfg NodeConfig) *Node {
 	t.Helper()
 
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 
 	dir := t.TempDir()
@@ -110,7 +110,7 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		cmd.Stderr = os.Stderr
 	}
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start dblock: %v", err)
+		t.Fatalf("start skoed: %v", err)
 	}
 
 	n := &Node{
@@ -404,13 +404,13 @@ func waitReady(t *testing.T, n *Node) {
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("dblock API did not become ready within %s at %s", readyTimeout, n.APIBase)
+	t.Fatalf("skoed API did not become ready within %s at %s", readyTimeout, n.APIBase)
 
 dnsCheck:
 	// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
 	// the API listener; a test that fires a DNS query the moment
 	// waitReady returns can otherwise see "connection refused" on the
-	// still-unbound port. dblock binds both UDP and TCP on the same
+	// still-unbound port. skoed binds both UDP and TCP on the same
 	// DNS port, so a TCP dial proves the listener is up WITHOUT
 	// sending a DNS message — no query-log pollution, no upstream
 	// contact, no SafeSearch rewrite.
@@ -422,7 +422,7 @@ dnsCheck:
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("dblock DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
+	t.Fatalf("skoed DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 }
 
 func setupAuth(t *testing.T, n *Node) {
@@ -464,7 +464,7 @@ func setupAuth(t *testing.T, n *Node) {
 //
 // **They MUST probe on the same address scope the subprocess will use**,
 // otherwise: probing on 127.0.0.1:0 only checks loopback-scope free-ness,
-// while dblock's DNS server binds on 0.0.0.0:port (wildcard). Under
+// while skoed's DNS server binds on 0.0.0.0:port (wildcard). Under
 // suite load, port N can be free on 127.0.0.1 (no TIME_WAIT on loopback)
 // but held by a previous test's TIME_WAIT on 0.0.0.0 — the subprocess
 // then dies with "address already in use", the harness never sees

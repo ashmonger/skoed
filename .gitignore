@@ -2,7 +2,7 @@
 .env
 
 # Compiled binaries
-apps/*/dblock
+apps/*/skoed
 apps/*/*.exe
 
 # Go build artifacts
@@ -18,7 +18,7 @@ apps/*/vendor/
 *.tmp
 *.bak
 
-# Web UI build artefacts — committed at apps/dblock/internal/api/static/dist
+# Web UI build artefacts — committed at apps/skoed/internal/api/static/dist
 # instead so the Go binary's go:embed slot is populated.
 web/node_modules/
 web/dist/
@@ -30,4 +30,5 @@ web/tsconfig.tsbuildinfo
 # Release artefacts (goreleaser / make deb output)
 dist/
 # …except the embedded SPA bundle the Go binary needs at compile time.
-!apps/dblock/internal/api/static/dist/
+!apps/skoed/internal/api/static/dist/
+.claude/

@@ -1,25 +1,25 @@
 # Getting started
 
-A 5-minute walk-through from a fresh install to a working dblock.
+A 5-minute walk-through from a fresh install to a working skoed.
 The Dashboard shows the same checklist while the cluster is empty —
 each step here matches a card on `/`.
 
-If you haven't installed dblock yet, see
+If you haven't installed skoed yet, see
 [Debian / Ubuntu (.deb)](../install/debian-ubuntu.md) (`apt install
-./dblock_*.deb` from the M5.5 .deb release artifacts), or pick the
+./skoed_*.deb` from the M5.5 .deb release artifacts), or pick the
 shape that fits your environment under **Install** in the left nav.
 
 ---
 
 ## 1. Set the admin password
 
-dblock ships with **no credentials**. The first request you make to
+skoed ships with **no credentials**. The first request you make to
 the management API creates them — see
 [Set the admin password](auth-setup.md) for the full reference.
 The short version:
 
 ```sh
-# Replace <HOST> with the IP / hostname of your dblock node.
+# Replace <HOST> with the IP / hostname of your skoed node.
 curl -fsS -X POST http://<HOST>:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
   -d '{"username":"admin","password":"<your-password>"}'
@@ -35,7 +35,7 @@ You'll land on the Dashboard. While the cluster is empty, the
 
 A blocklist is a named set of domains that resolve to your chosen
 block policy (NXDOMAIN by default). The fastest path is a hosts-format
-URL list — dblock will fetch, parse, and start blocking on the next
+URL list — skoed will fetch, parse, and start blocking on the next
 DNS query. Full reference:
 [Add your first blocklist](first-blocklist.md).
 
@@ -65,7 +65,7 @@ In the Web UI you can do the same via **Blocklists → New blocklist**.
 
 ## 3. (Optional) Bootstrap a cluster
 
-A single-node dblock works for any home setup. If you want HA — say,
+A single-node skoed works for any home setup. If you want HA — say,
 two cluster members on a Proxmox box and a third on a Raspberry Pi —
 follow [Bootstrap a 3-node cluster](../cluster/bootstrap.md). The
 short version:
@@ -76,18 +76,18 @@ curl -fsS -u admin:<your-password> -X POST \
   http://<NODE1>:8080/api/v1/cluster/tokens
 
 # Response includes a `bootstrap:` block you paste into NODE2's
-# /etc/dblock/config.yaml, then `systemctl restart dblock`.
+# /etc/skoed/config.yaml, then `systemctl restart skoed`.
 ```
 
 Repeat for NODE3. The Dashboard's **Cluster nodes** table shows each
 member's role (leader / follower) and sync state.
 
-You can also use the M5.9.1 CLI: `dblock token create` formats the
+You can also use the M5.9.1 CLI: `skoed token create` formats the
 same `bootstrap:` block inside a copy-pasteable Lipgloss box.
 
 ---
 
-## 4. Point a client at dblock
+## 4. Point a client at skoed
 
 The simplest test is one `dig`:
 
@@ -98,14 +98,14 @@ dig @<HOST> doubleclick.net     # should be NXDOMAIN once a blocklist is loaded
 
 For real client traffic, set the DNS server on your network:
 
-- **Router** — set DHCP option 6 (DNS server) to the dblock IP.
-  Every device that takes a fresh lease will use dblock from then on.
+- **Router** — set DHCP option 6 (DNS server) to the skoed IP.
+  Every device that takes a fresh lease will use skoed from then on.
 - **Single host (Linux)** — edit `/etc/resolv.conf` (or
-  `nmcli`/`systemd-resolved` config) to point at the dblock IP.
+  `nmcli`/`systemd-resolved` config) to point at the skoed IP.
 - **Single host (macOS / Windows)** — set the DNS server in System
   Settings → Network → DNS.
 
-dblock listens on UDP/TCP 53 by default. To serve DoH or DoT (TLS
+skoed listens on UDP/TCP 53 by default. To serve DoH or DoT (TLS
 or HTTPS on port 853 / 443 respectively), see
 [DoH / DoT serving](../configuration/doh-dot.md).
 

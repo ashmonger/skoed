@@ -17,7 +17,7 @@
         <h2 class="text-sm font-semibold text-fg-strong">Getting started</h2>
       </div>
       <p class="text-xs text-fg-muted">
-        A few minutes to a working dblock. Each step links to the right
+        A few minutes to a working skoed. Each step links to the right
         page or doc — finish step 1 and this card hides itself.
       </p>
       <ol class="space-y-2 text-sm">
@@ -30,7 +30,7 @@
             </router-link>
             <p class="text-xs text-fg-muted">
               Paste a hosts-format URL (e.g. Hagezi Pro) on the Blocklists page.
-              dblock will fetch, parse, and start blocking on next DNS query.
+              skoed will fetch, parse, and start blocking on next DNS query.
             </p>
           </div>
         </li>
@@ -53,7 +53,7 @@
         <li class="flex items-start gap-3">
           <span class="font-mono text-xs text-accent w-5 flex-shrink-0 mt-0.5">③</span>
           <div class="flex-1">
-            <span class="text-fg-strong font-medium">Point a client at dblock</span>
+            <span class="text-fg-strong font-medium">Point a client at skoed</span>
             <p class="text-xs text-fg-muted">
               Set your router's DHCP "DNS server" option to this node, or test
               one query first:
@@ -62,7 +62,7 @@
               <summary class="text-xs text-accent hover:underline cursor-pointer">
                 Show the dig command
               </summary>
-              <pre class="mt-1 text-xs font-mono bg-bg-hover text-fg-strong p-2 rounded overflow-x-auto"><code>dig @{{ dblockHost }} example.com</code></pre>
+              <pre class="mt-1 text-xs font-mono bg-bg-hover text-fg-strong p-2 rounded overflow-x-auto"><code>dig @{{ skoedHost }} example.com</code></pre>
             </details>
           </div>
         </li>
@@ -108,7 +108,7 @@
         <h2 class="text-sm font-semibold text-fg-strong">Upgrade available</h2>
       </div>
       <p class="text-sm">
-        dblock <span class="font-mono text-accent">{{ upgrade.available_version }}</span> is
+        skoed <span class="font-mono text-accent">{{ upgrade.available_version }}</span> is
         out. You're on <span class="font-mono text-fg-muted">{{ upgrade.current_version || 'dev' }}</span>.
       </p>
       <div class="flex items-center gap-3 text-sm">
@@ -156,7 +156,7 @@
         <h2 class="text-sm font-semibold text-fg-strong">Suspected DoH/DoT use</h2>
       </div>
       <p class="text-xs text-fg-muted">
-        Clients with blocked DoH probes in the last hour. dblock catches the
+        Clients with blocked DoH probes in the last hour. skoed catches the
         hostname-based path; clients using hardcoded resolver IPs need a
         firewall rule (see roadmap M3.5).
       </p>
@@ -255,7 +255,7 @@ import type {
 // M5.9.4 — Getting Started card. Visible only while the cluster has
 // neither blocklists nor profiles AND the operator hasn't dismissed.
 // Auto-hides on first blocklist; dismissal sticks via localStorage.
-const GETTING_STARTED_KEY = 'dblock.gettingStarted.dismissed'
+const GETTING_STARTED_KEY = 'skoed.gettingStarted.dismissed'
 const blocklistsCount = ref<number | null>(null)
 const profilesCount = ref<number | null>(null)
 const gettingStartedDismissed = ref<boolean>(
@@ -267,8 +267,8 @@ const showGettingStarted = computed(() =>
   blocklistsCount.value === 0 &&
   profilesCount.value === 0,
 )
-const dblockHost = computed(() =>
-  typeof window !== 'undefined' ? window.location.hostname || '<dblock-host>' : '<dblock-host>',
+const skoedHost = computed(() =>
+  typeof window !== 'undefined' ? window.location.hostname || '<skoed-host>' : '<skoed-host>',
 )
 function dismissGettingStarted() {
   gettingStartedDismissed.value = true

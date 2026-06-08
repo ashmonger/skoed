@@ -2,7 +2,7 @@
 
 ## Scope
 
-dblock learns hostnames, MAC addresses, and DHCP Client-IDs from one
+skoed learns hostnames, MAC addresses, and DHCP Client-IDs from one
 of three upstream DHCP sources (Kea control-agent, dnsmasq lease file,
 generic HTTP-JSON). The query log and Dashboard surface enriched
 client identities; profiles match clients by stable identity instead
@@ -11,7 +11,7 @@ like spoofing.
 
 ### Implemented
 
-- **Three read-only connectors** in `apps/dblock/internal/dhcp/`:
+- **Three read-only connectors** in `apps/skoed/internal/dhcp/`:
   - **Kea** — POSTs `lease4-get-all` to the control-agent. Supports
     Basic Auth.
   - **dnsmasq** — reads the lease file (default
@@ -22,7 +22,7 @@ like spoofing.
     for OPNsense / UniFi / custom backends.
 - **Lease cache** with periodic refresh (default 60 s). Node-local —
   every node polls its own configured source. Recommended deployment:
-  point every dblock node at the same central DHCP server.
+  point every skoed node at the same central DHCP server.
 - **Anti-spoof detector** (Layers 1 + 2):
   - Prefers DHCP Client-ID for identity (Layer 1)
   - Tracks `(client_id, mac, hostname)` history; flags three anomaly
@@ -80,24 +80,24 @@ Docker at 482 s.
 - **Lease list virtualization** — fine for typical home/small-office
   scale (≤500 leases); larger deployments may want pagination later.
 
-## Demo recipe (dnsmasq + dblock side-by-side)
+## Demo recipe (dnsmasq + skoed side-by-side)
 
-This recipe runs **dnsmasq as the DHCP server** and **dblock as the DNS
-resolver** in two containers, with dblock reading dnsmasq's lease file
+This recipe runs **dnsmasq as the DHCP server** and **skoed as the DNS
+resolver** in two containers, with skoed reading dnsmasq's lease file
 via a shared volume.
 
 ```bash
-# 1. Build dblock image
-docker build -t dblock:m3.6 -f apps/dblock/Dockerfile apps/dblock
+# 1. Build skoed image
+docker build -t skoed:m3.6 -f apps/skoed/Dockerfile apps/skoed
 
 # 2. Shared volume for the lease file
-docker volume create dblock-leases
+docker volume create skoed-leases
 
 # 3. Start dnsmasq with DHCP enabled, writing leases to /var/lib/misc.
 #    The static reservations seed three "known" devices we'll later
-#    verify dblock has learned.
+#    verify skoed has learned.
 docker run -d --name dnsmasq --cap-add=NET_ADMIN --network host \
-  -v dblock-leases:/var/lib/misc \
+  -v skoed-leases:/var/lib/misc \
   -e DNSMASQ_USER=root \
   dockurr/dnsmasq:latest \
     --no-daemon \
@@ -107,14 +107,14 @@ docker run -d --name dnsmasq --cap-add=NET_ADMIN --network host \
     --dhcp-leasefile=/var/lib/misc/dnsmasq.leases \
     --log-dhcp
 
-# 4. Per-node dblock config pointing at the shared lease file
-mkdir -p /tmp/dblock-m3.6-demo/data
-cat > /tmp/dblock-m3.6-demo/config.yaml <<'EOF'
+# 4. Per-node skoed config pointing at the shared lease file
+mkdir -p /tmp/skoed-m3.6-demo/data
+cat > /tmp/skoed-m3.6-demo/config.yaml <<'EOF'
 node:
   id: "demo"
   raft_address: "127.0.0.1:7000"
   api_address: "127.0.0.1:8080"
-  data_dir: "/var/lib/dblock"
+  data_dir: "/var/lib/skoed"
   dns:
     listen:
       port: 53
@@ -127,13 +127,13 @@ node:
     refresh_seconds: 5
 EOF
 
-# 5. Start dblock with the shared lease volume mounted read-only
-docker run -d --name dblock -p 18080:8080 -p 15353:53/udp \
-  -v dblock-leases:/var/lib/misc:ro \
-  -v /tmp/dblock-m3.6-demo/config.yaml:/etc/dblock/config.yaml:ro \
-  -v /tmp/dblock-m3.6-demo/data:/var/lib/dblock \
-  -e DBLOCK_TEST_MODE=1 \
-  dblock:m3.6 --config /etc/dblock/config.yaml
+# 5. Start skoed with the shared lease volume mounted read-only
+docker run -d --name skoed -p 18080:8080 -p 15353:53/udp \
+  -v skoed-leases:/var/lib/misc:ro \
+  -v /tmp/skoed-m3.6-demo/config.yaml:/etc/skoed/config.yaml:ro \
+  -v /tmp/skoed-m3.6-demo/data:/var/lib/skoed \
+  -e SKOED_TEST_MODE=1 \
+  skoed:m3.6 --config /etc/skoed/config.yaml
 
 # 6. Set the admin password
 curl -sX POST http://127.0.0.1:18080/api/v1/auth/setup \
@@ -143,7 +143,7 @@ curl -sX POST http://127.0.0.1:18080/api/v1/auth/setup \
 # 7. Trigger a DHCP exchange (in a separate test container with the
 #    target MAC).  Skip this if your LAN is already feeding dnsmasq.
 
-# 8. Verify dblock sees the lease
+# 8. Verify skoed sees the lease
 curl -s -u admin:demopass123 http://127.0.0.1:18080/api/v1/clients/192.168.99.42 | jq
 #   → { ip, mac, hostname: "kid-tablet", client_id, source: "dnsmasq", … }
 
@@ -158,7 +158,7 @@ curl -s -u admin:demopass123 http://127.0.0.1:18080/api/v1/clients/192.168.99.42
 #     same Client-ID (Layer-2 detector input)
 docker exec dnsmasq sh -c "sed -i 's/aa:bb:cc:dd:ee:42/ff:00:00:00:00:99/' /var/lib/misc/dnsmasq.leases"
 
-# 11. Within one refresh interval (5 s above), dblock raises an anomaly
+# 11. Within one refresh interval (5 s above), skoed raises an anomaly
 curl -s -u admin:demopass123 http://127.0.0.1:18080/api/v1/clients/anomalies | jq
 #   → [{kind: "mac_changed_for_client_id", ip: "192.168.99.42", …}]
 
@@ -177,14 +177,14 @@ curl -s -u admin:demopass123 -X POST \
 # 14. Export the current lease snapshot as dnsmasq dhcp-host=... lines
 curl -s -u admin:demopass123 \
   'http://127.0.0.1:18080/api/v1/clients/export-reservations?format=dnsmasq'
-# Drop into /etc/dnsmasq.d/dblock-reservations.conf and reload dnsmasq.
+# Drop into /etc/dnsmasq.d/skoed-reservations.conf and reload dnsmasq.
 ```
 
 ### Cleanup
 
 ```bash
-docker rm -f dblock dnsmasq
-docker volume rm dblock-leases
+docker rm -f skoed dnsmasq
+docker volume rm skoed-leases
 ```
 
 ## What's next

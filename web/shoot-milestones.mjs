@@ -3,17 +3,17 @@
 // prefixed with the current milestone (m5.9-<page>.png) so it's
 // always obvious which iteration of the SPA they capture.
 //
-// Expects a daemon at $DBLOCK_BASE_URL with admin/demopass123 already
+// Expects a daemon at $SKOED_BASE_URL with admin/demopass123 already
 // set up AND seeded with rich data (blocklists, profiles, queries).
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18299'
-const USER = process.env.DBLOCK_USER ?? 'admin'
-const PASS = process.env.DBLOCK_PASS ?? 'demopass123'
-const OUTDIR = process.env.DBLOCK_SCREENSHOT_DIR ?? '../docs/screenshots'
-const PREFIX = process.env.DBLOCK_MILESTONE_PREFIX ?? 'm5.9'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18299'
+const USER = process.env.SKOED_USER ?? 'admin'
+const PASS = process.env.SKOED_PASS ?? 'demopass123'
+const OUTDIR = process.env.SKOED_SCREENSHOT_DIR ?? '../docs/screenshots'
+const PREFIX = process.env.SKOED_MILESTONE_PREFIX ?? 'm5.9'
 
 // M5.9.5 moved the admin shell from / to /dashboard so the new
 // public Landing.vue can own /. Admin routes are children of
@@ -50,8 +50,8 @@ const browser = await chromium.launch({ headless: true })
   // Seed Lipgloss dark + Basic Auth creds before the router auth guard runs.
   await page.goto(BASE + '/login')
   await page.evaluate(([u, p]) => {
-    sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'lipgloss', mode: 'dark',
     }))
   }, [USER, PASS])
@@ -73,7 +73,7 @@ const browser = await chromium.launch({ headless: true })
   const page = await ctx.newPage()
   await page.goto(BASE + '/login')
   await page.evaluate(() => {
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'lipgloss', mode: 'dark',
     }))
   })
@@ -90,7 +90,7 @@ const browser = await chromium.launch({ headless: true })
   const page = await ctx.newPage()
   await page.goto(BASE + '/login')
   await page.evaluate(() => {
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'lipgloss', mode: 'dark',
     }))
   })

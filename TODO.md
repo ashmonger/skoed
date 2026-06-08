@@ -2,7 +2,7 @@
 
 ## Intent
 
-Build dblock: a self-hosted DNS filtering and parental control solution with multi-node sync, web UI, and container-native deployment. Foundation artifacts are now validated; proceeding with BDD-First delivery starting at Milestone 1.
+Build skoed: a self-hosted DNS filtering and parental control solution with multi-node sync, web UI, and container-native deployment. Foundation artifacts are now validated; proceeding with BDD-First delivery starting at Milestone 1.
 
 ## Preconditions
 - [x] AGENTS_MODE: standard (default — .env absent)
@@ -43,7 +43,7 @@ None.
 - "Block dynamic-lease clients" category (M3.7 candidate). Requires
   per-connector knowledge of static-vs-dynamic origin. dnsmasq lease
   file alone doesn't surface this — would need a separate `dhcp-host=`
-  config parser, OR a dblock-owned static-pin list (duplicates state),
+  config parser, OR a skoed-owned static-pin list (duplicates state),
   OR a "known vs unknown" approximation. Defer until after M3.6 ships
   the export endpoint, which closes most of the bootstrapping pain
   this category was supposed to address. — added 2026-06-05.
@@ -61,9 +61,9 @@ None.
     (no split-brain where one node still blocks).
   - Audited (M5.2): action = `filter.pause`, target = `cluster` |
     `profile:<id>`, diff carries the duration + reason text.
-  - CLI: `dblock filter pause [--profile <id>] [--duration 30m]` +
-    `dblock filter resume`.
-  - Prometheus: `dblock_filter_pause_active{scope="…"} 1` + a
+  - CLI: `skoed filter pause [--profile <id>] [--duration 30m]` +
+    `skoed filter resume`.
+  - Prometheus: `skoed_filter_pause_active{scope="…"} 1` + a
     seconds-remaining gauge.
   - Non-goal: scheduled recurring pauses (that's already M3 schedules).
   - Implementation cost is mostly UI + a few lines in the filter
@@ -73,18 +73,18 @@ None.
 ### Packaging + deployment
 
 - **Proxmox deploy script for LXC containers.** Single-command bootstrap
-  inside a Proxmox host (`pveam`, `pct create`, …) — installs dblock,
+  inside a Proxmox host (`pveam`, `pct create`, …) — installs skoed,
   writes a sane config, hands the operator a working node URL. Target
   the homelab Proxmox use case where the cluster topology fits in one
   hypervisor. — added 2026-06-05.
 - **Debian packages (.deb).** Apt-installable build for amd64/arm64
   Debian / Ubuntu / Raspberry Pi OS. systemd unit, default config in
-  `/etc/dblock/`, `dblock` user, `apt upgrade` path. Pairs with
+  `/etc/skoed/`, `skoed` user, `apt upgrade` path. Pairs with
   the M5 in-place upgrade work. — added 2026-06-05.
 
 ### Strategic
 
-- **Find a better name.** "dblock" is functional but not memorable.
+- **Find a better name.** "skoed" is functional but not memorable.
   Audit existing trademarks, check DNS/GitHub/crates.io availability,
   reserve a domain. Defer rename until at least M5 ships so we don't
   rebrand during active growth. — added 2026-06-05.
@@ -129,15 +129,15 @@ decision to either (a) commit to a milestone or (b) push back to
 permanent non-goal. — added 2026-06-05.
 
 - **Transparent proxy mode.** Operate as a transparent L4 proxy so
-  clients with hardcoded resolver IPs are redirected to dblock
+  clients with hardcoded resolver IPs are redirected to skoed
   regardless of their DNS settings. Was "VPN or proxy" non-goal.
 - **Deep-packet inspection / HTTP filtering.** Inspect cleartext HTTP
-  to enforce content rules at a level DNS can't reach. Puts dblock
+  to enforce content rules at a level DNS can't reach. Puts skoed
   into the same category as Squid / e2guardian.
 - **Mobile application.** Native iOS / Android admin app — read-only
   dashboards at minimum, full management as a stretch. Probably needs
   the M5 audit log + API tokens first so revocation works cleanly.
-- **Cloud-hosted SaaS.** Run dblock as a managed service (per-customer
+- **Cloud-hosted SaaS.** Run skoed as a managed service (per-customer
   cluster, billing, multi-tenant isolation). Big strategic pivot;
   contradicts the self-hosted-first thesis but worth a thought.
 
@@ -147,7 +147,7 @@ None for M2 design (see QUESTIONS_AND_ANSWERS.md for resolved M2 decisions).
 
 ## Resolved questions
 
-- DNSSEC: transparent proxy — forward DNSSEC records (RRSIG, DNSKEY, DS, NSEC) as-is to clients that set the DO bit. dblock does not validate. — 2026-05-29
+- DNSSEC: transparent proxy — forward DNSSEC records (RRSIG, DNSKEY, DS, NSEC) as-is to clients that set the DO bit. skoed does not validate. — 2026-05-29
 - Block policy: configurable per blocklist, with a global default. Supported values: NXDOMAIN, NULL (0.0.0.0 / ::), NODATA. — 2026-05-29
 - IPv6: full dual-stack — DNS listener on IPv4 and IPv6, AAAA records in local DNS entries, IPv6 client identification in query log and profiles, NULL block returns both 0.0.0.0 and ::. — 2026-05-29
 - Wildcard syntax: `*.example.com` matches the apex (`example.com`) and all subdomains at any depth (`sub.example.com`, `a.b.example.com`). Applies to both blocklists and allowlists. — 2026-05-29
@@ -156,10 +156,10 @@ None for M2 design (see QUESTIONS_AND_ANSWERS.md for resolved M2 decisions).
 
 ## Hypotheses
 
-- H1: `miekg/dns` is sufficient for dblock's DNS engine needs (forwarding + root resolution). — **VALIDATED** at M1 implementation (2026-05-29).
+- H1: `miekg/dns` is sufficient for skoed's DNS engine needs (forwarding + root resolution). — **VALIDATED** at M1 implementation (2026-05-29).
 - H2: Quorum-based primary step-down (last-seen + health checks) prevents split-brain in practice for home/lab scale (≤ 10 nodes). — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
 - H3: SSE over HTTP/1.1 is sufficient for config sync transport. — **OBSOLETED 2026-05-29** by H4 (Raft architecture).
-- H4: hashicorp/raft + go.etcd.io/bbolt are operationally suitable for dblock's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state). — open, validate throughout M2.
+- H4: hashicorp/raft + go.etcd.io/bbolt are operationally suitable for skoed's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state). — open, validate throughout M2.
 
 ## Done when
 

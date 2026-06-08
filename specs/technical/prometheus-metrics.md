@@ -34,23 +34,23 @@ is enabled (M4.6), `/metrics` is reachable over the same scheme.
 
 | Series                                           | Type      | Labels                  |
 |--------------------------------------------------|-----------|-------------------------|
-| `dblock_build_info`                              | gauge     | version, commit, go     |
-| `dblock_dns_queries_total`                       | counter   | outcome, transport      |
-| `dblock_dns_query_duration_seconds`              | histogram | outcome                 |
-| `dblock_dns_cache_size`                          | gauge     | —                       |
-| `dblock_dns_cache_max_entries`                   | gauge     | —                       |
-| `dblock_dns_cache_hits_total`                    | counter   | —                       |
-| `dblock_dns_cache_misses_total`                  | counter   | —                       |
-| `dblock_dns_cache_evictions_total`               | counter   | —                       |
-| `dblock_cluster_node_role`                       | gauge     | role                    |
-| `dblock_cluster_raft_term`                       | gauge     | —                       |
-| `dblock_cluster_commit_index`                    | gauge     | —                       |
-| `dblock_cluster_members`                         | gauge     | —                       |
-| `dblock_cluster_reachable_members`               | gauge     | —                       |
-| `dblock_dhcp_leases`                             | gauge     | source                  |
-| `dblock_dhcp_anomalies_open`                     | gauge     | —                       |
-| `dblock_dhcp_last_poll_age_seconds`              | gauge     | source                  |
-| `dblock_dhcp_poll_errors_total`                  | counter   | source                  |
+| `skoed_build_info`                              | gauge     | version, commit, go     |
+| `skoed_dns_queries_total`                       | counter   | outcome, transport      |
+| `skoed_dns_query_duration_seconds`              | histogram | outcome                 |
+| `skoed_dns_cache_size`                          | gauge     | —                       |
+| `skoed_dns_cache_max_entries`                   | gauge     | —                       |
+| `skoed_dns_cache_hits_total`                    | counter   | —                       |
+| `skoed_dns_cache_misses_total`                  | counter   | —                       |
+| `skoed_dns_cache_evictions_total`               | counter   | —                       |
+| `skoed_cluster_node_role`                       | gauge     | role                    |
+| `skoed_cluster_raft_term`                       | gauge     | —                       |
+| `skoed_cluster_commit_index`                    | gauge     | —                       |
+| `skoed_cluster_members`                         | gauge     | —                       |
+| `skoed_cluster_reachable_members`               | gauge     | —                       |
+| `skoed_dhcp_leases`                             | gauge     | source                  |
+| `skoed_dhcp_anomalies_open`                     | gauge     | —                       |
+| `skoed_dhcp_last_poll_age_seconds`              | gauge     | source                  |
+| `skoed_dhcp_poll_errors_total`                  | counter   | source                  |
 
 ### Label values
 
@@ -69,7 +69,7 @@ will reuse the same discipline.
 
 ## Histogram buckets
 
-`dblock_dns_query_duration_seconds`: `0.001, 0.01, 0.1, 1, 5`. Five
+`skoed_dns_query_duration_seconds`: `0.001, 0.01, 0.1, 1, 5`. Five
 buckets is enough to distinguish cache (`<1ms`), local (`<10ms`),
 forwarder hit (`<100ms`), forwarder cold (`<1s`), and timeout-ish
 (`<5s`).

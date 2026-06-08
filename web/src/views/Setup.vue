@@ -3,7 +3,7 @@
     <div class="card w-full max-w-md p-6">
       <div class="flex items-center gap-2 mb-4">
         <img src="/favicon.svg" class="w-7 h-7" alt="" />
-        <h1 class="text-xl font-semibold text-fg-strong">Welcome to dblock</h1>
+        <h1 class="text-xl font-semibold text-fg-strong">Welcome to skoed</h1>
       </div>
       <p class="text-sm text-fg-muted mb-4">
         Set the first admin account. You can change credentials later from the Account page.

@@ -25,7 +25,7 @@ x-fsid-links:
 
 ## Overview
 
-All dblock configuration is stored in a single YAML file on disk (`config.yaml`). Writes are atomic (write to a temp file, then `rename`). The file is the single source of truth; no database is used.
+All skoed configuration is stored in a single YAML file on disk (`config.yaml`). Writes are atomic (write to a temp file, then `rename`). The file is the single source of truth; no database is used.
 
 The same schema governs the import/export archive — the archive is a `tar.gz` containing `config.yaml` plus any auxiliary files (e.g., manually-entered domain lists stored as separate files referenced from `config.yaml`).
 
@@ -34,7 +34,7 @@ The same schema governs the import/export archive — the archive is a `tar.gz` 
 ## Schema
 
 ```yaml
-# dblock configuration — version 1
+# skoed configuration — version 1
 
 version: 1                          # int, required. Schema version for forward compatibility.
 
@@ -60,7 +60,7 @@ dns:
                                     #   Cloudflare malware-blocking: 1.1.1.2
                                     #
                                     # Google DNS (8.8.8.8 / 8.8.4.4) is intentionally excluded from
-                                    # defaults — not aligned with dblock's privacy goals.
+                                    # defaults — not aligned with skoed's privacy goals.
   upstream_timeout_seconds: 3       # int, default 3. Per-upstream attempt timeout.
 
   trusted_subnets:                  # list<string> CIDR. Required when mode=recursive.
@@ -81,12 +81,12 @@ filtering:
       source:
         type: url                   # enum: url | inline. 
         url: "https://example.com/ads.txt"   # string. Required when type=url.
-        format: auto                # enum: auto | hosts | domainlist | adblock. Default: auto.
+        format: auto                # enum: auto | hosts | domainlist | askoed. Default: auto.
       block_policy: null            # enum: nxdomain | null | nodata | "" (inherit global).
                                     # Empty string or absent = inherit global default.
-      domains: []                   # list<string>. Populated by dblock after download; not
+      domains: []                   # list<string>. Populated by skoed after download; not
                                     # written by the admin for url-type lists.
-      last_updated: ""              # ISO 8601 timestamp. Set by dblock after last refresh.
+      last_updated: ""              # ISO 8601 timestamp. Set by skoed after last refresh.
 
     - id: "custom"
       name: "Custom entries"
@@ -143,7 +143,7 @@ auth:
 | `filtering.block_policy` | enum | no | `nxdomain` | `nxdomain`, `null`, `nodata` |
 | `filtering.blocklists[].id` | string | yes | — | Unique within the list; alphanumeric + `-_` |
 | `filtering.blocklists[].source.type` | enum | yes | — | `url` or `inline` |
-| `filtering.blocklists[].source.format` | enum | no | `auto` | `auto`, `hosts`, `domainlist`, `adblock` |
+| `filtering.blocklists[].source.format` | enum | no | `auto` | `auto`, `hosts`, `domainlist`, `askoed` |
 | `filtering.blocklists[].block_policy` | enum | no | `""` | `nxdomain`, `null`, `nodata`, or `""` (inherit) |
 | `filtering.blocklists[].domains` | list | required if type=inline | — | Each entry: exact domain or `*.domain` wildcard |
 | `filtering.allowlist` | list | no | `[]` | Each entry: exact domain or `*.domain` wildcard |

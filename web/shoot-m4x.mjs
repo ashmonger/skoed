@@ -6,7 +6,7 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18099'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18099'
 const OUTDIR = '../docs/screenshots'
 await mkdir(OUTDIR, { recursive: true })
 
@@ -17,8 +17,8 @@ const page = await ctx.newPage()
 // Seed creds + Lipgloss dark.
 await page.goto(BASE + '/login')
 await page.evaluate(() => {
-  sessionStorage.setItem('dblock.creds', JSON.stringify({ user: 'admin', pass: 'demopass123' }))
-  localStorage.setItem('dblock.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
+  sessionStorage.setItem('skoed.creds', JSON.stringify({ user: 'admin', pass: 'demopass123' }))
+  localStorage.setItem('skoed.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
 })
 
 // M4.5: Swagger UI page. Not a SPA route — it's a separate static asset.

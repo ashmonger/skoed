@@ -13,25 +13,25 @@ Feature: Multi-arch Release Builds
     Given a clean working tree at the tag
     When `goreleaser release --snapshot --clean` runs
     Then `dist/` contains:
-      | dblock_<ver>_linux_amd64.tar.gz |
-      | dblock_<ver>_linux_arm64.tar.gz |
-      | dblock_<ver>_amd64.deb           |
-      | dblock_<ver>_arm64.deb           |
-    And each tar.gz extracts to a working `dblock` binary for its arch
+      | skoed_<ver>_linux_amd64.tar.gz |
+      | skoed_<ver>_linux_arm64.tar.gz |
+      | skoed_<ver>_amd64.deb           |
+      | skoed_<ver>_arm64.deb           |
+    And each tar.gz extracts to a working `skoed` binary for its arch
     And the .deb passes `packaging/test-deb.sh`
 
   @fsid:FS-MultiArchDockerManifest
   Scenario: Docker images publish a multi-arch manifest
     Given goreleaser is configured with buildx
     When `goreleaser release` publishes images
-    Then `docker buildx imagetools inspect ghcr.io/dblock/dblock:<ver>`
+    Then `docker buildx imagetools inspect ghcr.io/skoed/skoed:<ver>`
       lists both `linux/amd64` and `linux/arm64` platforms
-    And `docker pull ghcr.io/dblock/dblock:<ver>` on an arm64 host
+    And `docker pull ghcr.io/skoed/skoed:<ver>` on an arm64 host
       pulls the arm64 image (no manifest mismatch)
 
   @fsid:FS-MultiArchImageSize
   Scenario: Per-arch image stays under the M1 size budget
-    Given a built dblock image for amd64 or arm64
+    Given a built skoed image for amd64 or arm64
     When `docker image ls` lists it
     Then the size is ≤ 100 MB
 
@@ -44,7 +44,7 @@ Feature: Multi-arch Release Builds
 
   Non-goals:
     - `linux/arm` (32-bit) — almost no demand
-    - macOS / Windows builds — dblock is a Linux daemon
+    - macOS / Windows builds — skoed is a Linux daemon
     - FreeBSD / OpenBSD ports — community-driven
     - RPM packaging — when anyone asks (M5.5.1)
     - Snap / Flatpak — operator-level config is more portable as native

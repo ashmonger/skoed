@@ -2,18 +2,18 @@
 
 ## Scope
 
-dblock gets a single unauthenticated landing surface at `/`: a tiny
+skoed gets a single unauthenticated landing surface at `/`: a tiny
 public-facing URL tester so operators can answer "does this blocklist
-URL parse?" **before** installing dblock or wiring up admin auth. The
-existing CLI subcommand (`dblock blocklist test <url>`, shipped in
+URL parse?" **before** installing skoed or wiring up admin auth. The
+existing CLI subcommand (`skoed blocklist test <url>`, shipped in
 M5.9.1) is now the local-process counterpart of the same parser. Apart
-from the landing page, dblock remains a private-network admin tool —
+from the landing page, skoed remains a private-network admin tool —
 no other unauthenticated paths are exposed.
 
 ### Implemented
 
 - **CLI surface (already shipped in M5.9.1, re-verified)**
-  `dblock blocklist test <url> [--format hosts|domainlist|adblock|auto]`
+  `skoed blocklist test <url> [--format hosts|domainlist|askoed|auto]`
   fetches in-process with a 30 s timeout, parses via
   `internal/filter.Download`, and prints a styled summary. No daemon,
   no auth, no SSRF risk.
@@ -71,7 +71,7 @@ no other unauthenticated paths are exposed.
 
 | FSID                                              | Test                                       | Notes |
 |---------------------------------------------------|--------------------------------------------|-------|
-| FS-UrlTesterPublicEndpointReturnsCountAndFormat   | TestPublicTestBlocklistOK                  | 1 node + httptest hosts server. Uses `DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1` (test-only env var) so the SSRF guard accepts 127.0.0.1; production builds never set this. |
+| FS-UrlTesterPublicEndpointReturnsCountAndFormat   | TestPublicTestBlocklistOK                  | 1 node + httptest hosts server. Uses `SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1` (test-only env var) so the SSRF guard accepts 127.0.0.1; production builds never set this. |
 | FS-UrlTesterRefusesPrivateAddress                 | TestPublicTestBlocklistRefusesPrivateIP    | 5 sub-cases: 127.0.0.1, 10.x, 192.168.x, 169.254.169.254 (cloud meta), [::1]. All return 403. |
 | FS-UrlTesterRateLimited                           | TestPublicTestBlocklistRateLimit           | 10-request burst from one source IP; at least one 429 expected. |
 | FS-UrlTesterOperatorCanDisable                    | TestPublicLandingDisabledReturnsLogin      | Config with `node.api.public_landing.enabled: false`; asserts POST returns 404 AND GET / returns 302 → /login. |
@@ -89,7 +89,7 @@ All 4 PASS — full run in 7.1 s on this box:
 --- PASS: TestPublicTestBlocklistRateLimit (1.50s)
 --- PASS: TestPublicLandingDisabledReturnsLogin (2.09s)
 PASS
-ok  	dblock/acceptance	7.101s
+ok  	skoed/acceptance	7.101s
 ```
 
 `FS-UrlTesterCliSubcommand` is covered by M5.9.1's existing
@@ -111,7 +111,7 @@ schedules). Login button top-right.
 Re-capture with:
 
 ```sh
-# 1. Boot dblock with the test bypass + a local hosts file
+# 1. Boot skoed with the test bypass + a local hosts file
 mkdir -p /tmp/demo && cat > /tmp/demo/config.yaml <<EOF
 version: 1
 node:
@@ -134,14 +134,14 @@ echo "0.0.0.0 a.test
 0.0.0.0 e.test
 0.0.0.0 f.test" > /tmp/demo/hosts.txt
 python3 -m http.server 19595 --directory /tmp/demo &
-DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1 ./apps/dblock/dblock --config /tmp/demo/config.yaml &
+SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1 ./apps/skoed/skoed --config /tmp/demo/config.yaml &
 # 2. Capture
 cd web && node shoot-m5.9.5.mjs
 ```
 
 ### Not implemented (deferred / non-goals)
 
-- **"Try it on dblock.io" hosted demo** — dblock stays private-network
+- **"Try it on skoed.io" hosted demo** — skoed stays private-network
   for v1; no central tester service.
 - **Authenticated tester from the public surface** — admins already
   have the Create Blocklist modal, which fetches via the daemon's
@@ -160,10 +160,10 @@ cd web && node shoot-m5.9.5.mjs
 ```
 specs/functional/url-tester.feature                       (NEW — 7 FSIDs)
 specs/technical/url-tester.md                             (NEW — TS-UrlTester)
-apps/dblock/internal/api/handlers/public.go               (NEW — endpoint + SSRF + rate limit)
-apps/dblock/internal/api/app.go                           (wire route + landing gate)
-apps/dblock/internal/cluster/node.go                      (APIPublicLandingSection)
-apps/dblock/cmd/dblock/main.go                            (SetPublicLandingEnabled call)
+apps/skoed/internal/api/handlers/public.go               (NEW — endpoint + SSRF + rate limit)
+apps/skoed/internal/api/app.go                           (wire route + landing gate)
+apps/skoed/internal/cluster/node.go                      (APIPublicLandingSection)
+apps/skoed/cmd/skoed/main.go                            (SetPublicLandingEnabled call)
 web/src/views/Landing.vue                                 (NEW)
 web/src/router.ts                                         (root → Landing; admin → /dashboard)
 web/shoot-m5.9.5.mjs                                      (NEW)
@@ -176,7 +176,7 @@ DEMO_NOTE_M5.9.5.md                                       (this file)
 
 ```sh
 # CLI surface — already shipped in M5.9.1, still works.
-$ dblock blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
+$ skoed blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
 ✓ https://github.com/.../hosts
   format    auto (auto-detected)
   domains   162,481

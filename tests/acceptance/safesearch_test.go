@@ -64,11 +64,11 @@ func safesearchUpstreamHandler() dns.HandlerFunc {
 	}
 }
 
-// startSafeSearchNode brings up a forwarding node with DBLOCK_TEST_MODE=1 so
+// startSafeSearchNode brings up a forwarding node with SKOED_TEST_MODE=1 so
 // the EDNS0 client-IP override is honoured by the DNS handler.
 func startSafeSearchNode(t *testing.T) *Node {
 	t.Helper()
-	t.Setenv("DBLOCK_TEST_MODE", "1")
+	t.Setenv("SKOED_TEST_MODE", "1")
 	upstream := startFakeUpstream(t, safesearchUpstreamHandler())
 	return startNode(t, NodeConfig{
 		Mode:              "forwarding",

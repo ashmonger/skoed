@@ -302,8 +302,8 @@ func TestAutoRefreshMetrics(t *testing.T) {
 	resp.Body.Close()
 	s := string(body)
 	for _, want := range []string{
-		`dblock_blocklist_last_refresh_seconds{id="metrics-bl"}`,
-		`dblock_blocklist_refresh_failures_total{id="metrics-bl"}`,
+		`skoed_blocklist_last_refresh_seconds{id="metrics-bl"}`,
+		`skoed_blocklist_refresh_failures_total{id="metrics-bl"}`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("metric %q missing from /metrics", want)

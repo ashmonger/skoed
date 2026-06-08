@@ -3,7 +3,7 @@
     <div class="card w-full max-w-sm p-6">
       <div class="flex items-center gap-2 mb-4">
         <img src="/favicon.svg" class="w-7 h-7" alt="" />
-        <h1 class="text-xl font-semibold text-fg-strong">dblock</h1>
+        <h1 class="text-xl font-semibold text-fg-strong">skoed</h1>
       </div>
       <h2 class="text-sm text-fg-muted mb-4">Sign in to manage your DNS cluster.</h2>
       <form @submit.prevent="submit" class="space-y-3">

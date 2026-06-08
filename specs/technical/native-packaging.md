@@ -18,44 +18,44 @@ ever need it. Bundled into the dev container; CI pins a version.
 ## Layout (post-install)
 
 ```
-/usr/bin/dblock                       # binary, mode 0755
-/lib/systemd/system/dblock.service    # systemd unit
-/etc/dblock/config.yaml               # default config (conffile)
-/var/lib/dblock/                      # data_dir, owned by dblock:dblock 0700
-/var/log/dblock/                      # logs (when not journalctl)
+/usr/bin/skoed                       # binary, mode 0755
+/lib/systemd/system/skoed.service    # systemd unit
+/etc/skoed/config.yaml               # default config (conffile)
+/var/lib/skoed/                      # data_dir, owned by skoed:skoed 0700
+/var/log/skoed/                      # logs (when not journalctl)
 ```
 
 ## systemd unit shape
 
 ```
 [Unit]
-Description=dblock — self-hosted DNS filtering with multi-node sync
-Documentation=https://github.com/dblock/dblock
+Description=skoed — self-hosted DNS filtering with multi-node sync
+Documentation=https://github.com/skoed/skoed
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/dblock --config /etc/dblock/config.yaml
+ExecStart=/usr/bin/skoed --config /etc/skoed/config.yaml
 Restart=on-failure
 RestartSec=3
 
-User=dblock
-Group=dblock
+User=skoed
+Group=skoed
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/dblock /var/log/dblock
-StateDirectory=dblock
+ReadWritePaths=/var/lib/skoed /var/log/skoed
+StateDirectory=skoed
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-The `Type=notify` is M5.5.1 — for v1 the unit is `Type=simple`. dblock
+The `Type=notify` is M5.5.1 — for v1 the unit is `Type=simple`. skoed
 doesn't yet sd_notify; revisit when in-place upgrade (M5.6) wants
 graceful restart.
 
@@ -63,38 +63,38 @@ graceful restart.
 
 ```yaml
 # packaging/nfpm.yaml
-name: dblock
+name: skoed
 arch: amd64           # overridden by `nfpm pkg --target amd64|arm64`
 version: 0.5.0        # injected by Makefile via -X main.version
-maintainer: dblock maintainers <maintainers@dblock.io>
+maintainer: skoed maintainers <maintainers@skoed.io>
 description: |
   Self-hosted DNS filtering with multi-node sync. Drop-in alternative
   to Pi-hole / AdGuard-Home for households and small offices.
 section: net
 priority: optional
 contents:
-  - src: ./apps/dblock/dblock
-    dst: /usr/bin/dblock
+  - src: ./apps/skoed/skoed
+    dst: /usr/bin/skoed
     file_info:
       mode: 0755
-  - src: ./packaging/dblock.service
-    dst: /lib/systemd/system/dblock.service
+  - src: ./packaging/skoed.service
+    dst: /lib/systemd/system/skoed.service
   - src: ./packaging/config.example.yaml
-    dst: /etc/dblock/config.yaml
+    dst: /etc/skoed/config.yaml
     type: config
-  - dst: /var/lib/dblock
+  - dst: /var/lib/skoed
     type: dir
-    file_info: { mode: 0700, owner: dblock, group: dblock }
+    file_info: { mode: 0700, owner: skoed, group: skoed }
 scripts:
   preinstall:  ./packaging/scripts/preinst.sh
   postinstall: ./packaging/scripts/postinst.sh
   preremove:   ./packaging/scripts/prerm.sh
 ```
 
-`preinst.sh`: creates the `dblock` system user / group if missing.
+`preinst.sh`: creates the `skoed` system user / group if missing.
 `postinst.sh`: `systemctl daemon-reload`; does NOT auto-start (operator
-runs `systemctl enable --now dblock` when ready). `prerm.sh`: stops
-the service on removal; leaves `/var/lib/dblock` in place.
+runs `systemctl enable --now skoed` when ready). `prerm.sh`: stops
+the service on removal; leaves `/var/lib/skoed` in place.
 
 ## Makefile target
 
@@ -112,10 +112,10 @@ Multi-arch (M5.7) iterates the target arches via `--arch`.
 
 ```sh
 #!/usr/bin/env bash
-# Usage: scripts/proxmox-create.sh --id 200 --hostname dblock-1 \
+# Usage: scripts/proxmox-create.sh --id 200 --hostname skoed-1 \
 #        [--storage local-lvm] [--bridge vmbr0]
 #
-# Creates a Debian 12 LXC container, copies the latest dblock .deb in,
+# Creates a Debian 12 LXC container, copies the latest skoed .deb in,
 # installs + enables the service. Idempotent: re-running with the same
 # --id is rejected (no accidental overwrite).
 ```
@@ -127,7 +127,7 @@ defaults; operators tune from there.
 
 ## Validation
 
-- `dpkg-deb --info dist/dblock_*_amd64.deb` shows required fields.
+- `dpkg-deb --info dist/skoed_*_amd64.deb` shows required fields.
 - `dpkg-deb --contents` lists the expected paths.
 - `lintian` runs in CI; warnings allowed for now (LinPkg policy
   compliance is M5.5.1).

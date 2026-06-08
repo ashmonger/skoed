@@ -1,6 +1,6 @@
 Feature: Query log
   As a network administrator
-  I want dblock to record every DNS query it processes
+  I want skoed to record every DNS query it processes
   So that I can audit network activity and diagnose filtering behavior per client
 
   Non-goals:

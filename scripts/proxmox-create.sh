@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# proxmox-create.sh — create a Debian 12 LXC container with dblock
+# proxmox-create.sh — create a Debian 12 LXC container with skoed
 # pre-installed. Run on the Proxmox host (needs `pct`).
 #
 # Usage:
-#   ./proxmox-create.sh --id 200 --hostname dblock-1 \
-#                       --deb dist/dblock_0.5.0_amd64.deb
+#   ./proxmox-create.sh --id 200 --hostname skoed-1 \
+#                       --deb dist/skoed_0.5.0_amd64.deb
 #
 # Optional:
 #   --storage local-lvm     (default: local-lvm)
@@ -81,13 +81,13 @@ for _ in $(seq 1 20); do
 done
 
 echo "[3/4] copying + installing .deb…"
-pct push "$CT_ID" "$DEB" /tmp/dblock.deb
+pct push "$CT_ID" "$DEB" /tmp/skoed.deb
 pct exec "$CT_ID" -- bash -c '
     set -e
     apt-get update -qq
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends adduser
-    dpkg -i /tmp/dblock.deb || (apt-get -f install -y && dpkg -i /tmp/dblock.deb)
-    systemctl enable --now dblock
+    dpkg -i /tmp/skoed.deb || (apt-get -f install -y && dpkg -i /tmp/skoed.deb)
+    systemctl enable --now skoed
 '
 
 echo "[4/4] waiting for /api/v1/health…"
@@ -95,7 +95,7 @@ IP=$(pct exec "$CT_ID" -- hostname -I | awk "{print \$1}")
 for _ in $(seq 1 30); do
     if curl -fsS "http://$IP:8080/api/v1/health" >/dev/null 2>&1; then
         echo
-        echo "dblock is up at http://$IP:8080"
+        echo "skoed is up at http://$IP:8080"
         echo "Set the admin password with:"
         echo "  curl -X POST http://$IP:8080/api/v1/auth/setup -H 'content-type: application/json' \\"
         echo "       -d '{\"username\":\"admin\",\"password\":\"…\"}'"
@@ -104,5 +104,5 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
-echo "WARNING: /api/v1/health did not respond within 30s — check 'pct enter $CT_ID' + 'systemctl status dblock'" >&2
+echo "WARNING: /api/v1/health did not respond within 30s — check 'pct enter $CT_ID' + 'systemctl status skoed'" >&2
 exit 1

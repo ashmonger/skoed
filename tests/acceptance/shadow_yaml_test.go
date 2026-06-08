@@ -355,7 +355,7 @@ func TestConfigShadowYamlRoundTrips(t *testing.T) {
 	// top of its (fresh) node section. After the next restart the binary
 	// reads the merged file, treats the cluster sections as seed, and
 	// imports them via ConfigImport.
-	c2 := &Cluster{t: t, bin: dblockBinary(t)}
+	c2 := &Cluster{t: t, bin: skoedBinary(t)}
 	dnsPort := freeUDPPort(t)
 	apiPort := freeTCPPort(t)
 	raftPort := freeTCPPort(t)

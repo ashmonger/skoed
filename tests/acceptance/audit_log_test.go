@@ -299,8 +299,8 @@ func TestAuditMetricsCounter(t *testing.T) {
 	}
 	b0, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if !strings.Contains(string(b0), "dblock_audit_events_total") {
-		t.Fatalf("dblock_audit_events_total absent after first audit append")
+	if !strings.Contains(string(b0), "skoed_audit_events_total") {
+		t.Fatalf("skoed_audit_events_total absent after first audit append")
 	}
 	base := sumActionCounter(string(b0), "blocklist.create")
 
@@ -326,7 +326,7 @@ func TestAuditMetricsCounter(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Errorf("dblock_audit_events_total{action=\"blocklist.create\"} did not increment from %d", base)
+	t.Errorf("skoed_audit_events_total{action=\"blocklist.create\"} did not increment from %d", base)
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -347,8 +347,8 @@ func waitForAudit(t *testing.T, n *Node, want int, within time.Duration) auditPa
 }
 
 func sumActionCounter(metricsBody, action string) int {
-	// dblock_audit_events_total{action="blocklist.create"} 7
-	re := regexp.MustCompile(`(?m)^dblock_audit_events_total\{[^}]*action="` + regexp.QuoteMeta(action) + `"[^}]*\}\s+(\S+)\s*$`)
+	// skoed_audit_events_total{action="blocklist.create"} 7
+	re := regexp.MustCompile(`(?m)^skoed_audit_events_total\{[^}]*action="` + regexp.QuoteMeta(action) + `"[^}]*\}\s+(\S+)\s*$`)
 	m := re.FindStringSubmatch(metricsBody)
 	if m == nil {
 		return 0

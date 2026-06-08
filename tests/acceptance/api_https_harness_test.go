@@ -23,9 +23,9 @@ type APITLSOpts struct {
 // API serving HTTPS. Sets Node.APIHTTPSBase so tests can target it.
 func startClusterAPIHTTPS(t *testing.T, opts APITLSOpts) *Cluster {
 	t.Helper()
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin}
 	apiPort := freeTCPPort(t)
@@ -76,5 +76,5 @@ func waitReadyHTTPS(t *testing.T, n *Node, mode string) {
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("dblock did not become ready over HTTPS within %s at %s", readyTimeout, n.APIHTTPSBase)
+	t.Fatalf("skoed did not become ready over HTTPS within %s at %s", readyTimeout, n.APIHTTPSBase)
 }

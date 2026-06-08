@@ -1,4 +1,4 @@
-// Acceptance tests for M4 — dblock as a DoH/DoT server.
+// Acceptance tests for M4 — skoed as a DoH/DoT server.
 //
 // FSIDs covered:
 //   FS-DohServerListens          → TestDohServerListensPostAndGet
@@ -260,7 +260,7 @@ func TestDohSelfSignedCertOnFirstBoot(t *testing.T) {
 	// Check that a cert+key landed in the node's data dir.
 	dir := cn.DataDir
 	certFound := false
-	for _, name := range []string{"dblock-cert.pem", "tls/cert.pem", "tls.crt"} {
+	for _, name := range []string{"skoed-cert.pem", "tls/cert.pem", "tls.crt"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
 			certFound = true
 			break
@@ -329,13 +329,13 @@ var _ = fmt.Sprintf
 // ─── M4 finish: three FSIDs that close out the milestone ─────────────────
 
 // startClusterEncryptedWithCert is like startClusterEncrypted but writes
-// node.dns.tls.cert_file / key_file so dblock uses the operator-supplied
+// node.dns.tls.cert_file / key_file so skoed uses the operator-supplied
 // PEMs instead of generating a self-signed cert.
 func startClusterEncryptedWithCert(t *testing.T, certFile, keyFile string) *Cluster {
 	t.Helper()
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 	cfg := M2NodeConfig{
@@ -368,7 +368,7 @@ func writeTLSFixture(t *testing.T, commonName string) (certPath, keyPath string)
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 64))
 	tpl := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: commonName, Organization: []string{"dblock-test-fixture"}},
+		Subject:               pkix.Name{CommonName: commonName, Organization: []string{"skoed-test-fixture"}},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(24 * time.Hour),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
@@ -399,13 +399,13 @@ func writeTLSFixture(t *testing.T, commonName string) (certPath, keyPath string)
 
 // FS-DohConfiguredCert
 //
-// Operator supplies cert_file + key_file via node.dns.tls; dblock uses
+// Operator supplies cert_file + key_file via node.dns.tls; skoed uses
 // those PEMs verbatim on the DoH listener instead of generating a
 // self-signed cert. We assert by checking the served cert's CN matches
 // the unique value baked into the fixture (so the auto-generated cert
 // path would fail this).
 func TestDohConfiguredCert(t *testing.T) {
-	const wantCN = "doh-configured-cert.dblock.test"
+	const wantCN = "doh-configured-cert.skoed.test"
 	certFile, keyFile := writeTLSFixture(t, wantCN)
 
 	c := startClusterEncryptedWithCert(t, certFile, keyFile)
@@ -504,7 +504,7 @@ func TestDohForwardsUnmatched(t *testing.T) {
 	addr := requireDoHEnabled(t, n)
 
 	// Query a domain that's on nothing.
-	const unmatched = "forward-target.dblock.test"
+	const unmatched = "forward-target.skoed.test"
 	resp := dohQuery(t, addr, unmatched, dns.TypeA)
 	// Don't assert on resp.Rcode — upstream may return SERVFAIL, NXDOMAIN,
 	// or NOERROR depending on the host. The forwarding intent is what we

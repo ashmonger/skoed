@@ -1,11 +1,11 @@
 Feature: API Documentation Browser
-  As an operator integrating dblock with scripts / Home Assistant / a sidecar
+  As an operator integrating skoed with scripts / Home Assistant / a sidecar
   I want to read the full management API spec in my browser
   And try requests against my live node with one click
   So I don't have to alt-tab between the OpenAPI YAML and curl
 
   Background:
-    Given a running dblock node with the M1 management API up
+    Given a running skoed node with the M1 management API up
     And the OpenAPI doc at specs/technical/management-api.openapi.yaml is shipped inside the binary
 
   @fsid:FS-ApiDocsServed
@@ -36,7 +36,7 @@ Feature: API Documentation Browser
   Scenario: Swagger UI's Try-it-out uses the operator's existing Basic Auth
     Given the admin is logged in (browser holds an authenticated session)
     When the operator clicks "Try it out" on GET /api/v1/blocklists
-    Then the browser sends the Authorization: Basic header dblock already accepts
+    Then the browser sends the Authorization: Basic header skoed already accepts
     And the response is 200 (no separate API key needed)
 
   @fsid:FS-ApiDocsDisabledByConfig

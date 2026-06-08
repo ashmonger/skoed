@@ -5,9 +5,9 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18099'
-const USER = process.env.DBLOCK_USER ?? 'admin'
-const PASS = process.env.DBLOCK_PASS ?? 'demopass123'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18099'
+const USER = process.env.SKOED_USER ?? 'admin'
+const PASS = process.env.SKOED_PASS ?? 'demopass123'
 const OUTDIR = '../docs/screenshots'
 await mkdir(OUTDIR, { recursive: true })
 
@@ -21,8 +21,8 @@ const page = await ctx.newPage()
 // Seed the SPA's session storage with credentials + dark Lipgloss palette.
 await page.goto(BASE + '/login')
 await page.evaluate(([u, p]) => {
-  sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
-  localStorage.setItem('dblock.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
+  sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
+  localStorage.setItem('skoed.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
 }, [USER, PASS])
 
 // Make sure the audit log is non-empty for the screenshot. Issue a few

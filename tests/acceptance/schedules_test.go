@@ -13,8 +13,8 @@
 // evaluator MUST honour two environment variables, as documented in
 // specs/technical/profiles-and-schedules.md:
 //
-//   DBLOCK_TEST_MODE=1   — gate that unlocks all test-only affordances
-//   DBLOCK_TEST_NOW=...  — RFC3339 timestamp used INSTEAD of time.Now() when
+//   SKOED_TEST_MODE=1   — gate that unlocks all test-only affordances
+//   SKOED_TEST_NOW=...  — RFC3339 timestamp used INSTEAD of time.Now() when
 //                          the schedule evaluator computes "is the window
 //                          active right now?"
 //
@@ -60,8 +60,8 @@ type scheduleBindingBody struct {
 	BlocklistID string `json:"blocklist_id"`
 }
 
-// startScheduleNode spawns a single-node cluster with DBLOCK_TEST_MODE=1 and
-// the given extra env vars (typically DBLOCK_TEST_NOW and optionally TZ).
+// startScheduleNode spawns a single-node cluster with SKOED_TEST_MODE=1 and
+// the given extra env vars (typically SKOED_TEST_NOW and optionally TZ).
 // Returns the lone node — callers use it via the embedded *Node helpers.
 func startScheduleNode(t *testing.T, extraEnv ...string) *ClusterNode {
 	t.Helper()
@@ -76,7 +76,7 @@ func startScheduleNode(t *testing.T, extraEnv ...string) *ClusterNode {
 			break
 		}
 	}
-	env := []string{"DBLOCK_TEST_MODE=1"}
+	env := []string{"SKOED_TEST_MODE=1"}
 	if !hasTZ {
 		env = append(env, "TZ=UTC")
 	}
@@ -134,7 +134,7 @@ func createScheduleProfile(t *testing.T, n *ClusterNode, body profileBody) {
 // FS-ScheduleActiveWindow
 //
 // A block_only_inside schedule must block ONLY while the window is active.
-// We pin DBLOCK_TEST_NOW twice (once outside the window, once inside) by
+// We pin SKOED_TEST_NOW twice (once outside the window, once inside) by
 // running two sub-cases in separate node lifecycles — simpler and more honest
 // than mutating time on a live node.
 func TestScheduleActiveWindow(t *testing.T) {
@@ -142,7 +142,7 @@ func TestScheduleActiveWindow(t *testing.T) {
 	// boundary → schedule inactive → blocklist OFF → forwarded.
 	t.Run("outside_window_forwards", func(t *testing.T) {
 		upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
-		n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T19:30:00Z")
+		n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T19:30:00Z")
 
 		// Need a forwarding upstream — the cluster harness leaves DNS upstream
 		// empty by default, so feed it via the runtime API.
@@ -172,7 +172,7 @@ func TestScheduleActiveWindow(t *testing.T) {
 	// window → schedule active → blocklist applied → NXDOMAIN.
 	t.Run("inside_window_blocks", func(t *testing.T) {
 		upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
-		n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T21:30:00Z")
+		n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:30:00Z")
 		setUpstreamResolvers(t, n, upstream)
 
 		addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
@@ -204,7 +204,7 @@ func TestScheduleAllowMode(t *testing.T) {
 	// window → schedule active → allow_only_inside means forwarded.
 	t.Run("inside_window_forwards", func(t *testing.T) {
 		upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
-		n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T17:00:00Z")
+		n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T17:00:00Z")
 		setUpstreamResolvers(t, n, upstream)
 
 		addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
@@ -231,7 +231,7 @@ func TestScheduleAllowMode(t *testing.T) {
 	// allow_only_inside means blocked.
 	t.Run("outside_window_blocks", func(t *testing.T) {
 		upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
-		n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T21:00:00Z")
+		n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:00:00Z")
 		setUpstreamResolvers(t, n, upstream)
 
 		addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
@@ -262,7 +262,7 @@ func TestScheduleAllowMode(t *testing.T) {
 func TestScheduleMultipleProfiles(t *testing.T) {
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	// Wednesday 2026-06-03 21:30 UTC — inside the 20:00-23:59 window.
-	n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T21:30:00Z")
+	n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:30:00Z")
 	setUpstreamResolvers(t, n, upstream)
 
 	addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
@@ -326,7 +326,7 @@ func TestScheduleMultipleProfiles(t *testing.T) {
 // that every binding referencing a deleted schedule MUST be implicitly dropped.
 func TestScheduleApiCrud(t *testing.T) {
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
-	n := startScheduleNode(t, "DBLOCK_TEST_NOW=2026-06-03T21:30:00Z")
+	n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:30:00Z")
 	setUpstreamResolvers(t, n, upstream)
 
 	addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
@@ -394,10 +394,10 @@ func TestScheduleApiCrud(t *testing.T) {
 //
 // Schedule windows are interpreted in the node's local timezone. We pin
 // TZ=America/Los_Angeles on the spawned binary so Go's time.Local resolves
-// to Pacific, and pick a DBLOCK_TEST_NOW that is INSIDE the window when
+// to Pacific, and pick a SKOED_TEST_NOW that is INSIDE the window when
 // interpreted as Pacific but OUTSIDE when interpreted as UTC.
 //
-//   DBLOCK_TEST_NOW = 2026-06-02T03:30:00Z (Tuesday in UTC)
+//   SKOED_TEST_NOW = 2026-06-02T03:30:00Z (Tuesday in UTC)
 //                   = 2026-06-01T20:30:00 Pacific (Monday at 20:30, INSIDE
 //                     the Mon-Fri 20:00-22:00 Pacific window)
 //
@@ -406,7 +406,7 @@ func TestScheduleApiCrud(t *testing.T) {
 func TestScheduleTimezoneIsNodeLocal(t *testing.T) {
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startScheduleNode(t,
-		"DBLOCK_TEST_NOW=2026-06-02T03:30:00Z",
+		"SKOED_TEST_NOW=2026-06-02T03:30:00Z",
 		"TZ=America/Los_Angeles",
 	)
 	setUpstreamResolvers(t, n, upstream)

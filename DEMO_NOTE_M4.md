@@ -1,8 +1,8 @@
-# DEMO NOTE — M4 dblock as a DoH/DoT server
+# DEMO NOTE — M4 skoed as a DoH/DoT server
 
 ## Scope
 
-dblock now serves DNS over HTTPS (RFC 8484, `/dns-query`) and DNS over TLS
+skoed now serves DNS over HTTPS (RFC 8484, `/dns-query`) and DNS over TLS
 (RFC 7858, port 853 by convention). Every query that flows through DoH or
 DoT goes through the **same** filter, allowlist, local-DNS, and query-log
 pipeline as plain UDP/TCP DNS — the "fight against DoH" turns into "we
@@ -64,7 +64,7 @@ Full suite (`go test ./tests/acceptance/...`): 420s, 100% green.
 
 ```bash
 # 1. Build
-make -C apps/dblock build
+make -C apps/skoed build
 
 # 2. Per-node config with DoH + DoT enabled
 cat > /tmp/m4-config.yaml <<'EOF'
@@ -72,7 +72,7 @@ node:
   id: demo
   raft_address: 127.0.0.1:17003
   api_address:  127.0.0.1:18083
-  data_dir:     /tmp/dblock-m4-demo/data
+  data_dir:     /tmp/skoed-m4-demo/data
   dns:
     listen:
       port: 5356
@@ -81,14 +81,14 @@ node:
       doh_port: 8443
       dot_port: 8853
 EOF
-mkdir -p /tmp/dblock-m4-demo/data
+mkdir -p /tmp/skoed-m4-demo/data
 
 # 3. Boot — self-signed cert generated on first start
-DBLOCK_TEST_MODE=1 ./apps/dblock/dblock -config /tmp/m4-config.yaml &
+SKOED_TEST_MODE=1 ./apps/skoed/skoed -config /tmp/m4-config.yaml &
 # Logs:
 #  DNS server listening on :5356 (mode=forwarding)
-#  DoH server listening on :8443 (cert=/tmp/dblock-m4-demo/data/tls/cert.pem)
-#  DoT server listening on :8853 (cert=/tmp/dblock-m4-demo/data/tls/cert.pem)
+#  DoH server listening on :8443 (cert=/tmp/skoed-m4-demo/data/tls/cert.pem)
+#  DoT server listening on :8853 (cert=/tmp/skoed-m4-demo/data/tls/cert.pem)
 
 # 4. Set admin + add a tiny blocklist
 curl -sX POST http://127.0.0.1:18083/api/v1/auth/setup \

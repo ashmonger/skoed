@@ -8,7 +8,7 @@
 //   FS-BlockPolicyConfigurationChangeGlobal, FS-BlockPolicyConfigurationPerBlocklistReset,
 //   FS-BlocklistAddManual, FS-BlocklistRemove, FS-BlocklistDisable, FS-BlocklistEnable,
 //   FS-BlocklistRefresh (skipped: requires network), FS-BlocklistAddFromUrl (skipped: requires network),
-//   FS-BlocklistParseHostsFormat, FS-BlocklistParseAdblockFormat, FS-BlocklistStats,
+//   FS-BlocklistParseHostsFormat, FS-BlocklistParseAskoedFormat, FS-BlocklistStats,
 //   FS-BlocklistWildcardEntry,
 //   FS-AllowlistAddDomain, FS-AllowlistOverridesBlocklist, FS-AllowlistRemoveDomain,
 //   FS-AllowlistWildcardEntry, FS-AllowlistDoesNotAffectUnblockedDomains
@@ -332,9 +332,9 @@ func TestBlocklistParseHostsFormat(t *testing.T) {
 	}
 }
 
-// FS-BlocklistParseAdblockFormat
+// FS-BlocklistParseAskoedFormat
 // A blocklist in AdBlock/ABP format is parsed correctly (comment lines ignored).
-func TestBlocklistParseAdblockFormat(t *testing.T) {
+func TestBlocklistParseAskoedFormat(t *testing.T) {
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -343,11 +343,11 @@ func TestBlocklistParseAdblockFormat(t *testing.T) {
 	})
 
 	resp := n.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, map[string]any{
-		"id":   "adblock-format",
+		"id":   "askoed-format",
 		"name": "AdBlock",
 		"source": map[string]string{
 			"type":   "inline",
-			"format": "adblock",
+			"format": "askoed",
 		},
 		"domains": []string{
 			"||ads.example.com^",

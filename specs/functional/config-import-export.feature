@@ -1,6 +1,6 @@
 Feature: Config import and export
   As a network administrator
-  I want to export the full dblock configuration and import it on another node
+  I want to export the full skoed configuration and import it on another node
   So that I can back up my setup, migrate to new hardware, or seed a fresh node
 
   What is included in the export:
@@ -25,16 +25,16 @@ Feature: Config import and export
 
   @fsid:FS-ConfigExport
   Scenario: Admin exports the full configuration
-    Given dblock has blocklists, allowlist entries, local DNS entries, and custom settings configured
+    Given skoed has blocklists, allowlist entries, local DNS entries, and custom settings configured
     When the admin requests a config export
-    Then dblock produces a single archive file (tar.gz)
+    Then skoed produces a single archive file (tar.gz)
     And the archive contains YAML files representing all included configuration sections
     And the archive is available for download
 
   @fsid:FS-ConfigImportOnFreshNode
   Scenario: Admin imports a config on a fresh node
-    Given a config archive exported from another dblock node
-    And a fresh dblock node with no configuration
+    Given a config archive exported from another skoed node
+    And a fresh skoed node with no configuration
     When the admin uploads the config archive to the fresh node
     Then the node applies all configuration from the archive atomically
     And the node's blocklists, allowlist, local DNS entries, and settings match the source node
@@ -44,13 +44,13 @@ Feature: Config import and export
   Scenario: Import is rolled back if the archive is invalid or incomplete
     Given a corrupt or incomplete config archive
     When the admin uploads the archive
-    Then dblock rejects the import
+    Then skoed rejects the import
     And the node's existing configuration is unchanged
     And an error message describes the validation failure
 
   @fsid:FS-ConfigImportOverwritesExisting
   Scenario: Import on a node with existing config replaces it
-    Given a dblock node with an existing configuration
+    Given a skoed node with an existing configuration
     And a valid config archive from another node
     When the admin uploads the archive
     Then the node's configuration is fully replaced by the imported configuration

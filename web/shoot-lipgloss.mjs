@@ -5,10 +5,10 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18080'
-const USER = process.env.DBLOCK_USER ?? 'admin'
-const PASS = process.env.DBLOCK_PASS ?? 'demopass123'
-const OUTDIR = process.env.DBLOCK_SCREENSHOT_DIR ?? '../docs/screenshots'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18080'
+const USER = process.env.SKOED_USER ?? 'admin'
+const PASS = process.env.SKOED_PASS ?? 'demopass123'
+const OUTDIR = process.env.SKOED_SCREENSHOT_DIR ?? '../docs/screenshots'
 
 const AUTHED_PAGES = [
   { path: '/',           name: 'dashboard' },
@@ -33,8 +33,8 @@ const page = await ctx.newPage()
 
 await page.goto(BASE + '/login')
 await page.evaluate(([u, p]) => {
-  sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
-  localStorage.setItem('dblock.theme', JSON.stringify({
+  sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
+  localStorage.setItem('skoed.theme', JSON.stringify({
     palette: 'lipgloss', mode: 'dark',
   }))
 }, [USER, PASS])
@@ -52,7 +52,7 @@ for (const { path: url, name } of AUTHED_PAGES) {
   const p2 = await ctx2.newPage()
   await p2.goto(BASE + '/login')
   await p2.evaluate(() => {
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'lipgloss', mode: 'dark',
     }))
   })

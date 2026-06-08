@@ -1,10 +1,10 @@
 Feature: DHCP source connectors
-  As a dblock operator with a LAN DHCP server
-  I want dblock to read leases from my DHCP source
+  As a skoed operator with a LAN DHCP server
+  I want skoed to read leases from my DHCP source
   So that hostname + MAC + Client-ID enrich every query
 
   Background:
-    Given dblock supports three connector kinds: kea, dnsmasq, http_json
+    Given skoed supports three connector kinds: kea, dnsmasq, http_json
     And every connector produces the same canonical Lease record:
       | field      | type           |
       | ip         | string (v4)    |
@@ -18,7 +18,7 @@ Feature: DHCP source connectors
   Scenario: Kea connector reads lease4-get-all from the control-agent
     Given a Kea control-agent at "http://kea.lan:8000/" returns a lease4-get-all
       command-response wrapper with three active leases
-    When the dblock Kea connector polls the source
+    When the skoed Kea connector polls the source
     Then the parsed lease set contains three records
     And each record carries ip, mac (lowercase), hostname, and client-id
     And lease expiry is computed from valid-lft + cltt
@@ -34,7 +34,7 @@ Feature: DHCP source connectors
   Scenario: dnsmasq connector parses /var/lib/misc/dnsmasq.leases
     Given a dnsmasq lease file with 5 entries of the form
       "<expiry-epoch> <mac> <ip> <hostname> <client-id>"
-    When the dblock dnsmasq connector reads the file
+    When the skoed dnsmasq connector reads the file
     Then five Lease records are produced
     And entries with hostname "*" (the dnsmasq unknown-hostname marker) yield an empty hostname
     And the 5th column (client-id) is preserved verbatim

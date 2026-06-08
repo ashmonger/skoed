@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [master, 'dblock-*']
+    branches: [master, 'skoed-*']
   pull_request:
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
         run: make build
 
       - name: go vet
-        run: cd apps/dblock && go vet ./...
+        run: cd apps/skoed && go vet ./...
 
   acceptance:
     runs-on: ubuntu-latest

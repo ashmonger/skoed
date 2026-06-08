@@ -14,7 +14,7 @@
 //   - dnsmasq + ISC connector tests use static fixture files under
 //     tests/fixtures/dhcp/ — no live daemon
 //   - Kea + Generic-HTTP connector tests spin a httptest.NewServer in-
-//     process and have dblock poll it
+//     process and have skoed poll it
 //   - Each test self-skips when the harness doesn't yet support DHCP
 //
 // All tests rely on a forthcoming harness helper `startClusterWithDhcp`

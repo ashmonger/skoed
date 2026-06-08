@@ -1,0 +1,20 @@
+apiVersion: v2
+name: skoed
+description: |
+  Self-hosted DNS filtering and parental control. Replaces Pi-hole and
+  AdGuard Home with native multi-node Raft+bbolt clustering.
+type: application
+version: 0.1.0          # chart version
+appVersion: "0.2.0"     # skoed release tracked by this chart (M2)
+home: https://github.com/skoed/skoed
+keywords:
+  - dns
+  - filtering
+  - pi-hole
+  - adguard
+  - cluster
+  - raft
+maintainers:
+  - name: skoed
+sources:
+  - https://github.com/skoed/skoed

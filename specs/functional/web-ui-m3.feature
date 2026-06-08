@@ -4,7 +4,7 @@ Feature: Web UI — M3 surfaces (profiles, schedules, categories, DoH)
   So that I can manage M3 features without composing JSON.
 
   Background:
-    Given a running dblock node with the SPA embedded
+    Given a running skoed node with the SPA embedded
     And the admin is logged in
     And the M3 backend endpoints (/profiles, /schedules, /categories) are present
 

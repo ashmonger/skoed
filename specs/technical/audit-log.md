@@ -127,9 +127,9 @@ goroutine needed.
 
 ## Metrics
 
-`dblock_audit_events_total{action}` — counter, incremented on every
+`skoed_audit_events_total{action}` — counter, incremented on every
 successful `audit.append` apply. Wired through the M5.1 metrics surface
-so it lives next to the rest of dblock's observability story.
+so it lives next to the rest of skoed's observability story.
 
 ## Web UI
 

@@ -4,7 +4,7 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18995'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18995'
 const USER = 'admin', PASS = 'demopass123'
 const OUTDIR = '../docs/screenshots'
 await mkdir(OUTDIR, { recursive: true })
@@ -19,10 +19,10 @@ const page = await ctx.newPage()
 // Seed creds + Lipgloss dark — same shape as shoot-m5.4 / shoot-m5.6.
 await page.goto(BASE + '/login')
 await page.evaluate(([u, p]) => {
-  sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
-  localStorage.setItem('dblock.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
+  sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
+  localStorage.setItem('skoed.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
   // Important: ensure the Getting Started dismissal key is NOT set.
-  localStorage.removeItem('dblock.gettingStarted.dismissed')
+  localStorage.removeItem('skoed.gettingStarted.dismissed')
 }, [USER, PASS])
 
 // Go to the Dashboard — fresh node, no blocklists, no profiles, so

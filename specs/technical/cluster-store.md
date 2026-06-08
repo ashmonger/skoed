@@ -27,7 +27,7 @@ x-fsid-links:
 ## Files per node
 
 ```
-/var/lib/dblock/
+/var/lib/skoed/
 ├── config.yaml           # SINGLE per-node file. Combines node-local
 │                         # settings (id, raft_address, api_address, dns
 │                         # listen) with a write-through shadow of the
@@ -60,7 +60,7 @@ node:
       port: 53
       ipv4: true
       ipv6: true
-  data_dir: "/var/lib/dblock"
+  data_dir: "/var/lib/skoed"
 
 # Optional. Consumed exactly once on first boot when no cluster.bbolt exists;
 # ignored on every subsequent boot. Tokens are single-use; the field is
@@ -108,14 +108,14 @@ seed. Existing M1 deployments need no manual conversion.
 ### Test affordances
 
 The following environment variables are honoured **only when**
-`DBLOCK_TEST_MODE=1` is also set. Production builds and operational deployments
-that omit `DBLOCK_TEST_MODE` ignore them, so they cannot weaken security or
+`SKOED_TEST_MODE=1` is also set. Production builds and operational deployments
+that omit `SKOED_TEST_MODE` ignore them, so they cannot weaken security or
 durability outside the test harness.
 
 | Variable | Effect |
 |---|---|
-| `DBLOCK_TEST_TOKEN_TTL_SECONDS` | Overrides the 15-minute join-token TTL with this many seconds (≥ 1). Used by acceptance tests to verify expired-token rejection without sleeping for 15 min. |
-| `DBLOCK_TEST_AGGREGATE_FLUSH_SECONDS` | Overrides the 60-second aggregate-flush interval (≥ 1). Used by acceptance tests to make cluster stats observable in seconds rather than waiting for an hour boundary. |
+| `SKOED_TEST_TOKEN_TTL_SECONDS` | Overrides the 15-minute join-token TTL with this many seconds (≥ 1). Used by acceptance tests to verify expired-token rejection without sleeping for 15 min. |
+| `SKOED_TEST_AGGREGATE_FLUSH_SECONDS` | Overrides the 60-second aggregate-flush interval (≥ 1). Used by acceptance tests to make cluster stats observable in seconds rather than waiting for an hour boundary. |
 
 These exist because their corresponding behaviours are time-driven and would
 otherwise force test suites to either sleep for production-realistic durations

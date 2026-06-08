@@ -1,6 +1,6 @@
 # Introduction
 
-**dblock** is a self-hosted DNS filtering daemon with multi-node sync.
+**skoed** is a self-hosted DNS filtering daemon with multi-node sync.
 It's a drop-in alternative to [Pi-hole](https://pi-hole.net/) and
 [AdGuard Home](https://adguard.com/en/adguard-home/overview.html) for
 households and small offices that want:
@@ -27,18 +27,18 @@ households and small offices that want:
 | Proxmox LXC | Self-hosters with a Proxmox cluster | [Proxmox LXC](install/proxmox-lxc.md) |
 | Docker / Kubernetes | Existing container infra | [Docker](install/docker.md) / [Kubernetes](install/kubernetes.md) |
 
-## What dblock is NOT
+## What skoed is NOT
 
-- A DHCP server — dblock *reads* leases from Kea / dnsmasq / generic
+- A DHCP server — skoed *reads* leases from Kea / dnsmasq / generic
   HTTP-JSON sources to enrich the query log; serving leases is a
   permanent non-goal.
 - A captive-portal / parental-control proxy — DNS filtering is the
   hammer; if a client uses hard-coded resolver IPs, a firewall rule
-  is your only ETF (dblock surfaces DoH probes so you know which
+  is your only ETF (skoed surfaces DoH probes so you know which
   clients to chase).
 - A general-purpose HTTPS reverse proxy. Use Caddy / Traefik /
   ingress-nginx for that.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/dblock/dblock/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/skoed/skoed/blob/main/LICENSE).

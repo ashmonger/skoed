@@ -2,7 +2,7 @@
 
 ## Strategic direction
 
-dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and AdGuard Home in home and lab environments. The strategic goal is to deliver the same core functionality in a single binary that natively supports multi-node clusters, per-client parental control, and container-native deployment — without requiring external databases or manual per-node configuration.
+skoed is a self-hosted DNS filtering solution designed to replace Pi-Hole and AdGuard Home in home and lab environments. The strategic goal is to deliver the same core functionality in a single binary that natively supports multi-node clusters, per-client parental control, and container-native deployment — without requiring external databases or manual per-node configuration.
 
 ## Milestones
 
@@ -10,7 +10,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 1 — Single Node Foundation
 
-**Outcome**: A single dblock node fully replaces Pi-Hole or AdGuard Home on a home network. An administrator can be operational within 10 minutes on a fresh Linux host or via Docker.
+**Outcome**: A single skoed node fully replaces Pi-Hole or AdGuard Home on a home network. An administrator can be operational within 10 minutes on a fresh Linux host or via Docker.
 
 **Capabilities:**
 - DNS forwarding with configurable upstream resolvers (DoH, DoT, plain UDP/TCP)
@@ -62,11 +62,11 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 2.5 — Helm Chart (Kubernetes deployment)
 
-**Outcome**: dblock deploys onto a Kubernetes cluster via a single `helm install`. Per-node DNS service is reachable on each Kubernetes node; the Raft cluster forms automatically.
+**Outcome**: skoed deploys onto a Kubernetes cluster via a single `helm install`. Per-node DNS service is reachable on each Kubernetes node; the Raft cluster forms automatically.
 
 **Capabilities:**
-- Helm chart in `deploy/helm/dblock/` with `values.yaml` exposing image tag, replica count, resource requests/limits, persistent-volume size, upstream resolvers, and the bootstrap-token Secret
-- `DaemonSet` topology (one dblock pod per node) with `hostPort: 53` for the DNS listener
+- Helm chart in `deploy/helm/skoed/` with `values.yaml` exposing image tag, replica count, resource requests/limits, persistent-volume size, upstream resolvers, and the bootstrap-token Secret
+- `DaemonSet` topology (one skoed pod per node) with `hostPort: 53` for the DNS listener
 - `Service` per pod for the management API (`ClusterIP` by default, optional `NodePort`)
 - `PersistentVolumeClaim` per pod for the data directory (raft/, bbolt, shadow config.yaml)
 - `Secret` for the join token used by replica pods on first start
@@ -82,7 +82,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 2.6 — Web UI
 
-**Outcome**: A browser-based UI ships embedded in the dblock binary, served by the existing management API. Every admin task currently doable via `curl` is doable via point-and-click on every supported milestone-1/2 endpoint.
+**Outcome**: A browser-based UI ships embedded in the skoed binary, served by the existing management API. Every admin task currently doable via `curl` is doable via point-and-click on every supported milestone-1/2 endpoint.
 
 **Capabilities:**
 - SPA (Vue 3 + Vite, or Svelte — TBD at design time) compiled and embedded via `//go:embed web/dist`; served from `/` when authenticated
@@ -150,8 +150,8 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 - Documentation: "Closing the DoH gap" guide that walks through firewall placement
 
 **Non-goals:**
-- dblock pushing rules into routers automatically (operator copy-paste only)
-- SNI-based blocking (belongs at the firewall, not in dblock)
+- skoed pushing rules into routers automatically (operator copy-paste only)
+- SNI-based blocking (belongs at the firewall, not in skoed)
 
 **Dependencies:** Milestone 3 complete.
 
@@ -159,7 +159,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 3.6 — Read-Only DHCP Integration + Anti-Spoof Detection
 
-**Outcome**: The query log and dashboards display **hostnames** and MAC addresses next to client IPs, sourced from the LAN's DHCP server. Profiles match clients by stable DHCP Client-ID (option 61), MAC, or hostname in addition to IP/CIDR. Lease changes are reflected on dblock within minutes. Spoofing attempts (a known hostname suddenly appearing with a new MAC, or vice versa) raise a dashboard alert.
+**Outcome**: The query log and dashboards display **hostnames** and MAC addresses next to client IPs, sourced from the LAN's DHCP server. Profiles match clients by stable DHCP Client-ID (option 61), MAC, or hostname in addition to IP/CIDR. Lease changes are reflected on skoed within minutes. Spoofing attempts (a known hostname suddenly appearing with a new MAC, or vice versa) raise a dashboard alert.
 
 **Capabilities:**
 - Read-only **DHCP source connectors**, configurable per node:
@@ -179,10 +179,10 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 - Profile-binding rules accept `client_macs`, `client_hostnames`, `client_ids` in addition to `client_ips` / `client_cidrs`. Match priority: Client-ID > MAC > hostname > IP/CIDR.
 - Web UI: client list (sortable by hostname / last-seen), per-client drill-down, spoof-anomaly inbox
 - Settings page: per-connector form (URL, file path, refresh interval, credentials)
-- **Reservation export**: `GET /api/v1/clients/export-reservations?format=dnsmasq|kea|json` emits operator-pasteable static-reservation syntax derived from the current lease snapshot. Lets the operator bootstrap their DHCP server's reservation table from devices dblock has already observed.
+- **Reservation export**: `GET /api/v1/clients/export-reservations?format=dnsmasq|kea|json` emits operator-pasteable static-reservation syntax derived from the current lease snapshot. Lets the operator bootstrap their DHCP server's reservation table from devices skoed has already observed.
 
 **Non-goals:**
-- dblock writing leases (read-only)
+- skoed writing leases (read-only)
 - DHCPv6 lease parsing (defer; IPv4 first)
 - ISC `dhcpd` lease file parser (deprecated upstream)
 - Active probing — ARP/NDP cross-check is Layer 3 of anti-spoofing, deferred to backlog
@@ -193,9 +193,9 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
-### Milestone 4 — dblock as a DoH/DoT Server
+### Milestone 4 — skoed as a DoH/DoT Server
 
-**Outcome**: Devices that *want* encrypted DNS get it from dblock itself, with the same filtering applied. The "fight against DoH" turns into "we serve DoH, just point at us".
+**Outcome**: Devices that *want* encrypted DNS get it from skoed itself, with the same filtering applied. The "fight against DoH" turns into "we serve DoH, just point at us".
 
 **Capabilities:**
 - DoH server on `/dns-query` (RFC 8484) with auto-generated or operator-supplied TLS cert
@@ -238,10 +238,10 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 4.6 — HTTPS for the Management API
 
-**Outcome**: The Web UI and management API are reachable over HTTPS using the same ACME-issued cert M4 already manages for DoH and DoT. Operators on a public-facing host stop needing a reverse proxy in front of dblock.
+**Outcome**: The Web UI and management API are reachable over HTTPS using the same ACME-issued cert M4 already manages for DoH and DoT. Operators on a public-facing host stop needing a reverse proxy in front of skoed.
 
 **Capabilities:**
-- New `node.api.tls.enabled` toggle. When on, dblock binds an HTTPS listener on `api_address` and reuses the cert from M4 (`node.dns.tls.acme.*` or `node.dns.tls.cert_file`)
+- New `node.api.tls.enabled` toggle. When on, skoed binds an HTTPS listener on `api_address` and reuses the cert from M4 (`node.dns.tls.acme.*` or `node.dns.tls.cert_file`)
 - Two listen modes (operator picks): **single-port swap** (plain HTTP returns 308 → HTTPS) or **dual-port** (HTTP on `api_address`, HTTPS on `api_tls_address`) for LAN-script compatibility
 - HSTS header on the HTTPS listener (configurable, off by default for LAN deployments)
 - Same Basic Auth applies (API tokens land later in M7)
@@ -258,7 +258,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 **Outcome**: Operators can purge the DNS cache on demand and see cache health from outside the process. Config edits stop bulldozing the entire cache as a side effect of handler rebuilds.
 
-**Today's gap** (`apps/dblock/internal/dns/cache.go`):
+**Today's gap** (`apps/skoed/internal/dns/cache.go`):
 - No `Clear()` / `Purge()` method on `Cache`; no API endpoint; no UI button.
 - Every Raft apply (allowlist add, profile rename, even a settings tweak) wipes the cache as an unintended side effect, because `rebuildDNS` constructs a fresh handler-and-cache pair on every apply. Hot domains have to be re-fetched after any config change.
 - No visibility — operators can't tell if the cache is hot, full, or even running.
@@ -268,7 +268,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 - **Web UI button**: "Clear DNS cache" on Settings → DNS, with a confirmation modal showing the current cache size.
 - **Targeted invalidation on config change**: rebuildDNS preserves the existing `*Cache` (atomic swap of the cache pointer instead of recreating); allowlist / blocklist mutations trigger surgical purges of the affected names only. Local-DNS / profile-match changes still invalidate matching keys, not the whole cache.
 - **Cache visibility**: `GET /api/v1/dns/cache/stats` returns `{ size, max_entries, hits_24h, misses_24h, evictions_24h, oldest_expiry, newest_expiry }`. Stats page gets a "DNS cache" card next to "DoH attempts today".
-- **Metrics hook**: counters (hits/misses/evictions/size) wired so the M5 Prometheus exporter surfaces them at `dblock_dns_cache_*`.
+- **Metrics hook**: counters (hits/misses/evictions/size) wired so the M5 Prometheus exporter surfaces them at `skoed_dns_cache_*`.
 
 **Non-goals:**
 - Persistent cache across restarts (the cache is by design ephemeral)
@@ -281,7 +281,7 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 5 — Production Hardening (umbrella)
 
-**Outcome**: dblock is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
+**Outcome**: skoed is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
 
 M5 is an umbrella for six independent capabilities, each with its own
 sub-milestone below. Plus M5.3 (Encrypted Cluster Mesh) and M5.5
@@ -309,21 +309,21 @@ this file.
 
 ### Milestone 5.1 — Prometheus `/metrics` Exporter
 
-**Outcome**: dblock exposes a Prometheus-format metrics endpoint so operators can graph DNS throughput, cache health, cluster state, and DHCP-cache freshness from outside the process. Standard `prometheus.io/scrape: "true"` annotations work out of the box.
+**Outcome**: skoed exposes a Prometheus-format metrics endpoint so operators can graph DNS throughput, cache health, cluster state, and DHCP-cache freshness from outside the process. Standard `prometheus.io/scrape: "true"` annotations work out of the box.
 
 **Capabilities:**
 - `GET /metrics` returns Prometheus text format. Unauthenticated by default (the metrics are operator-internal, expose-them-only-on-the-LAN), with an opt-in `node.api.metrics.require_auth` toggle for paranoid deployments.
 - DNS engine counters:
-  - `dblock_dns_queries_total{outcome="..."}` — blocked / forwarded / cached / local, per-transport (+ -doh / -dot suffixes)
-  - `dblock_dns_query_duration_seconds` histogram (5 buckets: 1ms, 10ms, 100ms, 1s, 5s)
+  - `skoed_dns_queries_total{outcome="..."}` — blocked / forwarded / cached / local, per-transport (+ -doh / -dot suffixes)
+  - `skoed_dns_query_duration_seconds` histogram (5 buckets: 1ms, 10ms, 100ms, 1s, 5s)
 - Cache (wires the existing M4.7 counters):
-  - `dblock_dns_cache_size`, `_max_entries`, `_hits_total`, `_misses_total`, `_evictions_total`
+  - `skoed_dns_cache_size`, `_max_entries`, `_hits_total`, `_misses_total`, `_evictions_total`
 - Cluster (gauges, refreshed per scrape):
-  - `dblock_cluster_node_role{role="leader|follower"}` (1 / 0)
-  - `dblock_cluster_raft_term`, `_commit_index`, `_members`, `_reachable_members`
+  - `skoed_cluster_node_role{role="leader|follower"}` (1 / 0)
+  - `skoed_cluster_raft_term`, `_commit_index`, `_members`, `_reachable_members`
 - DHCP (when M3.6 integration is enabled):
-  - `dblock_dhcp_leases`, `_anomalies_open`, `_last_poll_age_seconds`, `_poll_errors_total`
-- Build info gauge `dblock_build_info{version="...",commit="...",go="..."}` set to 1
+  - `skoed_dhcp_leases`, `_anomalies_open`, `_last_poll_age_seconds`, `_poll_errors_total`
+- Build info gauge `skoed_build_info{version="...",commit="...",go="..."}` set to 1
 
 **Non-goals:**
 - OpenTelemetry support (Prometheus only for M5; OTel later if asked)
@@ -345,7 +345,7 @@ this file.
 - Configurable retention (default 90 days); compacted into Raft snapshot
 - Web UI: Audit page under Settings, with filters by actor / action / date range
 - API: `GET /api/v1/audit?limit=N&offset=M&actor=…&action=…`
-- Prometheus: `dblock_audit_events_total{action="..."}`
+- Prometheus: `skoed_audit_events_total{action="..."}`
 
 **Non-goals:**
 - Forwarding to external SIEM (operator pipes the API)
@@ -366,7 +366,7 @@ this file.
 - Per-blocklist `last_refresh_at`, `last_refresh_status` (`ok` / `error` / `unchanged`), `last_refresh_error`
 - Optional GPG signature verification for sources that publish signed lists (e.g. Hagezi)
 - Dashboard warning card when any blocklist hasn't refreshed in 2× its interval
-- Prometheus: `dblock_blocklist_last_refresh_seconds{id="..."}`, `_refresh_failures_total{id="..."}`
+- Prometheus: `skoed_blocklist_last_refresh_seconds{id="..."}`, `_refresh_failures_total{id="..."}`
 
 **Non-goals:**
 - Per-rule deltas (UI shows count delta only; full diff would explode UI)
@@ -379,12 +379,12 @@ this file.
 
 ### Milestone 5.6 — In-place Upgrade
 
-**Outcome**: Operators upgrade dblock without losing config or interrupting the cluster — UI button or CLI command downloads the new binary, verifies its signature, and rolls the cluster one node at a time.
+**Outcome**: Operators upgrade skoed without losing config or interrupting the cluster — UI button or CLI command downloads the new binary, verifies its signature, and rolls the cluster one node at a time.
 
 **Capabilities:**
 - `GET /api/v1/upgrade/check` queries the release feed and returns `{current, available, release_notes_url}`
 - `POST /api/v1/upgrade/start` downloads + verifies + swaps the binary, then exits 0; supervisor (systemd / pct) restarts. State on disk survives.
-- CLI: `dblock upgrade [--version vX.Y.Z]` runs the same flow without the API
+- CLI: `skoed upgrade [--version vX.Y.Z]` runs the same flow without the API
 - Cluster-aware: only one node upgrades at a time; M2 leader election handles the brief gap
 - Web UI: "Upgrade available" banner on the Dashboard with one-click trigger
 - Cosign-signed releases; verification fails the upgrade if signature invalid
@@ -400,7 +400,7 @@ this file.
 
 ### Milestone 5.7 — Multi-architecture Release Builds
 
-**Outcome**: Every dblock release ships both `linux/amd64` and `linux/arm64` binaries + matching Docker images, so Raspberry Pi / arm64 servers / Apple Silicon Linux VMs install the same release.
+**Outcome**: Every skoed release ships both `linux/amd64` and `linux/arm64` binaries + matching Docker images, so Raspberry Pi / arm64 servers / Apple Silicon Linux VMs install the same release.
 
 **Capabilities:**
 - `goreleaser.yaml` builds both arches in one CI run
@@ -411,7 +411,7 @@ this file.
 
 **Non-goals:**
 - `linux/arm` (32-bit) — defer; almost no demand
-- macOS / Windows builds — dblock is a Linux daemon
+- macOS / Windows builds — skoed is a Linux daemon
 - FreeBSD / OpenBSD ports — community-driven
 
 **Dependencies:** M5.5 packaging (the .deb needs an arch). M5.6 upgrade (the upgrade verifier picks the right arch's binary).
@@ -420,7 +420,7 @@ this file.
 
 ### Milestone 5.8 — Documentation Site
 
-**Outcome**: A `docs.dblock.io`-style static site with install guide, configuration reference, cluster setup, troubleshooting, and how-tos for common deployments (Proxmox, Pi-hole migration, K8s).
+**Outcome**: A `docs.skoed.io`-style static site with install guide, configuration reference, cluster setup, troubleshooting, and how-tos for common deployments (Proxmox, Pi-hole migration, K8s).
 
 **Capabilities:**
 - Static site generator (mdBook, Hugo, or VitePress — TBD; lean toward mdBook for low maintenance)
@@ -440,7 +440,7 @@ this file.
 
 ### Milestone 5.3 — Encrypted Cluster Mesh
 
-**Outcome**: All inter-node traffic is encrypted and mutually authenticated. Operators stop needing to run dblock inside a private overlay network to keep replicated state (blocklists, profiles, password hashes, query-log aggregates) off the wire.
+**Outcome**: All inter-node traffic is encrypted and mutually authenticated. Operators stop needing to run skoed inside a private overlay network to keep replicated state (blocklists, profiles, password hashes, query-log aggregates) off the wire.
 
 **Today's gap** (`internal/cluster/raft.go:76`, `cluster.go:321`):
 - Raft uses `raft.NewTCPTransport` — plain TCP for AppendEntries, voting, snapshots
@@ -465,11 +465,11 @@ this file.
 
 ### Milestone 5.5 — Native Packaging
 
-**Outcome**: dblock installs on Debian/Ubuntu/Raspberry Pi OS via `apt`, and on Proxmox via a one-shot LXC bootstrap script. The single-binary release stays available, but most operators move to the OS-managed install path.
+**Outcome**: skoed installs on Debian/Ubuntu/Raspberry Pi OS via `apt`, and on Proxmox via a one-shot LXC bootstrap script. The single-binary release stays available, but most operators move to the OS-managed install path.
 
 **Capabilities:**
-- `.deb` packages for amd64 and arm64 (`dblock`, `dblock-cluster` — the latter pulls in the cluster bootstrap helpers)
-- systemd unit file; default config at `/etc/dblock/config.yaml`; data at `/var/lib/dblock`; `dblock` system user
+- `.deb` packages for amd64 and arm64 (`skoed`, `skoed-cluster` — the latter pulls in the cluster bootstrap helpers)
+- systemd unit file; default config at `/etc/skoed/config.yaml`; data at `/var/lib/skoed`; `skoed` system user
 - apt repo hosted alongside GitHub releases
 - Proxmox LXC bootstrap script (`pveam` + `pct create` + first-run config wizard)
 - All packages reuse the M5 in-place upgrade path on `apt upgrade` / `pct exec`
@@ -484,13 +484,13 @@ this file.
 
 ### Milestone 5.9 — Operator QoL (umbrella)
 
-**Outcome**: dblock feels nice to install, configure, and live with. Less curl, more `dblock <verb>`; faster dev loop; less surprise on first boot; safer URL-tester ergonomics.
+**Outcome**: skoed feels nice to install, configure, and live with. Less curl, more `skoed <verb>`; faster dev loop; less surprise on first boot; safer URL-tester ergonomics.
 
 Umbrella for five small landings — each lands as a separate PR but they're cheap enough to ship in a single session.
 
 | Sub | Title                                                | Status |
 |-----|------------------------------------------------------|--------|
-| 5.9.1 | `dblock` CLI + TUI (charm-stack, full color)       |        |
+| 5.9.1 | `skoed` CLI + TUI (charm-stack, full color)       |        |
 | 5.9.2 | `make dev` — Vite hot-reload for the SPA            |        |
 | 5.9.3 | Docker test cache (go-mod volume)                   |        |
 | 5.9.4 | Getting Started card + docs page                    |        |
@@ -499,27 +499,27 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 **Non-goals for the M5.9 umbrella:**
 - Replacing the existing Web UI Vue stack
 - Server-side rendering / no-JS support
-- Public/SaaS posture (dblock stays a private-network admin tool)
+- Public/SaaS posture (skoed stays a private-network admin tool)
 
 **Dependencies:** Each sub-milestone is independent; pick any order.
 
 ---
 
-### Milestone 5.9.1 — `dblock` CLI + TUI (charm-stack)
+### Milestone 5.9.1 — `skoed` CLI + TUI (charm-stack)
 
-**Outcome**: Operators run `dblock <verb>` for everything they used to `curl -u admin:pwd …`; live cluster overview without leaving the terminal.
+**Outcome**: Operators run `skoed <verb>` for everything they used to `curl -u admin:pwd …`; live cluster overview without leaving the terminal.
 
 **Capabilities:**
 - CLI verbs via [cobra](https://github.com/spf13/cobra) styled with [lipgloss](https://github.com/charmbracelet/lipgloss) (matches the SPA Lipgloss palette — same hexes):
-  - `dblock version` (also: `dblock --version`)
-  - `dblock health` (alias: `dblock ping`)
-  - `dblock status` (cluster nodes + roles + commit index, color-coded)
-  - `dblock token create` (returns the M5.3 join bundle)
-  - `dblock blocklist test <url>` (M5.9.5 hooks here)
-  - `dblock daemon` (current behaviour; default when no subcommand given so existing `dblock --config …` keeps working)
+  - `skoed version` (also: `skoed --version`)
+  - `skoed health` (alias: `skoed ping`)
+  - `skoed status` (cluster nodes + roles + commit index, color-coded)
+  - `skoed token create` (returns the M5.3 join bundle)
+  - `skoed blocklist test <url>` (M5.9.5 hooks here)
+  - `skoed daemon` (current behaviour; default when no subcommand given so existing `skoed --config …` keeps working)
 - TUI dashboard via [bubbletea](https://github.com/charmbracelet/bubbletea):
-  - `dblock top` — live cluster + DNS rate + top blocked domains + audit-log tail. Hot-keys: `q` quit, `r` force refresh, `f` filter.
-- Auth via the same `auth/setup`-set credentials; read from `~/.dblock/credentials` (mode 0600) or `--auth user:pass`. Talks to the management API at `--api http://localhost:8080` (or `DBLOCK_API` env).
+  - `skoed top` — live cluster + DNS rate + top blocked domains + audit-log tail. Hot-keys: `q` quit, `r` force refresh, `f` filter.
+- Auth via the same `auth/setup`-set credentials; read from `~/.skoed/credentials` (mode 0600) or `--auth user:pass`. Talks to the management API at `--api http://localhost:8080` (or `SKOED_API` env).
 
 **Non-goals:**
 - A full curses TUI for editing config (operators edit YAML or use the Web UI)
@@ -535,7 +535,7 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 **Capabilities:**
 - `make dev` starts:
-  - A dblock daemon on a known port (e.g. 18099)
+  - A skoed daemon on a known port (e.g. 18099)
   - `vite dev` on 5173, proxying `/api/*` and `/metrics` to the daemon
 - Vite HMR (already in the existing config) handles per-file reload
 - `make dev-cluster` (stretch) spins a 3-node cluster + Vite proxy for testing leader-forward UX
@@ -572,7 +572,7 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 **Capabilities:**
 - Dashboard "Getting Started" card, visible iff `blocklists.length === 0 && profiles.length === 0`:
-  - 3-step checklist: 1) Add a blocklist 2) Bootstrap a cluster (optional) 3) Point a client at dblock
+  - 3-step checklist: 1) Add a blocklist 2) Bootstrap a cluster (optional) 3) Point a client at skoed
   - Each step is a click that takes operator to the right page
   - Auto-hides once cluster has any blocklist (no dismiss needed)
   - Operator-dismissible via `[x]` (stored in `localStorage`); doesn't reappear
@@ -588,24 +588,24 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 ### Milestone 5.9.5 — URL tester (CLI + public landing page)
 
-**Outcome**: Operators can sanity-check a blocklist URL **before** they install dblock or set up auth — via CLI or via a public landing page on a running dblock that doesn't require login. dblock stays a private-network admin tool; the landing page is the *one* unauthenticated surface and is SSRF-guarded.
+**Outcome**: Operators can sanity-check a blocklist URL **before** they install skoed or set up auth — via CLI or via a public landing page on a running skoed that doesn't require login. skoed stays a private-network admin tool; the landing page is the *one* unauthenticated surface and is SSRF-guarded.
 
 **Capabilities:**
-- **CLI**: `dblock blocklist test <url> [--format hosts|domainlist|adblock|auto]`
+- **CLI**: `skoed blocklist test <url> [--format hosts|domainlist|askoed|auto]`
   - Fetches in-process with 30 s timeout; parses; prints a styled summary:
     `✓  https://… → 12,453 domains (hosts format, 6 skipped)`
   - No daemon, no auth, no SSRF risk (operator's own process, operator's own network)
 - **Public landing page** at `/`:
   - Replaces the current "redirect to /login if unauthenticated"
   - URL tester form + small "Login" button top-right → existing admin UI
-  - Submitted URL is fetched by the dblock daemon; SSRF-guarded by an allow-list (public hosts only — refuses RFC1918 / localhost / link-local / metadata IPs)
-  - Rate-limited (60 req/h per source IP) so a hostile internet visitor can't turn dblock into a port-scan amp
-- Operator can disable the public landing page entirely with `node.api.public_landing.enabled = false` (config default: `true`; M5.9.5.1 may flip the default once we learn whether anyone leaves dblock internet-facing)
+  - Submitted URL is fetched by the skoed daemon; SSRF-guarded by an allow-list (public hosts only — refuses RFC1918 / localhost / link-local / metadata IPs)
+  - Rate-limited (60 req/h per source IP) so a hostile internet visitor can't turn skoed into a port-scan amp
+- Operator can disable the public landing page entirely with `node.api.public_landing.enabled = false` (config default: `true`; M5.9.5.1 may flip the default once we learn whether anyone leaves skoed internet-facing)
 
 **Non-goals:**
 - Authenticated tester (admin already has the Create modal; the public version is for evaluation-before-install)
 - General-purpose admin features without auth (only the tester is unauthenticated)
-- SaaS / multi-tenant posture (dblock stays single-org)
+- SaaS / multi-tenant posture (skoed stays single-org)
 
 **Dependencies:** M5.9.1 (CLI subcommand framework).
 
@@ -613,7 +613,7 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 ### Milestone 6 — Closing the DoH Gap
 
-**Outcome**: Operators can block hardcoded-resolver-IP DoH/DoT bypasses at their firewall, using dblock-generated rule snippets. Closes the last bypass route M3 + M3.5 leave open.
+**Outcome**: Operators can block hardcoded-resolver-IP DoH/DoT bypasses at their firewall, using skoed-generated rule snippets. Closes the last bypass route M3 + M3.5 leave open.
 
 **Capabilities:**
 - Firewall-rule generators for `iptables`, `nftables`, MikroTik RouterOS, OpnSense / pfSense, UniFi controllers
@@ -622,8 +622,8 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 - Documentation: "Closing the DoH gap" guide covering placement, monitoring, and false-positive recovery
 
 **Non-goals:**
-- dblock pushing rules into routers automatically (operator copy-paste only)
-- SNI-based blocking (belongs at the firewall, not in dblock)
+- skoed pushing rules into routers automatically (operator copy-paste only)
+- SNI-based blocking (belongs at the firewall, not in skoed)
 
 **Dependencies:** M3.5 detection track.
 
@@ -631,7 +631,7 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 ### Milestone 6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases
 
-**Outcome**: The M3.6 anti-spoof detector gains a third layer (ARP/NDP cross-check), the lease cache replicates across the cluster, and dblock can finally name a "dynamic vs static" lease.
+**Outcome**: The M3.6 anti-spoof detector gains a third layer (ARP/NDP cross-check), the lease cache replicates across the cluster, and skoed can finally name a "dynamic vs static" lease.
 
 **Capabilities:**
 - ARP/NDP cross-check via netlink: flag when DHCP's view of `(IP → MAC)` disagrees with the kernel's ARP table on this node
@@ -677,7 +677,7 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 ### Milestone 8 — Encrypted DNS Expansion (DoH3 + DNSCrypt)
 
-**Outcome**: dblock serves the two remaining encrypted-DNS dialects so clients that prefer them get filtered DNS too.
+**Outcome**: skoed serves the two remaining encrypted-DNS dialects so clients that prefer them get filtered DNS too.
 
 **Capabilities:**
 - **DoH3** on a configurable UDP/QUIC port (HTTP/3 transport, RFC 9230)
@@ -695,13 +695,13 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 
 ### Milestone 9 — Kubernetes Operator
 
-**Outcome**: A native operator manages dblock clusters on Kubernetes via CRDs — supersedes the M2.5 Helm chart for serious K8s users.
+**Outcome**: A native operator manages skoed clusters on Kubernetes via CRDs — supersedes the M2.5 Helm chart for serious K8s users.
 
 **Capabilities:**
 - CRDs: `DblockCluster`, `DblockNode`
 - Automatic cluster scaling, ACME cert rotation, lease-data PVC management
 - Helm chart kept as a thin wrapper for non-operator deployments
-- Status conditions surface Raft health to `kubectl get dblockcluster`
+- Status conditions surface Raft health to `kubectl get skoedcluster`
 
 **Non-goals:**
 - Multi-cluster / federation

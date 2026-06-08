@@ -2,9 +2,9 @@
 
 ## System Boundaries
 
-- **dblock** is a single Go binary per node.
+- **skoed** is a single Go binary per node.
 - Each binary embeds: DNS server, HTTP management API, web UI (compiled SPA), and sync engine.
-- Clients configure one or more dblock node IPs as their DNS resolver (via DHCP or static assignment).
+- Clients configure one or more skoed node IPs as their DNS resolver (via DHCP or static assignment).
 - External DNS (upstream resolvers or IANA root nameservers) is accessed outbound for non-blocked query resolution.
 - Node-to-node cluster sync uses a dedicated internal HTTPS REST API, separate from the management API.
 - No external database or message broker is required; all state is stored in local YAML files.
@@ -17,13 +17,13 @@
 | Network Administrator | Uses the web UI or HTTP API (port 80/443) to manage configuration |
 | Upstream DNS resolver | Receives forwarded DNS queries from the DNS engine |
 | IANA root nameservers | Contacted by the DNS engine when root resolution is enabled |
-| Other dblock nodes | Exchange configuration over the sync API (HTTPS, configurable port) |
+| Other skoed nodes | Exchange configuration over the sync API (HTTPS, configurable port) |
 
 ## Component Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    dblock binary                    │
+│                    skoed binary                    │
 │                                                     │
 │  ┌─────────────┐  ┌──────────────────────────────┐  │
 │  │  DNS engine  │  │       Filtering engine       │  │
@@ -103,19 +103,19 @@
 
 ### Single node
 ```
-[Clients] ──DNS──► [dblock node (primary)]
+[Clients] ──DNS──► [skoed node (primary)]
 ```
 
 ### Multi-node cluster
 ```
-[Clients] ──DNS──► [dblock node (primary)]
+[Clients] ──DNS──► [skoed node (primary)]
                         │ config push (HTTPS)
-                        ├──► [dblock node (replica 1)]
-                        └──► [dblock node (replica 2)]
+                        ├──► [skoed node (replica 1)]
+                        └──► [skoed node (replica 2)]
 ```
 
 ### Kubernetes (DaemonSet)
-- One dblock pod per node in the cluster.
+- One skoed pod per node in the cluster.
 - Primary elected from running pods.
 - Shared PersistentVolume or ConfigMap for initial config distribution.
 

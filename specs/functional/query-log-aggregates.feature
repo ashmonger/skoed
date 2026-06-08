@@ -4,7 +4,7 @@ Feature: Query Log Aggregates
   So that a single page summarises blocking activity across all nodes without expensive fan-out per page load.
 
   Background:
-    Given a 3-node dblock cluster
+    Given a 3-node skoed cluster
     And the administrator is authenticated
 
   @fsid:FS-QueryLogAggregatesPerNodePerHour

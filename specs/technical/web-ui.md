@@ -19,7 +19,7 @@ x-fsid-links:
 # TS-WebUi — Web UI architecture
 
 A Vue 3 + Vite single-page app, compiled into a static bundle and embedded
-into the dblock Go binary via `//go:embed`. Served from `GET /` and
+into the skoed Go binary via `//go:embed`. Served from `GET /` and
 `GET /assets/*`; every other unmatched route falls back to `index.html` so
 the SPA's history router can take over. The API surface is unchanged from
 M1+M2.
@@ -86,14 +86,14 @@ web/
 cd web
 npm install                                      # 156 packages, no security advisories
 npm run build                                    # vue-tsc --noEmit + vite build → web/dist/
-cp -r web/dist apps/dblock/internal/api/static/dist
-cd apps/dblock && CGO_ENABLED=0 go build -o dblock ./cmd/dblock/
+cp -r web/dist apps/skoed/internal/api/static/dist
+cd apps/skoed && CGO_ENABLED=0 go build -o skoed ./cmd/skoed/
 ```
 
-The dblock binary's `internal/api/static/embed.go` declares
+The skoed binary's `internal/api/static/embed.go` declares
 `//go:embed all:dist` so `go build` ingests whatever has been copied into
 that path. Production releases run the build pipeline end-to-end; Go-only
-contributors who don't touch the UI can leave `apps/dblock/internal/api/static/dist`
+contributors who don't touch the UI can leave `apps/skoed/internal/api/static/dist`
 empty — the router gracefully degrades to `404 Not Found` on `/` if no
 `index.html` is found (`static.HasIndex()` short-circuits the SPA handler).
 
@@ -178,7 +178,7 @@ After tree-shaking + gzip (vite build):
 | Per-view chunks (lazy-loaded) | 2–12 KB each | 1–4 KB each |
 | Total embedded | ~260 KB | ~90 KB |
 
-Binary growth: `dblock` went from ~10.5 MB to ~11 MB after embed — well
+Binary growth: `skoed` went from ~10.5 MB to ~11 MB after embed — well
 inside the 25 MB roadmap budget.
 
 ## Known limitations

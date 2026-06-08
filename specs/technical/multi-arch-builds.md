@@ -19,7 +19,7 @@ checksums, GitHub Release upload.
 ## Layout
 
 `.goreleaser.yaml` at the repo root. Cross-compile via Go's native
-GOOS/GOARCH (CGO_ENABLED=0 since dblock has no C deps). nfpm config
+GOOS/GOARCH (CGO_ENABLED=0 since skoed has no C deps). nfpm config
 re-used from M5.5.
 
 ```yaml
@@ -31,9 +31,9 @@ before:
     - make openapi-sync  # stage the OpenAPI spec for the binary
 
 builds:
-  - id: dblock
-    main: ./apps/dblock/cmd/dblock
-    binary: dblock
+  - id: skoed
+    main: ./apps/skoed/cmd/skoed
+    binary: skoed
     env:
       - CGO_ENABLED=0
     goos:   [linux]
@@ -44,33 +44,33 @@ builds:
       - -X main.commit={{.ShortCommit}}
 
 archives:
-  - id: dblock
-    name_template: "dblock_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: skoed
+    name_template: "skoed_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     files: [LICENSE*, README*, packaging/config.example.yaml]
 
 nfpms:
-  - id: dblock
-    package_name: dblock
-    file_name_template: "dblock_{{ .Version }}_{{ .Arch }}"
-    homepage: https://github.com/dblock/dblock
+  - id: skoed
+    package_name: skoed
+    file_name_template: "skoed_{{ .Version }}_{{ .Arch }}"
+    homepage: https://github.com/skoed/skoed
     description: Self-hosted DNS filtering with multi-node sync.
-    maintainer: dblock maintainers <maintainers@dblock.io>
+    maintainer: skoed maintainers <maintainers@skoed.io>
     license: MIT
     formats: [deb]
     bindir: /usr/bin
     contents:
-      - src: ./packaging/dblock.service
-        dst: /lib/systemd/system/dblock.service
+      - src: ./packaging/skoed.service
+        dst: /lib/systemd/system/skoed.service
       - src: ./packaging/config.example.yaml
-        dst: /etc/dblock/config.yaml
+        dst: /etc/skoed/config.yaml
         type: config|noreplace
-      - dst: /var/lib/dblock
+      - dst: /var/lib/skoed
         type: dir
-        file_info: { mode: 0700, owner: dblock, group: dblock }
-      - dst: /var/log/dblock
+        file_info: { mode: 0700, owner: skoed, group: skoed }
+      - dst: /var/log/skoed
         type: dir
-        file_info: { mode: 0750, owner: dblock, group: dblock }
+        file_info: { mode: 0750, owner: skoed, group: skoed }
     scripts:
       preinstall:  ./packaging/scripts/preinst.sh
       postinstall: ./packaging/scripts/postinst.sh
@@ -79,20 +79,20 @@ nfpms:
     dependencies: [adduser]
 
 dockers:
-  - id: dblock-amd64
+  - id: skoed-amd64
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
-      - "ghcr.io/dblock/dblock:latest-amd64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-amd64"
+      - "ghcr.io/skoed/skoed:latest-amd64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
     goarch: amd64
 
-  - id: dblock-arm64
+  - id: skoed-arm64
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
-      - "ghcr.io/dblock/dblock:latest-arm64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-arm64"
+      - "ghcr.io/skoed/skoed:latest-arm64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -100,36 +100,36 @@ dockers:
     goarch: arm64
 
 docker_manifests:
-  - name_template: "ghcr.io/dblock/dblock:{{ .Version }}"
+  - name_template: "ghcr.io/skoed/skoed:{{ .Version }}"
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
-      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/dblock/dblock:latest"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-amd64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/skoed/skoed:latest"
     image_templates:
-      - "ghcr.io/dblock/dblock:latest-amd64"
-      - "ghcr.io/dblock/dblock:latest-arm64"
+      - "ghcr.io/skoed/skoed:latest-amd64"
+      - "ghcr.io/skoed/skoed:latest-arm64"
 
 checksum:
   name_template: "checksums.txt"
 
 release:
   github:
-    owner: dblock
-    name: dblock
+    owner: skoed
+    name: skoed
 ```
 
 ## Dockerfile
 
 Single-stage `FROM gcr.io/distroless/static-debian12` (≤ 30 MB),
-copies the pre-built `dblock` binary in. Image size assertion: any
+copies the pre-built `skoed` binary in. Image size assertion: any
 arch under 100 MB (M1 risk row).
 
 ```dockerfile
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY dblock /usr/bin/dblock
+COPY skoed /usr/bin/skoed
 EXPOSE 53/udp 53/tcp 8080/tcp
-ENTRYPOINT ["/usr/bin/dblock"]
-CMD ["--config", "/etc/dblock/config.yaml"]
+ENTRYPOINT ["/usr/bin/skoed"]
+CMD ["--config", "/etc/skoed/config.yaml"]
 ```
 
 ## CI workflow
@@ -175,6 +175,6 @@ jobs:
 without publishing. Operators (and CI) verify by:
 
 - `ls dist/` — both arches per artefact.
-- `file dist/dblock_*_linux_amd64/dblock` → `ELF 64-bit LSB executable, x86-64`.
-- `file dist/dblock_*_linux_arm64/dblock` → `ELF 64-bit LSB executable, ARM aarch64`.
-- `packaging/test-deb.sh dist/dblock_*_amd64.deb` smoke-test.
+- `file dist/skoed_*_linux_amd64/skoed` → `ELF 64-bit LSB executable, x86-64`.
+- `file dist/skoed_*_linux_arm64/skoed` → `ELF 64-bit LSB executable, ARM aarch64`.
+- `packaging/test-deb.sh dist/skoed_*_amd64.deb` smoke-test.

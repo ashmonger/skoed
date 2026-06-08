@@ -1,11 +1,11 @@
 Feature: In-place Upgrade
-  As an operator who installed dblock from the .deb (M5.5)
+  As an operator who installed skoed from the .deb (M5.5)
   I want a Dashboard banner when a new release is available
   And a one-click upgrade that downloads, verifies, and swaps the binary
   So I don't have to babysit apt or copy binaries manually.
 
   Background:
-    Given dblock is running with a known version
+    Given skoed is running with a known version
     And the operator can configure node.upgrade.feed_url + node.upgrade.cosign_pub_key
 
   @fsid:FS-UpgradeCheckEndpoint

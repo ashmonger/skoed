@@ -9,7 +9,7 @@ Feature: Local DNS entry management
     - DNSSEC signing of local entries is out of scope
 
   Background:
-    Given dblock is running
+    Given skoed is running
 
   @fsid:FS-LocalDnsEntryAddA
   Scenario: Admin adds an A record for an internal hostname
@@ -33,14 +33,14 @@ Feature: Local DNS entry management
   Scenario: Local entry is served instead of forwarding to upstream
     Given a local A record exists for "nas.home" with address "192.168.1.50"
     When a client queries "nas.home"
-    Then dblock returns the local record without contacting any upstream resolver
+    Then skoed returns the local record without contacting any upstream resolver
 
   @fsid:FS-LocalDnsEntryPriorityOverBlocklist
   Scenario: Local entry is served even when the hostname is on a blocklist
     Given a local A record exists for "intranet.home" with address "10.0.0.1"
     And "intranet.home" is on an active blocklist
     When a client queries "intranet.home"
-    Then dblock returns the local A record
+    Then skoed returns the local A record
     And does not return a block response
 
   @fsid:FS-LocalDnsEntryUpdate
@@ -60,4 +60,4 @@ Feature: Local DNS entry management
     Given a local A record for "internal.home" is deleted
     And "internal.home" does not exist in upstream DNS
     When a client queries "internal.home"
-    Then dblock returns NXDOMAIN
+    Then skoed returns NXDOMAIN

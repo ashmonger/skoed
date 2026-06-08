@@ -1,5 +1,5 @@
-# dblock — default config installed under /etc/dblock/config.yaml.
-# Edit, then `systemctl restart dblock`.
+# skoed — default config installed under /etc/skoed/config.yaml.
+# Edit, then `systemctl restart skoed`.
 #
 # This is a single-node, plain-HTTP, no-cluster config that's safe to
 # enable on a fresh box without any further setup beyond first-run
@@ -10,10 +10,10 @@
 # or the docs site (M5.8).
 
 node:
-  id: dblock-1
+  id: skoed-1
   raft_address: 127.0.0.1:7000
   api_address: 0.0.0.0:8080
-  data_dir: /var/lib/dblock
+  data_dir: /var/lib/skoed
 
   dns:
     listen:

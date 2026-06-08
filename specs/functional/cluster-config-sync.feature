@@ -1,10 +1,10 @@
 Feature: Cluster Config Sync
-  As an administrator managing a multi-node dblock cluster
+  As an administrator managing a multi-node skoed cluster
   I want config changes applied via Raft to all nodes
   So that every node has consistent state and I can address any node interchangeably.
 
   Background:
-    Given a 3-node dblock cluster (one leader, two followers)
+    Given a 3-node skoed cluster (one leader, two followers)
     And all nodes are reachable on the network
     And all nodes are at the same Raft commit index
 

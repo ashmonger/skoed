@@ -6,7 +6,7 @@ Feature: Automated Blocklist Refresh
   operator thought they were blocking.
 
   Background:
-    Given a 3-node dblock cluster
+    Given a 3-node skoed cluster
     And each blocklist has an optional refresh_interval_seconds field (default cluster-wide)
 
   @fsid:FS-AutoRefreshLeaderOnly
@@ -65,8 +65,8 @@ Feature: Automated Blocklist Refresh
     When an HTTP GET hits /metrics
     Then the body contains:
       | series                                                |
-      | dblock_blocklist_last_refresh_seconds{id="<id>"}      |
-      | dblock_blocklist_refresh_failures_total{id="<id>"}    |
+      | skoed_blocklist_last_refresh_seconds{id="<id>"}      |
+      | skoed_blocklist_refresh_failures_total{id="<id>"}    |
 
   Non-goals:
     - Per-rule deltas (UI shows count delta only)

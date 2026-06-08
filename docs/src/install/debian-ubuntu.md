@@ -1,6 +1,6 @@
 # Install on Debian / Ubuntu
 
-dblock ships a Debian package built by [nfpm](https://nfpm.goreleaser.com/).
+skoed ships a Debian package built by [nfpm](https://nfpm.goreleaser.com/).
 Tested on Debian 12 (bookworm), Debian 13 (trixie), Ubuntu 24.04 LTS.
 
 ## Quick install
@@ -9,51 +9,51 @@ Tested on Debian 12 (bookworm), Debian 13 (trixie), Ubuntu 24.04 LTS.
 # Grab the latest .deb from the GitHub releases page.
 ARCH=$(dpkg --print-architecture)          # amd64 or arm64
 VERSION=0.5.0
-curl -fsSLO "https://github.com/dblock/dblock/releases/download/v${VERSION}/dblock_${VERSION}_${ARCH}.deb"
+curl -fsSLO "https://github.com/skoed/skoed/releases/download/v${VERSION}/skoed_${VERSION}_${ARCH}.deb"
 
 # Install (apt auto-resolves the adduser dependency).
-sudo apt install -y "./dblock_${VERSION}_${ARCH}.deb"
+sudo apt install -y "./skoed_${VERSION}_${ARCH}.deb"
 
 # Enable + start.
-sudo systemctl enable --now dblock
-sudo systemctl status dblock --no-pager
+sudo systemctl enable --now skoed
+sudo systemctl status skoed --no-pager
 ```
 
 ## What the package installs
 
 | Path | Purpose |
 |------|---------|
-| `/usr/bin/dblock` | the binary (statically linked, ~9 MB) |
-| `/lib/systemd/system/dblock.service` | hardened systemd unit |
-| `/etc/dblock/config.yaml` | default config (conffile — your edits survive upgrades) |
-| `/var/lib/dblock/` | data dir, owned by `dblock:dblock` (mode 0700) |
-| `/var/log/dblock/` | log dir, owned by `dblock:dblock` |
+| `/usr/bin/skoed` | the binary (statically linked, ~9 MB) |
+| `/lib/systemd/system/skoed.service` | hardened systemd unit |
+| `/etc/skoed/config.yaml` | default config (conffile — your edits survive upgrades) |
+| `/var/lib/skoed/` | data dir, owned by `skoed:skoed` (mode 0700) |
+| `/var/log/skoed/` | log dir, owned by `skoed:skoed` |
 
 ## systemd unit details
 
-The unit runs as the unprivileged **`dblock`** user, with
+The unit runs as the unprivileged **`skoed`** user, with
 `AmbientCapabilities=CAP_NET_BIND_SERVICE` so port 53 binds without
 root. Other hardening: `NoNewPrivileges`, `ProtectSystem=strict`,
 `ProtectHome`, `PrivateTmp`, `ProtectKernelTunables`,
 `RestrictNamespaces`, `RestrictRealtime`, `LockPersonality`,
-`ReadWritePaths` scoped to `/var/lib/dblock` + `/var/log/dblock`.
+`ReadWritePaths` scoped to `/var/lib/skoed` + `/var/log/skoed`.
 
 ## Upgrade
 
 ```sh
-sudo apt install -y ./dblock_<new-version>_${ARCH}.deb
-sudo systemctl restart dblock
+sudo apt install -y ./skoed_<new-version>_${ARCH}.deb
+sudo systemctl restart skoed
 ```
 
-Conffiles (`/etc/dblock/config.yaml`) are preserved by default. dpkg
+Conffiles (`/etc/skoed/config.yaml`) are preserved by default. dpkg
 will prompt only if YOU edited the file AND we shipped a new default
 in the new release.
 
 ## Remove
 
 ```sh
-sudo apt remove dblock        # stops + disables; preserves data
-sudo apt purge  dblock        # also wipes /var/lib/dblock + /etc/dblock + the user
+sudo apt remove skoed        # stops + disables; preserves data
+sudo apt purge  skoed        # also wipes /var/lib/skoed + /etc/skoed + the user
 ```
 
 ## Next

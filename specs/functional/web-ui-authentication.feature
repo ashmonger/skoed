@@ -1,6 +1,6 @@
 Feature: Web UI authentication
   As a network administrator
-  I want the dblock management interface to require authentication
+  I want the skoed management interface to require authentication
   So that unauthorized users cannot modify the DNS filtering configuration
 
   Non-goals:
@@ -12,30 +12,30 @@ Feature: Web UI authentication
   @fsid:FS-WebUiAuthUnauthenticatedRequestRejected
   Scenario: Unauthenticated request to management API is rejected
     When a client sends a request to any management API endpoint without credentials
-    Then dblock returns HTTP 401 Unauthorized
+    Then skoed returns HTTP 401 Unauthorized
     And the response includes a WWW-Authenticate header
 
   @fsid:FS-WebUiAuthUnauthenticatedUiRedirect
   Scenario: Unauthenticated browser request to web UI is challenged
     When a browser requests the web UI root without credentials
-    Then dblock returns HTTP 401 or redirects to a login page
+    Then skoed returns HTTP 401 or redirects to a login page
 
   @fsid:FS-WebUiAuthValidCredentials
   Scenario: Request with valid credentials is accepted
     Given the admin password is set
     When a client sends a management API request with valid credentials
-    Then dblock returns the requested resource with HTTP 200
+    Then skoed returns the requested resource with HTTP 200
 
   @fsid:FS-WebUiAuthInvalidCredentials
   Scenario: Request with invalid credentials is rejected
     When a client sends a management API request with an incorrect password
-    Then dblock returns HTTP 401 Unauthorized
+    Then skoed returns HTTP 401 Unauthorized
 
   @fsid:FS-WebUiAuthFirstRunSetup
   Scenario: Admin sets credentials on first run
-    Given dblock has just been installed with no credentials configured
+    Given skoed has just been installed with no credentials configured
     When the admin accesses the web UI for the first time
-    Then dblock prompts the admin to set a username and password before granting access
+    Then skoed prompts the admin to set a username and password before granting access
     And subsequent requests require those credentials
 
   @fsid:FS-WebUiAuthPasswordChange
@@ -49,5 +49,5 @@ Feature: Web UI authentication
   Scenario: DNS resolution continues while the management API is unauthenticated
     Given no credentials have been configured yet
     When a client sends a DNS query to port 53
-    Then dblock resolves and responds to the query normally
+    Then skoed resolves and responds to the query normally
     And authentication state has no effect on DNS query processing

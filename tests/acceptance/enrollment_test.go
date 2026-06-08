@@ -105,12 +105,12 @@ func TestNodeEnrollmentJoinTokenIsSingleUse(t *testing.T) {
 // FS-NodeEnrollmentJoinTokenExpires
 //
 // Uses the documented test affordance from cluster-store.md: when
-// DBLOCK_TEST_MODE=1 is set, DBLOCK_TEST_TOKEN_TTL_SECONDS overrides the
+// SKOED_TEST_MODE=1 is set, SKOED_TEST_TOKEN_TTL_SECONDS overrides the
 // production 15-minute token TTL so the test runs in seconds, not minutes.
 func TestNodeEnrollmentJoinTokenExpires(t *testing.T) {
 	c := startClusterWithEnv(t, 1, []string{
-		"DBLOCK_TEST_MODE=1",
-		"DBLOCK_TEST_TOKEN_TTL_SECONDS=1",
+		"SKOED_TEST_MODE=1",
+		"SKOED_TEST_TOKEN_TTL_SECONDS=1",
 	})
 	leader := c.Leader(t)
 
@@ -206,9 +206,9 @@ func TestNodeEnrollmentSingleNodeBootstrap(t *testing.T) {
 
 // FS-NodeEnrollmentM1ConfigMigration
 func TestNodeEnrollmentM1ConfigMigration(t *testing.T) {
-	bin := dblockBinary(t)
+	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("dblock binary not found at %s", bin)
+		t.Skipf("skoed binary not found at %s", bin)
 	}
 
 	// Pre-populate the data dir BEFORE starting the binary so it sees the M1

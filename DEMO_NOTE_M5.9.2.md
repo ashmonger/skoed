@@ -3,15 +3,15 @@
 ## Scope
 
 SPA developer-loop convenience. One command (`make dev`) brings up the
-dblock daemon and the vite dev server together, with vite proxying
+skoed daemon and the vite dev server together, with vite proxying
 `/api/*` and `/metrics` to the daemon. Editing a `.vue` file triggers
 Vite HMR in the browser without rebuilding the Go binary; Ctrl-C tears
 both processes down cleanly.
 
 This is strictly a developer-loop change. The production embedded-binary
 model is untouched — `make build` still bundles the SPA via Vite,
-copies it into `apps/dblock/internal/api/static/dist/`, and `go:embed`
-ships it inside the dblock binary. `make dev` is a parallel path, not
+copies it into `apps/skoed/internal/api/static/dist/`, and `go:embed`
+ships it inside the skoed binary. `make dev` is a parallel path, not
 a replacement.
 
 ### Implemented
@@ -20,15 +20,15 @@ a replacement.
   `scripts/dev.sh` so the orchestration logic lives in shell where it's
   readable (signal trapping, log piping, config bootstrap).
 - **`scripts/dev.sh`** orchestrates the loop:
-  - Creates `~/tmp/dblock-dev/` and a minimal `config.yaml` on first run
+  - Creates `~/tmp/skoed-dev/` and a minimal `config.yaml` on first run
     (single-node, no cluster, plain HTTP on 127.0.0.1:18099, DNS on
     unprivileged port 15353).
-  - Reuses an existing `apps/dblock/dblock` binary if present; otherwise
+  - Reuses an existing `apps/skoed/skoed` binary if present; otherwise
     runs `make build` once.
-  - Launches dblock in the background, redirecting stdout+stderr to
-    `~/tmp/dblock-dev/dblock.log`.
+  - Launches skoed in the background, redirecting stdout+stderr to
+    `~/tmp/skoed-dev/skoed.log`.
   - Waits up to 10 s for the management API to respond on :18099 (treats
-    any HTTP status as "TCP is listening" so pre-auth dblock counts).
+    any HTTP status as "TCP is listening" so pre-auth skoed counts).
   - `npm install` in `web/` if `node_modules/` is missing (one-time).
   - Starts vite via the local binary (`web/node_modules/.bin/vite`) —
     avoids the `npm exec` wrapper that doesn't always forward SIGTERM
@@ -41,11 +41,11 @@ a replacement.
   - `/api`     → `http://127.0.0.1:18099`
   - `/metrics` → `http://127.0.0.1:18099`
   - Was: `/api` → `http://127.0.0.1:8080` (production port; clashed
-    with any locally-running production dblock).
+    with any locally-running production skoed).
 - **Override knobs** (all optional env vars):
-  - `DBLOCK_DEV_PORT` (default 18099)
-  - `DBLOCK_DEV_DIR` (default `~/tmp/dblock-dev`)
-  - `DBLOCK_DEV_DNS_PORT` (default 15353)
+  - `SKOED_DEV_PORT` (default 18099)
+  - `SKOED_DEV_DIR` (default `~/tmp/skoed-dev`)
+  - `SKOED_DEV_DNS_PORT` (default 15353)
   - `VITE_DEV_PORT` (default 5173)
 - **No new dependencies.** No npm packages added; vite's built-in
   http-proxy already does what we need. No Go module changes.
@@ -56,7 +56,7 @@ Manual smoke matching the FSIDs (no Go acceptance test for this
 developer-loop change):
 
 ```sh
-$ rm -rf ~/tmp/dblock-dev          # clean slate
+$ rm -rf ~/tmp/skoed-dev          # clean slate
 $ setsid make dev >/tmp/dev.out 2>&1 &
 $ sleep 7
 
@@ -75,7 +75,7 @@ $ kill -INT $(pgrep -f 'bash scripts/dev.sh')
 $ sleep 5
 $ ss -ltn | grep -E ':18099|:5173' || echo 'PORTS: freed'
 PORTS: freed
-$ pgrep -af 'scripts/dev.sh|dblock --config /home/[^/]*/tmp/dblock-dev|node_modules/.*/vite --port 5173' \
+$ pgrep -af 'scripts/dev.sh|skoed --config /home/[^/]*/tmp/skoed-dev|node_modules/.*/vite --port 5173' \
     || echo 'ZOMBIES: none'
 ZOMBIES: none
 
@@ -89,7 +89,7 @@ All three FSIDs validated:
 | FSID                              | Validation                                              |
 |-----------------------------------|---------------------------------------------------------|
 | FS-MakeDevStartsBothProcesses     | 4× HTTP 200 (root + health-via-proxy + metrics-via-proxy + direct-health) |
-| FS-MakeDevHmrOnVueEdit            | Manual: edit `web/src/views/Dashboard.vue`, browser HMR-updates the module; `dblock.log` shows no daemon restart, the Go binary mtime is unchanged. |
+| FS-MakeDevHmrOnVueEdit            | Manual: edit `web/src/views/Dashboard.vue`, browser HMR-updates the module; `skoed.log` shows no daemon restart, the Go binary mtime is unchanged. |
 | FS-MakeDevCleanCtrlCShutdown      | After SIGINT: 0 zombies, both ports freed, dev.sh logs "stopped." |
 
 No CI / acceptance test was added — per the task scope this is a
@@ -126,13 +126,13 @@ DEMO_NOTE_M5.9.2.md                                 (this file)
 
 ```sh
 # Clean slate.
-$ rm -rf ~/tmp/dblock-dev
+$ rm -rf ~/tmp/skoed-dev
 
 # Start the dev loop.
 $ make dev
-[make dev] writing minimal dev config to /home/me/tmp/dblock-dev/config.yaml
-[make dev] reusing existing binary /…/apps/dblock/dblock
-[make dev] starting dblock on :18099 (DNS :15353, data /home/me/tmp/dblock-dev, log /home/me/tmp/dblock-dev/dblock.log)
+[make dev] writing minimal dev config to /home/me/tmp/skoed-dev/config.yaml
+[make dev] reusing existing binary /…/apps/skoed/skoed
+[make dev] starting skoed on :18099 (DNS :15353, data /home/me/tmp/skoed-dev, log /home/me/tmp/skoed-dev/skoed.log)
 [make dev] waiting for daemon on http://127.0.0.1:18099/api/v1/health …
 [make dev] daemon up.
 [make dev] starting vite dev on :5173 (proxying /api + /metrics → :18099)

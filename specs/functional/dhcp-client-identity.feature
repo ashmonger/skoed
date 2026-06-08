@@ -1,11 +1,11 @@
 Feature: DHCP-enriched client identity in query log and profile matching
   As a household admin with hostnames I recognize
-  I want hostname + MAC + Client-ID to appear next to IPs in dblock
+  I want hostname + MAC + Client-ID to appear next to IPs in skoed
   So that the query log and dashboards are human-readable
   And profiles can pin a child's device by Client-ID instead of fragile IP
 
   Background:
-    Given a dblock node with a DHCP connector configured
+    Given a skoed node with a DHCP connector configured
     And the connector's lease cache contains at least:
       | client_id   | mac               | ip            | hostname    |
       | id:tablet42 | aa:bb:cc:dd:ee:42 | 192.168.1.42  | kid-tablet  |
@@ -71,7 +71,7 @@ Feature: DHCP-enriched client identity in query log and profile matching
     Then profile A is chosen, not B
 
   @fsid:FS-LeaseCacheRefreshInterval
-  Scenario: New leases appear in dblock within one refresh interval
+  Scenario: New leases appear in skoed within one refresh interval
     Given the connector's refresh_seconds = 30
     When a new lease is created on the DHCP source for 192.168.1.77
     And 35 seconds pass

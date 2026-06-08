@@ -1,6 +1,6 @@
 Feature: Block policy configuration
   As a network administrator
-  I want to configure what DNS response dblock returns for blocked domains
+  I want to configure what DNS response skoed returns for blocked domains
   So that I can control client behavior on blocked queries
 
   Supported block policy values:

@@ -20,14 +20,14 @@ x-fsid-links:
   CLI output. Same hex palette as the SPA's Lipgloss theme
   (accent #874BFD, charm-pink #FF06B7, success #20D998, danger #EB4444).
 - [`charmbracelet/bubbletea`](https://github.com/charmbracelet/bubbletea) — TUI
-  for `dblock top`.
+  for `skoed top`.
 - [`charmbracelet/bubbles`](https://github.com/charmbracelet/bubbles) — table,
   spinner, viewport for the TUI.
 
 ## Command tree
 
 ```
-dblock                                  → equivalent to `dblock daemon` (back-compat)
+skoed                                  → equivalent to `skoed daemon` (back-compat)
 ├── version                             → prints version+commit+go-version
 ├── daemon [--config FILE]              → existing daemon behaviour
 ├── health [--api URL]                  → local node health (one-shot)
@@ -40,7 +40,7 @@ dblock                                  → equivalent to `dblock daemon` (back-
     └── test <url> [--format FORMAT]    → fetch+parse, no daemon needed
 ```
 
-The single-binary invocation `dblock --config /etc/dblock/config.yaml`
+The single-binary invocation `skoed --config /etc/skoed/config.yaml`
 keeps working because cobra's default subcommand falls through to
 `daemon` when no verb is present.
 
@@ -50,8 +50,8 @@ The CLI talks to the management API like any other client. Credentials
 are read from (in priority order):
 
 1. `--auth user:pass` flag (overrides everything)
-2. `DBLOCK_AUTH=user:pass` env var
-3. `~/.dblock/credentials` (YAML):
+2. `SKOED_AUTH=user:pass` env var
+3. `~/.skoed/credentials` (YAML):
    ```yaml
    api_url:  http://127.0.0.1:8080
    username: admin
@@ -84,18 +84,18 @@ Roles:
 - Headers: bold + AccentFg.
 - Leader rows in tables: AccentFg background + black foreground.
 - OK chips: OkFg; degraded: WarnFg; error: DangerFg.
-- Box-drawn copy-paste blocks (for `dblock token create`'s output)
+- Box-drawn copy-paste blocks (for `skoed token create`'s output)
   using `lipgloss.RoundedBorder()`.
 
 NO_COLOR env var is honoured (lipgloss does this natively); piped
 output strips ANSI (`isatty.IsTerminal`).
 
-## `dblock top` (bubbletea)
+## `skoed top` (bubbletea)
 
 Layout (one screen, refreshes every 2 s):
 
 ```
-┌──────────────── dblock top ──────────────────────────────┐
+┌──────────────── skoed top ──────────────────────────────┐
 │ cluster ok  ·  3/3 members  ·  term 4  ·  commit 1247    │
 ├──── nodes ─────────────────────────────────────────────────┤
 │ ● node-1   leader     in_sync   commit 1247                │
@@ -121,7 +121,7 @@ Implementation: standard bubbletea `Model`/`Update`/`View` with one
 Each panel is a separate bubbles component (table for nodes, custom
 bar widget for DNS rate, table for top blocked, table for audit).
 
-## `dblock blocklist test`
+## `skoed blocklist test`
 
 Runs entirely in-process — `filter.Download(url, format, 30s)` plus
 the format-router under `internal/filter/parsers/`. No HTTP to the
@@ -131,7 +131,7 @@ own network reach).
 Output:
 
 ```
-$ dblock blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
+$ skoed blocklist test https://github.com/StevenBlack/hosts/raw/master/hosts
 ✓  https://github.com/.../hosts
    format    hosts (auto-detected)
    domains   162,481
@@ -144,9 +144,9 @@ Exit codes: 0 success, 1 HTTP/parse failure, 2 bad invocation.
 ## Layout
 
 ```
-apps/dblock/
+apps/skoed/
   cmd/
-    dblock/
+    skoed/
       main.go            (existing, gains cobra root + daemon subcommand)
   internal/
     cli/                 (NEW)
@@ -158,7 +158,7 @@ apps/dblock/
       cmd_token.go
       cmd_blocklist.go   (the test subcommand)
       cmd_top.go         (bubbletea TUI)
-      credentials.go     (~/.dblock/credentials handling)
+      credentials.go     (~/.skoed/credentials handling)
       client.go          (auth-aware HTTP client to the management API)
       style.go           (lipgloss palette)
 ```
@@ -167,17 +167,17 @@ apps/dblock/
 
 `tests/acceptance/cli_test.go`:
 
-- `TestCliVersion` — runs `dblock --version`, asserts the output shape.
-- `TestCliHealth` — boots a 1-node cluster, runs `dblock health
+- `TestCliVersion` — runs `skoed --version`, asserts the output shape.
+- `TestCliHealth` — boots a 1-node cluster, runs `skoed health
   --api <api>`, asserts exit 0 + "ok" in output.
-- `TestCliStatus` — 3-node cluster, runs `dblock status --api <api>`,
+- `TestCliStatus` — 3-node cluster, runs `skoed status --api <api>`,
   asserts leader row is present.
-- `TestCliTokenCreate` — runs `dblock token create`, asserts response
+- `TestCliTokenCreate` — runs `skoed token create`, asserts response
   contains a token + leader_address.
-- `TestCliBlocklistTest` — `dblock blocklist test http://test-server`
+- `TestCliBlocklistTest` — `skoed blocklist test http://test-server`
   against an httptest hosts server, asserts the count.
-- `TestCliDaemonStillWorks` — runs `dblock --config <path>` (no
+- `TestCliDaemonStillWorks` — runs `skoed --config <path>` (no
   subcommand), asserts the daemon starts (waitReady).
 
-`dblock top` is NOT acceptance-tested (bubbletea TUI testing is
+`skoed top` is NOT acceptance-tested (bubbletea TUI testing is
 finicky and the value is low). Manual verification + screenshot.

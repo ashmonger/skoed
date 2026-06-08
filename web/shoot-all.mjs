@@ -1,18 +1,18 @@
 // shoot-all.mjs — single-theme (monokai-solarized dark) screenshots of every
-// authenticated route in the dblock Web UI, plus /login. Used to verify
+// authenticated route in the skoed Web UI, plus /login. Used to verify
 // alignment and visual consistency across all pages in one pass.
 //
-// Expects a dblock node on $DBLOCK_BASE_URL (default http://127.0.0.1:18085)
+// Expects a skoed node on $SKOED_BASE_URL (default http://127.0.0.1:18085)
 // with admin/demopass123 already configured and seed data populated (see
 // /tmp/seed-demo.sh).
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18085'
-const USER = process.env.DBLOCK_USER ?? 'admin'
-const PASS = process.env.DBLOCK_PASS ?? 'demopass123'
-const OUTDIR = process.env.DBLOCK_SCREENSHOT_DIR ?? '../docs/screenshots'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18085'
+const USER = process.env.SKOED_USER ?? 'admin'
+const PASS = process.env.SKOED_PASS ?? 'demopass123'
+const OUTDIR = process.env.SKOED_SCREENSHOT_DIR ?? '../docs/screenshots'
 
 // Every page the SPA exposes. Authenticated routes use the seeded session;
 // the login screenshot is captured against a fresh context with no creds.
@@ -44,8 +44,8 @@ const browser = await chromium.launch({ headless: true })
   // router's auth guard runs.
   await page.goto(BASE + '/login')
   await page.evaluate(([u, p]) => {
-    sessionStorage.setItem('dblock.creds', JSON.stringify({ user: u, pass: p }))
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    sessionStorage.setItem('skoed.creds', JSON.stringify({ user: u, pass: p }))
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'monokai-solarized', mode: 'dark',
     }))
   }, [USER, PASS])
@@ -67,7 +67,7 @@ const browser = await chromium.launch({ headless: true })
   const page = await ctx.newPage()
   await page.goto(BASE + '/login')
   await page.evaluate(() => {
-    localStorage.setItem('dblock.theme', JSON.stringify({
+    localStorage.setItem('skoed.theme', JSON.stringify({
       palette: 'monokai-solarized', mode: 'dark',
     }))
   })

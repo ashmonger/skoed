@@ -19,7 +19,7 @@ per UoR — that subtrack stays parked on the roadmap.
   }
   ```
   Sourced from the local query log only — no Raft round-trip, no cluster
-  fan-out. Rolling 1-hour window via `filter.Now()`, so `DBLOCK_TEST_NOW`
+  fan-out. Rolling 1-hour window via `filter.Now()`, so `SKOED_TEST_NOW`
   drives deterministic windowing in tests.
 
 - **Provider inference**: substring match against a curated table
@@ -55,7 +55,7 @@ per UoR — that subtrack stays parked on the roadmap.
 - **Resolver-IP database refresh** (the curated set of hardcoded
   resolver IPs that firewalls would block).
 - **"Closing the DoH gap" guide** (the documentation that ties firewall
-  rules to dblock's observation).
+  rules to skoed's observation).
 
 These remain on the roadmap; the UI alert text already references
 "firewall rule (see roadmap M3.5)" so the operator knows where to look.
@@ -64,7 +64,7 @@ These remain on the roadmap; the UI alert text already references
 
 ```bash
 # 1. Build binary (SPA already embedded)
-make -C apps/dblock build
+make -C apps/skoed build
 
 # 2. Single-node config
 cat > /tmp/m3.5-config.yaml <<EOF
@@ -72,14 +72,14 @@ node:
   id: demo
   raft_address: 127.0.0.1:17002
   api_address:  127.0.0.1:18082
-  data_dir:     /tmp/dblock-m3.5-demo/data
+  data_dir:     /tmp/skoed-m3.5-demo/data
   dns:
     listen: { port: 5355, ipv4: true, ipv6: false }
 EOF
-mkdir -p /tmp/dblock-m3.5-demo/data
+mkdir -p /tmp/skoed-m3.5-demo/data
 
 # 3. Boot in test mode (unlocks EDNS0 client-IP spoofing)
-DBLOCK_TEST_MODE=1 ./apps/dblock/dblock -config /tmp/m3.5-config.yaml &
+SKOED_TEST_MODE=1 ./apps/skoed/skoed -config /tmp/m3.5-config.yaml &
 
 # 4. Set admin
 curl -sX POST http://127.0.0.1:18082/api/v1/auth/setup \
@@ -112,7 +112,7 @@ suspected provider badge and View Log link.
 ## Tests
 
 ```
-$ DBLOCK_BINARY=apps/dblock/dblock go test -run 'TestClientDohStatus' ./tests/acceptance/...
+$ SKOED_BINARY=apps/skoed/skoed go test -run 'TestClientDohStatus' ./tests/acceptance/...
 PASS — 5 tests + 6 subtests, 17.8s
 ```
 
@@ -121,5 +121,5 @@ regressions.
 
 ## What's next
 
-- M4 — dblock as a DoH/DoT server (RFC 8484 on `/dns-query`, DoT on
+- M4 — skoed as a DoH/DoT server (RFC 8484 on `/dns-query`, DoT on
   port 853, optional ACME).

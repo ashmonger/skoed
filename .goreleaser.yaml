@@ -9,10 +9,10 @@ before:
     - make openapi-sync
 
 builds:
-  - id: dblock
-    dir: apps/dblock
-    main: ./cmd/dblock
-    binary: dblock
+  - id: skoed
+    dir: apps/skoed
+    main: ./cmd/skoed
+    binary: skoed
     env:
       - CGO_ENABLED=0
     goos:
@@ -26,8 +26,8 @@ builds:
       - -X main.commit={{.ShortCommit}}
 
 archives:
-  - id: dblock
-    name_template: "dblock_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: skoed
+    name_template: "skoed_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
     files:
@@ -36,17 +36,17 @@ archives:
       - packaging/config.example.yaml
 
 nfpms:
-  - id: dblock
-    package_name: dblock
-    file_name_template: "dblock_{{ .Version }}_{{ .Arch }}"
-    homepage: https://github.com/dblock/dblock
+  - id: skoed
+    package_name: skoed
+    file_name_template: "skoed_{{ .Version }}_{{ .Arch }}"
+    homepage: https://github.com/skoed/skoed
     description: |
       Self-hosted DNS filtering with multi-node sync.
 
-      dblock is a drop-in alternative to Pi-hole / AdGuard-Home for
+      skoed is a drop-in alternative to Pi-hole / AdGuard-Home for
       households and small offices. Speaks plain DNS, DoH (RFC 8484),
       DoT (RFC 7858), and forms a Raft-replicated cluster.
-    maintainer: dblock maintainers <maintainers@dblock.io>
+    maintainer: skoed maintainers <maintainers@skoed.io>
     license: MIT
     formats:
       - deb
@@ -56,23 +56,23 @@ nfpms:
     dependencies:
       - adduser
     contents:
-      - src: ./packaging/dblock.service
-        dst: /lib/systemd/system/dblock.service
+      - src: ./packaging/skoed.service
+        dst: /lib/systemd/system/skoed.service
       - src: ./packaging/config.example.yaml
-        dst: /etc/dblock/config.yaml
+        dst: /etc/skoed/config.yaml
         type: config|noreplace
-      - dst: /var/lib/dblock
+      - dst: /var/lib/skoed
         type: dir
         file_info:
           mode: 0700
-          owner: dblock
-          group: dblock
-      - dst: /var/log/dblock
+          owner: skoed
+          group: skoed
+      - dst: /var/log/skoed
         type: dir
         file_info:
           mode: 0750
-          owner: dblock
-          group: dblock
+          owner: skoed
+          group: skoed
     scripts:
       preinstall: ./packaging/scripts/preinst.sh
       postinstall: ./packaging/scripts/postinst.sh
@@ -80,20 +80,20 @@ nfpms:
       postremove: ./packaging/scripts/postrm.sh
 
 dockers:
-  - id: dblock-amd64
+  - id: skoed-amd64
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
-      - "ghcr.io/dblock/dblock:latest-amd64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-amd64"
+      - "ghcr.io/skoed/skoed:latest-amd64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
     goarch: amd64
 
-  - id: dblock-arm64
+  - id: skoed-arm64
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
-      - "ghcr.io/dblock/dblock:latest-arm64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-arm64"
+      - "ghcr.io/skoed/skoed:latest-arm64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -101,22 +101,22 @@ dockers:
     goarch: arm64
 
 docker_manifests:
-  - name_template: "ghcr.io/dblock/dblock:{{ .Version }}"
+  - name_template: "ghcr.io/skoed/skoed:{{ .Version }}"
     image_templates:
-      - "ghcr.io/dblock/dblock:{{ .Version }}-amd64"
-      - "ghcr.io/dblock/dblock:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/dblock/dblock:latest"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-amd64"
+      - "ghcr.io/skoed/skoed:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/skoed/skoed:latest"
     image_templates:
-      - "ghcr.io/dblock/dblock:latest-amd64"
-      - "ghcr.io/dblock/dblock:latest-arm64"
+      - "ghcr.io/skoed/skoed:latest-amd64"
+      - "ghcr.io/skoed/skoed:latest-arm64"
 
 checksum:
   name_template: checksums.txt
 
 release:
   github:
-    owner: dblock
-    name: dblock
+    owner: skoed
+    name: skoed
   draft: false
   prerelease: auto
 

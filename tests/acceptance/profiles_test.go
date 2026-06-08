@@ -11,7 +11,7 @@
 // Spoofing the client IP from a normal Go test is impossible: the engine sees
 // whichever source IP the OS picks for the UDP packet (always 127.0.0.1 here).
 // The implementation therefore honours a test affordance documented in
-// specs/technical/profiles-and-schedules.md: when DBLOCK_TEST_MODE=1 is set,
+// specs/technical/profiles-and-schedules.md: when SKOED_TEST_MODE=1 is set,
 // the DNS handler reads an EDNS0 option in the private-use code range
 // (opt code 65500) whose data is the client IP the engine MUST pretend to be.
 // dnsQueryAsClient builds a query carrying that option.
@@ -32,12 +32,12 @@ import (
 )
 
 // edns0ClientIPCode is the private-use EDNS0 option code carrying a faked
-// client IP. Honoured by the DNS handler only when DBLOCK_TEST_MODE=1.
+// client IP. Honoured by the DNS handler only when SKOED_TEST_MODE=1.
 const edns0ClientIPCode = 65500
 
 // dnsQueryAsClient sends a UDP DNS query to server, embedding an EDNS0 LOCAL
-// option (code 65500) whose data is clientIP. The dblock binary, when running
-// with DBLOCK_TEST_MODE=1, MUST use that IP as the request's client IP for
+// option (code 65500) whose data is clientIP. The skoed binary, when running
+// with SKOED_TEST_MODE=1, MUST use that IP as the request's client IP for
 // profile resolution. Returns the response.
 func dnsQueryAsClient(t *testing.T, server, name string, qtype uint16, clientIP string) *dns.Msg {
 	t.Helper()
@@ -85,12 +85,12 @@ type profileBody struct {
 	ClientCIDRs []string `json:"client_cidrs"`
 }
 
-// startProfilesNode starts a forwarding single-node with DBLOCK_TEST_MODE=1 so
+// startProfilesNode starts a forwarding single-node with SKOED_TEST_MODE=1 so
 // the EDNS0 client-IP override is honoured. The single-node M1 harness inherits
 // the parent process env, so t.Setenv is enough.
 func startProfilesNode(t *testing.T, upstream string) *Node {
 	t.Helper()
-	t.Setenv("DBLOCK_TEST_MODE", "1")
+	t.Setenv("SKOED_TEST_MODE", "1")
 	return startNode(t, NodeConfig{
 		Mode:              "forwarding",
 		UpstreamResolvers: []string{upstream},

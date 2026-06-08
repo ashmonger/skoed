@@ -2,8 +2,8 @@
 // successful URL-test result displayed.
 //
 // Expects:
-//   - A dblock daemon listening on $DBLOCK_BASE_URL (default 127.0.0.1:18995),
-//     started with DBLOCK_PUBLIC_TESTER_ALLOW_PRIVATE=1 so the SSRF guard
+//   - A skoed daemon listening on $SKOED_BASE_URL (default 127.0.0.1:18995),
+//     started with SKOED_PUBLIC_TESTER_ALLOW_PRIVATE=1 so the SSRF guard
 //     accepts the local http server below.
 //   - A local hosts-format file at http://127.0.0.1:19595/hosts.txt
 //     (the demo setup uses a `python3 -m http.server` inside the data dir).
@@ -13,8 +13,8 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const BASE = process.env.DBLOCK_BASE_URL ?? 'http://127.0.0.1:18995'
-const HOSTS_URL = process.env.DBLOCK_TEST_URL ?? 'http://127.0.0.1:19595/hosts.txt'
+const BASE = process.env.SKOED_BASE_URL ?? 'http://127.0.0.1:18995'
+const HOSTS_URL = process.env.SKOED_TEST_URL ?? 'http://127.0.0.1:19595/hosts.txt'
 const OUTDIR = '../docs/screenshots'
 await mkdir(OUTDIR, { recursive: true })
 
@@ -24,7 +24,7 @@ const page = await ctx.newPage()
 
 await page.goto(BASE + '/login')
 await page.evaluate(() => {
-  localStorage.setItem('dblock.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
+  localStorage.setItem('skoed.theme', JSON.stringify({ palette: 'lipgloss', mode: 'dark' }))
 })
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' })

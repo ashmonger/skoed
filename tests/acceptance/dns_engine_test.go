@@ -55,7 +55,7 @@ func TestDnsQueryForwardingTCP(t *testing.T) {
 }
 
 // FS-DnsQueryForwardingFallback
-// When the primary upstream is unreachable, dblock falls back to the next one.
+// When the primary upstream is unreachable, skoed falls back to the next one.
 func TestDnsQueryForwardingFallback(t *testing.T) {
 	// Port with no listener — will time out
 	deadUpstream := "127.0.0.1:1"
@@ -73,7 +73,7 @@ func TestDnsQueryForwardingFallback(t *testing.T) {
 }
 
 // FS-DnsQueryForwardingAllUpstreamsUnreachable
-// When all upstreams are unreachable, dblock returns SERVFAIL.
+// When all upstreams are unreachable, skoed returns SERVFAIL.
 func TestDnsQueryForwardingAllUpstreamsUnreachable(t *testing.T) {
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -242,7 +242,7 @@ func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
 	r := dnsQueryWithDO(t, n.DNSAddr, "example.com", dns.TypeA)
 
 	if !receivedDO {
-		t.Fatal("dblock did not forward the DO bit to the upstream resolver")
+		t.Fatal("skoed did not forward the DO bit to the upstream resolver")
 	}
 
 	// RRSIG must be present in the response forwarded to the client
@@ -284,7 +284,7 @@ func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
 	dnsQuery(t, n.DNSAddr, "example.com", dns.TypeA)
 
 	if receivedDO {
-		t.Fatal("dblock set the DO bit on the upstream query but the client did not request it")
+		t.Fatal("skoed set the DO bit on the upstream query but the client did not request it")
 	}
 }
 
@@ -316,6 +316,6 @@ func TestDnssecTransparentProxyBlockedDomain(t *testing.T) {
 
 	assertRcode(t, r, dns.RcodeNameError) // NXDOMAIN
 	if contacted {
-		t.Fatal("dblock contacted the upstream resolver for a blocked domain")
+		t.Fatal("skoed contacted the upstream resolver for a blocked domain")
 	}
 }

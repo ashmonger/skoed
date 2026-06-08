@@ -9,7 +9,7 @@
 ## Hypotheses log
 
 - **Date**: 2026-05-29
-  **Hypothesis**: H1 — `miekg/dns` is sufficient for dblock's DNS engine (forwarding + root resolution + custom records).
+  **Hypothesis**: H1 — `miekg/dns` is sufficient for skoed's DNS engine (forwarding + root resolution + custom records).
   **Validation plan**: Prototype DNS engine at M1 implementation start; evaluate alternatives (`coredns`) if blocked.
   **Status**: Open
 

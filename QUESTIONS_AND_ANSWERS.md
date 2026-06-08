@@ -10,7 +10,7 @@ None.
   **A**: Go 1.22+. DNS: `miekg/dns`. Web UI: Vue.js compiled and embedded. Config: YAML. — 2026-05-29
 
 - **Q**: Project name?
-  **A**: dblock. — 2026-05-29
+  **A**: skoed. — 2026-05-29
 
 - **Q**: Multi-node sync model?
   **A**: Primary + replicas (push). Hybrid approach: split-brain avoidance via last-seen timestamps and health-check quorum. Full consensus (Raft) deferred to post-M2. — 2026-05-29
@@ -43,7 +43,7 @@ None.
   **A**: Both simultaneously — Linux bare-metal/LXC binary + Docker image from Milestone 1. Helm chart in Milestone 2. — 2026-05-29
 
 - **Q**: DNSSEC stance for Milestone 1?
-  **A**: Transparent proxy — forward DNSSEC records (RRSIG, DNSKEY, DS, NSEC) as-is to clients that set the DO bit. dblock does not validate signatures. Zero complexity added; DNSSEC-validating clients handle validation themselves. — 2026-05-29
+  **A**: Transparent proxy — forward DNSSEC records (RRSIG, DNSKEY, DS, NSEC) as-is to clients that set the DO bit. skoed does not validate signatures. Zero complexity added; DNSSEC-validating clients handle validation themselves. — 2026-05-29
 
 - **Q**: Block policy for blocked domains?
   **A**: Configurable per blocklist, with a global default. Supported response types: NXDOMAIN, NULL (A=0.0.0.0 / AAAA=::), NODATA (NOERROR with empty answer). — 2026-05-29

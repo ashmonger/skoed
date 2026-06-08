@@ -4,7 +4,7 @@
 //   FS-MgmtApiHttpsListens           → TestMgmtApiHttpsListens
 //   FS-MgmtApiHttpsReusesAcmeCert    → covered by integration with the ACME path
 //                                       (verified via TestMgmtApiHttpsListens
-//                                       when api.tls reuses the cert dblock
+//                                       when api.tls reuses the cert skoed
 //                                       generated for DoH/DoT)
 //   FS-MgmtApiHttpsDualPort          → TestMgmtApiHttpsDualPort
 //   FS-MgmtApiHttpsSinglePortRedirect → TestMgmtApiHttpsSinglePortRedirect
@@ -48,7 +48,7 @@ func tlsAPIClient() *http.Client {
 // FS-MgmtApiHttpsListens — when api.tls.enabled, the API listener is
 // HTTPS and serves the configured cert.
 func TestMgmtApiHttpsListens(t *testing.T) {
-	const wantCN = "mgmt-api-https.dblock.test"
+	const wantCN = "mgmt-api-https.skoed.test"
 	certFile, keyFile := writeTLSFixture(t, wantCN)
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
@@ -78,7 +78,7 @@ func TestMgmtApiHttpsListens(t *testing.T) {
 // FS-MgmtApiHttpsSinglePortRedirect — in single-port mode, plain HTTP
 // to the same port returns 308 → https://.
 func TestMgmtApiHttpsSinglePortRedirect(t *testing.T) {
-	certFile, keyFile := writeTLSFixture(t, "redirect.dblock.test")
+	certFile, keyFile := writeTLSFixture(t, "redirect.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
 		Mode:     "single_port",
@@ -113,7 +113,7 @@ func TestMgmtApiHttpsSinglePortRedirect(t *testing.T) {
 // FS-MgmtApiHttpsDualPort — when mode = dual_port, both api_address
 // (plain HTTP) and https_address (HTTPS) work.
 func TestMgmtApiHttpsDualPort(t *testing.T) {
-	certFile, keyFile := writeTLSFixture(t, "dual.dblock.test")
+	certFile, keyFile := writeTLSFixture(t, "dual.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
 		Mode:     "dual_port",
@@ -145,7 +145,7 @@ func TestMgmtApiHttpsDualPort(t *testing.T) {
 
 // FS-MgmtApiHttpsHSTS — HSTS header is opt-in.
 func TestMgmtApiHttpsHSTS(t *testing.T) {
-	certFile, keyFile := writeTLSFixture(t, "hsts.dblock.test")
+	certFile, keyFile := writeTLSFixture(t, "hsts.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
 		Mode:     "single_port",
@@ -172,7 +172,7 @@ func TestMgmtApiHttpsHSTS(t *testing.T) {
 
 	// Also verify HSTS is OFF by default in a second sub-test.
 	t.Run("off_by_default", func(t *testing.T) {
-		certFile2, keyFile2 := writeTLSFixture(t, "hsts-off.dblock.test")
+		certFile2, keyFile2 := writeTLSFixture(t, "hsts-off.skoed.test")
 		c2 := startClusterAPIHTTPS(t, APITLSOpts{
 			Enabled:  true,
 			Mode:     "single_port",

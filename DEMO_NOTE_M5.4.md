@@ -9,7 +9,7 @@ command so every node sees the same domain set + freshness metadata.
 ### Implemented
 
 - **`internal/refresh/scheduler.go`** — single goroutine started on
-  every node. Each tick (10 s prod, 1 s in tests via `DBLOCK_TEST_MODE`):
+  every node. Each tick (10 s prod, 1 s in tests via `SKOED_TEST_MODE`):
   - Asks `cluster.IsLeader()` — followers return immediately.
   - Walks the blocklist snapshot; for each URL-source blocklist whose
     `last_refresh_at + interval` has passed, queues it.
@@ -37,8 +37,8 @@ command so every node sees the same domain set + freshness metadata.
 ### Metrics
 
 ```
-dblock_blocklist_last_refresh_seconds{id="…"}   gauge
-dblock_blocklist_refresh_failures_total{id="…"} counter
+skoed_blocklist_last_refresh_seconds{id="…"}   gauge
+skoed_blocklist_refresh_failures_total{id="…"} counter
 ```
 
 Custom Collector reads the live snapshot at scrape time. Failure
@@ -105,7 +105,7 @@ inspection via the `m5.4-dashboard-stale-alert.png` screenshot.
 
 ```bash
 # Boot a fresh single-node cluster
-./dblock --config /tmp/m5.4/config.yaml &
+./skoed --config /tmp/m5.4/config.yaml &
 curl -fsS -X POST http://127.0.0.1:8080/api/v1/auth/setup \
   -H 'content-type: application/json' \
   -d '{"username":"admin","password":"demopass123"}'
@@ -128,8 +128,8 @@ curl -fsS -u admin:demopass123 http://127.0.0.1:8080/api/v1/blocklists/hagezi-pr
 
 # Metrics.
 curl -fsS http://127.0.0.1:8080/metrics | grep blocklist_
-# dblock_blocklist_last_refresh_seconds{id="hagezi-pro"} 1.7822728e+09
-# dblock_blocklist_refresh_failures_total{id="hagezi-pro"} 0
+# skoed_blocklist_last_refresh_seconds{id="hagezi-pro"} 1.7822728e+09
+# skoed_blocklist_refresh_failures_total{id="hagezi-pro"} 0
 ```
 
 ## Next

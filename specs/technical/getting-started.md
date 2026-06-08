@@ -11,7 +11,7 @@ x-fsid-links:
 
 ## Scope
 
-A new operator's first authenticated view of dblock is the Dashboard.
+A new operator's first authenticated view of skoed is the Dashboard.
 Before M5.9.4 it's empty (no queries, no blocklists, no alerts) and
 gives no breadcrumb. This spec adds:
 
@@ -30,7 +30,7 @@ The card renders iff **all** of:
 ```
 userBlocklists.length === 0
   AND userProfiles.length === 0
-  AND localStorage["dblock.gettingStarted.dismissed"] !== "true"
+  AND localStorage["skoed.gettingStarted.dismissed"] !== "true"
 ```
 
 Where:
@@ -75,7 +75,7 @@ Visual:
 │                                                                    │
 │   ① Add a blocklist                              → /blocklists     │
 │   ② (optional) Bootstrap a cluster               → docs            │
-│   ③ Point a client at dblock                     → dig snippet     │
+│   ③ Point a client at skoed                     → dig snippet     │
 │                                                                    │
 │   See the full walk-through →                    → docs            │
 └────────────────────────────────────────────────────────────────────┘
@@ -87,7 +87,7 @@ Visual:
   - `{ name: 'blocklists' }` for step 1
   - `/docs/cluster/bootstrap.html` (mdBook output path) for step 2
   - a `<details>` toggle revealing a copy-pasteable
-    `dig @<dblock-host> example.com` for step 3
+    `dig @<skoed-host> example.com` for step 3
 - [x] dismiss is a `<button>` with an `XMarkIcon` in the top-right;
   sets the localStorage flag and flips a local `dismissed = true`
   ref so the card unmounts immediately.
@@ -106,13 +106,13 @@ reload, which is the documented behavior in
 ## localStorage key
 
 ```
-key:   dblock.gettingStarted.dismissed
+key:   skoed.gettingStarted.dismissed
 value: "true"            (string, sentinel)
 unset: card honors visibility predicate
 ```
 
-Kept under the `dblock.` namespace — same convention as
-`dblock.theme` (Pinia theme store, M3) and `dblock.creds`
+Kept under the `skoed.` namespace — same convention as
+`skoed.theme` (Pinia theme store, M3) and `skoed.creds`
 (session-only auth helper, login flow).
 
 ## Docs chapter

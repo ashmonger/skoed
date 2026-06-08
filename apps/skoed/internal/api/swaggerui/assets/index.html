@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>skoed API — Swagger UI</title>
+    <link rel="stylesheet" type="text/css" href="/api/docs/swagger-ui.css" />
+    <style>
+        html, body { margin: 0; padding: 0; }
+        body { background: #fafafa; }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="/api/docs/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script>
+        window.onload = function() {
+            window.ui = SwaggerUIBundle({
+                url: "/api/openapi.yaml",
+                dom_id: "#swagger-ui",
+                deepLinking: true,
+                presets: [SwaggerUIBundle.presets.apis],
+                layout: "BaseLayout",
+                requestInterceptor: function(req) {
+                    // The browser already holds Basic Auth from logging into
+                    // the SPA — let it ride along on Try-it-out requests.
+                    req.credentials = "include";
+                    return req;
+                }
+            });
+        };
+    </script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 Feature: Node Enrollment
   As an administrator
-  I want to add a node to an existing dblock cluster
+  I want to add a node to an existing skoed cluster
   So that I can scale DNS filtering across multiple machines without re-configuring each one by hand.
 
   Background:
-    Given a running dblock node bootstrapped as a single-node cluster
+    Given a running skoed node bootstrapped as a single-node cluster
     And the cluster has at least one blocklist named "ads" containing "tracker.example.com"
     And the administrator is authenticated on a node in the cluster
 
@@ -18,7 +18,7 @@ Feature: Node Enrollment
   @fsid:FS-NodeEnrollmentJoinWithValidToken
   Scenario: A fresh node joins the cluster using a valid token
     Given the administrator has generated a join token
-    And a second dblock node is running with no cluster state
+    And a second skoed node is running with no cluster state
     When the second node enrolls using the token
     Then the cluster's Raft configuration contains the second node as a voter
     And within 10 seconds the second node has replayed the Raft log to the current commit index
@@ -53,7 +53,7 @@ Feature: Node Enrollment
 
   @fsid:FS-NodeEnrollmentSingleNodeBootstrap
   Scenario: A node started with no peers initializes itself as a single-node cluster
-    Given a dblock node with an empty data directory and no peers configured
+    Given a skoed node with an empty data directory and no peers configured
     When the node starts
     Then the node initializes itself as a single-node Raft cluster
     And the node is the leader
@@ -61,7 +61,7 @@ Feature: Node Enrollment
 
   @fsid:FS-NodeEnrollmentM1ConfigMigration
   Scenario: A node started with an existing M1 config.yaml imports it into bbolt on first run
-    Given a dblock node has an existing M1-shaped config.yaml in its data directory
+    Given a skoed node has an existing M1-shaped config.yaml in its data directory
     And no cluster.bbolt exists yet
     When the node starts for the first time as M2
     Then the YAML config is imported into the bbolt state

@@ -11,7 +11,7 @@ x-fsid-links:
 
 # TS-HelmChart — Helm chart layout and rendered shape
 
-dblock ships a Helm chart at `deploy/helm/dblock/`. One release per cluster;
+skoed ships a Helm chart at `deploy/helm/skoed/`. One release per cluster;
 the DaemonSet places exactly one pod on every schedulable node. Cluster
 membership forms automatically: the first scheduled pod bootstraps the Raft
 cluster, every subsequent pod uses the chart-provided join token to enroll.
@@ -19,7 +19,7 @@ cluster, every subsequent pod uses the chart-provided join token to enroll.
 ## Directory layout
 
 ```
-deploy/helm/dblock/
+deploy/helm/skoed/
 ├── Chart.yaml
 ├── values.yaml
 ├── values.schema.json            # values validation (optional)
@@ -40,12 +40,12 @@ deploy/helm/dblock/
 
 ```yaml
 apiVersion: v2
-name: dblock
+name: skoed
 description: Self-hosted DNS filtering with multi-node Raft cluster
 type: application
 version: 0.1.0          # chart version
-appVersion: "0.2.0"     # dblock version (M2)
-home: https://github.com/dblock/dblock
+appVersion: "0.2.0"     # skoed version (M2)
+home: https://github.com/skoed/skoed
 keywords: [dns, filtering, pi-hole, adguard, cluster, raft]
 ```
 
@@ -53,7 +53,7 @@ keywords: [dns, filtering, pi-hole, adguard, cluster, raft]
 
 ```yaml
 image:
-  repository: dblock
+  repository: skoed
   tag: "0.2.0"
   pullPolicy: IfNotPresent
   pullSecrets: []
@@ -127,8 +127,8 @@ podAnnotations: {}
 
 ### `templates/_helpers.tpl`
 
-Provides `dblock.fullname`, `dblock.labels`, `dblock.selectorLabels`,
-`dblock.bootstrapToken` (idempotent random generator that uses Helm's
+Provides `skoed.fullname`, `skoed.labels`, `skoed.selectorLabels`,
+`skoed.bootstrapToken` (idempotent random generator that uses Helm's
 `randAlphaNum 64` only when the operator hasn't supplied one).
 
 ### `templates/secret-bootstrap.yaml`
@@ -138,12 +138,12 @@ Provides `dblock.fullname`, `dblock.labels`, `dblock.selectorLabels`,
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "dblock.fullname" . }}-bootstrap
-  labels: {{- include "dblock.labels" . | nindent 4 }}
+  name: {{ include "skoed.fullname" . }}-bootstrap
+  labels: {{- include "skoed.labels" . | nindent 4 }}
 type: Opaque
 stringData:
-  token: {{ include "dblock.bootstrapToken" . | quote }}
-  leader-address: "http://{{ include "dblock.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.api.port }}"
+  token: {{ include "skoed.bootstrapToken" . | quote }}
+  leader-address: "http://{{ include "skoed.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.api.port }}"
 {{- end }}
 ```
 
@@ -152,8 +152,8 @@ stringData:
 Renders the M2 `config.yaml` template with cluster-replicated sections only
 (no `node:` section — that section is generated per-pod from env vars
 in the DaemonSet command). The configmap is read-only at runtime; each
-pod's startup wrapper expands env vars (`DBLOCK_NODE_ID`, `DBLOCK_RAFT_ADDRESS`,
-`DBLOCK_API_ADDRESS`) and writes the merged file to `/var/lib/dblock/config.yaml`.
+pod's startup wrapper expands env vars (`SKOED_NODE_ID`, `SKOED_RAFT_ADDRESS`,
+`SKOED_API_ADDRESS`) and writes the merged file to `/var/lib/skoed/config.yaml`.
 
 ### `templates/service.yaml`
 
@@ -168,7 +168,7 @@ The workload:
 - `kind: DaemonSet`, namespaces inherited
 - One container per pod, image `{{ .Values.image.repository }}:{{ .Values.image.tag }}`
 - Ports: `containerPort: 53/UDP`, `containerPort: 53/TCP` (with `hostPort: 53` when enabled), `containerPort: 8080`
-- Env: `DBLOCK_NODE_ID = $(POD_NAME)`, `DBLOCK_RAFT_ADDRESS = $(POD_IP):7000`, `DBLOCK_API_ADDRESS = $(POD_IP):8080`, plus `DBLOCK_BOOTSTRAP_TOKEN` and `DBLOCK_BOOTSTRAP_LEADER` from the bootstrap Secret
+- Env: `SKOED_NODE_ID = $(POD_NAME)`, `SKOED_RAFT_ADDRESS = $(POD_IP):7000`, `SKOED_API_ADDRESS = $(POD_IP):8080`, plus `SKOED_BOOTSTRAP_TOKEN` and `SKOED_BOOTSTRAP_LEADER` from the bootstrap Secret
 - VolumeMounts: `data` (PVC), `config` (configmap-rendered base config.yaml, read-only)
 - VolumeClaimTemplates: one PVC per pod using `persistence.size` / `storageClassName`
 - Probes: `livenessProbe` GET `/api/v1/health` on 8080; `readinessProbe` GET `/api/v1/health` plus an init-container that waits for the Raft transport to be reachable on `POD_IP:7000`
@@ -183,22 +183,22 @@ Post-install `helm test` job:
 
 ## Binary side: bootstrap-from-env support
 
-The dblock binary itself does not currently read `DBLOCK_BOOTSTRAP_TOKEN`
-or `DBLOCK_BOOTSTRAP_LEADER`. M2.5 adds an init-container model OR a small
+The skoed binary itself does not currently read `SKOED_BOOTSTRAP_TOKEN`
+or `SKOED_BOOTSTRAP_LEADER`. M2.5 adds an init-container model OR a small
 shell wrapper that materialises the merged `config.yaml` from:
 
 - The ConfigMap-mounted cluster sections (read-only)
 - The pod-specific node section synthesised from env (POD_NAME, POD_IP)
 - The bootstrap section from the Secret-mounted env vars
 
-The resulting `/var/lib/dblock/config.yaml` is written ONCE on first start
+The resulting `/var/lib/skoed/config.yaml` is written ONCE on first start
 into the persistent volume. On every subsequent start, the wrapper notices
 the file already exists and starts the binary unchanged.
 
 Implementation: a `command:` and `args:` in the DaemonSet that runs a small
-inline `sh -c` script before the binary. No code changes to the dblock
+inline `sh -c` script before the binary. No code changes to the skoed
 binary are strictly required, but a stretch goal for M2.5 is to teach the
-binary to honour `DBLOCK_BOOTSTRAP_TOKEN_FILE` / `DBLOCK_BOOTSTRAP_LEADER`
+binary to honour `SKOED_BOOTSTRAP_TOKEN_FILE` / `SKOED_BOOTSTRAP_LEADER`
 directly, avoiding the wrapper entirely.
 
 ## How the cluster forms
@@ -234,4 +234,4 @@ land M2.5.
 - ACME / cert-manager — wired up in M4 alongside the DoH/DoT server
 - Operator pattern (CRDs) — manual `helm upgrade` is enough at this scale
 - Ingress with TLS termination — port-forward or NodePort cover the demo
-- Multi-cluster federation — every Helm release is a single dblock cluster
+- Multi-cluster federation — every Helm release is a single skoed cluster

@@ -53,28 +53,28 @@ the M3 backend merge left for follow-up.
 |-----------|------|
 | SPA bundle (gzipped) | 88 KB |
 | New view bytes (gzipped) | +12 KB (Profiles 3.8 + Schedules 4.9 + Categories 3.2) |
-| dblock binary (Alpine static, CGO=0) | 12 MB |
+| skoed binary (Alpine static, CGO=0) | 12 MB |
 
 ## Demo recipe (single node)
 
 ```bash
 # 1. Build SPA + binary
-make -C apps/dblock build
+make -C apps/skoed build
 
-# 2. Write a single-node config (~/.dblock/test.yaml)
+# 2. Write a single-node config (~/.skoed/test.yaml)
 cat > /tmp/test-config.yaml <<EOF
 node:
   id: demo
   raft_address: 127.0.0.1:17000
   api_address:  127.0.0.1:18080
-  data_dir:     /tmp/dblock-m3-ui-demo/data
+  data_dir:     /tmp/skoed-m3-ui-demo/data
   dns:
     listen: { port: 5353, ipv4: true, ipv6: false }
 EOF
-mkdir -p /tmp/dblock-m3-ui-demo/data
+mkdir -p /tmp/skoed-m3-ui-demo/data
 
 # 3. Boot (test mode unlocks EDNS0 client-IP spoofing)
-DBLOCK_TEST_MODE=1 ./apps/dblock/dblock -config /tmp/test-config.yaml &
+SKOED_TEST_MODE=1 ./apps/skoed/skoed -config /tmp/test-config.yaml &
 
 # 4. Set admin password (one-shot)
 curl -sX POST http://127.0.0.1:18080/api/v1/auth/setup \
@@ -107,11 +107,11 @@ dig @127.0.0.1 -p 5353 +ednsopt=65500:c0a8012a cloudflare-dns.com
 ## Tests
 
 - `npm run type-check` passes on the full SPA (446 modules).
-- `npm run build` succeeds; embedded `apps/dblock/internal/api/static/dist` refreshed.
+- `npm run build` succeeds; embedded `apps/skoed/internal/api/static/dist` refreshed.
 - Go backend unchanged — existing `go test ./...` remains green from the M3 merge.
 
 ## What's next
 
 - **K8s validation** of the M2.5 Helm chart on kind/k3s (next task).
 - **M3.5** — per-client DoH surfacing (`/api/v1/clients/{ip}/doh-status` endpoint + dashboard alert). Firewall-recipe track skipped per UoR.
-- **M4** — dblock as DoH/DoT server (RFC 8484, port 853, optional ACME).
+- **M4** — skoed as DoH/DoT server (RFC 8484, port 853, optional ACME).

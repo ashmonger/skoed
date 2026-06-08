@@ -2,7 +2,7 @@
 
 ## Scope
 
-dblock obtains its DoH and DoT TLS certificate automatically via the
+skoed obtains its DoH and DoT TLS certificate automatically via the
 ACME protocol (Let's Encrypt by default) instead of relying on the
 self-signed fallback. autocert handles directory discovery, account
 registration, ordering, HTTP-01 challenge serving, cert caching, and
@@ -18,7 +18,7 @@ lazy renewal.
     LE staging, Pebble, step-ca, internal CAs)
   - `http_challenge_port` — HTTP-01 listener port (80 in prod; the
     harness uses a free port for tests)
-- `apps/dblock/internal/dns/acme.go` — `AcmeManager` wraps
+- `apps/skoed/internal/dns/acme.go` — `AcmeManager` wraps
   `golang.org/x/crypto/acme/autocert.Manager`. Cert cache lands at
   `<data_dir>/tls/acme-cache/` and survives restarts.
 - Self-signed fallback: when ACME is enabled, the M4 self-signed cert
@@ -28,7 +28,7 @@ lazy renewal.
   hang, no client-visible breakage.
 - The HTTP-01 challenge listener binds on a separate port from
   DoH/DoT/DNS so it can be exposed to the public internet without
-  cracking open the rest of dblock.
+  cracking open the rest of skoed.
 - 4 acceptance tests cover: enabled-from-config boots cleanly, the
   HTTP-01 listener answers, the cache directory is created, and the
   fallback works when the ACME directory is unreachable.
@@ -61,10 +61,10 @@ ACME test server. It runs as a single container and issues real (but
 short-lived, untrusted-by-default) certs.
 
 ```bash
-# 1. Build the dblock image
-docker build -t dblock:m4-acme -f apps/dblock/Dockerfile apps/dblock
+# 1. Build the skoed image
+docker build -t skoed:m4-acme -f apps/skoed/Dockerfile apps/skoed
 
-# 2. Create a private network so dblock can reach Pebble by name
+# 2. Create a private network so skoed can reach Pebble by name
 docker network create m4-acme
 
 # 3. Start Pebble — listens on :14000 (directory) and :15000 (mgmt)
@@ -74,16 +74,16 @@ docker run -d --name pebble \
   -e PEBBLE_VA_NOSLEEP=1 \
   letsencrypt/pebble:latest pebble -dnsserver 127.0.0.1:53
 
-# 4. Configure dblock to use the Pebble directory.  Note:
-#    - acme.domains must resolve to the dblock container's IP from
+# 4. Configure skoed to use the Pebble directory.  Note:
+#    - acme.domains must resolve to the skoed container's IP from
 #      Pebble's perspective; here we use a host file mapping.
 #    - http_challenge_port: 8080 lets Pebble reach us without root.
-cat > /tmp/dblock-acme.yaml <<EOF
+cat > /tmp/skoed-acme.yaml <<EOF
 node:
   id: acme-demo
   raft_address: 172.20.0.20:7000
   api_address:  172.20.0.20:8080
-  data_dir:     /var/lib/dblock
+  data_dir:     /var/lib/skoed
   dns:
     listen:
       port: 53
@@ -100,24 +100,24 @@ node:
         http_challenge_port: 8080
 EOF
 
-# 5. Start dblock on the same network with /etc/hosts pointing at
+# 5. Start skoed on the same network with /etc/hosts pointing at
 #    dns.example.test → its own container IP (so Pebble's HTTP-01
 #    challenge GET resolves correctly).
-docker run -d --name dblock-acme \
+docker run -d --name skoed-acme \
   --network m4-acme --ip 172.20.0.20 \
   --add-host=dns.example.test:172.20.0.20 \
-  -v /tmp/dblock-acme.yaml:/etc/dblock/config.yaml:ro \
-  dblock:m4-acme --config /etc/dblock/config.yaml
+  -v /tmp/skoed-acme.yaml:/etc/skoed/config.yaml:ro \
+  skoed:m4-acme --config /etc/skoed/config.yaml
 
 # 6. Watch the ACME flow
-docker logs -f dblock-acme
+docker logs -f skoed-acme
 #   → "ACME enabled (directory=https://172.20.0.10:14000/dir ...)"
 #   → "acme: GetCertificate(\"dns.example.test\") failed ..." (on cold-start handshake)
 #   → "acme: order completed, cert cached"
 
 # 7. Verify Pebble issued the cert (use the Pebble root cert from
 #    https://github.com/letsencrypt/pebble/blob/main/test/certs/pebble.minica.pem)
-docker exec dblock-acme \
+docker exec skoed-acme \
   openssl s_client -connect dns.example.test:8443 \
     -servername dns.example.test \
     -CAfile /etc/pebble/pebble.minica.pem </dev/null 2>&1 | grep 'issuer='
@@ -127,7 +127,7 @@ docker exec dblock-acme \
 ## Cleanup
 
 ```bash
-docker rm -f dblock-acme pebble
+docker rm -f skoed-acme pebble
 docker network rm m4-acme
 ```
 

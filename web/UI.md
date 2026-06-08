@@ -1,6 +1,6 @@
-# dblock Web UI
+# skoed Web UI
 
-Embedded Vue 3 SPA served from the dblock binary. Reachable at
+Embedded Vue 3 SPA served from the skoed binary. Reachable at
 `http://<node>:8080/` once admin credentials are configured.
 
 Look-and-feel mixes:
@@ -53,7 +53,7 @@ admin do, and which API endpoints it calls.
 the server has admin credentials configured.
 
 **What it shows**: centered card with username + password fields, a "Sign
-in" button, and the dblock logo + tagline.
+in" button, and the skoed logo + tagline.
 
 **What it does**:
 
@@ -133,7 +133,7 @@ endpoint never blocks the others.
   - **Name** (required)
   - **Source type**: radio "From URL" or "Manual entries"
   - URL mode: URL field + Format select (auto / hosts / domainlist /
-    adblock)
+    askoed)
   - Manual mode: textarea, one domain per line, whitespace-split
   - **Block policy** override (optional): inherit / nxdomain / null /
     nodata
@@ -339,13 +339,13 @@ Per the project's testing protocol, multi-instance UI validation uses
 real browsers. The current capture flow:
 
 ```sh
-docker run -d --name dblock-demo \
-  --network dblock-demo \
-  -v /tmp/dblock-demo/node1:/var/lib/dblock \
-  -p 8080:8080 dblock:m2.6
+docker run -d --name skoed-demo \
+  --network skoed-demo \
+  -v /tmp/skoed-demo/node1:/var/lib/skoed \
+  -p 8080:8080 skoed:m2.6
 
 # point a headless Chromium at http://localhost:8080/ for each page
-chromium --headless --disable-gpu --screenshot=/tmp/dblock-dashboard.png \
+chromium --headless --disable-gpu --screenshot=/tmp/skoed-dashboard.png \
   --window-size=1400,900 http://localhost:8080/
 ```
 
@@ -355,7 +355,7 @@ but live in `docs/screenshots/` for releases.
 ## Build artifacts
 
 `web/dist/` (gitignored) is the Vite output. The build pipeline copies
-it into `apps/dblock/internal/api/static/dist` before `go build`, where
+it into `apps/skoed/internal/api/static/dist` before `go build`, where
 it's picked up by `//go:embed`. Bundle sizes after tree-shaking + gzip:
 
 | Asset | Raw | gzip |

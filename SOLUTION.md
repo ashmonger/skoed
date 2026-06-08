@@ -1,4 +1,4 @@
-# Solution: dblock
+# Solution: skoed
 
 ## Problem Statement
 
@@ -7,19 +7,19 @@ Home network administrators and parents face uncontrolled ad traffic, trackers, 
 ## Ubiquitous Language
 
 ### Actors
-- **Network Administrator**: A person who installs, configures, and operates dblock on a home or lab network.
-- **Client**: A network device (laptop, phone, IoT device) identified by IP address that sends DNS queries to dblock.
+- **Network Administrator**: A person who installs, configures, and operates skoed on a home or lab network.
+- **Client**: A network device (laptop, phone, IoT device) identified by IP address that sends DNS queries to skoed.
 
 ### Core Domain Terms
-- **Node**: A running dblock instance on a host that serves DNS queries and enforces filtering rules.
-- **Primary node**: The single authoritative configuration source in a dblock cluster; all config changes originate here.
-- **Replica node**: A dblock instance that mirrors configuration from the primary node and serves DNS independently.
-- **Cluster**: A set of dblock nodes (1 primary + 0..N replicas) sharing the same configuration.
+- **Node**: A running skoed instance on a host that serves DNS queries and enforces filtering rules.
+- **Primary node**: The single authoritative configuration source in a skoed cluster; all config changes originate here.
+- **Replica node**: A skoed instance that mirrors configuration from the primary node and serves DNS independently.
+- **Cluster**: A set of skoed nodes (1 primary + 0..N replicas) sharing the same configuration.
 - **Blocklist**: A named collection of domain rules sourced from a provider URL or defined manually.
 - **Allowlist**: A named collection of domains explicitly permitted, overriding all blocklist matches.
 - **Client profile**: A named set of rules (active blocklists, allowlists, schedules) applied to one or more clients.
 - **Local DNS entry**: A manually configured A, AAAA, or CNAME record served for home or lab hostnames.
-- **Upstream resolver**: An external DNS server used to forward non-blocked queries. dblock defaults to Quad9 (9.9.9.9 / 149.112.112.112) — Swiss-based, no personal-data logging, blocks malicious domains. Google DNS is intentionally not a default.
+- **Upstream resolver**: An external DNS server used to forward non-blocked queries. skoed defaults to Quad9 (9.9.9.9 / 149.112.112.112) — Swiss-based, no personal-data logging, blocks malicious domains. Google DNS is intentionally not a default.
 - **Root DNS resolution**: Recursive DNS resolution starting from IANA root nameservers; no third-party upstream required.
 - **SafeSearch rewrite**: A DNS response override that redirects a search engine or video platform to its safe-search endpoint.
 - **Config sync**: The mechanism by which the primary node propagates configuration changes to all replica nodes.
@@ -35,9 +35,9 @@ Home network administrators and parents face uncontrolled ad traffic, trackers, 
 ## Global Technical Architecture
 
 ### System Boundaries
-- dblock is a single Go binary per node.
+- skoed is a single Go binary per node.
 - Each binary embeds: DNS server, HTTP management API, web UI (compiled SPA), and sync engine.
-- Clients configure dblock node IP(s) as their DNS resolver via DHCP or static assignment.
+- Clients configure skoed node IP(s) as their DNS resolver via DHCP or static assignment.
 - External DNS (upstream resolvers or root nameservers) is accessed outbound for query forwarding.
 - Node-to-node sync uses a dedicated internal HTTPS REST API.
 
@@ -80,7 +80,7 @@ Home network administrators and parents face uncontrolled ad traffic, trackers, 
 ## Roadmap
 
 ### Milestone 1 — Single Node Foundation
-Goal: a single dblock node can replace Pi-Hole or AdGuard Home on a home network.
+Goal: a single skoed node can replace Pi-Hole or AdGuard Home on a home network.
 - DNS forwarding (configurable upstream resolvers)
 - Root DNS recursive resolution
 - Blocklist management: add/remove/update from URL or manual entry (hosts, domain list, AdBlock formats)
@@ -109,7 +109,7 @@ Goal: parents can apply different access rules per device with time-based contro
 - SafeSearch enforcement: DNS rewriting for Google, Bing, YouTube, DuckDuckGo
 
 ### Milestone 4 — Production Hardening
-Goal: dblock is ready for lab/production use with observability and automation.
+Goal: skoed is ready for lab/production use with observability and automation.
 - Prometheus metrics endpoint
 - Audit log (who changed what, when)
 - Automated blocklist refresh (configurable interval)

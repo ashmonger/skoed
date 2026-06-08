@@ -1,25 +1,25 @@
 Feature: Helm Chart Deployment
   As a Kubernetes operator
-  I want to install dblock onto my cluster with a single `helm install`
-  So that I get a working multi-node dblock cluster without crafting raw manifests.
+  I want to install skoed onto my cluster with a single `helm install`
+  So that I get a working multi-node skoed cluster without crafting raw manifests.
 
   Background:
     Given a Kubernetes cluster (≥ 2 nodes) with `kubectl` access
-    And the dblock Helm chart at `deploy/helm/dblock/`
+    And the skoed Helm chart at `deploy/helm/skoed/`
 
   @fsid:FS-HelmChartTemplatesRender
   Scenario: `helm template` produces valid Kubernetes manifests
-    When the operator runs `helm template my-dblock deploy/helm/dblock`
+    When the operator runs `helm template my-skoed deploy/helm/skoed`
     Then every emitted document is valid YAML
-    And the output contains exactly one DaemonSet named `my-dblock`
-    And the output contains exactly one ClusterIP Service named `my-dblock`
-    And the output contains exactly one Secret named `my-dblock-bootstrap`
+    And the output contains exactly one DaemonSet named `my-skoed`
+    And the output contains exactly one ClusterIP Service named `my-skoed`
+    And the output contains exactly one Secret named `my-skoed-bootstrap`
     And the output contains a PersistentVolumeClaim template scoped to the DaemonSet
 
   @fsid:FS-HelmChartValuesOverrides
   Scenario: Operator overrides image, replicas-irrelevant fields, and resources via values.yaml
     When the operator installs with `--set image.tag=v0.9.0 --set resources.limits.memory=256Mi --set persistence.size=2Gi`
-    Then the rendered DaemonSet pulls image `dblock:v0.9.0`
+    Then the rendered DaemonSet pulls image `skoed:v0.9.0`
     And the rendered container has `resources.limits.memory: 256Mi`
     And the rendered PersistentVolumeClaim requests `2Gi` of storage
 
@@ -28,7 +28,7 @@ Feature: Helm Chart Deployment
     Given the chart is installed with defaults
     When pods are scheduled (one per node)
     Then each pod's container exposes port 53/UDP and 53/TCP via `hostPort`
-    And `dig @<node-ip> example.com` from any in-cluster pod reaches a dblock instance
+    And `dig @<node-ip> example.com` from any in-cluster pod reaches a skoed instance
 
   @fsid:FS-HelmChartBootstrapToken
   Scenario: Replica pods enroll using a shared bootstrap token

@@ -4,14 +4,14 @@
 - Planning scope: Milestone 2 — Multi-Node Cluster
 - Roadmap links: ROADMAP.md § Milestone 2
 - Planning horizon: Milestone 2 only; Helm chart (M2.5) and M3+ planned separately
-- Scope summary: A second or third dblock node joins an existing installation via a join token issued by the primary. All config changes on the primary propagate to enrolled replicas within seconds via SSE. Manual failover is the default; opt-in quorum-based auto-failover is available. A cluster status dashboard shows node roles, last-seen timestamps, and sync state. Helm chart is deferred to M2.5.
+- Scope summary: A second or third skoed node joins an existing installation via a join token issued by the primary. All config changes on the primary propagate to enrolled replicas within seconds via SSE. Manual failover is the default; opt-in quorum-based auto-failover is available. A cluster status dashboard shows node roles, last-seen timestamps, and sync state. Helm chart is deferred to M2.5.
 
 ---
 
 ## Previous milestone — Milestone 1 (DONE)
 - Planning scope: Milestone 1 — Single Node Foundation
 - Roadmap links: ROADMAP.md § Milestone 1
-- Scope summary: A single dblock node that serves DNS (forwarding + root resolution, dual-stack, DNSSEC transparent), filters domains via configurable blocklists and allowlists, serves local DNS entries, logs queries, exposes a management API with basic auth, and supports config import/export. Released as a Linux binary and Docker image. **Status: merged to master 2026-05-29, 58/58 acceptance tests green.**
+- Scope summary: A single skoed node that serves DNS (forwarding + root resolution, dual-stack, DNSSEC transparent), filters domains via configurable blocklists and allowlists, serves local DNS entries, logs queries, exposes a management API with basic auth, and supports config import/export. Released as a Linux binary and Docker image. **Status: merged to master 2026-05-29, 58/58 acceptance tests green.**
 - Assumptions:
   - hashicorp/raft + go.etcd.io/bbolt operates correctly for clusters of ≤10 nodes on home/lab networks (H4 — validate throughout M2).
   - bbolt is the source of truth; YAML becomes import/export only; node-local settings remain in a separate `node.yaml`.
@@ -85,7 +85,7 @@
 
 ## Hypotheses to validate in M2
 
-- H4: `hashicorp/raft` + `go.etcd.io/bbolt` are operationally suitable for dblock's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state) on home/lab networks. **Validate throughout M2.** Replaces H2 (manual quorum) and H3 (SSE).
+- H4: `hashicorp/raft` + `go.etcd.io/bbolt` are operationally suitable for skoed's workload (≤10 nodes, ≤1 write/day per cluster, ~1–10 MB state) on home/lab networks. **Validate throughout M2.** Replaces H2 (manual quorum) and H3 (SSE).
 
 ## Change log
 
