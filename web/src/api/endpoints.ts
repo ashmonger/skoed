@@ -304,3 +304,28 @@ export function checkUpgrade(): Promise<UpgradeCheck> {
 export function startUpgrade(): Promise<unknown> {
   return postJSON('/api/v1/upgrade/start')
 }
+
+// ─── Test domain (M5.9.7) ────────────────────────────────────────────────
+
+export interface TestDomainRequest {
+  domain: string
+  client_ip?: string
+  profile_id?: string
+}
+
+export interface TestDomainResponse {
+  domain: string
+  client_ip?: string
+  would_block: boolean
+  reason: string
+  matched_profile_id?: string
+  matched_blocklist_id?: string
+  block_policy?: string
+  local_dns_answer?: string
+  safesearch_rewrite?: string
+  evaluated_at?: string
+}
+
+export function testDomain(req: TestDomainRequest): Promise<TestDomainResponse> {
+  return postJSON('/api/v1/test-domain', req)
+}

@@ -17,28 +17,37 @@
         </span>
       </div>
 
-      <nav class="flex-1 px-2 py-3 space-y-0.5 text-sm overflow-y-auto">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.name"
-          :to="{ name: item.name }"
-          class="flex items-center gap-2 px-3 py-1.5 rounded text-fg
-                 hover:bg-bg-hover hover:text-fg-strong transition-colors"
-          active-class="bg-accent-subtle text-accent font-medium"
-        >
-          <component :is="item.icon" class="w-4 h-4" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-        <!-- M4.5: API docs live outside the SPA router (server-rendered
-             static HTML). Use a plain anchor so the browser does a real
-             navigation rather than vue-router pattern matching. -->
-        <a href="/api/docs/"
-           target="_blank"
-           class="flex items-center gap-2 px-3 py-1.5 rounded text-fg
-                  hover:bg-bg-hover hover:text-fg-strong transition-colors">
-          <CodeBracketIcon class="w-4 h-4" />
-          <span>API</span>
-        </a>
+      <nav class="flex-1 px-2 py-3 text-sm overflow-y-auto">
+        <div v-for="(section, idx) in nav" :key="section.label"
+             :class="idx > 0 ? 'mt-3 pt-3 border-t border-border' : ''">
+          <div class="px-3 mb-1 text-[10px] uppercase tracking-wider text-fg-subtle font-semibold">
+            {{ section.label }}
+          </div>
+          <div class="space-y-0.5">
+            <RouterLink
+              v-for="item in section.items"
+              :key="item.name"
+              :to="{ name: item.name }"
+              class="flex items-center gap-2 px-3 py-1.5 rounded text-fg
+                     hover:bg-bg-hover hover:text-fg-strong transition-colors"
+              active-class="bg-accent-subtle text-accent font-medium"
+            >
+              <component :is="item.icon" class="w-4 h-4" />
+              <span>{{ item.label }}</span>
+            </RouterLink>
+            <!-- M4.5: API docs live outside the SPA router (server-rendered
+                 static HTML). Use a plain anchor so the browser does a real
+                 navigation rather than vue-router pattern matching. -->
+            <a v-if="section.label === 'System'"
+               href="/api/docs/"
+               target="_blank"
+               class="flex items-center gap-2 px-3 py-1.5 rounded text-fg
+                      hover:bg-bg-hover hover:text-fg-strong transition-colors">
+              <CodeBracketIcon class="w-4 h-4" />
+              <span>API</span>
+            </a>
+          </div>
+        </div>
       </nav>
 
       <div class="px-3 py-3 border-t border-border text-xs text-fg-muted">
@@ -123,7 +132,7 @@ import {
   QueueListIcon, ChartBarIcon, CpuChipIcon, Cog6ToothIcon,
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
-  DevicePhoneMobileIcon, CodeBracketIcon,
+  DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -138,19 +147,52 @@ const router = useRouter()
 const sidebarOpen = ref(true)
 const health = ref<ClusterHealth | null>(null)
 
-const nav = [
-  { name: 'dashboard',  label: 'Dashboard',  icon: HomeIcon },
-  { name: 'blocklists', label: 'Blocklists', icon: NoSymbolIcon },
-  { name: 'allowlist',  label: 'Allowlist',  icon: CheckBadgeIcon },
-  { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
-  { name: 'clients',    label: 'Clients',    icon: DevicePhoneMobileIcon },
-  { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
-  { name: 'schedules',  label: 'Schedules',  icon: ClockIcon },
-  { name: 'categories', label: 'Categories', icon: TagIcon },
-  { name: 'query-log',  label: 'Query log',  icon: QueueListIcon },
-  { name: 'stats',      label: 'Stats',      icon: ChartBarIcon },
-  { name: 'cluster',    label: 'Cluster',    icon: CpuChipIcon },
-  { name: 'settings',   label: 'Settings',   icon: Cog6ToothIcon },
+// Sidebar nav is grouped into thematic sections:
+//   Overview — the dashboard
+//   Filtering — every resource that decides "block / allow / rewrite"
+//   Observability — read-only signals (query log, stats)
+//   Tools — operator utilities that don't change cluster state
+//   System — node/cluster admin
+const nav: Array<{
+  label: string
+  items: Array<{ name: string; label: string; icon: unknown }>
+}> = [
+  {
+    label: 'Overview',
+    items: [{ name: 'dashboard', label: 'Dashboard', icon: HomeIcon }],
+  },
+  {
+    label: 'Filtering',
+    items: [
+      { name: 'blocklists', label: 'Blocklists', icon: NoSymbolIcon },
+      { name: 'allowlist',  label: 'Allowlist',  icon: CheckBadgeIcon },
+      { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
+      { name: 'clients',    label: 'Clients',    icon: DevicePhoneMobileIcon },
+      { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
+      { name: 'schedules',  label: 'Schedules',  icon: ClockIcon },
+      { name: 'categories', label: 'Categories', icon: TagIcon },
+    ],
+  },
+  {
+    label: 'Observability',
+    items: [
+      { name: 'query-log', label: 'Query log', icon: QueueListIcon },
+      { name: 'stats',     label: 'Stats',     icon: ChartBarIcon },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { name: 'test-domain', label: 'Test a domain', icon: BeakerIcon },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { name: 'cluster',  label: 'Cluster',  icon: CpuChipIcon },
+      { name: 'settings', label: 'Settings', icon: Cog6ToothIcon },
+    ],
+  },
 ]
 
 const titles: Record<string, string> = {
@@ -165,6 +207,7 @@ const titles: Record<string, string> = {
   'query-log': 'Query log',
   stats: 'Stats',
   cluster: 'Cluster',
+  'test-domain': 'Test a domain',
   settings: 'Settings',
   account: 'Account',
 }

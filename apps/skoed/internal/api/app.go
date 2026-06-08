@@ -88,6 +88,16 @@ func (a *App) SetMetrics(m *metrics.Metrics) { a.metrics = m }
 // GetMetrics returns the Prometheus exporter, or nil if not wired.
 func (a *App) GetMetrics() *metrics.Metrics { return a.metrics }
 
+// ObserveTestDomain is the handlers-package facing shim for the M5.9.7
+// skoed_test_domain_requests_total counter. No-op when metrics aren't
+// wired so handlers don't have to nil-check.
+func (a *App) ObserveTestDomain(surface, verdict string) {
+	if a.metrics == nil {
+		return
+	}
+	a.metrics.ObserveTestDomain(surface, verdict)
+}
+
 // SetUpgradeChecker wires the M5.6 release-feed checker. Nil disables
 // the /api/v1/upgrade/* endpoints' useful behaviour (they still
 // respond, but with empty data).
@@ -296,6 +306,11 @@ func (a *App) Router() http.Handler {
 	// operator disabled the landing surface (node.api.public_landing.enabled=false).
 	r.Post("/api/v1/_public/test-blocklist", a.publicTesterHandler)
 
+	// M5.9.7 — public domain tester. Same rate-limit bucket as the URL
+	// tester (60/h combined). No SSRF surface — the domain is just an
+	// in-memory key into the filter engine.
+	r.Post("/api/v1/_public/test-domain", a.publicTestDomainHandler)
+
 	// The /cluster/join endpoint must be served by the leader. Forwarding
 	// handles that transparently.
 	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
@@ -387,6 +402,12 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/upgrade/check", h.UpgradeCheck)
 		r.Post("/api/v1/upgrade/start", a.forward(h.UpgradeStart))
 
+		// M5.9.7 — authenticated "would this domain be blocked?" tester.
+		// Read-only; doesn't forward to leader (every node has the same
+		// replicated filter state). Audit middleware skips it via the
+		// auditExempt() prefix check.
+		r.Post("/api/v1/test-domain", h.TestDomainAuth)
+
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.
 		r.Get("/api/v1/clients/anomalies", h.ListAnomalies)
@@ -450,6 +471,17 @@ func (a *App) publicTesterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.publicTester.Handle(w, r)
+}
+
+// publicTestDomainHandler is the M5.9.7 guest entry. Reuses the
+// publicTester's per-IP token bucket so the combined budget across
+// all public test endpoints stays at 60/h.
+func (a *App) publicTestDomainHandler(w http.ResponseWriter, r *http.Request) {
+	if !a.publicLandingEnabled {
+		http.NotFound(w, r)
+		return
+	}
+	a.publicTester.HandleTestDomain(a, w, r)
 }
 
 // serveSPAWithLandingGate wraps serveSPA. When the operator disabled

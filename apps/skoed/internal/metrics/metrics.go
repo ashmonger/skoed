@@ -98,6 +98,11 @@ type Metrics struct {
 	// every successful Raft-replicated append.
 	auditEventsTotal *prometheus.CounterVec
 
+	// M5.9.7 — test-domain verdict counter. Cardinality bounded at 4
+	// series total (2 surfaces × 2 verdicts); domain never appears as
+	// a label.
+	testDomainTotal *prometheus.CounterVec
+
 	requireAuth func() bool       // re-read on every request so config edits take effect live
 	authOK      func(*http.Request) bool
 }
@@ -143,6 +148,12 @@ func New(opts Options) *Metrics {
 	}, []string{"action"})
 	reg.MustRegister(auditEventsTotal)
 
+	testDomainTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "skoed_test_domain_requests_total",
+		Help: "Cumulative M5.9.7 \"would this domain be blocked?\" verdicts, by surface and verdict.",
+	}, []string{"surface", "verdict"})
+	reg.MustRegister(testDomainTotal)
+
 	// Cache — registered as a custom Collector that reads from the
 	// CacheStatsFunc on every scrape. Wired only when caching is
 	// available; when CacheStats reports Enabled=false the size gauge
@@ -169,9 +180,21 @@ func New(opts Options) *Metrics {
 		dnsQueriesTotal:  dnsQueriesTotal,
 		dnsQueryDur:      dnsQueryDur,
 		auditEventsTotal: auditEventsTotal,
+		testDomainTotal:  testDomainTotal,
 		requireAuth:      opts.RequireAuth,
 		authOK:           opts.AuthOK,
 	}
+}
+
+// ObserveTestDomain bumps the M5.9.7 verdict counter.
+//
+//	surface ∈ {"guest","auth"}
+//	verdict ∈ {"block","allow"}
+func (m *Metrics) ObserveTestDomain(surface, verdict string) {
+	if m == nil || m.testDomainTotal == nil {
+		return
+	}
+	m.testDomainTotal.WithLabelValues(surface, verdict).Inc()
 }
 
 // ObserveAudit bumps the audit-event counter for the given action.
