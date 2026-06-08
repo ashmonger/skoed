@@ -127,6 +127,14 @@ type Blocklist struct {
 	// this to forbid manual editing of the domain list — refreshes pull
 	// from the catalog URL instead.
 	Managed bool `yaml:"managed,omitempty" json:"managed,omitempty"`
+
+	// M5.4 — automated refresh state. RefreshIntervalSeconds=0 means
+	// "don't auto-refresh"; absent means "inherit cluster default".
+	// LastRefresh* are populated by the scheduler on each tick.
+	RefreshIntervalSeconds int    `yaml:"refresh_interval_seconds,omitempty" json:"refresh_interval_seconds,omitempty"`
+	LastRefreshAt          string `yaml:"last_refresh_at,omitempty"          json:"last_refresh_at,omitempty"`
+	LastRefreshStatus      string `yaml:"last_refresh_status,omitempty"      json:"last_refresh_status,omitempty"`
+	LastRefreshError       string `yaml:"last_refresh_error,omitempty"       json:"last_refresh_error,omitempty"`
 }
 
 type BlocklistSource struct {

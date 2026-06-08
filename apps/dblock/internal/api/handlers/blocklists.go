@@ -11,26 +11,35 @@ import (
 
 // blocklistResponse is the JSON representation of a blocklist exposed by the API.
 type blocklistResponse struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Enabled     bool                   `json:"enabled"`
-	Source      config.BlocklistSource `json:"source"`
-	BlockPolicy string                 `json:"block_policy,omitempty"`
-	DomainCount int                    `json:"domain_count"`
-	LastUpdated string                 `json:"last_updated,omitempty"`
-	Managed     bool                   `json:"managed,omitempty"`
+	ID                     string                 `json:"id"`
+	Name                   string                 `json:"name"`
+	Enabled                bool                   `json:"enabled"`
+	Source                 config.BlocklistSource `json:"source"`
+	BlockPolicy            string                 `json:"block_policy,omitempty"`
+	DomainCount            int                    `json:"domain_count"`
+	LastUpdated            string                 `json:"last_updated,omitempty"`
+	Managed                bool                   `json:"managed,omitempty"`
+	// M5.4 — automated refresh state.
+	RefreshIntervalSeconds int    `json:"refresh_interval_seconds,omitempty"`
+	LastRefreshAt          string `json:"last_refresh_at,omitempty"`
+	LastRefreshStatus      string `json:"last_refresh_status,omitempty"`
+	LastRefreshError       string `json:"last_refresh_error,omitempty"`
 }
 
 func toBlocklistResponse(bl config.Blocklist) blocklistResponse {
 	return blocklistResponse{
-		ID:          bl.ID,
-		Name:        bl.Name,
-		Enabled:     bl.Enabled,
-		Source:      bl.Source,
-		BlockPolicy: bl.BlockPolicy,
-		DomainCount: len(bl.Domains),
-		LastUpdated: bl.LastUpdated,
-		Managed:     bl.Managed,
+		ID:                     bl.ID,
+		Name:                   bl.Name,
+		Enabled:                bl.Enabled,
+		Source:                 bl.Source,
+		BlockPolicy:            bl.BlockPolicy,
+		DomainCount:            len(bl.Domains),
+		LastUpdated:            bl.LastUpdated,
+		Managed:                bl.Managed,
+		RefreshIntervalSeconds: bl.RefreshIntervalSeconds,
+		LastRefreshAt:          bl.LastRefreshAt,
+		LastRefreshStatus:      bl.LastRefreshStatus,
+		LastRefreshError:       bl.LastRefreshError,
 	}
 }
 
@@ -46,12 +55,13 @@ func (h *Handler) ListBlocklists(w http.ResponseWriter, r *http.Request) {
 
 // createBlocklistRequest is the body accepted by POST /api/v1/blocklists.
 type createBlocklistRequest struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Enabled     *bool                  `json:"enabled"` // nil means default=true
-	Source      config.BlocklistSource `json:"source"`
-	BlockPolicy string                 `json:"block_policy"`
-	Domains     []string               `json:"domains"`
+	ID                     string                 `json:"id"`
+	Name                   string                 `json:"name"`
+	Enabled                *bool                  `json:"enabled"` // nil means default=true
+	Source                 config.BlocklistSource `json:"source"`
+	BlockPolicy            string                 `json:"block_policy"`
+	Domains                []string               `json:"domains"`
+	RefreshIntervalSeconds int                    `json:"refresh_interval_seconds"`
 }
 
 // CreateBlocklist handles POST /api/v1/blocklists.
@@ -90,13 +100,14 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		enabled = *req.Enabled
 	}
 	bl := config.Blocklist{
-		ID:          id,
-		Name:        req.Name,
-		Enabled:     enabled,
-		Source:      req.Source,
-		BlockPolicy: req.BlockPolicy,
-		Domains:     domains,
-		LastUpdated: time.Now().UTC().Format(time.RFC3339),
+		ID:                     id,
+		Name:                   req.Name,
+		Enabled:                enabled,
+		Source:                 req.Source,
+		BlockPolicy:            req.BlockPolicy,
+		Domains:                domains,
+		LastUpdated:            time.Now().UTC().Format(time.RFC3339),
+		RefreshIntervalSeconds: req.RefreshIntervalSeconds,
 	}
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {

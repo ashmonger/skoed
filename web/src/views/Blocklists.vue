@@ -35,6 +35,7 @@
             <th>Source</th>
             <th class="text-right">Domains</th>
             <th>Last updated</th>
+            <th>Auto-refresh</th>
             <th class="text-right">Actions</th>
           </tr>
         </thead>
@@ -63,6 +64,21 @@
               </td>
               <td class="text-right font-mono text-xs">{{ bl.domain_count.toLocaleString() }}</td>
               <td class="text-fg-muted text-xs">{{ formatRelative(bl.last_updated) }}</td>
+              <td class="text-xs whitespace-nowrap">
+                <span v-if="bl.source.type !== 'url'" class="text-fg-subtle">—</span>
+                <span v-else-if="!bl.refresh_interval_seconds" class="text-fg-subtle">manual</span>
+                <template v-else>
+                  <span
+                    class="chip mr-1"
+                    :class="refreshChipClass(bl)"
+                    :title="bl.last_refresh_error || ''"
+                  >{{ bl.last_refresh_status || 'pending' }}</span>
+                  <span class="text-fg-muted">every {{ formatInterval(bl.refresh_interval_seconds) }}</span>
+                  <div v-if="bl.last_refresh_at" class="text-fg-subtle">
+                    last: {{ formatRelative(bl.last_refresh_at) }}
+                  </div>
+                </template>
+              </td>
               <td class="text-right whitespace-nowrap">
                 <button v-if="bl.source.type === 'url'"
                         class="btn-ghost"
@@ -80,7 +96,7 @@
               </td>
             </tr>
             <tr v-if="rowErrors[bl.id]">
-              <td colspan="7" class="!py-1 text-xs text-danger">{{ rowErrors[bl.id] }}</td>
+              <td colspan="8" class="!py-1 text-xs text-danger">{{ rowErrors[bl.id] }}</td>
             </tr>
           </template>
         </tbody>
@@ -134,6 +150,15 @@
               <option value="adblock">adblock</option>
             </select>
           </div>
+        </div>
+
+        <div v-if="form.sourceType === 'url'">
+          <label class="label" for="bl-refresh">Auto-refresh interval (seconds)</label>
+          <input id="bl-refresh" v-model.number="form.refreshIntervalSeconds" type="number" min="0"
+                 class="input w-32" placeholder="0" />
+          <p class="text-xs text-fg-muted mt-1">
+            0 = manual only. Typical: 86400 (24 h). Leader-only fetches.
+          </p>
         </div>
 
         <div v-else>
@@ -223,12 +248,14 @@ interface FormState {
   format: string
   domainsText: string
   blockPolicy: string
+  refreshIntervalSeconds: number
 }
 
 const emptyForm = (): FormState => ({
   id: '', name: '', enabled: true,
   sourceType: 'url', url: '', format: 'auto',
   domainsText: '', blockPolicy: '',
+  refreshIntervalSeconds: 0,
 })
 const form = reactive<FormState>(emptyForm())
 
@@ -325,6 +352,9 @@ async function submitCreate() {
   }
   if (form.id.trim()) input.id = form.id.trim()
   if (form.blockPolicy) input.block_policy = form.blockPolicy
+  if (form.sourceType === 'url' && form.refreshIntervalSeconds > 0) {
+    input.refresh_interval_seconds = form.refreshIntervalSeconds
+  }
 
   if (form.sourceType === 'inline') {
     const domains = form.domainsText
@@ -367,6 +397,25 @@ function formatRelative(iso?: string): string {
   const days = Math.round(hours / 24)
   if (days < 30) return `${days}d ago`
   return new Date(iso).toLocaleDateString()
+}
+
+function formatInterval(secs: number): string {
+  if (!secs) return ''
+  if (secs < 60) return `${secs}s`
+  const mins = Math.round(secs / 60)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return `${hours}h`
+  return `${Math.round(hours / 24)}d`
+}
+
+function refreshChipClass(bl: { last_refresh_status?: string }): string {
+  switch (bl.last_refresh_status) {
+    case 'ok':        return 'chip-success'
+    case 'unchanged': return 'chip-neutral'
+    case 'error':     return 'chip-danger'
+    default:          return 'chip-neutral'
+  }
 }
 
 // ─── Keyboard: close modals on Escape ────────────────────────────────────

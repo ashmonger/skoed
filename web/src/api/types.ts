@@ -16,6 +16,11 @@ export interface Blocklist {
   block_policy?: string
   domain_count: number
   last_updated?: string
+  // M5.4 — automated refresh state
+  refresh_interval_seconds?: number
+  last_refresh_at?: string
+  last_refresh_status?: 'ok' | 'error' | 'unchanged'
+  last_refresh_error?: string
 }
 
 export interface LocalDNSEntry {

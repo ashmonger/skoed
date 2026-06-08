@@ -25,6 +25,7 @@ import (
 	filterCats "github.com/dblock/dblock/internal/filter/categories"
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/dblock/dblock/internal/metrics"
+	"github.com/dblock/dblock/internal/refresh"
 )
 
 // Build metadata. Override at link time with:
@@ -190,6 +191,11 @@ func main() {
 		dnsCache = dnsengine.NewCache(snap.DNS.Cache.MaxEntries)
 	}
 
+	// M5.4 — blocklist refresh scheduler. Started on every node; only the
+	// leader does work each tick. Declared up here so the metrics
+	// constructor can read its failure counter map.
+	var refreshSched *refresh.Scheduler
+
 	// M5.1 — Prometheus exporter. Built before the App so we can pass it
 	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
 	// callbacks because all three pointers may be reallocated after
@@ -233,6 +239,31 @@ func main() {
 				LastPollAgeSecs: age,
 				PollErrorsTotal: dhcpMgr.PollErrorsTotal(),
 			}
+		},
+		Blocklists: func() []metrics.BlocklistSnapshot {
+			snap, err := c.Store().Snapshot()
+			if err != nil {
+				return nil
+			}
+			var failures map[string]uint64
+			if refreshSched != nil {
+				failures = refreshSched.PerBlocklistFailures()
+			}
+			out := make([]metrics.BlocklistSnapshot, 0, len(snap.Filtering.Blocklists))
+			for _, bl := range snap.Filtering.Blocklists {
+				var last time.Time
+				if bl.LastRefreshAt != "" {
+					if t, err := time.Parse(time.RFC3339, bl.LastRefreshAt); err == nil {
+						last = t
+					}
+				}
+				out = append(out, metrics.BlocklistSnapshot{
+					ID:            bl.ID,
+					LastRefreshAt: last,
+					Failures:      failures[bl.ID],
+				})
+			}
+			return out
 		},
 		RequireAuth: func() bool { return node.Node.API.Metrics.RequireAuth },
 		AuthOK:      func(r *http.Request) bool { return app != nil && app.CheckBasicAuth(r) },
@@ -334,6 +365,17 @@ func main() {
 	queryLog.SetObserver(func(e dlog.Entry) {
 		agg.Observe(e.Client, e.Domain, e.Outcome)
 	})
+
+	// M5.4 — start the blocklist refresh scheduler. Started on every node;
+	// only the current Raft leader actually fetches per tick. Test mode
+	// drops the tick interval to 1 s so acceptance tests don't wait.
+	refreshTick := 10 * time.Second
+	if os.Getenv("DBLOCK_TEST_MODE") == "1" {
+		refreshTick = time.Second
+	}
+	refreshSched = refresh.New(c, refresh.Options{Tick: refreshTick})
+	refreshSched.Start()
+	defer refreshSched.Stop()
 
 	// M4.6 — optional HTTPS for the management API. When disabled (the
 	// default), behaviour is identical to M1-M3: plain HTTP on api_address.
