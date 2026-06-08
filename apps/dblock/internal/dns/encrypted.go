@@ -50,8 +50,13 @@ func (w *transportTaggedWriter) RemoteAddr() net.Addr {
 // EncryptedServer manages the DoH and DoT listeners. Both share a single
 // TLS cert and a single dns.Handler. Start blocks until the listeners are
 // bound or until any of them fails to bind.
+//
+// The handler is held behind a swappableHandler so UpdateHandler can swap
+// it atomically without restarting the listeners — the cluster fires
+// rebuildDNS on every Raft apply, and we need DoH/DoT to see the new
+// local-DNS / filter / SafeSearch state immediately, not at next boot.
 type EncryptedServer struct {
-	handler dns.Handler
+	wrapper *swappableHandler
 	dohPort int
 	dotPort int
 	// When acme is non-nil, tls.Config.GetCertificate routes through it.
@@ -75,7 +80,7 @@ type EncryptedServer struct {
 // AcmeManager falls back to if ACME is unreachable.
 func NewEncryptedServer(handler dns.Handler, dohPort, dotPort int, certFile, keyFile string, acme *AcmeManager) (*EncryptedServer, error) {
 	s := &EncryptedServer{
-		handler: handler,
+		wrapper: &swappableHandler{current: handler},
 		dohPort: dohPort,
 		dotPort: dotPort,
 		acme:    acme,
@@ -88,6 +93,13 @@ func NewEncryptedServer(handler dns.Handler, dohPort, dotPort int, certFile, key
 		s.cert = cert
 	}
 	return s, nil
+}
+
+// UpdateHandler atomically swaps the dns.Handler used by both DoH and
+// DoT listeners. Called by main.go's rebuildDNS closure on every Raft
+// apply so the encrypted transports see the same state UDP/TCP DNS does.
+func (s *EncryptedServer) UpdateHandler(h dns.Handler) {
+	s.wrapper.swap(h)
 }
 
 // tlsConfig returns the *tls.Config the DoH and DoT listeners share.
@@ -211,7 +223,7 @@ func (s *EncryptedServer) handleDoH(w http.ResponseWriter, r *http.Request) {
 		clientIP:  remoteHostNoPort(r.RemoteAddr),
 		done:      make(chan struct{}, 1),
 	}
-	s.handler.ServeDNS(tw, msg)
+	s.wrapper.ServeDNS(tw, msg)
 
 	// Wait briefly for the handler to write — it MUST be synchronous, but
 	// we add a safety timeout in case a future change introduces async.
@@ -353,7 +365,7 @@ func (s *EncryptedServer) handleDoTConn(conn net.Conn) {
 			transport: "dot",
 			clientIP:  clientIP,
 		}
-		s.handler.ServeDNS(dw, msg)
+		s.wrapper.ServeDNS(dw, msg)
 		if dw.writeErr != nil {
 			return
 		}

@@ -78,6 +78,11 @@ type M2NodeConfig struct {
 	DoTPort int
 	// M4 ACME: when set, written under node.dns.tls.acme.* in config.yaml.
 	Acme *AcmeOpts
+	// M4 FS-DohConfiguredCert: when both set, written under
+	// node.dns.tls.cert_file / key_file. dblock then uses these PEMs
+	// directly instead of generating a self-signed cert.
+	TLSCertFile string
+	TLSKeyFile  string
 	// M3.6 DHCP: when set, written under node.dhcp.* in config.yaml.
 	DHCP *DhcpOpts
 	// Bootstrap is empty for the first node (it self-bootstraps as single-node
@@ -423,16 +428,23 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 					DoHPort: cfg.DoHPort, DoTPort: cfg.DoTPort,
 				},
 				TLS: func() *tlsSection {
-					if cfg.Acme == nil {
+					if cfg.Acme == nil && cfg.TLSCertFile == "" && cfg.TLSKeyFile == "" {
 						return nil
 					}
-					return &tlsSection{Acme: &acmeSection{
-						Enabled:           cfg.Acme.Enabled,
-						Email:             cfg.Acme.Email,
-						Domains:           cfg.Acme.Domains,
-						DirectoryURL:      cfg.Acme.DirectoryURL,
-						HTTPChallengePort: cfg.Acme.HTTPChallengePort,
-					}}
+					t := &tlsSection{
+						CertFile: cfg.TLSCertFile,
+						KeyFile:  cfg.TLSKeyFile,
+					}
+					if cfg.Acme != nil {
+						t.Acme = &acmeSection{
+							Enabled:           cfg.Acme.Enabled,
+							Email:             cfg.Acme.Email,
+							Domains:           cfg.Acme.Domains,
+							DirectoryURL:      cfg.Acme.DirectoryURL,
+							HTTPChallengePort: cfg.Acme.HTTPChallengePort,
+						}
+					}
+					return t
 				}(),
 			},
 			DataDir: dir,
