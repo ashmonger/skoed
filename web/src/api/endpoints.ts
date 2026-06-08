@@ -52,6 +52,7 @@ export interface CreateBlocklistInput {
   source: BlocklistSource
   block_policy?: string
   domains?: string[]
+  refresh_interval_seconds?: number
 }
 
 export function createBlocklist(input: CreateBlocklistInput): Promise<Blocklist> {

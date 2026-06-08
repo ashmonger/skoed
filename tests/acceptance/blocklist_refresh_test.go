@@ -93,7 +93,7 @@ func createUrlBlocklist(t *testing.T, n *Node, id, url string, intervalSecs int)
 func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
-	lines.Store("a.example\nb.example\n")
+	lines.Store("0.0.0.0 a.example\n0.0.0.0 b.example\n")
 	srv := startHostsServer(t, lines, hits)
 
 	c := startCluster(t, 3)
@@ -112,11 +112,11 @@ func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	if !seen {
-		t.Skip("M5.4 impl pending: initial auto-refresh never landed")
+		t.Fatalf("initial auto-refresh never landed within 8s")
 	}
 
 	// Bump the served content; the worker should pick it up on next tick.
-	lines.Store("a.example\nb.example\nc.example\nd.example\ne.example\n")
+	lines.Store("0.0.0.0 a.example\n0.0.0.0 b.example\n0.0.0.0 c.example\n0.0.0.0 d.example\n0.0.0.0 e.example\n")
 	deadline = time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
 		converged := true
@@ -139,7 +139,7 @@ func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
 func TestAutoRefreshStatusFields(t *testing.T) {
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
-	lines.Store("only.example\n")
+	lines.Store("0.0.0.0 only.example\n")
 	srv := startHostsServer(t, lines, hits)
 
 	c := startCluster(t, 1)
@@ -169,7 +169,7 @@ func TestAutoRefreshStatusFields(t *testing.T) {
 // FS-AutoRefreshFailureRecorded
 func TestAutoRefreshFailureRecorded(t *testing.T) {
 	hits := &atomic.Uint64{}
-	good := "domain.example\n"
+	good := "0.0.0.0 domain.example\n"
 	bad := ""
 	failing := &atomic.Bool{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +228,7 @@ func TestAutoRefreshFailureRecorded(t *testing.T) {
 func TestAutoRefreshDisabledWhenZero(t *testing.T) {
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
-	lines.Store("disabled.example\n")
+	lines.Store("0.0.0.0 disabled.example\n")
 	srv := startHostsServer(t, lines, hits)
 
 	c := startCluster(t, 1)
@@ -252,7 +252,7 @@ func TestAutoRefreshDisabledWhenZero(t *testing.T) {
 func TestAutoRefreshLeaderOnly(t *testing.T) {
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
-	lines.Store("leaderonly.example\n")
+	lines.Store("0.0.0.0 leaderonly.example\n")
 	srv := startHostsServer(t, lines, hits)
 
 	c := startCluster(t, 3)
@@ -278,7 +278,7 @@ func TestAutoRefreshLeaderOnly(t *testing.T) {
 func TestAutoRefreshMetrics(t *testing.T) {
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
-	lines.Store("metrics.example\n")
+	lines.Store("0.0.0.0 metrics.example\n")
 	srv := startHostsServer(t, lines, hits)
 
 	c := startCluster(t, 1)

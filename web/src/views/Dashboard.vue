@@ -25,6 +25,30 @@
       </ul>
     </div>
 
+    <!-- M5.4 — stale blocklist alert. Blocklist hasn't refreshed in 2× its interval. -->
+    <div v-if="staleBlocklists.length > 0" class="card p-4 border-l-4 border-warning space-y-2">
+      <div class="flex items-center gap-2">
+        <ExclamationTriangleIcon class="w-5 h-5 text-warning" />
+        <h2 class="text-sm font-semibold text-fg-strong">Stale blocklists</h2>
+      </div>
+      <p class="text-xs text-fg-muted">
+        These blocklists haven't refreshed in more than 2× their interval.
+        Open the
+        <router-link :to="{ name: 'blocklists' }" class="text-accent hover:underline">Blocklists</router-link>
+        page to inspect or trigger a manual refresh.
+      </p>
+      <ul class="text-sm space-y-0.5">
+        <li v-for="bl in staleBlocklists" :key="bl.id" class="flex items-center gap-2">
+          <span class="font-mono text-xs text-fg-muted">{{ bl.id }}</span>
+          <span class="font-medium">{{ bl.name }}</span>
+          <span v-if="bl.last_refresh_status === 'error'" class="chip chip-danger">error</span>
+          <span class="ml-auto text-xs text-fg-subtle">
+            last refresh {{ bl.last_refresh_at ? formatRelative(bl.last_refresh_at) : 'never' }}
+          </span>
+        </li>
+      </ul>
+    </div>
+
     <!-- M3.5 DoH alert — surfaces clients with N+ DoH probes in the last hour -->
     <div v-if="dohAlert.length > 0" class="card p-4 border-l-4 border-warning space-y-2">
       <div class="flex items-center gap-2">
@@ -119,10 +143,10 @@ import StatTile from '@/components/StatTile.vue'
 import Breakdown from '@/components/Breakdown.vue'
 import {
   clusterHealth, clusterStats, clusterStatus,
-  getClientDohStatus, getClusterQueryLog, listAnomalies,
+  getClientDohStatus, getClusterQueryLog, listAnomalies, listBlocklists,
 } from '@/api/endpoints'
 import type {
-  Anomaly, AnomalyKind, ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry,
+  Anomaly, AnomalyKind, Blocklist, ClusterHealth, ClusterStats, ClusterStatus, QueryLogEntry,
 } from '@/api/types'
 
 const health = ref<ClusterHealth | null>(null)
@@ -155,6 +179,39 @@ async function refreshSpoofAlert() {
   } catch {
     spoofAlert.value = []
   }
+}
+
+// M5.4 — surface auto-refresh blocklists that have gone stale
+// (no successful refresh in > 2× their configured interval).
+const staleBlocklists = ref<Blocklist[]>([])
+async function refreshStaleBlocklists() {
+  try {
+    const all = await listBlocklists()
+    const now = Date.now()
+    staleBlocklists.value = all.filter((bl) => {
+      if (bl.source.type !== 'url') return false
+      if (!bl.refresh_interval_seconds) return false
+      const intervalMs = bl.refresh_interval_seconds * 1000
+      if (!bl.last_refresh_at) return true // never refreshed and auto-refresh enabled
+      const last = new Date(bl.last_refresh_at).getTime()
+      return now - last > 2 * intervalMs
+    }).slice(0, 5)
+  } catch {
+    staleBlocklists.value = []
+  }
+}
+
+function formatRelative(iso?: string): string {
+  if (!iso) return 'never'
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return iso
+  const diffSec = Math.round((Date.now() - then) / 1000)
+  if (diffSec < 60) return `${diffSec}s ago`
+  const mins = Math.round(diffSec / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
 }
 
 async function refreshDohAlert() {
@@ -193,15 +250,18 @@ async function refresh() {
 let timer: number | undefined
 let dohTimer: number | undefined
 let spoofTimer: number | undefined
+let staleTimer: number | undefined
 onMounted(async () => {
-  await Promise.all([refresh(), refreshDohAlert(), refreshSpoofAlert()])
+  await Promise.all([refresh(), refreshDohAlert(), refreshSpoofAlert(), refreshStaleBlocklists()])
   timer = window.setInterval(refresh, 10_000)
   dohTimer = window.setInterval(refreshDohAlert, 60_000)
   spoofTimer = window.setInterval(refreshSpoofAlert, 30_000)
+  staleTimer = window.setInterval(refreshStaleBlocklists, 60_000)
 })
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   if (dohTimer) window.clearInterval(dohTimer)
   if (spoofTimer) window.clearInterval(spoofTimer)
+  if (staleTimer) window.clearInterval(staleTimer)
 })
 </script>

@@ -60,6 +60,19 @@ type ClusterSnapshot struct {
 // registered — operators without DHCP integration see no ghost zeros.
 type DhcpStatusFunc func() *DhcpSnapshot
 
+// BlocklistStatusFunc returns one BlocklistSnapshot per blocklist
+// known to the cluster, for M5.4 refresh metrics. When nil, the
+// per-blocklist series are NOT registered.
+type BlocklistStatusFunc func() []BlocklistSnapshot
+
+// BlocklistSnapshot is the subset of blocklist refresh state the
+// exporter needs to label per-id metrics.
+type BlocklistSnapshot struct {
+	ID            string
+	LastRefreshAt time.Time // zero ⇒ never refreshed
+	Failures      uint64
+}
+
 // DhcpSnapshot is the subset of DHCP state the exporter needs.
 type DhcpSnapshot struct {
 	Source            string
@@ -92,10 +105,11 @@ type Metrics struct {
 // Options bundles every dependency needed at construction.
 type Options struct {
 	Build       BuildInfo
-	CacheStats  CacheStatsFunc    // required; return Enabled=false when caching is off
-	Cluster     ClusterStatusFunc // required
-	Dhcp        DhcpStatusFunc    // optional: nil disables every dhcp_* series
-	RequireAuth func() bool       // required; returns the live value of node.api.metrics.require_auth
+	CacheStats  CacheStatsFunc      // required; return Enabled=false when caching is off
+	Cluster     ClusterStatusFunc   // required
+	Dhcp        DhcpStatusFunc      // optional: nil disables every dhcp_* series
+	Blocklists  BlocklistStatusFunc // optional: nil disables every blocklist_* series
+	RequireAuth func() bool         // required; returns the live value of node.api.metrics.require_auth
 	AuthOK      func(r *http.Request) bool
 }
 
@@ -143,6 +157,11 @@ func New(opts Options) *Metrics {
 	// DHCP — only registered when the integration is on.
 	if opts.Dhcp != nil {
 		reg.MustRegister(&dhcpCollector{stats: opts.Dhcp})
+	}
+
+	// M5.4 — per-blocklist refresh health.
+	if opts.Blocklists != nil {
+		reg.MustRegister(&blocklistCollector{stats: opts.Blocklists})
 	}
 
 	return &Metrics{
@@ -293,4 +312,27 @@ func (c *dhcpCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(descDhcpAnomalies, prometheus.GaugeValue, float64(s.AnomaliesOpen))
 	ch <- prometheus.MustNewConstMetric(descDhcpLastPollAge, prometheus.GaugeValue, s.LastPollAgeSecs, src)
 	ch <- prometheus.MustNewConstMetric(descDhcpPollErrors, prometheus.CounterValue, float64(s.PollErrorsTotal), src)
+}
+
+var (
+	descBlocklistLastRefresh = prometheus.NewDesc("dblock_blocklist_last_refresh_seconds", "Unix timestamp of the last successful or failed refresh attempt, per blocklist id.", []string{"id"}, nil)
+	descBlocklistFailures    = prometheus.NewDesc("dblock_blocklist_refresh_failures_total", "Cumulative refresh failures since process start, per blocklist id.", []string{"id"}, nil)
+)
+
+type blocklistCollector struct{ stats BlocklistStatusFunc }
+
+func (b *blocklistCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- descBlocklistLastRefresh
+	ch <- descBlocklistFailures
+}
+
+func (b *blocklistCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, bl := range b.stats() {
+		var ts float64
+		if !bl.LastRefreshAt.IsZero() {
+			ts = float64(bl.LastRefreshAt.Unix())
+		}
+		ch <- prometheus.MustNewConstMetric(descBlocklistLastRefresh, prometheus.GaugeValue, ts, bl.ID)
+		ch <- prometheus.MustNewConstMetric(descBlocklistFailures, prometheus.CounterValue, float64(bl.Failures), bl.ID)
+	}
 }
