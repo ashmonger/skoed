@@ -1,7 +1,7 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Anomaly, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
+  Anomaly, AuditPage, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
   JoinTokenResponse, Lease, LocalDNSEntry, Profile, QueryLogPage, Schedule,
   ScheduleBinding, Settings,
@@ -263,4 +263,24 @@ export function getDNSCacheStats(): Promise<DNSCacheStats> {
 export function purgeDNSCache(domain?: string): Promise<{ purged: number }> {
   const q = domain ? `?domain=${encodeURIComponent(domain)}` : ''
   return postJSON('/api/v1/dns/cache/purge' + q)
+}
+
+// ─── M5.2 — audit log ───────────────────────────────────────────────────
+
+export interface AuditQuery {
+  actor?: string
+  action?: string
+  result?: 'ok' | 'error' | ''
+  limit?: number
+  offset?: number
+}
+
+export function listAudit(q: AuditQuery = {}): Promise<AuditPage> {
+  const params: Record<string, string | number> = {}
+  if (q.actor) params.actor = q.actor
+  if (q.action) params.action = q.action
+  if (q.result) params.result = q.result
+  if (q.limit) params.limit = q.limit
+  if (q.offset) params.offset = q.offset
+  return getJSON('/api/v1/audit', params)
 }

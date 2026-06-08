@@ -29,7 +29,15 @@ var (
 	bucketSchedules         = []byte("config_schedules")
 	bucketScheduleBindings  = []byte("config_schedule_bindings")
 	bucketCategoryOverrides = []byte("config_category_overrides")
+	// M5.2: replicated audit log. Keys are big-endian 8-byte sequence numbers
+	// (monotonic, never recycled); values are JSON-encoded AuditEntry rows.
+	bucketAudit = []byte("audit")
 )
+
+// AuditRetention is the cutoff for the lazy trim that runs on every
+// CmdAuditAppend. Rows older than this at apply time are deleted in the
+// same Raft commit so the bucket never accumulates indefinitely.
+const AuditRetention = 90 * 24 * time.Hour
 
 const schemaVersion uint32 = 1
 
@@ -64,6 +72,7 @@ func (s *Store) init() error {
 			bucketSettings, bucketAuth, bucketStats,
 			bucketProfiles, bucketSchedules, bucketScheduleBindings,
 			bucketCategoryOverrides,
+			bucketAudit,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -390,8 +399,109 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return importM1Config(tx, p.Snapshot)
+
+	case CmdAuditAppend:
+		var p AuditAppendPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyAuditAppend(tx, p)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
+}
+
+// applyAuditAppend writes one audit row keyed by the next monotonic
+// sequence, then trims rows older than AuditRetention in the same
+// transaction. The bucket's `_seq` meta key holds the next sequence.
+func applyAuditAppend(tx *bolt.Tx, p AuditAppendPayload) error {
+	b := tx.Bucket(bucketAudit)
+	if b == nil {
+		var err error
+		b, err = tx.CreateBucket(bucketAudit)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Allocate sequence.
+	var seq uint64
+	if v := b.Get([]byte("_seq")); v != nil && len(v) == 8 {
+		seq = binary.BigEndian.Uint64(v)
+	}
+	seq++
+
+	row := AuditRow{
+		ID:        p.ID,
+		Seq:       seq,
+		TimeUnix:  p.TimeUnix,
+		Actor:     p.Actor,
+		Action:    p.Action,
+		Target:    p.Target,
+		Result:    p.Result,
+		Error:     p.Error,
+		Diff:      p.Diff,
+		NodeID:    p.NodeID,
+		RequestID: p.RequestID,
+	}
+	v, err := json.Marshal(row)
+	if err != nil {
+		return err
+	}
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(key, seq)
+	if err := b.Put(key, v); err != nil {
+		return err
+	}
+	seqBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(seqBuf, seq)
+	if err := b.Put([]byte("_seq"), seqBuf); err != nil {
+		return err
+	}
+
+	// Lazy retention sweep — rows with TimeUnix older than cutoff are
+	// dropped in the same Raft commit. No background goroutine.
+	cutoff := p.TimeUnix - int64(AuditRetention.Seconds())
+	if cutoff <= 0 {
+		return nil
+	}
+	c := b.Cursor()
+	var toDelete [][]byte
+	for k, val := c.First(); k != nil; k, val = c.Next() {
+		if len(k) != 8 {
+			continue // skip meta keys like "_seq"
+		}
+		var r AuditRow
+		if err := json.Unmarshal(val, &r); err != nil {
+			continue
+		}
+		if r.TimeUnix >= cutoff {
+			break // newer than cutoff; remaining keys are also newer
+		}
+		toDelete = append(toDelete, append([]byte(nil), k...))
+	}
+	for _, k := range toDelete {
+		if err := b.Delete(k); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AuditRow is the persisted form of one audit log entry. The `Seq`
+// field is assigned at apply time so every replica records the same
+// sequence for the same Raft log entry.
+type AuditRow struct {
+	ID        string `json:"id"`
+	Seq       uint64 `json:"seq"`
+	TimeUnix  int64  `json:"time_unix"`
+	Actor     string `json:"actor"`
+	Action    string `json:"action"`
+	Target    string `json:"target,omitempty"`
+	Result    string `json:"result"`
+	Error     string `json:"error,omitempty"`
+	Diff      string `json:"diff,omitempty"`
+	NodeID    string `json:"node_id,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 func applySettingsPatch(tx *bolt.Tx, p SettingsPatchPayload) error {
@@ -741,6 +851,67 @@ func bindingKey(scheduleID, profileID, blocklistID string) []byte {
 
 // AggregatesIter calls fn for every hourly aggregate currently stored. The
 // callback receives a copy that the caller owns.
+// AuditQuery filters a page of audit rows. Zero/empty filters are treated as
+// "match all". Limit ≤ 0 falls back to 50; values over 500 are clamped.
+type AuditQuery struct {
+	Actor        string // exact match
+	ActionPrefix string // prefix match on action
+	Result       string // "ok" | "error" | "" = any
+	Limit        int
+	Offset       int
+}
+
+// AuditList returns rows newest-first, plus the total count of rows
+// matching the filter (before limit/offset are applied).
+func (s *Store) AuditList(q AuditQuery) (rows []AuditRow, total int, err error) {
+	if q.Limit <= 0 {
+		q.Limit = 50
+	}
+	if q.Limit > 500 {
+		q.Limit = 500
+	}
+	if q.Offset < 0 {
+		q.Offset = 0
+	}
+
+	err = s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketAudit)
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		// Walk newest-first: reverse cursor over the sequence keys.
+		for k, v := c.Last(); k != nil; k, v = c.Prev() {
+			if len(k) != 8 {
+				continue // skip meta keys
+			}
+			var r AuditRow
+			if err := json.Unmarshal(v, &r); err != nil {
+				continue
+			}
+			if q.Actor != "" && r.Actor != q.Actor {
+				continue
+			}
+			if q.ActionPrefix != "" && !strings.HasPrefix(r.Action, q.ActionPrefix) {
+				continue
+			}
+			if q.Result != "" && r.Result != q.Result {
+				continue
+			}
+			total++
+			if total <= q.Offset {
+				continue
+			}
+			if len(rows) >= q.Limit {
+				continue
+			}
+			rows = append(rows, r)
+		}
+		return nil
+	})
+	return rows, total, err
+}
+
 func (s *Store) AggregatesIter(fn func(HourAggregate) error) error {
 	return s.db.View(func(tx *bolt.Tx) error {
 		return tx.Bucket(bucketStats).ForEachBucket(func(nodeID []byte) error {

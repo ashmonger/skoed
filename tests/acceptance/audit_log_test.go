@@ -110,32 +110,19 @@ func TestAuditWriteRecorded(t *testing.T) {
 	}
 }
 
-// FS-AuditFailedWriteRecorded
+// FS-AuditFailedWriteRecorded — provoke a 4xx by sending an invalid
+// blocklist body (missing name / source). Blocklist POST upserts on
+// duplicate id, so we can't use that to trigger an error.
 func TestAuditFailedWriteRecorded(t *testing.T) {
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
-
-	// Seed an existing blocklist.
-	seed := mustJSON(t, map[string]any{
-		"id":     "house-block-dup",
-		"name":   "Audit-test seed",
-		"source": map[string]string{"type": "manual"},
-	})
-	r := n.apiDo(t, "POST", "/api/v1/blocklists", seed)
-	r.Body.Close()
-	_ = waitForAudit(t, n, 1, 3*time.Second)
-
-	// Now provoke a collision (duplicate id).
 	before := fetchAudit(t, n, "limit=1").Total
-	dup := mustJSON(t, map[string]any{
-		"id":     "house-block-dup",
-		"name":   "duplicate",
-		"source": map[string]string{"type": "manual"},
-	})
-	resp := n.apiDo(t, "POST", "/api/v1/blocklists", dup)
+
+	// Garbled JSON → handler responds 400.
+	resp := n.apiDo(t, "POST", "/api/v1/blocklists", "this is not json")
 	resp.Body.Close()
 	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
-		t.Fatalf("duplicate create: want 4xx, got %d", resp.StatusCode)
+		t.Fatalf("invalid body: want 4xx, got %d", resp.StatusCode)
 	}
 
 	got := waitForAudit(t, n, before+1, 3*time.Second)
@@ -289,20 +276,31 @@ func TestAuditRequiresAuth(t *testing.T) {
 	}
 }
 
-// FS-AuditMetricsCounter
+// FS-AuditMetricsCounter — warm the counter with one mutation, then
+// confirm a second mutation bumps it by 1. CounterVecs are absent
+// until first observation, so the warm-up POST guarantees the series
+// exists before we sample the baseline.
 func TestAuditMetricsCounter(t *testing.T) {
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
-	// Snapshot baseline.
-	body0, _ := http.Get(n.APIBase + "/metrics")
-	if body0 == nil || body0.StatusCode != 200 {
+	warm := mustJSON(t, map[string]any{
+		"id":     "metrics-counter-warm",
+		"name":   "metrics-counter-warm",
+		"source": map[string]string{"type": "manual"},
+	})
+	r := n.apiDo(t, "POST", "/api/v1/blocklists", warm)
+	r.Body.Close()
+	_ = waitForAudit(t, n, 1, 3*time.Second)
+
+	resp, _ := http.Get(n.APIBase + "/metrics")
+	if resp == nil || resp.StatusCode != 200 {
 		t.Skipf("M5.1 /metrics unavailable")
 	}
-	b0, _ := io.ReadAll(body0.Body)
-	body0.Body.Close()
+	b0, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if !strings.Contains(string(b0), "dblock_audit_events_total") {
-		t.Skipf("M5.2 impl pending: dblock_audit_events_total absent from /metrics")
+		t.Fatalf("dblock_audit_events_total absent after first audit append")
 	}
 	base := sumActionCounter(string(b0), "blocklist.create")
 
@@ -311,10 +309,9 @@ func TestAuditMetricsCounter(t *testing.T) {
 		"name":   "metrics-counter",
 		"source": map[string]string{"type": "manual"},
 	})
-	r := n.apiDo(t, "POST", "/api/v1/blocklists", body)
-	r.Body.Close()
+	r2 := n.apiDo(t, "POST", "/api/v1/blocklists", body)
+	r2.Body.Close()
 
-	// Counter should bump by 1.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		resp, _ := http.Get(n.APIBase + "/metrics")

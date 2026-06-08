@@ -259,6 +259,17 @@ func (c *Cluster) ImportFromM1(snapshot config.Config) error {
 	return c.applyAsLeader(CmdConfigImport, ConfigImportPayload{Snapshot: snapshot}, 10*time.Second)
 }
 
+// AppendAuditEntry commits one audit row through Raft. NodeID is filled
+// in here so every replicated entry carries the leader's id at apply
+// time. Called only on the leader; the API audit middleware uses
+// LeaderForward to ensure that.
+func (c *Cluster) AppendAuditEntry(p AuditAppendPayload) error {
+	if p.NodeID == "" {
+		p.NodeID = c.node.Node.ID
+	}
+	return c.applyAsLeader(CmdAuditAppend, p, 0)
+}
+
 // CommitHourlyAggregate writes a hourly aggregate to the replicated stats
 // bucket. Called by the aggregator goroutine on every node — each node owns
 // its own per-hour key under stats/{node_id}/{hour_unix}.

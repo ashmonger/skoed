@@ -261,6 +261,12 @@ func (a *App) Router() http.Handler {
 
 	r.Group(func(r chi.Router) {
 		r.Use(a.BasicAuth)
+		// M5.2 — audit every authenticated mutating call. Read verbs
+		// (GET/HEAD/OPTIONS) are skipped inside the middleware itself.
+		r.Use(a.auditMiddleware)
+
+		// M5.2 — audit log read
+		r.Get("/api/v1/audit", h.AuditList)
 
 		// Auth
 		r.Put("/api/v1/auth/password", a.forward(h.AuthChangePassword))
