@@ -285,3 +285,22 @@ export function listAudit(q: AuditQuery = {}): Promise<AuditPage> {
   if (q.offset) params.offset = q.offset
   return getJSON('/api/v1/audit', params)
 }
+
+// ─── M5.6 — in-place upgrade ────────────────────────────────────────────
+
+export interface UpgradeCheck {
+  current_version: string
+  available_version: string
+  upgrade_available: boolean
+  release_notes_url: string
+  published_at: string
+  checked_at: string
+}
+
+export function checkUpgrade(): Promise<UpgradeCheck> {
+  return getJSON('/api/v1/upgrade/check')
+}
+
+export function startUpgrade(): Promise<unknown> {
+  return postJSON('/api/v1/upgrade/start')
+}

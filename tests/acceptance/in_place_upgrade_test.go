@@ -101,10 +101,12 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 	}
 }
 
-// FS-UpgradeStartRequiresLeader
+// FS-UpgradeStartRequiresLeader — needs a feed URL so upgrade_available
+// is true; otherwise /start returns 409 before forwarding can be
+// observed.
 func TestUpgradeStartForwardedToLeader(t *testing.T) {
-	c := startCluster(t, 3)
-	// Pick a node that is NOT the leader.
+	feed := startFeedServer(t, "99.0.0")
+	c := startClusterWithEnv(t, 3, []string{"DBLOCK_UPGRADE_FEED_URL=" + feed.URL})
 	leader := c.Leader(t)
 	var follower *ClusterNode
 	for _, n := range c.nodes {
@@ -116,34 +118,37 @@ func TestUpgradeStartForwardedToLeader(t *testing.T) {
 	if follower == nil {
 		t.Skip("3-node cluster has no follower (??)")
 	}
+	// Give the checker time to populate.
+	waitUpgradeAvailable(t, follower.Node, 5*time.Second)
+
 	resp := follower.Node.apiDo(t, "POST", "/api/v1/upgrade/start", "")
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		t.Skip("M5.6 impl pending: /upgrade/start 404")
 	}
-	// Forwarded write returns 307 with the leader's location, or the
-	// existing LeaderRedirect 503 with body. Accept either.
-	if resp.StatusCode == 307 || resp.StatusCode == 308 {
+	switch resp.StatusCode {
+	case 307, 308:
+		// LeaderForward returned a redirect — that's the contract.
 		return
-	}
-	if resp.StatusCode == 503 {
+	case 200, 202:
+		// LeaderForward proxied transparently. Request reached leader. OK.
+		return
+	case 503:
 		body, _ := io.ReadAll(resp.Body)
 		if strings.Contains(string(body), "leader_address") {
 			return
 		}
-	}
-	if resp.StatusCode == 202 || resp.StatusCode == 200 {
-		// LeaderForward middleware proxied transparently — request reached
-		// the leader and was accepted. Also valid.
-		return
 	}
 	t.Errorf("/upgrade/start on follower: unexpected status %d", resp.StatusCode)
 }
 
 // FS-UpgradeStartRecordedInAudit
 func TestUpgradeStartRecordedInAudit(t *testing.T) {
-	c := startCluster(t, 1)
+	feed := startFeedServer(t, "99.0.0")
+	c := startClusterWithEnv(t, 1, []string{"DBLOCK_UPGRADE_FEED_URL=" + feed.URL})
 	n := c.Leader(t).Node
+	waitUpgradeAvailable(t, n, 5*time.Second)
+
 	beforePage := fetchAudit(t, n, "limit=1")
 	resp := n.apiDo(t, "POST", "/api/v1/upgrade/start", "")
 	resp.Body.Close()
@@ -157,4 +162,22 @@ func TestUpgradeStartRecordedInAudit(t *testing.T) {
 	if got.Entries[0].Action != "upgrade.start" {
 		t.Errorf("action: want upgrade.start, got %q", got.Entries[0].Action)
 	}
+}
+
+// waitUpgradeAvailable polls /upgrade/check until the cluster sees the
+// feed and reports upgrade_available=true, or fails the test.
+func waitUpgradeAvailable(t *testing.T, n *Node, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		resp := n.apiDo(t, "GET", "/api/v1/upgrade/check", "")
+		var ck upgradeCheckResp
+		_ = json.NewDecoder(resp.Body).Decode(&ck)
+		resp.Body.Close()
+		if ck.UpgradeAvailable {
+			return
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	t.Fatalf("upgrade_available never went true within %s", within)
 }

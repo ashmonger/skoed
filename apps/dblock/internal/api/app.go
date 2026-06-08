@@ -17,6 +17,7 @@ import (
 	"github.com/dblock/dblock/internal/filter"
 	dlog "github.com/dblock/dblock/internal/log"
 	"github.com/dblock/dblock/internal/metrics"
+	"github.com/dblock/dblock/internal/upgrade"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -32,6 +33,8 @@ type App struct {
 	dhcpMgr   *dhcp.Manager     // optional; nil when DHCP integration is disabled
 	dnsCache  *dnsengine.Cache  // M4.7 — long-lived; survives Raft applies
 	metrics   *metrics.Metrics  // M5.1 — Prometheus exporter; nil disables /metrics
+
+	upgradeChecker *upgrade.Checker // M5.6 — release-feed cache; nil disables /upgrade/*
 
 	// metricsRequireAuth is node-local config (node.api.metrics.require_auth).
 	// Cached at construction; today operators restart the process to flip it,
@@ -74,6 +77,20 @@ func (a *App) SetMetrics(m *metrics.Metrics) { a.metrics = m }
 
 // GetMetrics returns the Prometheus exporter, or nil if not wired.
 func (a *App) GetMetrics() *metrics.Metrics { return a.metrics }
+
+// SetUpgradeChecker wires the M5.6 release-feed checker. Nil disables
+// the /api/v1/upgrade/* endpoints' useful behaviour (they still
+// respond, but with empty data).
+func (a *App) SetUpgradeChecker(c *upgrade.Checker) { a.upgradeChecker = c }
+
+// GetUpgradeChecker returns the upgrade-feed checker as the handlers
+// interface. nil-safe: handlers handle the absent-checker case.
+func (a *App) GetUpgradeChecker() handlers.UpgradeChecker {
+	if a.upgradeChecker == nil {
+		return nil
+	}
+	return a.upgradeChecker
+}
 
 // SetMetricsRequireAuth flips /metrics from open (default) to
 // Basic-auth gated. Called by main.go from the node-local
@@ -336,6 +353,10 @@ func (a *App) Router() http.Handler {
 		// M4.7 — DNS cache controls (local node only; never forwarded)
 		r.Get("/api/v1/dns/cache/stats", h.GetDNSCacheStats)
 		r.Post("/api/v1/dns/cache/purge", h.PurgeDNSCache)
+
+		// M5.6 — in-place upgrade: check is local; start forwards to leader.
+		r.Get("/api/v1/upgrade/check", h.UpgradeCheck)
+		r.Post("/api/v1/upgrade/start", a.forward(h.UpgradeStart))
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.
