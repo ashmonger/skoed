@@ -48,6 +48,28 @@ None.
   the export endpoint, which closes most of the bootstrapping pain
   this category was supposed to address. — added 2026-06-05.
 
+- **Temporary "filtering pause" / break-glass mode** — M3.x or M6.x
+  candidate. — added 2026-06-08.
+  - Scope: cluster-wide, per-profile, or per-group.
+  - Duration: 1m / 5m / 30m / 1h / custom, with a hard ceiling (e.g. 24h).
+  - During the window: all DNS queries forwarded as if no blocklist
+    / no profile rules matched. Local DNS entries + DNSSEC posture
+    unchanged.
+  - Surfaced on the Dashboard with a countdown chip + "Resume
+    filtering" button; auto-resumes when the timer expires.
+  - Replicated through Raft so every node honours the same window
+    (no split-brain where one node still blocks).
+  - Audited (M5.2): action = `filter.pause`, target = `cluster` |
+    `profile:<id>`, diff carries the duration + reason text.
+  - CLI: `dblock filter pause [--profile <id>] [--duration 30m]` +
+    `dblock filter resume`.
+  - Prometheus: `dblock_filter_pause_active{scope="…"} 1` + a
+    seconds-remaining gauge.
+  - Non-goal: scheduled recurring pauses (that's already M3 schedules).
+  - Implementation cost is mostly UI + a few lines in the filter
+    engine to short-circuit when pause.active; the Raft + audit +
+    metrics hooks are reuse.
+
 ### Packaging + deployment
 
 - **Proxmox deploy script for LXC containers.** Single-command bootstrap
