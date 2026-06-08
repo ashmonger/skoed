@@ -11,6 +11,7 @@
 
 # First run
 
+- [Getting started](first-run/getting-started.md)
 - [Set the admin password](first-run/auth-setup.md)
 - [Add your first blocklist](first-run/first-blocklist.md)
 
