@@ -274,6 +274,31 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
+### Milestone 5.3 — Encrypted Cluster Mesh
+
+**Outcome**: All inter-node traffic is encrypted and mutually authenticated. Operators stop needing to run dblock inside a private overlay network to keep replicated state (blocklists, profiles, password hashes, query-log aggregates) off the wire.
+
+**Today's gap** (`internal/cluster/raft.go:76`, `cluster.go:321`):
+- Raft uses `raft.NewTCPTransport` — plain TCP for AppendEntries, voting, snapshots
+- Follower → leader API forwarding uses plain HTTP, authenticated by a shared `X-Cluster-Secret` header
+- Join flow uses plain HTTP with a single-use token
+
+**Capabilities:**
+- **mTLS for Raft** via hashicorp/raft's `StreamLayer` interface — replace the TCP transport with a TLS-wrapped one. Each node holds a cluster CA + per-node leaf cert; the CA is generated at bootstrap and replicated through the join flow (chicken-and-egg solved: bootstrap token carries the CA fingerprint)
+- **HTTPS for cluster-internal API** — the M4.6 management-API HTTPS work also covers `/_internal/aggregates` and the forwarder. Configurable to either (a) reuse the M4 ACME cert, (b) use the cluster-CA-issued cert, or (c) accept self-signed peers via fingerprint pinning
+- **Cluster-CA rotation** — operator can rotate the CA on a rolling restart; old CA stays valid for an overlap window
+- **Auto-pinning on join** — joining nodes record the leader's cert fingerprint at enrolment time and refuse to talk to peers that don't match
+- **Verify or pin, never trust-on-first-use silently** — joining without a fingerprint OR a known-good CA fails loudly
+
+**Non-goals:**
+- Per-tenant key segmentation (single CA per cluster)
+- HSM / TPM integration
+- Per-message AEAD on top of TLS (TLS is already AEAD)
+
+**Dependencies:** M2 Raft, M4 ACME (reused tooling), M5 hardening track (rolling-restart story).
+
+---
+
 ### Milestone 5.5 — Native Packaging
 
 **Outcome**: dblock installs on Debian/Ubuntu/Raspberry Pi OS via `apt`, and on Proxmox via a one-shot LXC bootstrap script. The single-binary release stays available, but most operators move to the OS-managed install path.
@@ -332,19 +357,26 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ### Milestone 7 — API Token Authentication
 
-**Outcome**: Operators authenticate to the management API with revocable, scoped tokens. HTTP Basic Auth stays available as a migration path but is no longer the recommended default.
+**Outcome**: Non-interactive callers (CLI scripts, CI jobs, Home Assistant, monitoring agents, the Kubernetes operator, etc.) authenticate to the management API with revocable, scoped tokens. The Web UI keeps using username + password so humans don't need to manage tokens to log in.
+
+**Two-mode auth:**
+- **Web UI / browser sessions** → username + password (unchanged from M1). The login flow stays the same; admins set a password during first-run setup.
+- **Programmatic API access** → bearer tokens. `curl`, scripts, the operator, and any other non-browser caller MUST use a token (Basic Auth via `-u admin:pass` stays accepted as a deprecated transition path for two minor releases, then removed).
 
 **Capabilities:**
-- Token store in bbolt (replicated): `(id, scopes, created_at, last_used, expires_at)`
-- New endpoints: `POST /api/v1/tokens`, `GET /api/v1/tokens`, `DELETE /api/v1/tokens/{id}`
-- `Authorization: Bearer …` honored alongside `Authorization: Basic …`
-- Per-token audit-log entries (pairs with M5 audit log)
-- Web UI: token management page under Account
-- Migration guide: how to flip a deployment from Basic Auth to tokens
+- Token store in bbolt (replicated): `(id, hash, label, scopes, created_at, last_used, expires_at)`
+- New endpoints: `POST /api/v1/tokens` (mint), `GET /api/v1/tokens` (list, no hash), `DELETE /api/v1/tokens/{id}` (revoke), `PATCH /api/v1/tokens/{id}` (relabel, change expiry)
+- `Authorization: Bearer …` honored on every authenticated route
+- Scopes: `read`, `write`, `cluster:admin` (mints tokens, transfers leadership). Default scope = `read+write` for ease of migration
+- Per-token audit-log entries (pairs with M5 audit log) — every API call records `actor=token:<id>` or `actor=user:<username>`
+- Web UI: token-management page under Account → "API Access". Token value shown ONCE on creation; afterwards only the label, scopes, last-used time, and revoke button
+- Migration guide: how to flip CLI / Ansible / Home Assistant integrations from Basic Auth to Bearer
 
 **Non-goals:**
 - OAuth2 / OIDC integration (overkill for self-hosted)
 - LDAP / SAML federation
+- Token-for-Web-UI-login (sessions keep using password — tokens are for scripts)
+- Per-IP / per-CIDR token binding (defer)
 
 **Dependencies:** M5 audit log.
 
