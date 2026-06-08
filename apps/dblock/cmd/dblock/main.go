@@ -148,12 +148,20 @@ func main() {
 
 	var app *api.App
 	var dnsServer *dnsengine.Server
-	var dhcpMgr *dhcp.Manager // populated below; closure captures by name
+	var encryptedSrv *dnsengine.EncryptedServer // populated below; closure captures by name
+	var dhcpMgr *dhcp.Manager                   // populated below; closure captures by name
 
 	rebuildDNS := func(newCfg *config.Config) error {
 		newCfg.Defaults()
 		mergeNodeLocal(newCfg, node)
 		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr)
+		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
+		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
+		// changes via the API only take effect on UDP, and DoH keeps serving
+		// the boot-time handler until the process restarts.
+		if encryptedSrv != nil {
+			encryptedSrv.UpdateHandler(newHandler)
+		}
 		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
 			dnsServer.UpdateHandler(newHandler)
 			return nil
@@ -239,7 +247,6 @@ func main() {
 	// Either port at 0 disables that transport; both at 0 skips the
 	// EncryptedServer entirely so non-M4 deployments behave exactly like
 	// they did before.
-	var encryptedSrv *dnsengine.EncryptedServer
 	var acmeMgr *dnsengine.AcmeManager
 	if snap.DNS.Listen.DoHPort > 0 || snap.DNS.Listen.DoTPort > 0 {
 		// Always materialise the self-signed cert: it's the ACME fallback

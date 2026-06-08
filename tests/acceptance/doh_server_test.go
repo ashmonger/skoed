@@ -20,10 +20,17 @@ package acceptance
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -318,3 +325,196 @@ func hasOutcome(entries []queryLogEntry, domain, outcome string) bool {
 // avoid unused-import errors when only some tests reference the helpers.
 var _ = net.JoinHostPort
 var _ = fmt.Sprintf
+
+// ─── M4 finish: three FSIDs that close out the milestone ─────────────────
+
+// startClusterEncryptedWithCert is like startClusterEncrypted but writes
+// node.dns.tls.cert_file / key_file so dblock uses the operator-supplied
+// PEMs instead of generating a self-signed cert.
+func startClusterEncryptedWithCert(t *testing.T, certFile, keyFile string) *Cluster {
+	t.Helper()
+	bin := dblockBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("dblock binary not found at %s (set DBLOCK_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
+	cfg := M2NodeConfig{
+		NodeID:      "node-1",
+		DNSPort:     freeUDPPort(t),
+		APIPort:     freeTCPPort(t),
+		RaftPort:    freeTCPPort(t),
+		DoHPort:     freeTCPPort(t),
+		DoTPort:     freeTCPPort(t),
+		TLSCertFile: certFile,
+		TLSKeyFile:  keyFile,
+	}
+	cn := c.spawnNode(t, cfg)
+	c.nodes = append(c.nodes, cn)
+	waitReady(t, cn.Node)
+	setupAuth(t, c.nodes[0].Node)
+	return c
+}
+
+// writeTLSFixture generates a fresh ECDSA self-signed cert with the
+// given Common Name + DNS SAN, writes cert.pem + key.pem under a temp
+// directory, and returns their paths. Used to verify FS-DohConfiguredCert
+// by asserting the served cert's CN matches what the test wrote.
+func writeTLSFixture(t *testing.T, commonName string) (certPath, keyPath string) {
+	t.Helper()
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 64))
+	tpl := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: commonName, Organization: []string{"dblock-test-fixture"}},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		DNSNames:              []string{commonName, "localhost"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatalf("create cert: %v", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		t.Fatalf("marshal key: %v", err)
+	}
+	dir := t.TempDir()
+	certPath = filepath.Join(dir, "cert.pem")
+	keyPath = filepath.Join(dir, "key.pem")
+	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+	return certPath, keyPath
+}
+
+// FS-DohConfiguredCert
+//
+// Operator supplies cert_file + key_file via node.dns.tls; dblock uses
+// those PEMs verbatim on the DoH listener instead of generating a
+// self-signed cert. We assert by checking the served cert's CN matches
+// the unique value baked into the fixture (so the auto-generated cert
+// path would fail this).
+func TestDohConfiguredCert(t *testing.T) {
+	const wantCN = "doh-configured-cert.dblock.test"
+	certFile, keyFile := writeTLSFixture(t, wantCN)
+
+	c := startClusterEncryptedWithCert(t, certFile, keyFile)
+	n := c.Leader(t).Node
+	requireDoHEnabled(t, n)
+
+	conn, err := tls.Dial("tcp", n.DoHAddr, &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec — test code
+		ServerName:         wantCN,
+	})
+	if err != nil {
+		t.Fatalf("TLS dial: %v", err)
+	}
+	defer conn.Close()
+	state := conn.ConnectionState()
+	if len(state.PeerCertificates) == 0 {
+		t.Fatalf("no peer cert")
+	}
+	leaf := state.PeerCertificates[0]
+	if leaf.Subject.CommonName != wantCN {
+		t.Errorf("served cert CN = %q, want %q (the auto-generated self-signed cert leaked through)",
+			leaf.Subject.CommonName, wantCN)
+	}
+}
+
+// FS-DohServesLocalDNS
+//
+// A local DNS A record served over DoH. Asserts the answer matches the
+// configured IP AND the query-log outcome carries the "local-doh" tag.
+func TestDohServesLocalDNS(t *testing.T) {
+	c := startClusterEncrypted(t, 1)
+	n := c.Leader(t).Node
+	addr := requireDoHEnabled(t, n)
+
+	// Author a local DNS A record via the management API.
+	body := mustJSON(t, map[string]any{
+		"hostname": "doh-local.lab",
+		"type":     "A",
+		"value":    "10.42.0.5",
+		"ttl":      3600,
+	})
+	createResp := n.apiDo(t, "POST", "/api/v1/local-dns", body)
+	if createResp.StatusCode != http.StatusCreated && createResp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /api/v1/local-dns: status %d body %s", createResp.StatusCode, readBody(t, createResp))
+	}
+	createResp.Body.Close()
+
+	// Poll plain UDP DNS until the local entry resolves — confirms the
+	// Subscribe callback has rebuilt the handler before we query DoH.
+	deadline := time.Now().Add(5 * time.Second)
+	udpResolved := false
+	var lastUDP *dns.Msg
+	for time.Now().Before(deadline) {
+		r := dnsQueryAsClient(t, n.DNSAddr, "doh-local.lab", dns.TypeA, "127.0.0.1")
+		lastUDP = r
+		if r.Rcode == dns.RcodeSuccess && len(r.Answer) > 0 {
+			udpResolved = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !udpResolved {
+		t.Fatalf("plain UDP DNS never resolved local entry: lastRcode=%s answer=%+v",
+			dns.RcodeToString[lastUDP.Rcode], lastUDP.Answer)
+	}
+
+	resp := dohQuery(t, addr, "doh-local.lab", dns.TypeA)
+	if resp.Rcode != dns.RcodeSuccess {
+		t.Fatalf("local DNS over DoH: want NOERROR, got %s", dns.RcodeToString[resp.Rcode])
+	}
+	if len(resp.Answer) == 0 {
+		t.Fatalf("local DNS over DoH: no answer records")
+	}
+	a, ok := resp.Answer[0].(*dns.A)
+	if !ok || a.A.String() != "10.42.0.5" {
+		t.Errorf("local DNS over DoH: want A=10.42.0.5, got %+v", resp.Answer[0])
+	}
+
+	entries := fetchQueryLog(t, n, 100)
+	if !hasOutcome(entries, "doh-local.lab", "local-doh") {
+		t.Errorf("query-log missing 'local-doh' outcome for doh-local.lab: %+v", entries)
+	}
+}
+
+// FS-DohForwardsUnmatched
+//
+// A domain on no blocklist + no allowlist + no local entry should be
+// forwarded over DoH. The test harness's upstream may or may not actually
+// resolve example.com (depends on the runtime environment), so we don't
+// assert on the answer's IP — we assert the query-log outcome is
+// "forwarded-doh", which fires as soon as the engine decides to forward,
+// regardless of whether the upstream replies.
+func TestDohForwardsUnmatched(t *testing.T) {
+	c := startClusterEncrypted(t, 1)
+	n := c.Leader(t).Node
+	addr := requireDoHEnabled(t, n)
+
+	// Query a domain that's on nothing.
+	const unmatched = "forward-target.dblock.test"
+	resp := dohQuery(t, addr, unmatched, dns.TypeA)
+	// Don't assert on resp.Rcode — upstream may return SERVFAIL, NXDOMAIN,
+	// or NOERROR depending on the host. The forwarding intent is what we
+	// care about.
+	if len(resp.Question) != 1 || !strings.EqualFold(resp.Question[0].Name, unmatched+".") {
+		t.Fatalf("DoH response missing question: %+v", resp.Question)
+	}
+
+	entries := fetchQueryLog(t, n, 100)
+	if !hasOutcome(entries, unmatched, "forwarded-doh") {
+		t.Errorf("query-log missing 'forwarded-doh' outcome for %s: %+v", unmatched, entries)
+	}
+}
