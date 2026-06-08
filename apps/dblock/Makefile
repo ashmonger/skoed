@@ -8,10 +8,20 @@ LDFLAGS := -s -w
 WEB_DIR     := ../../web
 EMBED_DIR   := internal/api/static/dist
 
-.PHONY: build build-ui ui-deps ui-build test clean
+# M4.5: the OpenAPI spec lives outside this module (at repo root). Copy
+# it into the swaggerui assets dir so go:embed can pick it up. The
+# target file is .gitignored.
+OPENAPI_SRC := ../../specs/technical/management-api.openapi.yaml
+OPENAPI_DST := internal/api/swaggerui/assets/openapi.yaml
 
-build: build-ui
+.PHONY: build build-ui ui-deps ui-build openapi-sync test clean
+
+build: build-ui openapi-sync
 	CGO_ENABLED=$(CGO_ENABLED) go build -ldflags="$(LDFLAGS)" -o $(BIN) ./cmd/dblock/
+
+# Stage the OpenAPI doc inside the swaggerui assets dir for go:embed.
+openapi-sync:
+	cp $(OPENAPI_SRC) $(OPENAPI_DST)
 
 # Builds the SPA and stages it for the Go embed slot. Idempotent.
 build-ui: ui-build

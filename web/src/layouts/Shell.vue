@@ -29,6 +29,16 @@
           <component :is="item.icon" class="w-4 h-4" />
           <span>{{ item.label }}</span>
         </RouterLink>
+        <!-- M4.5: API docs live outside the SPA router (server-rendered
+             static HTML). Use a plain anchor so the browser does a real
+             navigation rather than vue-router pattern matching. -->
+        <a href="/api/docs/"
+           target="_blank"
+           class="flex items-center gap-2 px-3 py-1.5 rounded text-fg
+                  hover:bg-bg-hover hover:text-fg-strong transition-colors">
+          <CodeBracketIcon class="w-4 h-4" />
+          <span>API</span>
+        </a>
       </nav>
 
       <div class="px-3 py-3 border-t border-border text-xs text-fg-muted">
@@ -113,7 +123,7 @@ import {
   QueueListIcon, ChartBarIcon, CpuChipIcon, Cog6ToothIcon,
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
-  DevicePhoneMobileIcon,
+  DevicePhoneMobileIcon, CodeBracketIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'

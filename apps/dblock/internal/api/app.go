@@ -8,6 +8,7 @@ import (
 	"github.com/dblock/dblock/internal/api/handlers"
 	apimw "github.com/dblock/dblock/internal/api/middleware"
 	"github.com/dblock/dblock/internal/api/static"
+	"github.com/dblock/dblock/internal/api/swaggerui"
 	"github.com/dblock/dblock/internal/auth"
 	"github.com/dblock/dblock/internal/cluster"
 	"github.com/dblock/dblock/internal/config"
@@ -284,6 +285,17 @@ func (a *App) Router() http.Handler {
 
 	})
 
+	// M4.5 — API documentation browser. Unauthenticated by design: the
+	// docs UI is just static assets + a YAML spec the operator already
+	// shipped publicly. Try-it-out requests pick up Basic Auth from the
+	// browser session. Skip the bundle entirely when api.docs.enabled
+	// is explicitly false (operator stripped the docs surface).
+	if a.docsEnabled() {
+		r.Handle("/api/docs", swaggerui.AssetHandler())
+		r.Handle("/api/docs/*", swaggerui.AssetHandler())
+		r.Get("/api/openapi.yaml", swaggerui.ServeOpenAPI)
+	}
+
 	// Serve the embedded Web UI for everything not matched by /api/v1/*.
 	// /assets/* loads built JS/CSS; every other unmatched GET falls back to
 	// index.html so the SPA's history router can handle the path. No auth:
@@ -291,6 +303,16 @@ func (a *App) Router() http.Handler {
 	r.NotFound(serveSPA)
 
 	return r
+}
+
+// docsEnabled returns true when the operator has not explicitly turned
+// off the API documentation browser. Default is on.
+func (a *App) docsEnabled() bool {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return true
+	}
+	return !cfg.API.Docs.Disabled
 }
 
 // serveSPA serves files from the embedded SPA dist FS. Asset paths
