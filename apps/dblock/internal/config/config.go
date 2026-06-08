@@ -149,7 +149,15 @@ type LocalDNSEntry struct {
 }
 
 type APIConfig struct {
-	Port int `yaml:"port"`
+	Port int             `yaml:"port"`
+	Docs APIDocsConfig   `yaml:"docs,omitempty"`
+}
+
+// APIDocsConfig gates the M4.5 API Documentation Browser. Default is on
+// — Disabled=true strips both /api/docs and /api/openapi.yaml from the
+// route table.
+type APIDocsConfig struct {
+	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 type QueryLogConfig struct {
