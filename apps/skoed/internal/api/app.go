@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/skoed/skoed/internal/api/handlers"
 	apimw "github.com/skoed/skoed/internal/api/middleware"
@@ -14,6 +15,7 @@ import (
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
 	dnsengine "github.com/skoed/skoed/internal/dns"
+	"github.com/skoed/skoed/internal/dohresolvers"
 	"github.com/skoed/skoed/internal/filter"
 	dlog "github.com/skoed/skoed/internal/log"
 	"github.com/skoed/skoed/internal/metrics"
@@ -50,6 +52,17 @@ type App struct {
 	// publicTester is the per-IP rate-limited handler for
 	// /api/v1/_public/test-blocklist. Built once; survives Raft applies.
 	publicTester *handlers.PublicTester
+
+	// dohResolverSched is the M6 leader-only refresh scheduler. Nil
+	// before SetDohResolverScheduler is called (tests that don't wire
+	// the scheduler still get the route registered; ForceRefresh
+	// returns 503 in that case).
+	dohResolverSched *dohresolvers.Scheduler
+
+	// dohResolverStaleAfter is the threshold beyond which a snapshot's
+	// `stale` field is reported true. Defaults to 7 days; node-local
+	// (operators set it under node.doh_resolver_db.stale_after_seconds).
+	dohResolverStaleAfter time.Duration
 
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
@@ -119,6 +132,41 @@ func (a *App) SetMetricsRequireAuth(v bool) { a.metricsRequireAuth = v }
 
 // MetricsRequireAuth reports the current value of the metrics auth gate.
 func (a *App) MetricsRequireAuth() bool { return a.metricsRequireAuth }
+
+// SetDohResolverScheduler wires the M6 leader-only refresh scheduler.
+// Main passes the live *dohresolvers.Scheduler so the POST /refresh
+// handler can Nudge() it.
+func (a *App) SetDohResolverScheduler(s *dohresolvers.Scheduler) { a.dohResolverSched = s }
+
+// SetDohResolverStaleAfter records the stale-after threshold used by
+// the read handlers. Zero falls back to 7 days.
+func (a *App) SetDohResolverStaleAfter(d time.Duration) { a.dohResolverStaleAfter = d }
+
+// GetDohResolverSnapshot returns the current replicated snapshot or
+// (nil, nil) when no snapshot has ever been written.
+func (a *App) GetDohResolverSnapshot() (*dohresolvers.Snapshot, error) {
+	if a.cluster == nil {
+		return nil, nil
+	}
+	return a.cluster.CurrentDohSnapshot()
+}
+
+// GetDohResolverScheduler returns the live scheduler as the handlers
+// interface (nil-safe).
+func (a *App) GetDohResolverScheduler() handlers.DohResolverScheduler {
+	if a.dohResolverSched == nil {
+		return nil
+	}
+	return a.dohResolverSched
+}
+
+// DohResolverStaleAfter returns the configured threshold (default 7d).
+func (a *App) DohResolverStaleAfter() time.Duration {
+	if a.dohResolverStaleAfter <= 0 {
+		return 7 * 24 * time.Hour
+	}
+	return a.dohResolverStaleAfter
+}
 
 // SetPublicLandingEnabled toggles the M5.9.5 unauthenticated landing
 // page (/) and its companion endpoint /api/v1/_public/test-blocklist.
@@ -311,6 +359,14 @@ func (a *App) Router() http.Handler {
 	// in-memory key into the filter engine.
 	r.Post("/api/v1/_public/test-domain", a.publicTestDomainHandler)
 
+	// M6 — curated DoH/DoT resolver IP database. Reads are public by
+	// design (FS-DohResolverDbReadEndpointPublicOrAuthenticated): the
+	// bytes are public provider IPs and the M6 firewall-rule generator
+	// renders them on the unauthenticated landing surface. The forced
+	// refresh stays admin-only — it triggers an outbound HTTP call.
+	r.Get("/api/v1/doh-resolvers", handlers.ListDohResolvers(a))
+	r.Get("/api/v1/doh-resolvers/snapshot.json", handlers.SnapshotJSON(a))
+
 	// The /cluster/join endpoint must be served by the leader. Forwarding
 	// handles that transparently.
 	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
@@ -407,6 +463,11 @@ func (a *App) Router() http.Handler {
 		// replicated filter state). Audit middleware skips it via the
 		// auditExempt() prefix check.
 		r.Post("/api/v1/test-domain", h.TestDomainAuth)
+
+		// M6 — force a DoH/DoT resolver snapshot refresh. Forwarded to
+		// the leader because only the leader's scheduler issues the
+		// outbound HTTP fetch.
+		r.Post("/api/v1/doh-resolvers/refresh", a.forward(handlers.ForceRefresh(a)))
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.

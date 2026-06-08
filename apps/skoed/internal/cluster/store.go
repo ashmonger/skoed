@@ -406,6 +406,20 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return applyAuditAppend(tx, p)
+
+	case CmdDohResolverSnapshotReplace:
+		var p DohResolverSnapshotReplacePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyDohResolverSnapshotReplaceFromPayload(tx, p)
+
+	case CmdDohResolverRefreshFailure:
+		var p DohResolverRefreshFailurePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyDohResolverRefreshFailure(tx, p.AttemptedAt, p.Error)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }

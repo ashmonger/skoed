@@ -21,6 +21,7 @@ import (
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
 	dnsengine "github.com/skoed/skoed/internal/dns"
+	"github.com/skoed/skoed/internal/dohresolvers"
 	"github.com/skoed/skoed/internal/filter"
 	filterCats "github.com/skoed/skoed/internal/filter/categories"
 	dlog "github.com/skoed/skoed/internal/log"
@@ -213,6 +214,11 @@ func runDaemon(cfgPath string) {
 	// constructor can read its failure counter map.
 	var refreshSched *refresh.Scheduler
 
+	// M6 — DoH/DoT resolver IP snapshot scheduler. Same pattern: started
+	// on every node; only the current leader actually fetches per tick.
+	// Declared up here so the metrics collector can read its counters.
+	var dohSched *dohresolvers.Scheduler
+
 	// M5.1 — Prometheus exporter. Built before the App so we can pass it
 	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
 	// callbacks because all three pointers may be reallocated after
@@ -281,6 +287,22 @@ func runDaemon(cfgPath string) {
 				})
 			}
 			return out
+		},
+		DohResolvers: func() metrics.DohResolverSnapshotInfo {
+			var info metrics.DohResolverSnapshotInfo
+			if dohSched != nil {
+				s, f := dohSched.Counters()
+				info.Successes = s
+				info.Failures = f
+			}
+			snap, err := c.CurrentDohSnapshot()
+			if err == nil && snap != nil {
+				info.ResolverCount = len(snap.Resolvers)
+				if t, perr := time.Parse(time.RFC3339, snap.LastRefreshSuccessAt); perr == nil {
+					info.LastRefreshUnix = t.Unix()
+				}
+			}
+			return info
 		},
 		RequireAuth: func() bool { return node.Node.API.Metrics.RequireAuth },
 		AuthOK:      func(r *http.Request) bool { return app != nil && app.CheckBasicAuth(r) },
@@ -398,6 +420,22 @@ func runDaemon(cfgPath string) {
 	refreshSched = refresh.New(c, refresh.Options{Tick: refreshTick})
 	refreshSched.Start()
 	defer refreshSched.Stop()
+
+	// M6 — start the curated DoH/DoT resolver snapshot scheduler.
+	// Started on every node; only the current leader actually fetches
+	// per tick. The first tick fires immediately so a fresh cluster
+	// gets the bundled seed Raft-replicated within a few seconds of
+	// the leader being elected (FS-DohResolverDbScheduledDailyRefresh).
+	dohSched = dohresolvers.New(c, dohresolvers.Options{
+		Tick:           refreshTick, // 10s prod, 1s test mode
+		RefreshInterval: 24 * time.Hour,
+		RequestTimeout: 20 * time.Second,
+		StaleAfter:     7 * 24 * time.Hour,
+	})
+	dohSched.Start()
+	defer dohSched.Stop()
+	app.SetDohResolverScheduler(dohSched)
+	app.SetDohResolverStaleAfter(7 * 24 * time.Hour)
 
 	// M5.6 — release-feed checker. The feed URL comes from env in
 	// tests (SKOED_UPGRADE_FEED_URL) or — in a future iteration —
