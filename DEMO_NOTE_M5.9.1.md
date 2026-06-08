@@ -66,16 +66,25 @@ manual screenshot + the `--snapshot` flag for visual regression).
 
 Full M1→M5.9.1 acceptance suite green in Docker.
 
-### Screenshots
+### Screenshots & GIFs
 
-- `docs/screenshots/m5.9.1-dblock-cli.png` — composite of `--help`,
-  `--version`, `health`, and `token create` outputs. Lipgloss
-  palette throughout: purple `dblock` / `bootstrap` / labels, green
-  `ok` chip, pink `● leader`, rounded-border token box.
-- `docs/screenshots/m5.9.1-dblock-top.png` — `dblock top --snapshot`
-  showing the live dashboard layout: cluster strip, nodes table
-  (leader row highlighted), DNS breakdown bars, top-blocked list,
-  hot-key footer.
+Recorded with [`charmbracelet/vhs`](https://github.com/charmbracelet/vhs) —
+`.tape` files committed alongside the outputs so anyone can re-record
+on demand. Theme: Catppuccin Mocha (closest to the SPA's Lipgloss dark).
+
+- `docs/screenshots/m5.9.1-dblock-cli.gif` — animated walkthrough of
+  `--version → health → status → token create` (~8 s).
+- `docs/screenshots/m5.9.1-dblock-top.gif` — animated `dblock top` TUI
+  showing the live dashboard, hot-key refresh (`r`), and quit (`q`).
+- `docs/screenshots/m5.9.1-dblock-cli.png` — static composite of the
+  same CLI verbs (kept as a fallback for markdown renderers that
+  don't animate GIFs).
+- `docs/screenshots/m5.9.1-dblock-top.png` — static `dblock top
+  --snapshot` frame.
+
+Re-record with `cd docs/screenshots && vhs m5.9.1-cli.tape && vhs
+m5.9.1-top.tape` (requires a running dblock daemon on the configured
+port — see the tape files for the alias setup).
 
 ### Not implemented (deferred / non-goals)
 
