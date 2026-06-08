@@ -38,6 +38,8 @@ None.
 
 ## Backlog (post-M4)
 
+### Active
+
 - HTTPS for the management API / Web UI. M4 ACME currently only covers
   DoH and DoT; `api_address` is still plain HTTP. Pending design call:
   single-port swap (HTTP → 308 → HTTPS) vs dual-port (keep HTTP on LAN,
@@ -49,6 +51,73 @@ None.
   OR a "known vs unknown" approximation. Defer until after M3.6 ships
   the export endpoint, which closes most of the bootstrapping pain
   this category was supposed to address. — added 2026-06-05.
+
+### Packaging + deployment
+
+- **Proxmox deploy script for LXC containers.** Single-command bootstrap
+  inside a Proxmox host (`pveam`, `pct create`, …) — installs dblock,
+  writes a sane config, hands the operator a working node URL. Target
+  the homelab Proxmox use case where the cluster topology fits in one
+  hypervisor. — added 2026-06-05.
+- **Debian packages (.deb).** Apt-installable build for amd64/arm64
+  Debian / Ubuntu / Raspberry Pi OS. systemd unit, default config in
+  `/etc/dblock/`, `dblock` user, `apt upgrade` path. Pairs with
+  the M5 in-place upgrade work. — added 2026-06-05.
+
+### Strategic
+
+- **Find a better name.** "dblock" is functional but not memorable.
+  Audit existing trademarks, check DNS/GitHub/crates.io availability,
+  reserve a domain. Defer rename until at least M5 ships so we don't
+  rebrand during active growth. — added 2026-06-05.
+
+### From the ROADMAP post-M5 backlog (now mirrored here for tracking)
+
+- **Active-active cluster** — any-node writes via Raft. Today the
+  leader serializes writes; this would let multi-DC deployments
+  accept writes locally. Major architecture change.
+- **DoH3 / HTTP/3 endpoint.** Client adoption is still slow but
+  growing; defer until usage warrants the QUIC dep.
+- **DNSCrypt server endpoint.** Rare in modern clients; lowest
+  priority of the encrypted-DNS family.
+- **API token authentication.** Replace HTTP Basic Auth with revocable
+  tokens (scopes, per-token rate limits, audit log integration).
+- **IPv6-only / dual-stack network support validation.** Already-coded
+  features (DNS, DoH, DoT, ACME) need real-world IPv6-only deploy
+  validation.
+- **Kubernetes operator** for lifecycle management. Would supersede
+  the M2.5 Helm chart for serious K8s users — handles cluster scaling,
+  cert rotation, lease-data PVCs.
+- **Firewall-rule generators** (from M3.5 carve-out). Templates for
+  iptables / nftables / MikroTik RouterOS / OpnSense / pfSense / UniFi
+  to close the hardcoded-resolver-IP DoH bypass.
+- **Curated DoH-resolver-IP database** + auto-refresh (companion to
+  the firewall generators).
+- **"Closing the DoH gap" guide** (companion docs).
+- **ARP/NDP cross-check** (M3.6 Layer-3 anti-spoof). Query the local
+  ARP cache via netlink; flag when DHCP-reported MAC ≠ ARP-reported
+  MAC. Requires CAP_NET_ADMIN.
+- **Raft-replicated lease cache** (M3.6 follow-on). Today each node
+  polls its own DHCP source; replicating leases would give true
+  cluster-wide identity consistency at the cost of leader-only-polls.
+- **DHCPv6 lease parsing** (M3.6 follow-on).
+
+### Conflicts with current non-goals — needs UoR decision
+
+These contradict the **permanent non-goals** list in
+`PROBLEM_STATEMENT.md` and `ROADMAP.md`. Listed here because the UoR
+asked for them; need a separate decision to either (a) revise the
+non-goals or (b) keep them parked indefinitely as "wishful but out
+of scope". — added 2026-06-05.
+
+- **Transparent proxy mode.** Operate as a transparent L4 proxy so
+  clients with hardcoded resolver IPs are redirected to dblock
+  regardless of their DNS settings. Today's roadmap lists VPN/proxy
+  as a permanent non-goal — this would partially overlap.
+- **Deep-packet inspection / HTTP filtering.** Inspect cleartext HTTP
+  to enforce content rules at a level DNS can't reach. Explicit
+  permanent non-goal today; rethinking would be a major scope pivot
+  (puts dblock into the same category as Squid / e2guardian).
 
 ## Open questions
 
