@@ -486,15 +486,17 @@ this file.
 
 **Outcome**: skoed feels nice to install, configure, and live with. Less curl, more `skoed <verb>`; faster dev loop; less surprise on first boot; safer URL-tester ergonomics.
 
-Umbrella for five small landings — each lands as a separate PR but they're cheap enough to ship in a single session.
+Umbrella for several small landings — each lands as a separate PR but they're cheap enough to ship in a single session.
 
 | Sub | Title                                                | Status |
 |-----|------------------------------------------------------|--------|
-| 5.9.1 | `skoed` CLI + TUI (charm-stack, full color)       |        |
-| 5.9.2 | `make dev` — Vite hot-reload for the SPA            |        |
-| 5.9.3 | Docker test cache (go-mod volume)                   |        |
-| 5.9.4 | Getting Started card + docs page                    |        |
-| 5.9.5 | URL tester (CLI + public landing page)              |        |
+| 5.9.1 | `skoed` CLI + TUI (charm-stack, full color)       | shipped |
+| 5.9.2 | `make dev` — Vite hot-reload for the SPA            | shipped |
+| 5.9.3 | Docker test cache (go-mod volume)                   | shipped |
+| 5.9.4 | Getting Started card + docs page                    | shipped |
+| 5.9.5 | URL tester (CLI + public landing page)              | shipped |
+| 5.9.6 | Rename dblock → skoed + About page                   | shipped |
+| 5.9.7 | "Would this domain be blocked?" tester              |         |
 
 **Non-goals for the M5.9 umbrella:**
 - Replacing the existing Web UI Vue stack
@@ -608,6 +610,51 @@ Umbrella for five small landings — each lands as a separate PR but they're che
 - SaaS / multi-tenant posture (skoed stays single-org)
 
 **Dependencies:** M5.9.1 (CLI subcommand framework).
+
+---
+
+### Milestone 5.9.7 — "Would this domain be blocked?" tester
+
+**Outcome**: Operators and curious household members can ask skoed *"would `example.com` be blocked from this network?"* and get a clear answer with a rationale. Two surfaces with different depth:
+
+- **Guest** (no auth, public landing card): yes/no for the default profile. Useful for "is the router actually using skoed?", "is my kid's school site blocked by mistake?", first-install sanity check.
+- **Authenticated** (admin UI + CLI): full verdict with the reasoning chain — which client matched which profile, which blocklist hit, which schedule was active, what block policy would apply, would a local DNS entry / SafeSearch rewrite intervene first.
+
+**Capabilities:**
+
+*Backend:*
+- `POST /api/v1/_public/test-domain` — body `{domain}`. Returns `{would_block: bool, reason: string}` where `reason ∈ {"blocklist","allowlist","local-dns","forwarded"}`. Evaluated against the default profile only. Rate-limited 60/h per source IP (reuse M5.9.5's token bucket) + the same SSRF-style allow-list (the *domain* doesn't need to resolve, but we refuse `.invalid` / `.local` / IP-literal inputs so the endpoint can't be used as a DNS-server discovery probe). Operator-disable via the same `node.api.public_landing.enabled=false` flag.
+- `POST /api/v1/test-domain` (auth-gated) — body `{domain, client_ip?, profile_id?}`. Returns the full chain:
+  ```json
+  {
+    "would_block": true,
+    "reason": "blocklist",
+    "matched_profile":   {"id":"kids","name":"Kids","matched_by":"client_ip"},
+    "matched_blocklist": {"id":"hagezi-pro","name":"Hagezi Pro"},
+    "matched_schedule":  {"id":"bedtime","name":"Kids bedtime","window_active":true},
+    "block_policy":      "nxdomain",
+    "local_dns_answer":  null,
+    "safesearch_rewrite": null
+  }
+  ```
+  Re-runs the existing `filter.Engine.EvaluateForClientID` path so the answer is identical to what a real query would get — no second source of truth.
+
+*Web UI:*
+- **Landing card** (next to the M5.9.5 blocklist tester): "Test a domain" — input + button → ✓ blocked / ✗ allowed strip with the reason chip.
+- **`/dashboard/tools/test-domain`** (auth): full form with client-IP picker + profile dropdown, renders the rationale as a styled tree.
+
+*CLI:*
+- `skoed domain test <domain> [--client 10.42.10.50] [--profile kids]` — Lipgloss-styled verdict + chain. Hits the auth endpoint; falls back to the public one when called without credentials.
+
+*Metrics:*
+- `skoed_test_domain_requests_total{surface="guest|auth", verdict="block|allow"}` counter. Surfaces abuse + operator-curiosity patterns.
+
+**Non-goals for this milestone:**
+- Returning DNS-level RRs (no `dig`-style answer composition; just the verdict + rationale)
+- Per-rule diff explainer ("this domain matched rule #42 on line 8 of the hagezi-pro source") — verdict + matched blocklist id is enough
+- Recursive what-if ("what if I added this to the allowlist?") — operator can add it temporarily; revisit if asked
+
+**Dependencies:** M5.9.1 (CLI framework), M5.9.5 (landing page + rate-limit + opt-out pattern), the existing filter engine + profile-match priority from M3.6.
 
 ---
 
