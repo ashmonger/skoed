@@ -118,6 +118,11 @@ type Metrics struct {
 	// a label.
 	testDomainTotal *prometheus.CounterVec
 
+	// M6 — firewall-rule-generator request counter. Cardinality bounded
+	// at 5 series total (one per supported platform); scope/action are
+	// deliberately NOT labels.
+	firewallRulesTotal *prometheus.CounterVec
+
 	requireAuth func() bool       // re-read on every request so config edits take effect live
 	authOK      func(*http.Request) bool
 }
@@ -170,6 +175,12 @@ func New(opts Options) *Metrics {
 	}, []string{"surface", "verdict"})
 	reg.MustRegister(testDomainTotal)
 
+	firewallRulesTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "skoed_firewall_rules_generated_total",
+		Help: "Cumulative M6 firewall-rule generator successful renders, by target platform.",
+	}, []string{"platform"})
+	reg.MustRegister(firewallRulesTotal)
+
 	// Cache — registered as a custom Collector that reads from the
 	// CacheStatsFunc on every scrape. Wired only when caching is
 	// available; when CacheStats reports Enabled=false the size gauge
@@ -197,13 +208,14 @@ func New(opts Options) *Metrics {
 	}
 
 	return &Metrics{
-		reg:              reg,
-		dnsQueriesTotal:  dnsQueriesTotal,
-		dnsQueryDur:      dnsQueryDur,
-		auditEventsTotal: auditEventsTotal,
-		testDomainTotal:  testDomainTotal,
-		requireAuth:      opts.RequireAuth,
-		authOK:           opts.AuthOK,
+		reg:                reg,
+		dnsQueriesTotal:    dnsQueriesTotal,
+		dnsQueryDur:        dnsQueryDur,
+		auditEventsTotal:   auditEventsTotal,
+		testDomainTotal:    testDomainTotal,
+		firewallRulesTotal: firewallRulesTotal,
+		requireAuth:        opts.RequireAuth,
+		authOK:             opts.AuthOK,
 	}
 }
 
@@ -216,6 +228,17 @@ func (m *Metrics) ObserveTestDomain(surface, verdict string) {
 		return
 	}
 	m.testDomainTotal.WithLabelValues(surface, verdict).Inc()
+}
+
+// ObserveFirewallRulesGenerated bumps the M6 firewall-rule generator
+// counter for one successful render.
+//
+//	platform ∈ {"iptables","nftables","mikrotik","opnsense","unifi"}
+func (m *Metrics) ObserveFirewallRulesGenerated(platform string) {
+	if m == nil || m.firewallRulesTotal == nil {
+		return
+	}
+	m.firewallRulesTotal.WithLabelValues(platform).Inc()
 }
 
 // ObserveAudit bumps the audit-event counter for the given action.

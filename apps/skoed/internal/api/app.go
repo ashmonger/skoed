@@ -111,6 +111,16 @@ func (a *App) ObserveTestDomain(surface, verdict string) {
 	a.metrics.ObserveTestDomain(surface, verdict)
 }
 
+// ObserveFirewallRulesGenerated is the handlers-package shim for the
+// M6 skoed_firewall_rules_generated_total counter. No-op when metrics
+// aren't wired so handlers don't have to nil-check.
+func (a *App) ObserveFirewallRulesGenerated(platform string) {
+	if a.metrics == nil {
+		return
+	}
+	a.metrics.ObserveFirewallRulesGenerated(platform)
+}
+
 // SetUpgradeChecker wires the M5.6 release-feed checker. Nil disables
 // the /api/v1/upgrade/* endpoints' useful behaviour (they still
 // respond, but with empty data).
@@ -468,6 +478,11 @@ func (a *App) Router() http.Handler {
 		// the leader because only the leader's scheduler issues the
 		// outbound HTTP fetch.
 		r.Post("/api/v1/doh-resolvers/refresh", a.forward(handlers.ForceRefresh(a)))
+
+		// M6 — paste-ready firewall rule generator (TS-FwRule). Read-only;
+		// served locally on every node (every node has the replicated
+		// resolver snapshot + config cache).
+		r.Get("/api/v1/firewall-rules", handlers.GenerateFirewallRules(a))
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.
