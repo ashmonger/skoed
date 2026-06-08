@@ -4,13 +4,14 @@
 DBLOCK_VERSION ?= 0.5.0
 DBLOCK_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-.PHONY: help build build-ui openapi-sync test acceptance acceptance-clean deb deb-arm64 test-deb clean
+.PHONY: help build build-ui openapi-sync dev test acceptance acceptance-clean deb deb-arm64 test-deb clean
 
 help:
 	@echo "Top-level targets:"
 	@echo "  build             - build the dblock binary (cd apps/dblock && make build)"
 	@echo "  build-ui          - rebuild the SPA + stage it under apps/dblock/internal/api/static"
 	@echo "  openapi-sync      - stage the OpenAPI spec for the binary's embedded swagger-ui"
+	@echo "  dev               - M5.9.2 SPA hot-reload loop: dblock daemon + vite dev with HMR"
 	@echo "  test              - run unit + acceptance tests in Docker"
 	@echo "  acceptance        - run acceptance tests in Docker (alias)"
 	@echo "  acceptance-clean  - remove the Docker go-mod/go-build cache volumes (M5.9.3)"
@@ -27,6 +28,12 @@ build-ui:
 
 openapi-sync:
 	$(MAKE) -C apps/dblock openapi-sync
+
+# M5.9.2: developer-loop. Runs dblock + vite dev together with API
+# proxying so .vue edits hot-reload in the browser without rebuilding
+# the Go binary. See specs/technical/make-dev.md.
+dev:
+	scripts/dev.sh
 
 test acceptance:
 	tests/acceptance/run-in-docker.sh
