@@ -21,6 +21,9 @@ type Manager struct {
 	mu sync.RWMutex
 	// byIP is the current snapshot, freshest poll wins.
 	byIP map[string]Lease
+	// byV6 indexes the same Lease values under each of their IPv6
+	// addresses. Populated by M6.5 dual-stack merge; nil-safe pre-merge.
+	byV6 map[string]Lease
 	// history is the running record of every (Client-ID, MAC, hostname)
 	// tuple ever seen, used by the anti-spoof detector. Keyed by
 	// arbitrary stable identifier — see indexKey.
@@ -57,6 +60,7 @@ func NewManager(conn Connector, refresh time.Duration) *Manager {
 		conn:      conn,
 		refresh:   refresh,
 		byIP:      map[string]Lease{},
+		byV6:      map[string]Lease{},
 		history:   map[string]historyEntry{},
 		anomalies: map[string]Anomaly{},
 	}
@@ -116,18 +120,30 @@ func (m *Manager) pollOnce() {
 // package-level Apply wrapper.
 func (m *Manager) apply(leases []Lease) {
 	now := time.Now()
-	newByIP := make(map[string]Lease, len(leases))
-	// Build the new snapshot first so the anti-spoof scan sees every
-	// new lease in the same batch.
-	for _, l := range leases {
-		newByIP[l.IP] = l
+	merged := mergeDualStack(leases)
+	newByIP := make(map[string]Lease, len(merged))
+	newByV6 := map[string]Lease{}
+	for _, l := range merged {
+		if l.IP != "" {
+			newByIP[l.IP] = l
+		} else if len(l.IPv6Addresses) > 0 {
+			// v6-only lease — index under the first (lex-smallest) v6 address.
+			newByIP[l.IPv6Addresses[0]] = l
+		}
+		for _, v6 := range l.IPv6Addresses {
+			newByV6[v6] = l
+		}
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Anti-spoof: compare each NEW lease against history before updating.
-	for _, l := range leases {
+	// Anti-spoof: compare each NEW v4 lease against history before updating.
+	// v6-only and IA_PD-style records are skipped (M3.6 anti-spoof is v4-keyed).
+	for _, l := range merged {
+		if l.IP == "" {
+			continue
+		}
 		m.detectAnomalies(l, now)
 		key := historyKey(l)
 		h := m.history[key]
@@ -141,7 +157,114 @@ func (m *Manager) apply(leases []Lease) {
 		m.history[key] = h
 	}
 	m.byIP = newByIP
+	m.byV6 = newByV6
 	m.sweepAnomalies(now)
+}
+
+// mergeDualStack collapses one client's v4 + v6 records into a single
+// Lease per TS-Dhcpv6Lease. Heuristic ladder (first hit wins):
+//  1. DUID-LLT/LL ends in a 6-byte MAC equal to an existing v4 Lease.MAC
+//  2. Case-insensitive non-empty hostname equality
+// No match → emit the v6 record stand-alone.
+func mergeDualStack(leases []Lease) []Lease {
+	var v4 []*Lease
+	var v6 []*Lease
+	for i := range leases {
+		l := leases[i]
+		// A "v4 record" is any lease that carries an IPv4 IP. A "v6
+		// record" is any lease that carries v6 addresses but no IPv4 IP.
+		switch {
+		case l.IP != "" && len(l.IPv6Addresses) == 0:
+			v4 = append(v4, &leases[i])
+		case l.IP == "" && len(l.IPv6Addresses) > 0:
+			v6 = append(v6, &leases[i])
+		default:
+			// Already-merged or oddball record (e.g. v4 + v6 from one
+			// http_json payload). Keep it as-is.
+			v4 = append(v4, &leases[i])
+		}
+	}
+
+	for _, vsix := range v6 {
+		match := findV4Match(v4, *vsix)
+		if match == nil {
+			continue
+		}
+		// Absorb v6 addresses into the v4 record.
+		seen := map[string]struct{}{}
+		for _, a := range match.IPv6Addresses {
+			seen[a] = struct{}{}
+		}
+		for _, a := range vsix.IPv6Addresses {
+			if _, ok := seen[a]; !ok {
+				match.IPv6Addresses = append(match.IPv6Addresses, a)
+				seen[a] = struct{}{}
+			}
+		}
+		sortStrings(match.IPv6Addresses)
+		if match.DUID == "" {
+			match.DUID = vsix.DUID
+		}
+		match.IsDualStack = true
+		vsix.IP = "MERGED" // mark for filtering below
+	}
+
+	out := make([]Lease, 0, len(leases))
+	for _, p := range v4 {
+		out = append(out, *p)
+	}
+	for _, p := range v6 {
+		if p.IP == "MERGED" {
+			continue
+		}
+		// Stable ordering of stand-alone v6 records too.
+		sortStrings(p.IPv6Addresses)
+		out = append(out, *p)
+	}
+	return out
+}
+
+// findV4Match returns the first v4 record matching the heuristic ladder,
+// or nil when no match is found.
+func findV4Match(v4 []*Lease, vsix Lease) *Lease {
+	// 1. DUID-LLT/LL MAC suffix == existing v4 MAC.
+	if mac := macFromDUID(vsix.DUID); mac != "" {
+		for _, p := range v4 {
+			if p.MAC != "" && p.MAC == mac {
+				return p
+			}
+		}
+	}
+	// 2. Hostname equality (case-insensitive, non-empty).
+	if vsix.Hostname != "" {
+		want := strings.ToLower(vsix.Hostname)
+		for _, p := range v4 {
+			if p.Hostname != "" && strings.ToLower(p.Hostname) == want {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+// macFromDUID extracts the trailing MAC from DUID-LL / DUID-LLT
+// formatted as colon-separated hex bytes. Returns "" when the DUID isn't
+// in a recognised LL/LLT shape.
+//
+// DUID-LL  : 00:03:<hw-type:2>:<MAC:6>
+// DUID-LLT : 00:01:<hw-type:2>:<time:4>:<MAC:6>
+func macFromDUID(duid string) string {
+	parts := strings.Split(duid, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	macParts := parts[len(parts)-6:]
+	for _, p := range macParts {
+		if len(p) != 2 {
+			return ""
+		}
+	}
+	return strings.ToLower(strings.Join(macParts, ":"))
 }
 
 // detectAnomalies compares an incoming lease against history and records
@@ -266,13 +389,18 @@ func newAnomalyID() string {
 
 // ─── Read API (DNS handler / management API call this) ─────────────
 
-// LookupByIP returns the lease for the given IP, or (Lease{}, false)
-// when not in the current snapshot.
+// LookupByIP returns the lease for the given IP literal (v4 OR v6), or
+// (Lease{}, false) when not in the current snapshot.
 func (m *Manager) LookupByIP(ip string) (Lease, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	l, ok := m.byIP[ip]
-	return l, ok
+	if l, ok := m.byIP[ip]; ok {
+		return l, true
+	}
+	if l, ok := m.byV6[ip]; ok {
+		return l, true
+	}
+	return Lease{}, false
 }
 
 // Snapshot returns a copy of every lease currently in cache. Safe to
@@ -283,6 +411,23 @@ func (m *Manager) Snapshot() []Lease {
 	out := make([]Lease, 0, len(m.byIP))
 	for _, l := range m.byIP {
 		out = append(out, l)
+	}
+	return out
+}
+
+// OriginCounts returns the count of leases per Origin value in the
+// current snapshot. Entries with zero count are omitted so the metric
+// exporter can honour the "no series for zero leases" rule from
+// FS-LeaseOriginPrometheusGauges.
+func (m *Manager) OriginCounts() map[Origin]int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := map[Origin]int{}
+	for _, l := range m.byIP {
+		if l.Origin == "" {
+			continue
+		}
+		out[l.Origin]++
 	}
 	return out
 }

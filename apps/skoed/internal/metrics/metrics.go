@@ -89,12 +89,22 @@ type DohResolverSnapshotInfo struct {
 }
 
 // DhcpSnapshot is the subset of DHCP state the exporter needs.
+//
+// M6.5 (TS-LeaseOrigin): OriginCounts maps Origin values
+// ("dhcp_static", "dhcp_dynamic", ...) to the number of leases carrying
+// them. The collector emits one skoed_dhcp_leases series per
+// (source, origin) pair, but only for origins with a non-zero count
+// (per FS-LeaseOriginPrometheusGauges).
+//
+// `Leases` is preserved as the unlabeled total — operators on M3.6
+// dashboards continue to graph the legacy series.
 type DhcpSnapshot struct {
-	Source            string
-	Leases            int
-	AnomaliesOpen     int
-	LastPollAgeSecs   float64
-	PollErrorsTotal   uint64
+	Source           string
+	Leases           int
+	OriginCounts     map[string]int
+	AnomaliesOpen    int
+	LastPollAgeSecs  float64
+	PollErrorsTotal  uint64
 }
 
 // Metrics owns the registry and all skoed-specific collectors.
@@ -351,10 +361,10 @@ func (c *clusterCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 var (
-	descDhcpLeases      = prometheus.NewDesc("skoed_dhcp_leases", "Current count of leases known to the DHCP integration, by source.", []string{"source"}, nil)
-	descDhcpAnomalies   = prometheus.NewDesc("skoed_dhcp_anomalies_open", "Number of unacknowledged anti-spoof anomalies.", nil, nil)
-	descDhcpLastPollAge = prometheus.NewDesc("skoed_dhcp_last_poll_age_seconds", "Seconds since the DHCP source was last successfully polled, by source.", []string{"source"}, nil)
-	descDhcpPollErrors  = prometheus.NewDesc("skoed_dhcp_poll_errors_total", "Cumulative DHCP source poll failures since process start, by source.", []string{"source"}, nil)
+	descDhcpLeases       = prometheus.NewDesc("skoed_dhcp_leases", "Current count of leases known to the DHCP integration, by source and origin. The `origin` label is empty when DHCP integration is not yet producing origin tags.", []string{"source", "origin"}, nil)
+	descDhcpAnomalies    = prometheus.NewDesc("skoed_dhcp_anomalies_open", "Number of unacknowledged anti-spoof anomalies.", nil, nil)
+	descDhcpLastPollAge  = prometheus.NewDesc("skoed_dhcp_last_poll_age_seconds", "Seconds since the DHCP source was last successfully polled, by source.", []string{"source"}, nil)
+	descDhcpPollErrors   = prometheus.NewDesc("skoed_dhcp_poll_errors_total", "Cumulative DHCP source poll failures since process start, by source.", []string{"source"}, nil)
 )
 
 type dhcpCollector struct{ stats DhcpStatusFunc }
@@ -375,7 +385,21 @@ func (c *dhcpCollector) Collect(ch chan<- prometheus.Metric) {
 	if src == "" {
 		src = "unknown"
 	}
-	ch <- prometheus.MustNewConstMetric(descDhcpLeases, prometheus.GaugeValue, float64(s.Leases), src)
+	// M6.5 — TS-LeaseOrigin: emit one series per (source, origin) that
+	// actually appears in the snapshot. When no origin tags are present
+	// yet (M3.6-only DHCP source), fall back to the legacy unlabelled
+	// total under `origin=""` so existing dashboards keep working.
+	emitted := 0
+	for origin, n := range s.OriginCounts {
+		if n == 0 || origin == "" {
+			continue
+		}
+		ch <- prometheus.MustNewConstMetric(descDhcpLeases, prometheus.GaugeValue, float64(n), src, origin)
+		emitted++
+	}
+	if emitted == 0 {
+		ch <- prometheus.MustNewConstMetric(descDhcpLeases, prometheus.GaugeValue, float64(s.Leases), src, "")
+	}
 	ch <- prometheus.MustNewConstMetric(descDhcpAnomalies, prometheus.GaugeValue, float64(s.AnomaliesOpen))
 	ch <- prometheus.MustNewConstMetric(descDhcpLastPollAge, prometheus.GaugeValue, s.LastPollAgeSecs, src)
 	ch <- prometheus.MustNewConstMetric(descDhcpPollErrors, prometheus.CounterValue, float64(s.PollErrorsTotal), src)

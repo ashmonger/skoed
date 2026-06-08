@@ -121,6 +121,15 @@ type DHCPSection struct {
 	Username       string `yaml:"username,omitempty"`
 	Password       string `yaml:"password,omitempty"`
 	RefreshSeconds int    `yaml:"refresh_seconds,omitempty"`
+
+	// M6.5 — TS-LeaseOrigin: dnsmasq running-config path used to discover
+	// `dhcp-host=` static-reservation directives.
+	ConfigPath string `yaml:"config_path,omitempty"`
+
+	// M6.5 — TS-Dhcpv6Lease: dnsmasq DHCPv6 lease file
+	// (`dnsmasq.leases6` by convention). When unset and FilePath is
+	// present, the connector probes `<FilePath>6` once on boot.
+	FilePathV6 string `yaml:"file_path_v6,omitempty"`
 }
 
 // DNSSection / ListenSection mirror the shape used in M1's config.yaml so

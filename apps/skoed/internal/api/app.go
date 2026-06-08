@@ -486,6 +486,9 @@ func (a *App) Router() http.Handler {
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.
+		// M6.5 adds the unparameterised list endpoint that backs the
+		// SPA's Clients page badge column (TS-LeaseOrigin).
+		r.Get("/api/v1/clients", h.ListClients)
 		r.Get("/api/v1/clients/anomalies", h.ListAnomalies)
 		r.Post("/api/v1/clients/anomalies/{id}/acknowledge", h.AcknowledgeAnomaly)
 		r.Get("/api/v1/clients/export-reservations", h.ExportReservations)

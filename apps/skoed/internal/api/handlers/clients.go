@@ -3,6 +3,7 @@ package handlers
 import (
 	"net"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -10,13 +11,37 @@ import (
 	"github.com/skoed/skoed/internal/dhcp"
 )
 
+// clientResponse is the M3.6 + M6.5 wire shape served by
+// GET /api/v1/clients/{ip}. M6.5 (TS-LeaseOrigin, TS-Dhcpv6Lease) adds
+// the origin / origin_confidence / ipv6_addresses / duid / is_dual_stack
+// fields. All M6.5 fields are omitempty so the M3.6 wire shape survives
+// (FS-Dhcpv6LeaseV6DisabledLegacyShapeUnchanged).
+type clientResponse struct {
+	IP               string         `json:"ip"`
+	MAC              string         `json:"mac"`
+	Hostname         string         `json:"hostname"`
+	ClientID         string         `json:"client_id"`
+	Source           string         `json:"source"`
+	LastSeen         *time.Time     `json:"last_seen,omitempty"`
+	Anomalies        []dhcp.Anomaly `json:"anomalies,omitempty"`
+	Origin           string         `json:"origin,omitempty"`
+	OriginConfidence string         `json:"origin_confidence,omitempty"`
+	IPv6Addresses    []string       `json:"ipv6_addresses,omitempty"`
+	DUID             string         `json:"duid,omitempty"`
+	IsDualStack      bool           `json:"is_dual_stack,omitempty"`
+}
+
 // GetClient returns the enriched record for one client IP. When no DHCP
 // integration is configured OR the client's IP isn't in the lease cache,
 // the response echoes the IP and sets source = "none". Anomalies for the
 // IP (if any) are included.
 //
+// M6.5 — TS-Dhcpv6Lease: the `ip` path parameter accepts both v4 and v6
+// literals; lookup falls back to the v6 index when the v4 map misses.
+//
 // FSIDs: FS-ClientLookupReturnsEnrichedRecord, FS-ClientLookupFallsBackToIp,
-//        FS-SpoofAnomaliesInResponse.
+//        FS-SpoofAnomaliesInResponse, FS-LeaseOriginClientLookupExposesFields,
+//        FS-LeaseOriginUnknownClientOmitsOrigin, FS-Dhcpv6LeaseV6OnlyClientLookupByV6.
 func (h *Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 	ip := chi.URLParam(r, "ip")
 	if net.ParseIP(ip) == nil {
@@ -24,16 +49,8 @@ func (h *Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type response struct {
-		IP        string         `json:"ip"`
-		MAC       string         `json:"mac"`
-		Hostname  string         `json:"hostname"`
-		ClientID  string         `json:"client_id"`
-		Source    string         `json:"source"`
-		LastSeen  *time.Time     `json:"last_seen,omitempty"`
-		Anomalies []dhcp.Anomaly `json:"anomalies,omitempty"`
-	}
-	out := response{IP: ip, Source: "none"}
+	out := clientResponse{Source: "none"}
+	out.IP = ip
 
 	if mgr := h.app.GetDhcpMgr(); mgr != nil {
 		if l, ok := mgr.LookupByIP(ip); ok {
@@ -41,6 +58,16 @@ func (h *Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 			out.Hostname = l.Hostname
 			out.ClientID = l.ClientID
 			out.Source = l.Source
+			out.Origin = string(l.Origin)
+			out.OriginConfidence = string(l.OriginConfidence)
+			out.IPv6Addresses = l.IPv6Addresses
+			out.DUID = l.DUID
+			out.IsDualStack = l.IsDualStack
+			// For v6-only leases (Lease.IP empty) the caller asked by v6
+			// literal. Per FS-Dhcpv6LeaseV6OnlyClientLookupByV6 the `ip`
+			// field MUST be empty in that case — match what the
+			// underlying lease says.
+			out.IP = l.IP
 			ls := time.Now()
 			out.LastSeen = &ls
 		}
@@ -48,6 +75,55 @@ func (h *Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 			out.Anomalies = anomalies
 		}
 	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// ListClients returns every known DHCP client in the snapshot, sorted by
+// IP. Carries the same M6.5 fields as GetClient for SPA badge rendering
+// (FS-LeaseOriginClientsListSurfacesBadge, FS-Dhcpv6LeaseClientsPageShowsV6Column).
+//
+// FSIDs: FS-LeaseOriginClientsListSurfacesBadge,
+//        FS-Dhcpv6LeaseClientsPageShowsV6Column.
+func (h *Handler) ListClients(w http.ResponseWriter, r *http.Request) {
+	mgr := h.app.GetDhcpMgr()
+	if mgr == nil {
+		writeJSON(w, http.StatusOK, []clientResponse{})
+		return
+	}
+	leases := mgr.Snapshot()
+	out := make([]clientResponse, 0, len(leases))
+	for _, l := range leases {
+		out = append(out, clientResponse{
+			IP:               l.IP,
+			MAC:              l.MAC,
+			Hostname:         l.Hostname,
+			ClientID:         l.ClientID,
+			Source:           l.Source,
+			Origin:           string(l.Origin),
+			OriginConfidence: string(l.OriginConfidence),
+			IPv6Addresses:    l.IPv6Addresses,
+			DUID:             l.DUID,
+			IsDualStack:      l.IsDualStack,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		// v4-first ordering; v6-only rows sort after v4s.
+		if (out[i].IP == "") != (out[j].IP == "") {
+			return out[i].IP != ""
+		}
+		if out[i].IP != out[j].IP {
+			return out[i].IP < out[j].IP
+		}
+		// Tie-break on the first v6 address so dual-stack diffing stays stable.
+		var a, b string
+		if len(out[i].IPv6Addresses) > 0 {
+			a = out[i].IPv6Addresses[0]
+		}
+		if len(out[j].IPv6Addresses) > 0 {
+			b = out[j].IPv6Addresses[0]
+		}
+		return a < b
+	})
 	writeJSON(w, http.StatusOK, out)
 }
 
