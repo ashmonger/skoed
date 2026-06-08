@@ -15,8 +15,8 @@ import (
 // anomaly detection. Safe for concurrent reads from the DNS handler
 // and management API.
 type Manager struct {
-	conn     Connector
-	refresh  time.Duration
+	conn    Connector
+	refresh time.Duration
 
 	mu sync.RWMutex
 	// byIP is the current snapshot, freshest poll wins.
@@ -28,6 +28,13 @@ type Manager struct {
 	// anomalies are recent anti-spoof events, keyed by ID. Acknowledged
 	// ones linger until the AnomalyRetention sweep.
 	anomalies map[string]Anomaly
+
+	// M5.1 poll-health bookkeeping. lastPollAt is the wall-clock of the
+	// most recent successful Fetch(); pollErrorsTotal counts failed
+	// Fetch() calls since process start. Both are surfaced via the
+	// /metrics exporter so operators can alert on stale leases.
+	lastPollAt      time.Time
+	pollErrorsTotal uint64
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -92,10 +99,16 @@ func (m *Manager) loop(ctx context.Context) {
 func (m *Manager) pollOnce() {
 	leases, err := m.conn.Fetch()
 	if err != nil {
+		m.mu.Lock()
+		m.pollErrorsTotal++
+		m.mu.Unlock()
 		log.Printf("dhcp %s: poll failed: %v (keeping prior snapshot)", m.conn.Source(), err)
 		return
 	}
 	m.apply(leases)
+	m.mu.Lock()
+	m.lastPollAt = time.Now()
+	m.mu.Unlock()
 }
 
 // apply replaces the snapshot and runs anti-spoof detection against
@@ -318,4 +331,31 @@ func (m *Manager) Acknowledge(id string, now time.Time) bool {
 // unit tests; the acceptance tests use the real Connector path.
 func (m *Manager) ApplySync(leases []Lease) {
 	m.apply(leases)
+}
+
+// Source returns the connector's source label ("kea" / "dnsmasq" /
+// "http_json"). Exposed for the M5.1 /metrics exporter so the
+// dblock_dhcp_* series can carry an accurate `source` label.
+func (m *Manager) Source() string {
+	if m.conn == nil {
+		return ""
+	}
+	return m.conn.Source()
+}
+
+// LastPollAt returns the wall-clock of the most recent successful
+// poll. Zero when no poll has yet succeeded (the very first poll is
+// not yet in).
+func (m *Manager) LastPollAt() time.Time {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lastPollAt
+}
+
+// PollErrorsTotal returns the cumulative number of failed Fetch()
+// calls since process start.
+func (m *Manager) PollErrorsTotal() uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.pollErrorsTotal
 }

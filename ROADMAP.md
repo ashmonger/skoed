@@ -279,23 +279,162 @@ dblock is a self-hosted DNS filtering solution designed to replace Pi-Hole and A
 
 ---
 
-### Milestone 5 — Production Hardening
+### Milestone 5 — Production Hardening (umbrella)
 
 **Outcome**: dblock is suitable for always-on lab and small-office use with monitoring, automation, and reliable upgrades.
 
-**Capabilities:**
-- Prometheus metrics endpoint at `/metrics`
-- Audit log: records who changed what configuration and when
-- Automated blocklist refresh: configurable interval (daily by default) with optional signature verification
-- Multi-architecture release builds: amd64, arm64 (Linux)
-- In-place upgrade: download and replace binary via UI or CLI without losing configuration
-- Documentation site: install guide, configuration reference, cluster setup guide, troubleshooting
+M5 is an umbrella for six independent capabilities, each with its own
+sub-milestone below. Plus M5.3 (Encrypted Cluster Mesh) and M5.5
+(Native Packaging) which already have their own entries elsewhere in
+this file.
 
-**Non-goals for this milestone:**
+| Sub | Title                                  | Status     |
+|-----|----------------------------------------|------------|
+| 5.1 | Prometheus `/metrics` exporter         | in flight  |
+| 5.2 | Audit log                              | next       |
+| 5.3 | Encrypted Cluster Mesh                 | see below  |
+| 5.4 | Automated blocklist refresh            |            |
+| 5.5 | Native Packaging (.deb + Proxmox LXC)  | see below  |
+| 5.6 | In-place upgrade                       |            |
+| 5.7 | Multi-architecture release builds      |            |
+| 5.8 | Documentation site                     |            |
+
+**Non-goals for the M5 umbrella:**
 - GUI-driven OS updates
-- HA active-active cluster with Raft consensus (deferred to post-Milestone 5)
+- HA active-active cluster with Raft consensus (deferred to M10)
 
 **Dependencies:** Milestones 1–4 complete and validated.
+
+---
+
+### Milestone 5.1 — Prometheus `/metrics` Exporter
+
+**Outcome**: dblock exposes a Prometheus-format metrics endpoint so operators can graph DNS throughput, cache health, cluster state, and DHCP-cache freshness from outside the process. Standard `prometheus.io/scrape: "true"` annotations work out of the box.
+
+**Capabilities:**
+- `GET /metrics` returns Prometheus text format. Unauthenticated by default (the metrics are operator-internal, expose-them-only-on-the-LAN), with an opt-in `node.api.metrics.require_auth` toggle for paranoid deployments.
+- DNS engine counters:
+  - `dblock_dns_queries_total{outcome="..."}` — blocked / forwarded / cached / local, per-transport (+ -doh / -dot suffixes)
+  - `dblock_dns_query_duration_seconds` histogram (5 buckets: 1ms, 10ms, 100ms, 1s, 5s)
+- Cache (wires the existing M4.7 counters):
+  - `dblock_dns_cache_size`, `_max_entries`, `_hits_total`, `_misses_total`, `_evictions_total`
+- Cluster (gauges, refreshed per scrape):
+  - `dblock_cluster_node_role{role="leader|follower"}` (1 / 0)
+  - `dblock_cluster_raft_term`, `_commit_index`, `_members`, `_reachable_members`
+- DHCP (when M3.6 integration is enabled):
+  - `dblock_dhcp_leases`, `_anomalies_open`, `_last_poll_age_seconds`, `_poll_errors_total`
+- Build info gauge `dblock_build_info{version="...",commit="...",go="..."}` set to 1
+
+**Non-goals:**
+- OpenTelemetry support (Prometheus only for M5; OTel later if asked)
+- Per-route HTTP-handler timings (overkill; scrape interval averages are enough)
+- Custom histograms / summaries (operator brings their own recording rules)
+- Authenticated `/metrics` by default (the metrics are not secrets; operators on shared networks set `require_auth` themselves)
+
+**Dependencies:** None hard. M4.7 already exposed the cache counters in Go; this milestone wires them through `prometheus/client_golang`.
+
+---
+
+### Milestone 5.2 — Audit Log
+
+**Outcome**: Every state-changing API call (auth, blocklist edits, profile changes, schedule mutations, settings) is recorded with timestamp, actor, target, and diff so operators can answer "who turned cat:doh off at 2 AM?". Surface via Web UI table + Prometheus counters + a `GET /api/v1/audit` endpoint.
+
+**Capabilities:**
+- bbolt-replicated audit-log table (cluster-wide; viewable from any node)
+- Per-entry fields: `id`, `timestamp`, `actor` (`user:<name>` or `token:<id>` once M7 lands), `action` (e.g. `blocklist.create`), `target`, `node_id`, `diff_summary` (JSON patch-style or human string)
+- Configurable retention (default 90 days); compacted into Raft snapshot
+- Web UI: Audit page under Settings, with filters by actor / action / date range
+- API: `GET /api/v1/audit?limit=N&offset=M&actor=…&action=…`
+- Prometheus: `dblock_audit_events_total{action="..."}`
+
+**Non-goals:**
+- Forwarding to external SIEM (operator pipes the API)
+- Tamper-evident hash chain (every entry is Raft-replicated; tampering = breaking Raft)
+- Audit for read operations (writes only)
+
+**Dependencies:** M5.1 (to wire the counter). M7 (token auth) will refine `actor=token:<id>` attribution.
+
+---
+
+### Milestone 5.4 — Automated Blocklist Refresh
+
+**Outcome**: URL-source blocklists refresh on a schedule without operator intervention. Stale lists raise a Dashboard alert.
+
+**Capabilities:**
+- Per-blocklist `refresh_interval` field (default: cluster setting; default cluster setting: 24h)
+- Refresh worker runs only on the leader; results replicate via Raft so all nodes see the same list version
+- Per-blocklist `last_refresh_at`, `last_refresh_status` (`ok` / `error` / `unchanged`), `last_refresh_error`
+- Optional GPG signature verification for sources that publish signed lists (e.g. Hagezi)
+- Dashboard warning card when any blocklist hasn't refreshed in 2× its interval
+- Prometheus: `dblock_blocklist_last_refresh_seconds{id="..."}`, `_refresh_failures_total{id="..."}`
+
+**Non-goals:**
+- Per-rule deltas (UI shows count delta only; full diff would explode UI)
+- Push-style refresh hooks
+- Multi-source merge (one URL per blocklist)
+
+**Dependencies:** M2 cluster (so refresh ownership is leader-only). M5.1 for metrics.
+
+---
+
+### Milestone 5.6 — In-place Upgrade
+
+**Outcome**: Operators upgrade dblock without losing config or interrupting the cluster — UI button or CLI command downloads the new binary, verifies its signature, and rolls the cluster one node at a time.
+
+**Capabilities:**
+- `GET /api/v1/upgrade/check` queries the release feed and returns `{current, available, release_notes_url}`
+- `POST /api/v1/upgrade/start` downloads + verifies + swaps the binary, then exits 0; supervisor (systemd / pct) restarts. State on disk survives.
+- CLI: `dblock upgrade [--version vX.Y.Z]` runs the same flow without the API
+- Cluster-aware: only one node upgrades at a time; M2 leader election handles the brief gap
+- Web UI: "Upgrade available" banner on the Dashboard with one-click trigger
+- Cosign-signed releases; verification fails the upgrade if signature invalid
+
+**Non-goals:**
+- Rollback to prior version (operator keeps the prior binary if they want it)
+- Zero-downtime upgrade on single-node deployments (a single-node restart IS the downtime)
+- OS-level updates (M5.5 packages handle that via apt)
+
+**Dependencies:** M5.5 native packaging (apt path) AND M5.7 multi-arch builds. M5.2 audit log (record who triggered the upgrade).
+
+---
+
+### Milestone 5.7 — Multi-architecture Release Builds
+
+**Outcome**: Every dblock release ships both `linux/amd64` and `linux/arm64` binaries + matching Docker images, so Raspberry Pi / arm64 servers / Apple Silicon Linux VMs install the same release.
+
+**Capabilities:**
+- `goreleaser.yaml` builds both arches in one CI run
+- Docker multi-arch manifest via `docker buildx --platform linux/amd64,linux/arm64`
+- M5.5 `.deb` packages built for both arches
+- CI gate: image size ≤ 100 MB per arch (existing M1 risk row)
+- Release notes auto-include arch-specific checksums + cosign signatures
+
+**Non-goals:**
+- `linux/arm` (32-bit) — defer; almost no demand
+- macOS / Windows builds — dblock is a Linux daemon
+- FreeBSD / OpenBSD ports — community-driven
+
+**Dependencies:** M5.5 packaging (the .deb needs an arch). M5.6 upgrade (the upgrade verifier picks the right arch's binary).
+
+---
+
+### Milestone 5.8 — Documentation Site
+
+**Outcome**: A `docs.dblock.io`-style static site with install guide, configuration reference, cluster setup, troubleshooting, and how-tos for common deployments (Proxmox, Pi-hole migration, K8s).
+
+**Capabilities:**
+- Static site generator (mdBook, Hugo, or VitePress — TBD; lean toward mdBook for low maintenance)
+- Per-milestone docs synced from the in-repo `specs/` and `DEMO_NOTE_*.md` files
+- Search via Pagefind (no JS framework dep)
+- Versioned docs (latest + previous N major versions)
+- Hosted via GitHub Pages (free, no infra to run)
+
+**Non-goals:**
+- Translated docs (English only)
+- API reference auto-gen (M4.5 Swagger already does that)
+- Comment threads / forums
+
+**Dependencies:** None hard. Naturally pairs with the rest of M5 (install guide references M5.5 packages, cluster guide references M5.3 encrypted mesh, etc.).
 
 ---
 

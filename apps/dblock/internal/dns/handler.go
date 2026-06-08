@@ -27,46 +27,68 @@ type HandlerConfig struct {
 	// stamps them onto the query-log entry. Signature mirrors
 	// (*dhcp.Manager).LookupByIP without dragging in the dhcp package.
 	DhcpLookup func(ip string) (hostname, mac, clientID string, ok bool)
+	// M5.1: optional Prometheus observation hook. When non-nil, called
+	// once per query with the final outcome label (may carry the
+	// "-doh"/"-dot" transport suffix) and wall-clock elapsed time. nil
+	// disables metrics observation cleanly — useful for unit tests.
+	ObserveQuery func(outcome string, elapsed time.Duration)
 }
 
 // Handler implements dns.Handler and processes all incoming DNS queries.
 type Handler struct {
-	cfg    config.DNSConfig
-	fe     func() *filter.Engine
-	lr     *LocalResolver
-	fwd    *Forwarder
-	rec    *Recursor
-	ch     *Cache
-	ql     *dlog.QueryLog
-	dhcpFn func(ip string) (hostname, mac, clientID string, ok bool)
+	cfg     config.DNSConfig
+	fe      func() *filter.Engine
+	lr      *LocalResolver
+	fwd     *Forwarder
+	rec     *Recursor
+	ch      *Cache
+	ql      *dlog.QueryLog
+	dhcpFn  func(ip string) (hostname, mac, clientID string, ok bool)
+	observe func(outcome string, elapsed time.Duration)
 }
 
 // NewHandler constructs a Handler from the provided configuration.
 func NewHandler(cfg HandlerConfig) *Handler {
 	return &Handler{
-		cfg:    cfg.DNSCfg,
-		fe:     cfg.FilterEngine,
-		lr:     cfg.LocalResolver,
-		fwd:    cfg.Forwarder,
-		rec:    cfg.Recursor,
-		ch:     cfg.Cache,
-		ql:     cfg.QueryLog,
-		dhcpFn: cfg.DhcpLookup,
+		cfg:     cfg.DNSCfg,
+		fe:      cfg.FilterEngine,
+		lr:      cfg.LocalResolver,
+		fwd:     cfg.Forwarder,
+		rec:     cfg.Recursor,
+		ch:      cfg.Cache,
+		ql:      cfg.QueryLog,
+		dhcpFn:  cfg.DhcpLookup,
+		observe: cfg.ObserveQuery,
 	}
 }
 
 // ServeDNS implements dns.Handler.
 func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	start := time.Now()
 	clientIPStr, clientIP := h.resolveClient(w, r)
 
 	// M4: when a query comes in over DoH/DoT, suffix every query-log
 	// outcome with -doh / -dot so analytics can split by transport.
 	transport := transportFromWriter(w)
+
+	// M5.1: every exit path tags itself for the metrics observer via
+	// observed. The query-log "Append" hook is the only place outcome
+	// is already known at every exit, so tee through it.
+	var observed dlog.Outcome
+	defer func() {
+		if h.observe != nil && observed != "" {
+			h.observe(string(observed), time.Since(start))
+		}
+	}()
+
 	applyT := func(o dlog.Outcome) dlog.Outcome {
 		if transport == "" {
+			observed = o
 			return o
 		}
-		return dlog.Outcome(string(o) + "-" + transport)
+		out := dlog.Outcome(string(o) + "-" + transport)
+		observed = out
+		return out
 	}
 
 	if len(r.Question) == 0 {
