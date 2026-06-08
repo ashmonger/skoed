@@ -30,9 +30,15 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Dev: proxy every API call to the running dblock binary on :8080
-      // so the SPA can be developed against a live cluster.
-      '/api': 'http://127.0.0.1:8080',
+      // M5.9.2 `make dev` loop: vite dev forwards backend calls to the
+      // dblock daemon spawned by scripts/dev.sh on port 18099. The high
+      // port is deliberate — it avoids clashing with any locally-running
+      // production dblock the operator has on :8080. /metrics is the
+      // Prometheus exporter; the SPA scrapes it via /api in normal use
+      // but proxying it here means `curl http://localhost:5173/metrics`
+      // also works during dev, matching the production routing.
+      '/api':     'http://127.0.0.1:18099',
+      '/metrics': 'http://127.0.0.1:18099',
     },
   },
 })
