@@ -14,27 +14,31 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 2 — Multi-Node Cluster**
-Current phase: **Phase 1 — Functional Specifications**
+**Milestone 8 — Encrypted DNS Expansion (DoH3 + DNSCrypt v2)**
+Current phase: **Phase 2 — Technical Specification** (awaiting UoR validation + dependency approval)
+
+## Completed milestones
+- [x] M1–M7 merged to master; 350 acceptance tests green as of 2026-06-09
 
 ## Current tasks
 
-- [x] M1 — merged to master, all 58 acceptance tests green, demo validated — 2026-05-29
-- [x] M2 — initial design questions answered (failover model, sync direction, Helm scope) — 2026-05-29
-- [x] M2 — architecture pivot: hashicorp/raft + bbolt as source of truth; obsoletes SSE / manual+quorum failover — 2026-05-29
-- [x] M2 — IMPLEMENTATION_PLAN.md updated — 2026-05-29
-- [x] M2 — functional specs revised for Raft architecture (5 .feature files: node-enrollment, cluster-config-sync, leader-failover, cluster-status, query-log-aggregates) — 2026-05-29
-- [x] M2 — technical specs written: OpenAPI extended with /cluster/* endpoints; raft-fsm.md, cluster-store.md, query-log-cluster.md added; config-schema.md flagged as import/export only — 2026-05-29
-- [x] M2 — shadow YAML on disk for PBS / filesystem-level backups: spec'd (config-shadow-yaml.feature) and documented in cluster-store.md / raft-fsm.md — 2026-05-29
-- [ ] M2 — Write acceptance tests
-- [ ] M2 — Implementation
-- [ ] M2 — Refactoring phase
-- [ ] M2 — Demo: docker compose with primary + 2 replicas
-- [ ] M2 — UoR validation and merge to master
+- [x] M8 — functional spec written: `specs/functional/encrypted-dns-expansion.feature` (17 FSIDs) — 2026-06-09
+- [x] M8 — technical spec written: `specs/technical/encrypted-dns-expansion.md` (TS-EncryptedDnsExpansion) — 2026-06-09
+- [ ] M8 — UoR validates functional spec and technical spec (including dependency approval: quic-go + ameshkov/dnscrypt)
+- [ ] M8 — acceptance tests written: `tests/acceptance/encrypted_dns_expansion_test.go`
+- [ ] M8 — implementation: DoH3 via quic-go/http3, DNSCrypt via ameshkov/dnscrypt
+- [ ] M8 — refactoring phase
+- [ ] M8 — demo note + UoR validation
+- [ ] M8 — merge to master
 
 ## Blockers
 
-None.
+**Dependency approval required** (AGENTS.md Rule 11 — non-standard libraries):
+- `github.com/quic-go/quic-go` v0.48+ — QUIC/HTTP3 for DoH3
+- `github.com/ameshkov/dnscrypt/v2` v2.3+ — DNSCrypt v2 server
+
+Implementation MUST NOT start until UoR explicitly approves both.
+Record approval in `decisions/` before running `go get`.
 
 ## Backlog (post-M4)
 
