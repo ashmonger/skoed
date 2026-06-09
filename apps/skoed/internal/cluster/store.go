@@ -34,6 +34,8 @@ var (
 	bucketAudit = []byte("audit")
 	// M7: revocable, scoped API bearer tokens. Key = token ID.
 	bucketAPITokens = []byte("api_tokens")
+	// M8: DNSCrypt v2 keypair. Single key "keys".
+	bucketDNSCryptKeys = []byte("dnscrypt_keys")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -76,6 +78,7 @@ func (s *Store) init() error {
 			bucketCategoryOverrides,
 			bucketAudit,
 			bucketAPITokens,
+			bucketDNSCryptKeys,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -469,6 +472,17 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketAPITokens).Delete([]byte(p.ID))
+
+	case CmdDNSCryptKeysSet:
+		var k DNSCryptKeys
+		if err := json.Unmarshal(cmd.Payload, &k); err != nil {
+			return err
+		}
+		v, err := json.Marshal(k)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDNSCryptKeys).Put([]byte("keys"), v)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }

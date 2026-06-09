@@ -51,6 +51,8 @@ const (
 	// M7 — revocable, scoped API bearer tokens (TS-ApiToken).
 	CmdAPITokenUpsert CommandKind = "api_token.upsert"
 	CmdAPITokenDelete CommandKind = "api_token.delete"
+	// M8 — DNSCrypt v2 keypair rotation (TS-EncryptedDnsExpansion).
+	CmdDNSCryptKeysSet CommandKind = "dnscrypt.keys.set"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON

@@ -58,7 +58,10 @@ type Node struct {
 	// In single_port mode this is the same port as APIBase but with
 	// https:// scheme; in dual_port mode it's a separate port.
 	APIHTTPSBase string
-	cmd          *exec.Cmd
+	// M8: DoH3 (HTTP/3 over QUIC) and DNSCrypt v2 listeners; "" when disabled.
+	DoH3Addr      string // "127.0.0.1:port"
+	DNSCryptAddr  string // "127.0.0.1:port"
+	cmd           *exec.Cmd
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
