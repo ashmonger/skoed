@@ -15,7 +15,7 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 ## Active feature
 
 **Milestone 8 — Encrypted DNS Expansion (DoH3 + DNSCrypt v2)**
-Current phase: **Phase 2 — Technical Specification** (awaiting UoR validation + dependency approval)
+Current phase: **Phase 6 — Demo + UoR validation** (awaiting demo sign-off + merge)
 
 ## Completed milestones
 - [x] M1–M7 merged to master; 350 acceptance tests green as of 2026-06-09
@@ -24,21 +24,16 @@ Current phase: **Phase 2 — Technical Specification** (awaiting UoR validation 
 
 - [x] M8 — functional spec written: `specs/functional/encrypted-dns-expansion.feature` (17 FSIDs) — 2026-06-09
 - [x] M8 — technical spec written: `specs/technical/encrypted-dns-expansion.md` (TS-EncryptedDnsExpansion) — 2026-06-09
-- [ ] M8 — UoR validates functional spec and technical spec (including dependency approval: quic-go + ameshkov/dnscrypt)
-- [ ] M8 — acceptance tests written: `tests/acceptance/encrypted_dns_expansion_test.go`
-- [ ] M8 — implementation: DoH3 via quic-go/http3, DNSCrypt via ameshkov/dnscrypt
+- [x] M8 — UoR validates spec + dependency approval: quic-go + ameshkov/dnscrypt (decision: `decisions/20260609-M8ExternalDependencies.md`) — 2026-06-09
+- [x] M8 — acceptance tests written: `tests/acceptance/encrypted_dns_expansion_test.go` (9 FSIDs) — 2026-06-09
+- [x] M8 — implementation done: DoH3 (quic-go/http3), DNSCrypt v2 (ameshkov/dnscrypt), Raft keypair rotation, settings stamp — 2026-06-09
 - [ ] M8 — refactoring phase
-- [ ] M8 — demo note + UoR validation
+- [ ] M8 — demo note written: `demos/m8/DEMO_NOTE.md` — awaiting UoR validation
 - [ ] M8 — merge to master
 
 ## Blockers
 
-**Dependency approval required** (AGENTS.md Rule 11 — non-standard libraries):
-- `github.com/quic-go/quic-go` v0.48+ — QUIC/HTTP3 for DoH3
-- `github.com/ameshkov/dnscrypt/v2` v2.3+ — DNSCrypt v2 server
-
-Implementation MUST NOT start until UoR explicitly approves both.
-Record approval in `decisions/` before running `go get`.
+None.
 
 ## Backlog (post-M4)
 
