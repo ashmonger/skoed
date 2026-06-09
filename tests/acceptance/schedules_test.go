@@ -138,6 +138,7 @@ func createScheduleProfile(t *testing.T, n *ClusterNode, body profileBody) {
 // running two sub-cases in separate node lifecycles — simpler and more honest
 // than mutating time on a live node.
 func TestScheduleActiveWindow(t *testing.T) {
+	t.Parallel()
 	// Sub-case 1: Wednesday 2026-06-03 19:30 UTC → BEFORE the 20:00 window
 	// boundary → schedule inactive → blocklist OFF → forwarded.
 	t.Run("outside_window_forwards", func(t *testing.T) {
@@ -200,6 +201,7 @@ func TestScheduleActiveWindow(t *testing.T) {
 // An allow_only_inside schedule INVERTS the meaning: blocking applies OUTSIDE
 // the window; inside the window the blocklist is suspended.
 func TestScheduleAllowMode(t *testing.T) {
+	t.Parallel()
 	// Sub-case 1: 2026-06-03 17:00 UTC, Wednesday, INSIDE the 16:00-19:00
 	// window → schedule active → allow_only_inside means forwarded.
 	t.Run("inside_window_forwards", func(t *testing.T) {
@@ -260,6 +262,7 @@ func TestScheduleAllowMode(t *testing.T) {
 // evaluate independently per profile. Removing one binding must NOT affect
 // the other.
 func TestScheduleMultipleProfiles(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	// Wednesday 2026-06-03 21:30 UTC — inside the 20:00-23:59 window.
 	n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:30:00Z")
@@ -325,6 +328,7 @@ func TestScheduleMultipleProfiles(t *testing.T) {
 // Admin creates a schedule, attaches it, then deletes it; the cascade rule is
 // that every binding referencing a deleted schedule MUST be implicitly dropped.
 func TestScheduleApiCrud(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startScheduleNode(t, "SKOED_TEST_NOW=2026-06-03T21:30:00Z")
 	setUpstreamResolvers(t, n, upstream)
@@ -404,6 +408,7 @@ func TestScheduleApiCrud(t *testing.T) {
 // If the evaluator naively used UTC, 03:30 UTC is OUTSIDE any 20:00-22:00
 // window and the query would be forwarded — that would be a bug.
 func TestScheduleTimezoneIsNodeLocal(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startScheduleNode(t,
 		"SKOED_TEST_NOW=2026-06-02T03:30:00Z",

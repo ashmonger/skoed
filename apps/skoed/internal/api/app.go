@@ -78,7 +78,111 @@ type App struct {
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
 // construction. main.go calls this after the manager is built so the
 // API handlers can reach it via app.GetDhcpMgr().
-func (a *App) SetDhcpManager(m *dhcp.Manager) { a.dhcpMgr = m }
+//
+// M6.5 (TS-LeaseRepl): when a cluster is present we also wire the
+// leader-only gate and the Raft replicator so the manager polls only
+// on the elected leader and pushes its canonical snapshot through Raft.
+// Followers run the manager goroutine but the per-tick pollOnce skips
+// the connector and waits for ApplyReplicatedSnapshot to refresh the
+// in-memory view.
+func (a *App) SetDhcpManager(m *dhcp.Manager) {
+	a.dhcpMgr = m
+	// M6.5 (TS-BlockDyn): wire the origin lookup regardless of cluster
+	// mode so block_dynamic_clients works in single-node mode too.
+	defer a.wireLeaseOriginLookup()
+	if m == nil || a.cluster == nil {
+		return
+	}
+	c := a.cluster
+	connectorKind := m.Source()
+	m.SetLeaderCheck(c.IsLeader)
+	m.SetReplicator(func(leases []dhcp.Lease, pollUnix int64) error {
+		return c.ReplicateLeases(cluster.LeasesReplacePayload{
+			LeaderNodeID:  c.Node().Node.ID,
+			ConnectorKind: connectorKind,
+			SourceURL:     a.dhcpSourceURL(),
+			PollUnix:      pollUnix,
+			Leases:        leases,
+		})
+	})
+	m.SetAnomalyReplicator(func(an dhcp.Anomaly) error {
+		return c.ReplicateAnomaly(an)
+	})
+	// Prime the local view from whatever the cluster already has so a
+	// fresh process catches up without waiting for the next leader poll.
+	if lp, err := c.CurrentLeaseSnapshot(); err == nil && lp != nil {
+		m.ApplyReplicatedSnapshot(lp.Leases, lp.PollUnix)
+	}
+	if anomalies, err := c.CurrentLeaseAnomalies(); err == nil {
+		m.ResetReplicatedAnomalies(anomalies)
+	}
+	// Start a tiny goroutine that nudges the manager whenever this node
+	// becomes leader, so the first replicated snapshot lands within
+	// seconds of the election (FS-LeaseReplLeaderFailoverResumesPolling).
+	go a.leaderNudgeLoop(m)
+}
+
+// wireLeaseOriginLookup wires the block-dynamic-clients lookup into the
+// filter engine. Called once after both the DHCP manager and filter engine
+// are available. Safe to call multiple times (idempotent).
+func (a *App) wireLeaseOriginLookup() {
+	mgr := a.dhcpMgr
+	if mgr == nil {
+		return
+	}
+	a.cfgMu.RLock()
+	eng := a.filterEng
+	a.cfgMu.RUnlock()
+	if eng == nil {
+		return
+	}
+	eng.SetLeaseOriginLookup(func(ip string) string {
+		lease, ok := mgr.LookupByIP(ip)
+		if !ok {
+			return ""
+		}
+		// Only fire block_dynamic_clients for leases where we are
+		// confident about the origin (FS-BlockDynUnknownOriginTreatedAsNotDynamic).
+		// An empty wire field tags as dhcp_dynamic/unknown — that must not
+		// trigger the rule.
+		if lease.OriginConfidence == dhcp.OriginConfidenceUnknown {
+			return ""
+		}
+		return string(lease.Origin)
+	})
+}
+
+// dhcpSourceURL returns the node-local DHCP URL (best-effort). Used
+// only for the LeasesSource.SourceURL surface; safe to return "" when
+// the connector exposes nothing useful.
+func (a *App) dhcpSourceURL() string {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return ""
+	}
+	// Try node.dhcp.url first (via the YAML mirror exposed in cfg.Node).
+	// Fall back to "" — handlers degrade to connector_kind alone.
+	return ""
+}
+
+// leaderNudgeLoop watches the cluster leader id and nudges the manager
+// on every leader-acquire transition. Best-effort polling — there's no
+// public "leader changed" event channel on hashicorp/raft.
+func (a *App) leaderNudgeLoop(m *dhcp.Manager) {
+	wasLeader := a.cluster.IsLeader()
+	if wasLeader {
+		m.Nudge()
+	}
+	t := time.NewTicker(250 * time.Millisecond)
+	defer t.Stop()
+	for range t.C {
+		isLeader := a.cluster.IsLeader()
+		if isLeader && !wasLeader {
+			m.Nudge()
+		}
+		wasLeader = isLeader
+	}
+}
 
 // GetDhcpMgr returns the configured DHCP manager, or nil when M3.6
 // integration is disabled.
@@ -249,6 +353,10 @@ func (a *App) onApply() {
 	a.filterEng = filter.NewProfiled(snap)
 	a.cfgMu.Unlock()
 
+	// M6.5 (TS-BlockDyn): re-wire the lease origin lookup every time the
+	// engine is rebuilt so block_dynamic_clients profiles resolve correctly.
+	a.wireLeaseOriginLookup()
+
 	// Sync auth.Store with the replicated credentials so admin can log into
 	// any node with the same password.
 	if snap.Auth.Username != "" && snap.Auth.PasswordHash != "" {
@@ -257,6 +365,18 @@ func (a *App) onApply() {
 
 	if a.rebuildDNS != nil {
 		_ = a.rebuildDNS(snap)
+	}
+
+	// M6.5 (TS-LeaseRepl): mirror the replicated lease snapshot and the
+	// replicated anomaly set into the local manager so every node serves
+	// the same /api/v1/clients and /api/v1/leases responses.
+	if a.dhcpMgr != nil {
+		if lp, err := a.cluster.CurrentLeaseSnapshot(); err == nil && lp != nil {
+			a.dhcpMgr.ApplyReplicatedSnapshot(lp.Leases, lp.PollUnix)
+		}
+		if anomalies, err := a.cluster.CurrentLeaseAnomalies(); err == nil {
+			a.dhcpMgr.ResetReplicatedAnomalies(anomalies)
+		}
 	}
 }
 
@@ -486,11 +606,25 @@ func (a *App) Router() http.Handler {
 
 		// M3.6 — DHCP-enriched client identity + anti-spoof anomalies
 		// + reservation export. All node-local reads; never forwarded.
+		// M6.5 adds the unparameterised list endpoint that backs the
+		// SPA's Clients page badge column (TS-LeaseOrigin).
+		r.Get("/api/v1/clients", h.ListClients)
 		r.Get("/api/v1/clients/anomalies", h.ListAnomalies)
-		r.Post("/api/v1/clients/anomalies/{id}/acknowledge", h.AcknowledgeAnomaly)
+		// M6.5 (TS-LeaseRepl, FS-LeaseReplFollowerWriteForwarded):
+		// anomaly acknowledge is a replicated write; forward to leader.
+		r.Post("/api/v1/clients/anomalies/{id}/acknowledge", a.forward(h.AcknowledgeAnomaly))
 		r.Get("/api/v1/clients/export-reservations", h.ExportReservations)
 		r.Get("/api/v1/clients/_leases", h.LeaseSnapshot) // debug/harness
 		r.Get("/api/v1/clients/{ip}", h.GetClient)
+		// M6.5 — ARP/NDP cross-check (TS-ArpCheck).
+		r.Get("/api/v1/clients/{ip}/arp-state", h.GetClientArpState)
+
+		// M6.5 — Raft-replicated DHCP lease cache (TS-LeaseRepl).
+		// Reads are served locally from bbolt on every node; the body
+		// carries the current Raft leader id so callers can diagnose
+		// failovers without a separate /cluster/status round-trip.
+		r.Get("/api/v1/leases", h.GetLeases)
+		r.Get("/api/v1/leases/source", h.GetLeasesSource)
 
 		// Cluster endpoints — most write paths forwarded.
 		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))

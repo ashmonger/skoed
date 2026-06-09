@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/skoed/skoed/internal/config"
+	"github.com/skoed/skoed/internal/dhcp"
 )
 
 // CommandKind enumerates the FSM commands that move replicated state. Every
@@ -42,6 +43,11 @@ const (
 	// M6 — curated DoH/DoT resolver IP snapshot.
 	CmdDohResolverSnapshotReplace CommandKind = "doh_resolver.snapshot_replace"
 	CmdDohResolverRefreshFailure  CommandKind = "doh_resolver.refresh_failure"
+	// M6.5 — Raft-replicated DHCP lease cache (TS-LeaseRepl).
+	CmdLeasesReplace      CommandKind = "leases.replace"
+	CmdAnomalyAppend      CommandKind = "dhcp_anomaly.append"
+	CmdAnomalyAcknowledge CommandKind = "dhcp_anomaly.acknowledge"
+	CmdAnomalySweep       CommandKind = "dhcp_anomaly.sweep"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -234,6 +240,35 @@ type DohResolverEntryPayload struct {
 	IPv4      []string `json:"ipv4"`
 	IPv6      []string `json:"ipv6"`
 	SourceURL string   `json:"source_url"`
+}
+
+// ─── M6.5 payloads (TS-LeaseRepl) ───────────────────────────────────────────
+
+// LeasesReplacePayload carries the full canonical lease snapshot from the
+// leader's most recent poll. Followers overwrite their `dhcp/snapshot`
+// bucket atomically.
+type LeasesReplacePayload struct {
+	LeaderNodeID  string       `json:"leader_node_id"`
+	ConnectorKind string       `json:"connector_kind"`
+	SourceURL     string       `json:"source_url,omitempty"`
+	PollUnix      int64        `json:"poll_unix"`
+	Leases        []dhcp.Lease `json:"leases"`
+}
+
+// AnomalyAppendPayload replicates one anti-spoof anomaly to every node.
+type AnomalyAppendPayload struct {
+	Anomaly dhcp.Anomaly `json:"anomaly"`
+}
+
+// AnomalyAckPayload marks a replicated anomaly acknowledged.
+type AnomalyAckPayload struct {
+	ID               string `json:"id"`
+	AcknowledgedUnix int64  `json:"acknowledged_unix"`
+}
+
+// AnomalySweepPayload deletes anomalies older than BeforeUnix.
+type AnomalySweepPayload struct {
+	BeforeUnix int64 `json:"before_unix"`
 }
 
 // HourAggregate is the per-node hourly aggregate written by the

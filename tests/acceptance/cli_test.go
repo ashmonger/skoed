@@ -53,6 +53,7 @@ func runCli(t *testing.T, env []string, args ...string) (string, string, int) {
 
 // FS-CliVersionFlag
 func TestCliVersion(t *testing.T) {
+	t.Parallel()
 	stdout, _, exit := runCli(t, nil, "--version")
 	if exit != 0 {
 		t.Skipf("M5.9.1 impl pending: skoed --version exit=%d", exit)
@@ -65,6 +66,7 @@ func TestCliVersion(t *testing.T) {
 
 // FS-CliHealth
 func TestCliHealth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
@@ -85,6 +87,7 @@ func TestCliHealth(t *testing.T) {
 // FS-CliStatus — runs against a 3-node cluster and confirms the
 // leader is identified in the output.
 func TestCliStatus(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	n := c.Leader(t).Node
 	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
@@ -108,6 +111,7 @@ func TestCliStatus(t *testing.T) {
 
 // FS-CliTokenCreate
 func TestCliTokenCreate(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	auth := fmt.Sprintf("SKOED_AUTH=%s:%s", defaultUsername, defaultPassword)
@@ -127,6 +131,7 @@ func TestCliTokenCreate(t *testing.T) {
 // FS-CliBlocklistTest — uses an httptest server so the CLI is exercised
 // end-to-end without depending on the public internet.
 func TestCliBlocklistTest(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = io.WriteString(w, "0.0.0.0 cli-test-a.example\n0.0.0.0 cli-test-b.example\n0.0.0.0 cli-test-c.example\n")
@@ -149,6 +154,7 @@ func TestCliBlocklistTest(t *testing.T) {
 // FS-CliDaemonStillWorks — invoking skoed with no subcommand and
 // just --config <path> behaves like the existing daemon flow.
 func TestCliDaemonStillWorks(t *testing.T) {
+	t.Parallel()
 	// startCluster already invokes `skoed --config <path>` (no
 	// subcommand). If we got this far in the suite, the daemon
 	// subcommand fallback works. This test makes the assertion

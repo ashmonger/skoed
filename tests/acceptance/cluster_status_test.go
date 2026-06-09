@@ -17,6 +17,7 @@ import (
 
 // FS-ClusterStatusListsAllNodes
 func TestClusterStatusListsAllNodes(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 
 	for i := 0; i < c.Size(); i++ {
@@ -57,6 +58,7 @@ func TestClusterStatusListsAllNodes(t *testing.T) {
 
 // FS-ClusterStatusShowsCommitIndex
 func TestClusterStatusShowsCommitIndex(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -99,6 +101,7 @@ func TestClusterStatusShowsCommitIndex(t *testing.T) {
 // to "in_sync". This guarantees a buggy implementation that always returns
 // "in_sync" cannot pass.
 func TestClusterStatusShowsLaggingFollower(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -182,6 +185,7 @@ func TestClusterStatusShowsLaggingFollower(t *testing.T) {
 
 // FS-ClusterStatusShowsUnreachableFollower
 func TestClusterStatusShowsUnreachableFollower(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	followers := c.Followers(t)
 	if len(followers) < 1 {
@@ -212,6 +216,7 @@ func TestClusterStatusShowsUnreachableFollower(t *testing.T) {
 
 // FS-ClusterStatusSameViewFromAnyNode
 func TestClusterStatusSameViewFromAnyNode(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -254,6 +259,7 @@ func TestClusterStatusSameViewFromAnyNode(t *testing.T) {
 
 // FS-ClusterStatusShowsRaftTerm
 func TestClusterStatusShowsRaftTerm(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 	s := c.Status(t, leader)

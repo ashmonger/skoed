@@ -107,6 +107,7 @@ func itoa(n int) string {
 
 // FS-DohDetectionResolverBlocklist
 func TestDohDetectionResolverBlocklist(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -139,6 +140,7 @@ func TestDohDetectionResolverBlocklist(t *testing.T) {
 
 // FS-DohDetectionFirefoxCanary
 func TestDohDetectionFirefoxCanary(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -167,6 +169,7 @@ func TestDohDetectionFirefoxCanary(t *testing.T) {
 
 // FS-DohDetectionDdrProbe
 func TestDohDetectionDdrProbe(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -185,6 +188,7 @@ func TestDohDetectionDdrProbe(t *testing.T) {
 
 // FS-DohDetectionTaggedInQueryLog
 func TestDohDetectionTaggedInQueryLog(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -218,6 +222,7 @@ func TestDohDetectionTaggedInQueryLog(t *testing.T) {
 // DoH-hostname queries to be FORWARDED, while the Firefox canary stays
 // NXDOMAIN regardless.
 func TestDohDetectionCategoryDisableable(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 

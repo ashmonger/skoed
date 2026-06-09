@@ -420,6 +420,34 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return applyDohResolverRefreshFailure(tx, p.AttemptedAt, p.Error)
+
+	case CmdLeasesReplace:
+		var p LeasesReplacePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyLeasesReplace(tx, p)
+
+	case CmdAnomalyAppend:
+		var p AnomalyAppendPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyAnomalyAppend(tx, p.Anomaly)
+
+	case CmdAnomalyAcknowledge:
+		var p AnomalyAckPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyAnomalyAck(tx, p.ID, p.AcknowledgedUnix)
+
+	case CmdAnomalySweep:
+		var p AnomalySweepPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyAnomalySweep(tx, p.BeforeUnix)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }

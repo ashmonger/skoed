@@ -94,6 +94,7 @@ func docByKindName(docs []renderedDoc, kind, name string) (renderedDoc, bool) {
 
 // FS-HelmChartTemplatesRender
 func TestHelmChartTemplatesRender(t *testing.T) {
+	t.Parallel()
 	docs := renderTemplates(t)
 
 	if _, ok := docByKindName(docs, "DaemonSet", helmReleaseName); !ok {
@@ -116,6 +117,7 @@ func TestHelmChartTemplatesRender(t *testing.T) {
 
 // FS-HelmChartValuesOverrides
 func TestHelmChartValuesOverrides(t *testing.T) {
+	t.Parallel()
 	docs := renderTemplates(t,
 		"image.tag=v0.9.0",
 		"resources.limits.memory=256Mi",
@@ -149,6 +151,7 @@ func TestHelmChartValuesOverrides(t *testing.T) {
 
 // FS-HelmChartHostPortDns
 func TestHelmChartHostPortDns(t *testing.T) {
+	t.Parallel()
 	docs := renderTemplates(t)
 	ds, _ := docByKindName(docs, "DaemonSet", helmReleaseName)
 	tpl, _ := digMap(ds.Spec, "template", "spec", "containers")
@@ -183,6 +186,7 @@ func TestHelmChartHostPortDns(t *testing.T) {
 
 // FS-HelmChartBootstrapToken
 func TestHelmChartBootstrapToken(t *testing.T) {
+	t.Parallel()
 	docs := renderTemplates(t, "bootstrap.enabled=true")
 	sec, ok := docByKindName(docs, "Secret", helmReleaseName+"-bootstrap")
 	if !ok {
@@ -202,6 +206,7 @@ func TestHelmChartBootstrapToken(t *testing.T) {
 
 // FS-HelmChartManagementApiService
 func TestHelmChartManagementApiService(t *testing.T) {
+	t.Parallel()
 	docs := renderTemplates(t)
 	svc, ok := docByKindName(docs, "Service", helmReleaseName)
 	if !ok {

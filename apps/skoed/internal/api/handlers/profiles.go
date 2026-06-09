@@ -40,6 +40,12 @@ func (h *Handler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
+	// M6.5 (TS-BlockDyn): block_dynamic_clients is not allowed on the
+	// default profile — it must not create an implicit global block rule.
+	if p.ID == "default" && p.BlockDynamicClients {
+		writeError(w, http.StatusBadRequest, "the default profile cannot set block_dynamic_clients — create a dedicated profile (e.g. \"untrusted\") for this rule instead")
+		return
+	}
 	if h.app.GetCluster() == nil {
 		writeError(w, http.StatusServiceUnavailable, "cluster not available")
 		return
@@ -56,12 +62,13 @@ func (h *Handler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var patch struct {
-		Name        *string  `json:"name"`
-		Blocklists  []string `json:"blocklists"`
-		Allowlist   []string `json:"allowlist"`
-		SafeSearch  []string `json:"safesearch"`
-		ClientIPs   []string `json:"client_ips"`
-		ClientCIDRs []string `json:"client_cidrs"`
+		Name                *string  `json:"name"`
+		Blocklists          []string `json:"blocklists"`
+		Allowlist           []string `json:"allowlist"`
+		SafeSearch          []string `json:"safesearch"`
+		ClientIPs           []string `json:"client_ips"`
+		ClientCIDRs         []string `json:"client_cidrs"`
+		BlockDynamicClients *bool    `json:"block_dynamic_clients"`
 	}
 	if !decodeJSON(w, r, &patch) {
 		return
@@ -96,6 +103,14 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if patch.ClientCIDRs != nil {
 		updated.ClientCIDRs = patch.ClientCIDRs
+	}
+	if patch.BlockDynamicClients != nil {
+		// M6.5 (TS-BlockDyn): reject block_dynamic_clients=true on "default".
+		if id == "default" && *patch.BlockDynamicClients {
+			writeError(w, http.StatusBadRequest, "the default profile cannot set block_dynamic_clients — create a dedicated profile (e.g. \"untrusted\") for this rule instead")
+			return
+		}
+		updated.BlockDynamicClients = *patch.BlockDynamicClients
 	}
 	if h.app.GetCluster() == nil {
 		writeError(w, http.StatusServiceUnavailable, "cluster not available")

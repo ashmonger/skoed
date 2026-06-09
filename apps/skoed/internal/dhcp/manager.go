@@ -14,6 +14,13 @@ import (
 // snapshot indexed by IP, and tracks lease history for anti-spoof
 // anomaly detection. Safe for concurrent reads from the DNS handler
 // and management API.
+//
+// M6.5 (TS-LeaseRepl): the manager is leader-aware. When IsLeaderFn is
+// set, only the elected leader actually calls Connector.Fetch();
+// followers' tickers fire but skip polling. The leader hands its
+// canonical snapshot to ReplicateFn so the cluster can Raft-replicate
+// it; followers receive the snapshot back through ApplyReplicatedSnapshot
+// (driven by the cluster FSM Subscribe loop) and rebuild byIP from it.
 type Manager struct {
 	conn    Connector
 	refresh time.Duration
@@ -21,6 +28,9 @@ type Manager struct {
 	mu sync.RWMutex
 	// byIP is the current snapshot, freshest poll wins.
 	byIP map[string]Lease
+	// byV6 indexes the same Lease values under each of their IPv6
+	// addresses. Populated by M6.5 dual-stack merge; nil-safe pre-merge.
+	byV6 map[string]Lease
 	// history is the running record of every (Client-ID, MAC, hostname)
 	// tuple ever seen, used by the anti-spoof detector. Keyed by
 	// arbitrary stable identifier — see indexKey.
@@ -36,8 +46,45 @@ type Manager struct {
 	lastPollAt      time.Time
 	pollErrorsTotal uint64
 
+	// M6.5 (TS-LeaseRepl). All nil-safe.
+	isLeaderFn   func() bool                            // when nil, manager polls unconditionally (M3.6 mode)
+	replicateFn  func(leases []Lease, pollUnix int64) error // leader path
+	anomalyFn    func(Anomaly) error                    // leader path
+	lastApplied  []Lease                                // last snapshot we asked Raft to apply (for coalescer)
+
+	// M6.5 (TS-ArpCheck). Non-nil when ARP cross-check is enabled.
+	arpSweeper *arpSweeper
+
 	cancel context.CancelFunc
 	done   chan struct{}
+	nudge  chan struct{}
+}
+
+// SetLeaderCheck wires the leader-only gate. Until called the manager
+// keeps M3.6 semantics (every tick polls). Safe to call before Start.
+func (m *Manager) SetLeaderCheck(fn func() bool) {
+	m.mu.Lock()
+	m.isLeaderFn = fn
+	m.mu.Unlock()
+}
+
+// SetReplicator wires the leader-side callback that pushes the
+// canonical lease snapshot through Raft. fn receives the slice produced
+// by Connector.Fetch() and the wall-clock unix time of the successful
+// poll. Errors are logged but don't break the polling loop.
+func (m *Manager) SetReplicator(fn func(leases []Lease, pollUnix int64) error) {
+	m.mu.Lock()
+	m.replicateFn = fn
+	m.mu.Unlock()
+}
+
+// SetAnomalyReplicator wires the leader-side callback that publishes a
+// single new anomaly into the replicated state. Followers receive the
+// replay via ApplyReplicatedAnomaly.
+func (m *Manager) SetAnomalyReplicator(fn func(Anomaly) error) {
+	m.mu.Lock()
+	m.anomalyFn = fn
+	m.mu.Unlock()
 }
 
 type historyEntry struct {
@@ -57,8 +104,21 @@ func NewManager(conn Connector, refresh time.Duration) *Manager {
 		conn:      conn,
 		refresh:   refresh,
 		byIP:      map[string]Lease{},
+		byV6:      map[string]Lease{},
 		history:   map[string]historyEntry{},
 		anomalies: map[string]Anomaly{},
+		nudge:     make(chan struct{}, 1),
+	}
+}
+
+// Nudge requests an immediate pollOnce on the next loop iteration.
+// Non-blocking; back-to-back nudges before the loop wakes up coalesce.
+// Used by the cluster orchestrator when this node becomes leader so
+// the first replicated snapshot lands within seconds of the election.
+func (m *Manager) Nudge() {
+	select {
+	case m.nudge <- struct{}{}:
+	default:
 	}
 }
 
@@ -69,6 +129,11 @@ func (m *Manager) Start() {
 	m.cancel = cancel
 	m.done = make(chan struct{})
 	go m.loop(ctx)
+	// M6.5 (TS-ArpCheck): start the ARP sweep goroutine alongside
+	// the DHCP poll loop. Always wired in when a connector is configured.
+	s := newArpSweeper(m, NewNeighborProvider())
+	m.arpSweeper = s
+	go s.run(ctx.Done())
 }
 
 // Shutdown stops the refresh loop. Safe to call multiple times.
@@ -78,6 +143,26 @@ func (m *Manager) Shutdown() {
 		<-m.done
 		m.cancel = nil
 	}
+}
+
+// ArpState returns the current ARP/NDP cross-check state for an IP.
+// Returns (entry, true) when the IP is known; (zero, false) when unknown.
+func (m *Manager) ArpState(ip string) (ArpStateEntry, bool) {
+	if m.arpSweeper == nil {
+		// Pre-Start or ARP disabled — return the lease MAC with netlink_unavailable.
+		m.mu.RLock()
+		lease, ok := m.byIP[ip]
+		m.mu.RUnlock()
+		if !ok {
+			return ArpStateEntry{}, false
+		}
+		return ArpStateEntry{
+			IP:          ip,
+			MacDhcp:     normMAC(lease.MAC),
+			KernelState: "netlink_unavailable",
+		}, true
+	}
+	return m.arpSweeper.ArpState(ip)
 }
 
 func (m *Manager) loop(ctx context.Context) {
@@ -92,23 +177,104 @@ func (m *Manager) loop(ctx context.Context) {
 			return
 		case <-t.C:
 			m.pollOnce()
+		case <-m.nudge:
+			m.pollOnce()
 		}
 	}
 }
 
 func (m *Manager) pollOnce() {
+	// M6.5 leader-only gate. Re-checked just before Fetch so a mid-tick
+	// flap (raft.State transitioned away while the tick was in flight)
+	// causes the poll to be skipped instead of doubling up with the new
+	// leader (FS-LeaseReplNoDoublePollDuringTransition).
+	m.mu.RLock()
+	leaderFn := m.isLeaderFn
+	replicate := m.replicateFn
+	m.mu.RUnlock()
+	if leaderFn != nil && !leaderFn() {
+		return // follower; skip work
+	}
+
 	leases, err := m.conn.Fetch()
 	if err != nil {
 		m.mu.Lock()
 		m.pollErrorsTotal++
 		m.mu.Unlock()
-		log.Printf("dhcp %s: poll failed: %v (keeping prior snapshot)", m.conn.Source(), err)
+		log.Printf("dhcp_poll_failed source=%s error=%v (keeping prior snapshot)", m.conn.Source(), err)
 		return
 	}
+
+	// Re-check leadership AFTER Fetch but BEFORE apply/replicate. If
+	// leadership flipped during the connector RTT the new leader will
+	// take over.
+	if leaderFn != nil && !leaderFn() {
+		return
+	}
+
+	if replicate != nil {
+		// Coalesce: skip replication if the canonical snapshot is
+		// unchanged since the last successful apply. Matches the
+		// "well under 1 entry per lease per poll" invariant.
+		m.mu.Lock()
+		same := snapshotEquivalent(m.lastApplied, leases)
+		if !same {
+			m.lastApplied = cloneLeases(leases)
+		}
+		m.mu.Unlock()
+		if !same {
+			if err := replicate(leases, time.Now().Unix()); err != nil {
+				log.Printf("dhcp: replicate lease snapshot failed: %v", err)
+				// Don't bump pollErrorsTotal here — the poll succeeded;
+				// the replication retry happens on the next tick.
+				return
+			}
+		}
+		m.mu.Lock()
+		m.lastPollAt = time.Now()
+		m.mu.Unlock()
+		// Leader also drives local apply for spoof detection. The
+		// followers will see this lease set through ApplyReplicatedSnapshot
+		// after the Raft commit.
+		m.apply(leases)
+		return
+	}
+
 	m.apply(leases)
 	m.mu.Lock()
 	m.lastPollAt = time.Now()
 	m.mu.Unlock()
+}
+
+// snapshotEquivalent reports whether two canonical lease slices are
+// equivalent for replication purposes. Order-insensitive.
+func snapshotEquivalent(a, b []Lease) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	key := func(l Lease) string {
+		exp := l.ExpiresAt.UTC().Truncate(time.Second).Format(time.RFC3339)
+		return l.IP + "|" + l.MAC + "|" + l.Hostname + "|" + l.ClientID + "|" + exp
+	}
+	seen := map[string]int{}
+	for _, l := range a {
+		seen[key(l)]++
+	}
+	for _, l := range b {
+		seen[key(l)]--
+	}
+	for _, v := range seen {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneLeases(in []Lease) []Lease {
+	out := make([]Lease, len(in))
+	copy(out, in)
+	return out
 }
 
 // apply replaces the snapshot and runs anti-spoof detection against
@@ -116,18 +282,30 @@ func (m *Manager) pollOnce() {
 // package-level Apply wrapper.
 func (m *Manager) apply(leases []Lease) {
 	now := time.Now()
-	newByIP := make(map[string]Lease, len(leases))
-	// Build the new snapshot first so the anti-spoof scan sees every
-	// new lease in the same batch.
-	for _, l := range leases {
-		newByIP[l.IP] = l
+	merged := mergeDualStack(leases)
+	newByIP := make(map[string]Lease, len(merged))
+	newByV6 := map[string]Lease{}
+	for _, l := range merged {
+		if l.IP != "" {
+			newByIP[l.IP] = l
+		} else if len(l.IPv6Addresses) > 0 {
+			// v6-only lease — index under the first (lex-smallest) v6 address.
+			newByIP[l.IPv6Addresses[0]] = l
+		}
+		for _, v6 := range l.IPv6Addresses {
+			newByV6[v6] = l
+		}
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Anti-spoof: compare each NEW lease against history before updating.
-	for _, l := range leases {
+	// Anti-spoof: compare each NEW v4 lease against history before updating.
+	// v6-only and IA_PD-style records are skipped (M3.6 anti-spoof is v4-keyed).
+	for _, l := range merged {
+		if l.IP == "" {
+			continue
+		}
 		m.detectAnomalies(l, now)
 		key := historyKey(l)
 		h := m.history[key]
@@ -141,7 +319,114 @@ func (m *Manager) apply(leases []Lease) {
 		m.history[key] = h
 	}
 	m.byIP = newByIP
+	m.byV6 = newByV6
 	m.sweepAnomalies(now)
+}
+
+// mergeDualStack collapses one client's v4 + v6 records into a single
+// Lease per TS-Dhcpv6Lease. Heuristic ladder (first hit wins):
+//  1. DUID-LLT/LL ends in a 6-byte MAC equal to an existing v4 Lease.MAC
+//  2. Case-insensitive non-empty hostname equality
+// No match → emit the v6 record stand-alone.
+func mergeDualStack(leases []Lease) []Lease {
+	var v4 []*Lease
+	var v6 []*Lease
+	for i := range leases {
+		l := leases[i]
+		// A "v4 record" is any lease that carries an IPv4 IP. A "v6
+		// record" is any lease that carries v6 addresses but no IPv4 IP.
+		switch {
+		case l.IP != "" && len(l.IPv6Addresses) == 0:
+			v4 = append(v4, &leases[i])
+		case l.IP == "" && len(l.IPv6Addresses) > 0:
+			v6 = append(v6, &leases[i])
+		default:
+			// Already-merged or oddball record (e.g. v4 + v6 from one
+			// http_json payload). Keep it as-is.
+			v4 = append(v4, &leases[i])
+		}
+	}
+
+	for _, vsix := range v6 {
+		match := findV4Match(v4, *vsix)
+		if match == nil {
+			continue
+		}
+		// Absorb v6 addresses into the v4 record.
+		seen := map[string]struct{}{}
+		for _, a := range match.IPv6Addresses {
+			seen[a] = struct{}{}
+		}
+		for _, a := range vsix.IPv6Addresses {
+			if _, ok := seen[a]; !ok {
+				match.IPv6Addresses = append(match.IPv6Addresses, a)
+				seen[a] = struct{}{}
+			}
+		}
+		sortStrings(match.IPv6Addresses)
+		if match.DUID == "" {
+			match.DUID = vsix.DUID
+		}
+		match.IsDualStack = true
+		vsix.IP = "MERGED" // mark for filtering below
+	}
+
+	out := make([]Lease, 0, len(leases))
+	for _, p := range v4 {
+		out = append(out, *p)
+	}
+	for _, p := range v6 {
+		if p.IP == "MERGED" {
+			continue
+		}
+		// Stable ordering of stand-alone v6 records too.
+		sortStrings(p.IPv6Addresses)
+		out = append(out, *p)
+	}
+	return out
+}
+
+// findV4Match returns the first v4 record matching the heuristic ladder,
+// or nil when no match is found.
+func findV4Match(v4 []*Lease, vsix Lease) *Lease {
+	// 1. DUID-LLT/LL MAC suffix == existing v4 MAC.
+	if mac := macFromDUID(vsix.DUID); mac != "" {
+		for _, p := range v4 {
+			if p.MAC != "" && p.MAC == mac {
+				return p
+			}
+		}
+	}
+	// 2. Hostname equality (case-insensitive, non-empty).
+	if vsix.Hostname != "" {
+		want := strings.ToLower(vsix.Hostname)
+		for _, p := range v4 {
+			if p.Hostname != "" && strings.ToLower(p.Hostname) == want {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+// macFromDUID extracts the trailing MAC from DUID-LL / DUID-LLT
+// formatted as colon-separated hex bytes. Returns "" when the DUID isn't
+// in a recognised LL/LLT shape.
+//
+// DUID-LL  : 00:03:<hw-type:2>:<MAC:6>
+// DUID-LLT : 00:01:<hw-type:2>:<time:4>:<MAC:6>
+func macFromDUID(duid string) string {
+	parts := strings.Split(duid, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	macParts := parts[len(parts)-6:]
+	for _, p := range macParts {
+		if len(p) != 2 {
+			return ""
+		}
+	}
+	return strings.ToLower(strings.Join(macParts, ":"))
 }
 
 // detectAnomalies compares an incoming lease against history and records
@@ -222,17 +507,42 @@ func (m *Manager) detectAnomalies(l Lease, now time.Time) {
 // m.mu held. Dedups within the retention window: if an anomaly of the
 // same kind+IP+MAC already exists and is unacknowledged, this one is
 // dropped to avoid noise from a stable spoof state.
+//
+// M6.5 (TS-LeaseRepl): when anomalyFn is wired the leader also
+// replicates the anomaly through Raft so followers see the same record.
 func (m *Manager) recordAnomaly(a Anomaly) {
 	for _, existing := range m.anomalies {
-		if existing.Kind == a.Kind && existing.IP == a.IP && existing.MAC == a.MAC &&
-			existing.AcknowledgedAt == nil {
-			return // already known
+		if existing.AcknowledgedAt != nil {
+			continue
+		}
+		if existing.Kind != a.Kind || existing.IP != a.IP {
+			continue
+		}
+		// Dedup on the stable identity: prefer Client-ID (which is what
+		// "kind == mac_changed_for_client_id" pivots on). When no
+		// Client-ID is available, fall back to MAC.
+		if a.ClientID != "" && existing.ClientID == a.ClientID {
+			return // already known for this identity
+		}
+		if a.ClientID == "" && existing.MAC == a.MAC {
+			return
 		}
 	}
 	a.ID = newAnomalyID()
 	m.anomalies[a.ID] = a
 	log.Printf("dhcp anomaly: kind=%s ip=%s mac=%s client_id=%s prior_mac=%s prior_client_id=%s",
 		a.Kind, a.IP, a.MAC, a.ClientID, a.PriorMAC, a.PriorClientID)
+	if m.anomalyFn != nil {
+		fn := m.anomalyFn
+		// Don't hold m.mu while calling out — the replicator may take a
+		// while (Raft apply). Launch in a goroutine so detection stays
+		// snappy.
+		go func() {
+			if err := fn(a); err != nil {
+				log.Printf("dhcp: replicate anomaly %s failed: %v", a.ID, err)
+			}
+		}()
+	}
 }
 
 // sweepAnomalies evicts entries older than AnomalyRetention. Called
@@ -266,13 +576,18 @@ func newAnomalyID() string {
 
 // ─── Read API (DNS handler / management API call this) ─────────────
 
-// LookupByIP returns the lease for the given IP, or (Lease{}, false)
-// when not in the current snapshot.
+// LookupByIP returns the lease for the given IP literal (v4 OR v6), or
+// (Lease{}, false) when not in the current snapshot.
 func (m *Manager) LookupByIP(ip string) (Lease, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	l, ok := m.byIP[ip]
-	return l, ok
+	if l, ok := m.byIP[ip]; ok {
+		return l, true
+	}
+	if l, ok := m.byV6[ip]; ok {
+		return l, true
+	}
+	return Lease{}, false
 }
 
 // Snapshot returns a copy of every lease currently in cache. Safe to
@@ -283,6 +598,23 @@ func (m *Manager) Snapshot() []Lease {
 	out := make([]Lease, 0, len(m.byIP))
 	for _, l := range m.byIP {
 		out = append(out, l)
+	}
+	return out
+}
+
+// OriginCounts returns the count of leases per Origin value in the
+// current snapshot. Entries with zero count are omitted so the metric
+// exporter can honour the "no series for zero leases" rule from
+// FS-LeaseOriginPrometheusGauges.
+func (m *Manager) OriginCounts() map[Origin]int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := map[Origin]int{}
+	for _, l := range m.byIP {
+		if l.Origin == "" {
+			continue
+		}
+		out[l.Origin]++
 	}
 	return out
 }
@@ -358,4 +690,73 @@ func (m *Manager) PollErrorsTotal() uint64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.pollErrorsTotal
+}
+
+// ApplyReplicatedSnapshot rebuilds this node's in-memory lease state
+// from a Raft-replicated snapshot. Idempotent. pollUnix is the leader's
+// poll wall-clock; it is recorded as lastPollAt so followers report
+// the same `last_poll_unix` value.
+//
+// FSIDs: FS-LeaseReplFollowersServeReplicatedSnapshot,
+//        FS-LeaseReplLastPollUnixAdvances,
+//        FS-LeaseReplSourceUnreachableKeepsLastGood.
+func (m *Manager) ApplyReplicatedSnapshot(leases []Lease, pollUnix int64) {
+	merged := mergeDualStack(append([]Lease(nil), leases...))
+	newByIP := make(map[string]Lease, len(merged))
+	newByV6 := map[string]Lease{}
+	for _, l := range merged {
+		if l.IP != "" {
+			newByIP[l.IP] = l
+		} else if len(l.IPv6Addresses) > 0 {
+			newByIP[l.IPv6Addresses[0]] = l
+		}
+		for _, v6 := range l.IPv6Addresses {
+			newByV6[v6] = l
+		}
+	}
+	m.mu.Lock()
+	m.byIP = newByIP
+	m.byV6 = newByV6
+	if pollUnix > 0 {
+		m.lastPollAt = time.Unix(pollUnix, 0)
+	}
+	// Followers don't run detection (no anomalyFn, no recordAnomaly).
+	// The replicated anomaly stream is what they consume.
+	m.mu.Unlock()
+}
+
+// ApplyReplicatedAnomaly inserts (or upserts) a Raft-delivered anomaly
+// into this node's in-memory view. Idempotent: if the id is already
+// present we overwrite (used to flip AcknowledgedAt).
+func (m *Manager) ApplyReplicatedAnomaly(a Anomaly) {
+	if a.ID == "" {
+		return
+	}
+	m.mu.Lock()
+	m.anomalies[a.ID] = a
+	m.mu.Unlock()
+}
+
+// RemoveReplicatedAnomaly drops an anomaly from the in-memory view.
+// Used by the cluster sweep replay.
+func (m *Manager) RemoveReplicatedAnomaly(id string) {
+	m.mu.Lock()
+	delete(m.anomalies, id)
+	m.mu.Unlock()
+}
+
+// ResetReplicatedAnomalies clears every anomaly. Used when the cluster
+// reseeds the follower state from a fresh snapshot of the replicated
+// anomalies bucket.
+func (m *Manager) ResetReplicatedAnomalies(anomalies []Anomaly) {
+	next := make(map[string]Anomaly, len(anomalies))
+	for _, a := range anomalies {
+		if a.ID == "" {
+			continue
+		}
+		next[a.ID] = a
+	}
+	m.mu.Lock()
+	m.anomalies = next
+	m.mu.Unlock()
 }

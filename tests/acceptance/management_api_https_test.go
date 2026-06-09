@@ -48,6 +48,7 @@ func tlsAPIClient() *http.Client {
 // FS-MgmtApiHttpsListens — when api.tls.enabled, the API listener is
 // HTTPS and serves the configured cert.
 func TestMgmtApiHttpsListens(t *testing.T) {
+	t.Parallel()
 	const wantCN = "mgmt-api-https.skoed.test"
 	certFile, keyFile := writeTLSFixture(t, wantCN)
 	c := startClusterAPIHTTPS(t, APITLSOpts{
@@ -78,6 +79,7 @@ func TestMgmtApiHttpsListens(t *testing.T) {
 // FS-MgmtApiHttpsSinglePortRedirect — in single-port mode, plain HTTP
 // to the same port returns 308 → https://.
 func TestMgmtApiHttpsSinglePortRedirect(t *testing.T) {
+	t.Parallel()
 	certFile, keyFile := writeTLSFixture(t, "redirect.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
@@ -113,6 +115,7 @@ func TestMgmtApiHttpsSinglePortRedirect(t *testing.T) {
 // FS-MgmtApiHttpsDualPort — when mode = dual_port, both api_address
 // (plain HTTP) and https_address (HTTPS) work.
 func TestMgmtApiHttpsDualPort(t *testing.T) {
+	t.Parallel()
 	certFile, keyFile := writeTLSFixture(t, "dual.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,
@@ -145,6 +148,7 @@ func TestMgmtApiHttpsDualPort(t *testing.T) {
 
 // FS-MgmtApiHttpsHSTS — HSTS header is opt-in.
 func TestMgmtApiHttpsHSTS(t *testing.T) {
+	t.Parallel()
 	certFile, keyFile := writeTLSFixture(t, "hsts.skoed.test")
 	c := startClusterAPIHTTPS(t, APITLSOpts{
 		Enabled:  true,

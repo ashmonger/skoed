@@ -82,6 +82,7 @@ func addLocalDNSEntry(t *testing.T, n *Node, hostname, ip string) {
 // FS-ConfigExport
 // GET /api/v1/config/export returns a non-empty archive with Content-Type application/gzip.
 func TestConfigExport(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -125,6 +126,7 @@ func TestConfigExport(t *testing.T) {
 // FS-ConfigImportOnFreshNode
 // Export from nodeA and import to a fresh nodeB; nodeB exhibits the same blocklist behavior.
 func TestConfigImportOnFreshNode(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 
 	nodeA := startNode(t, NodeConfig{
@@ -159,6 +161,7 @@ func TestConfigImportOnFreshNode(t *testing.T) {
 // FS-ConfigImportAtomic
 // Submitting a corrupt archive returns HTTP 400 and leaves the existing config intact.
 func TestConfigImportAtomic(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -183,6 +186,7 @@ func TestConfigImportAtomic(t *testing.T) {
 // FS-ConfigImportOverwritesExisting
 // Importing on a node that already has config replaces it completely.
 func TestConfigImportOverwritesExisting(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 
 	// nodeA has a blocklist with "new-domain.example.com".
@@ -222,6 +226,7 @@ func TestConfigImportOverwritesExisting(t *testing.T) {
 // Node A has a blocklist blocking "ads.example.com" and a local entry "nas.home"→"192.168.1.50".
 // Export A and import on B; B blocks the domain and resolves the local entry.
 func TestConfigExportImportRoundTrip(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 
 	nodeA := startNode(t, NodeConfig{

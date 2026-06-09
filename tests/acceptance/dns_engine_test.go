@@ -21,6 +21,7 @@ import (
 // A client query for an internet domain is forwarded to the upstream and the
 // answer is returned to the client.
 func TestDnsQueryForwarding(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -36,6 +37,7 @@ func TestDnsQueryForwarding(t *testing.T) {
 // FS-DnsQueryForwardingTcp
 // A client query sent over TCP is forwarded and answered correctly.
 func TestDnsQueryForwardingTCP(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -57,6 +59,7 @@ func TestDnsQueryForwardingTCP(t *testing.T) {
 // FS-DnsQueryForwardingFallback
 // When the primary upstream is unreachable, skoed falls back to the next one.
 func TestDnsQueryForwardingFallback(t *testing.T) {
+	t.Parallel()
 	// Port with no listener — will time out
 	deadUpstream := "127.0.0.1:1"
 	liveUpstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
@@ -75,6 +78,7 @@ func TestDnsQueryForwardingFallback(t *testing.T) {
 // FS-DnsQueryForwardingAllUpstreamsUnreachable
 // When all upstreams are unreachable, skoed returns SERVFAIL.
 func TestDnsQueryForwardingAllUpstreamsUnreachable(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
 		UpstreamResolvers: []string{"127.0.0.1:1"},
@@ -88,6 +92,7 @@ func TestDnsQueryForwardingAllUpstreamsUnreachable(t *testing.T) {
 // FS-DnsQueryForwardingAAAA
 // AAAA queries are forwarded and the answer is returned.
 func TestDnsQueryForwardingAAAA(t *testing.T) {
+	t.Parallel()
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		m := new(dns.Msg)
 		m.SetReply(r)
@@ -114,6 +119,7 @@ func TestDnsQueryForwardingAAAA(t *testing.T) {
 // FS-DnsQueryForwardingMultipleRecordTypes
 // Non-A/AAAA record types (e.g. MX) are forwarded and returned.
 func TestDnsQueryForwardingMX(t *testing.T) {
+	t.Parallel()
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		m := new(dns.Msg)
 		m.SetReply(r)
@@ -150,6 +156,7 @@ func TestDnsQueryForwardingMX(t *testing.T) {
 // FS-DualStackDnsIPv4Listener
 // A query from an IPv4 client is accepted and answered.
 func TestDualStackIPv4Listener(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -165,6 +172,7 @@ func TestDualStackIPv4Listener(t *testing.T) {
 // FS-DualStackDnsNullBlockIPv4
 // When a domain is blocked with NULL policy, an A query returns 0.0.0.0.
 func TestDualStackNullBlockIPv4(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -189,6 +197,7 @@ func TestDualStackNullBlockIPv4(t *testing.T) {
 // FS-DualStackDnsNullBlockIPv6
 // When a domain is blocked with NULL policy, an AAAA query returns ::.
 func TestDualStackNullBlockIPv6(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -212,6 +221,7 @@ func TestDualStackNullBlockIPv6(t *testing.T) {
 // FS-DnssecTransparentProxy
 // When the client sets the DO bit, DNSSEC records from upstream are forwarded.
 func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
+	t.Parallel()
 	var receivedDO bool
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		// Record whether the DO bit arrived at the upstream
@@ -261,6 +271,7 @@ func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
 // FS-DnssecTransparentProxyWithoutDoBit
 // Without the DO bit, the upstream is not asked for DNSSEC records.
 func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
+	t.Parallel()
 	var receivedDO bool
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		if opt := r.IsEdns0(); opt != nil {
@@ -291,6 +302,7 @@ func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
 // FS-DnssecTransparentProxyBlockedDomain
 // DNSSEC records are not returned for blocked domains; upstream is not contacted.
 func TestDnssecTransparentProxyBlockedDomain(t *testing.T) {
+	t.Parallel()
 	contacted := false
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		contacted = true

@@ -44,6 +44,7 @@ const fwRulesPath = "/api/v1/firewall-rules"
 // returns 200 and a non-empty rule blob — without that the row action
 // would have nothing to surface.
 func TestFwRuleUiClientsRowActionVisible(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -69,6 +70,7 @@ func TestFwRuleUiClientsRowActionVisible(t *testing.T) {
 // opnsense, unifi) MUST be a valid platform argument to the generator.
 // If any one of them errored, the SPA's tabset would have a dead tab.
 func TestFwRuleUiClientsModalPlatformTabset(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -110,6 +112,7 @@ func TestFwRuleUiClientsModalPlatformTabset(t *testing.T) {
 // body that the SPA can hand verbatim to
 // navigator.clipboard.writeText.
 func TestFwRuleUiClientsCopyToClipboard(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -135,6 +138,7 @@ func TestFwRuleUiClientsCopyToClipboard(t *testing.T) {
 // accepts arbitrary CIDRs the operator types into the picker and the
 // platform tabset's alternate tabs are each independently reachable.
 func TestFwRuleUiStatsSubnetCallout(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -170,6 +174,7 @@ func TestFwRuleUiStatsSubnetCallout(t *testing.T) {
 // Copy button must therefore be able to hand that text to the
 // clipboard verbatim.
 func TestFwRuleUiStatsSubnetPreviewAndCopy(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -198,6 +203,7 @@ func TestFwRuleUiStatsSubnetPreviewAndCopy(t *testing.T) {
 // IP currently bound to the profile so the operator sees them in the
 // preview before pressing Copy.
 func TestFwRuleUiProfileScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedKidsProfile(t, n)
@@ -228,6 +234,7 @@ func TestFwRuleUiProfileScope(t *testing.T) {
 // independently fetchable, mirroring the sequence ArrowRight produces,
 // then re-fetches iptables to model the Home-key return.
 func TestFwRuleUiKeyboardNavigablePlatformTabs(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -262,6 +269,7 @@ func TestFwRuleUiKeyboardNavigablePlatformTabs(t *testing.T) {
 // must therefore still produce a parseable header (whether or not the
 // stale marker is present).
 func TestFwRuleUiStaleSnapshotBanner(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -298,6 +306,7 @@ func TestFwRuleUiStaleSnapshotBanner(t *testing.T) {
 // or a 503 the SPA can map to the empty-state) instead of leaking an
 // internal error.
 func TestFwRuleUiEmptyResolverDatabase(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -323,6 +332,7 @@ func TestFwRuleUiEmptyResolverDatabase(t *testing.T) {
 // successful body would mean the "Copy DoH-gap rules" action is
 // reachable without a session.
 func TestFwRuleUiUnauthorizedRedirect(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 

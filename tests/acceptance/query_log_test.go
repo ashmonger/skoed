@@ -72,6 +72,7 @@ func waitForLog(t *testing.T, n *Node, domain, outcome string, maxWait time.Dura
 // After a DNS query, GET /api/v1/query-log contains an entry with the correct
 // client, domain, query type, and outcome.
 func TestQueryLogRecordsEntry(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -96,6 +97,7 @@ func TestQueryLogRecordsEntry(t *testing.T) {
 // FS-QueryLogOutcomeBlocked
 // A blocked query appears in the log with outcome="blocked" and the blocklist ID.
 func TestQueryLogOutcomeBlocked(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -120,6 +122,7 @@ func TestQueryLogOutcomeBlocked(t *testing.T) {
 // FS-QueryLogOutcomeLocal
 // A query resolved from a local DNS entry appears with outcome="local".
 func TestQueryLogOutcomeLocal(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -145,6 +148,7 @@ func TestQueryLogOutcomeLocal(t *testing.T) {
 // The log is returned in reverse chronological order and each entry includes
 // the required fields: timestamp, client, domain, query_type, outcome.
 func TestQueryLogBrowseAll(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -212,6 +216,7 @@ func TestQueryLogBrowseAll(t *testing.T) {
 // FS-QueryLogFilterByClient
 // GET /api/v1/query-log?client=127.0.0.1 returns only entries for that client.
 func TestQueryLogFilterByClient(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -237,6 +242,7 @@ func TestQueryLogFilterByClient(t *testing.T) {
 // FS-QueryLogFilterByOutcome
 // GET /api/v1/query-log?outcome=blocked returns only blocked entries.
 func TestQueryLogFilterByOutcome(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -267,6 +273,7 @@ func TestQueryLogFilterByOutcome(t *testing.T) {
 // When max_entries is set to N and more than N queries are made, the log
 // contains at most N entries.
 func TestQueryLogRetentionBound(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -319,6 +326,7 @@ func TestQueryLogRetentionBound(t *testing.T) {
 // FS-QueryLogRetentionConfigurable
 // PATCH /api/v1/settings with query_log.max_entries takes effect.
 func TestQueryLogRetentionConfigurable(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",

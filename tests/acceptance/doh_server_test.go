@@ -151,6 +151,7 @@ func requireDoTEnabled(t *testing.T, n *Node) string {
 
 // FS-DohServerListens
 func TestDohServerListensPostAndGet(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)
@@ -182,6 +183,7 @@ func TestDohServerListensPostAndGet(t *testing.T) {
 
 // FS-DotServerListens
 func TestDotServerListens(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoTEnabled(t, n)
@@ -194,6 +196,7 @@ func TestDotServerListens(t *testing.T) {
 
 // FS-DohAppliesFilter
 func TestDohAppliesFilter(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)
@@ -224,6 +227,7 @@ func TestDohAppliesFilter(t *testing.T) {
 
 // FS-DotAppliesFilter
 func TestDotAppliesFilter(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoTEnabled(t, n)
@@ -252,6 +256,7 @@ func TestDotAppliesFilter(t *testing.T) {
 
 // FS-DohSelfSignedCert
 func TestDohSelfSignedCertOnFirstBoot(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	cn := c.Leader(t)
 	n := cn.Node
@@ -292,6 +297,7 @@ func TestDohSelfSignedCertOnFirstBoot(t *testing.T) {
 
 // FS-DohDisabledByDefault — uses a fresh cluster where doh_port is 0.
 func TestDohDisabledByDefault(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -304,6 +310,7 @@ func TestDohDisabledByDefault(t *testing.T) {
 
 // FS-DotDisabledByDefault
 func TestDotDisabledByDefault(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	if n.DoTAddr != "" {
@@ -405,6 +412,7 @@ func writeTLSFixture(t *testing.T, commonName string) (certPath, keyPath string)
 // the unique value baked into the fixture (so the auto-generated cert
 // path would fail this).
 func TestDohConfiguredCert(t *testing.T) {
+	t.Parallel()
 	const wantCN = "doh-configured-cert.skoed.test"
 	certFile, keyFile := writeTLSFixture(t, wantCN)
 
@@ -436,6 +444,7 @@ func TestDohConfiguredCert(t *testing.T) {
 // A local DNS A record served over DoH. Asserts the answer matches the
 // configured IP AND the query-log outcome carries the "local-doh" tag.
 func TestDohServesLocalDNS(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)
@@ -499,6 +508,7 @@ func TestDohServesLocalDNS(t *testing.T) {
 // "forwarded-doh", which fires as soon as the engine decides to forward,
 // regardless of whether the upstream replies.
 func TestDohForwardsUnmatched(t *testing.T) {
+	t.Parallel()
 	c := startClusterEncrypted(t, 1)
 	n := c.Leader(t).Node
 	addr := requireDoHEnabled(t, n)

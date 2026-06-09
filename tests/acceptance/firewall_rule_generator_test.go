@@ -82,6 +82,7 @@ func seedKidsProfile(t *testing.T, n *Node) {
 
 // FS-FwRuleIptablesSubnetScope
 func TestFwRuleIptablesSubnetScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, ctype := fwRuleGet(t, n, "platform=iptables&scope=subnet&subnet=10.0.0.0/24")
@@ -121,6 +122,7 @@ func TestFwRuleIptablesSubnetScope(t *testing.T) {
 
 // FS-FwRuleNftablesSubnetScope
 func TestFwRuleNftablesSubnetScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=nftables&scope=subnet&subnet=10.0.0.0/24")
@@ -154,6 +156,7 @@ func TestFwRuleNftablesSubnetScope(t *testing.T) {
 
 // FS-FwRuleMikrotikSubnetScope
 func TestFwRuleMikrotikSubnetScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=mikrotik&scope=subnet&subnet=10.0.0.0/24")
@@ -190,6 +193,7 @@ func TestFwRuleMikrotikSubnetScope(t *testing.T) {
 
 // FS-FwRuleOpnsenseSubnetScope
 func TestFwRuleOpnsenseSubnetScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=opnsense&scope=subnet&subnet=10.0.0.0/24")
@@ -228,6 +232,7 @@ func TestFwRuleOpnsenseSubnetScope(t *testing.T) {
 
 // FS-FwRuleUnifiSubnetScope
 func TestFwRuleUnifiSubnetScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, ctype := fwRuleGet(t, n, "platform=unifi&scope=subnet&subnet=10.0.0.0/24")
@@ -265,6 +270,7 @@ func TestFwRuleUnifiSubnetScope(t *testing.T) {
 
 // FS-FwRuleProfileScope
 func TestFwRuleProfileScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedKidsProfile(t, n)
@@ -293,6 +299,7 @@ func TestFwRuleProfileScope(t *testing.T) {
 
 // FS-FwRuleAllScope
 func TestFwRuleAllScope(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=iptables&scope=all")
@@ -328,6 +335,7 @@ func TestFwRuleAllScope(t *testing.T) {
 
 // FS-FwRuleRejectActionOptIn
 func TestFwRuleRejectActionOptIn(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=iptables&scope=subnet&subnet=10.0.0.0/24&action=reject")
@@ -359,6 +367,7 @@ func TestFwRuleRejectActionOptIn(t *testing.T) {
 
 // FS-FwRuleRejectsUnknownPlatform
 func TestFwRuleRejectsUnknownPlatform(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=pfsense&scope=all")
@@ -382,6 +391,7 @@ func TestFwRuleRejectsUnknownPlatform(t *testing.T) {
 
 // FS-FwRuleRejectsInvalidSubnet
 func TestFwRuleRejectsInvalidSubnet(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=iptables&scope=subnet&subnet=not-a-cidr")
@@ -398,6 +408,7 @@ func TestFwRuleRejectsInvalidSubnet(t *testing.T) {
 
 // FS-FwRuleRejectsUnknownProfile
 func TestFwRuleRejectsUnknownProfile(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=iptables&scope=profile&profile=does-not-exist")
@@ -414,6 +425,7 @@ func TestFwRuleRejectsUnknownProfile(t *testing.T) {
 
 // FS-FwRuleRequiresAuth
 func TestFwRuleRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	resp := n.apiDoNoAuth(t, "GET", "/api/v1/firewall-rules?platform=iptables&scope=all")
@@ -428,6 +440,7 @@ func TestFwRuleRequiresAuth(t *testing.T) {
 
 // FS-FwRuleHeaderCarriesSnapshotProvenance
 func TestFwRuleHeaderCarriesSnapshotProvenance(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, body, _ := fwRuleGet(t, n, "platform=iptables&scope=all")
@@ -459,6 +472,7 @@ func TestFwRuleHeaderCarriesSnapshotProvenance(t *testing.T) {
 
 // FS-FwRuleStaleSnapshotStillServes
 func TestFwRuleStaleSnapshotStillServes(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -489,6 +503,7 @@ func TestFwRuleStaleSnapshotStillServes(t *testing.T) {
 
 // FS-FwRuleMetricsCounter
 func TestFwRuleMetricsCounter(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 

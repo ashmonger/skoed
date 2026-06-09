@@ -48,6 +48,7 @@ func fetchMetrics(t *testing.T, n *Node) string {
 
 // FS-MetricsEndpointAvailable
 func TestMetricsEndpointAvailable(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 	resp, err := http.Get(n.APIBase + "/metrics")
 	if err != nil {
@@ -76,6 +77,7 @@ func TestMetricsEndpointAvailable(t *testing.T) {
 
 // FS-MetricsBuildInfo
 func TestMetricsBuildInfo(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, n)
 	// Match: skoed_build_info{commit="...",go="...",version="..."} 1
@@ -91,6 +93,7 @@ func TestMetricsBuildInfo(t *testing.T) {
 // against an outcome (`error` or `forwarded` depending on impl); the test
 // only asserts the series shape and a positive counter.
 func TestMetricsDnsQueryCounter(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("9.9.9.9"))
 	n := startNode(t, NodeConfig{UpstreamResolvers: []string{upstream}})
 	// Generate a couple of forwarded queries.
@@ -110,6 +113,7 @@ func TestMetricsDnsQueryCounter(t *testing.T) {
 
 // FS-MetricsDnsQueryHistogram
 func TestMetricsDnsQueryHistogram(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("9.9.9.9"))
 	n := startNode(t, NodeConfig{UpstreamResolvers: []string{upstream}})
 	dnsQuery(t, n.DNSAddr, "histogram-test.example.", dns.TypeA)
@@ -130,6 +134,7 @@ func TestMetricsDnsQueryHistogram(t *testing.T) {
 
 // FS-MetricsCacheGauges
 func TestMetricsCacheGauges(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, n)
 	if !strings.Contains(body, "skoed_dns_cache_max_entries") {
@@ -154,6 +159,7 @@ func TestMetricsCacheGauges(t *testing.T) {
 
 // FS-MetricsClusterGauges
 func TestMetricsClusterGauges(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	body := fetchMetrics(t, n)
@@ -188,6 +194,7 @@ func TestMetricsClusterGauges(t *testing.T) {
 // /metrics MUST expose skoed_dhcp_* series. When DHCP is not configured,
 // the series MUST be absent (no zero-valued ghost series).
 func TestMetricsDhcpGaugesWhenEnabled(t *testing.T) {
+	t.Parallel()
 	// Without DHCP enabled, the DHCP gauges should be absent.
 	plain := startNode(t, NodeConfig{})
 	body := fetchMetrics(t, plain)
@@ -204,6 +211,7 @@ func TestMetricsDhcpGaugesWhenEnabled(t *testing.T) {
 
 // FS-MetricsOpenByDefault — /metrics with no Authorization header returns 200.
 func TestMetricsOpenByDefault(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 	resp, err := http.Get(n.APIBase + "/metrics")
 	if err != nil {
@@ -227,6 +235,7 @@ func TestMetricsOpenByDefault(t *testing.T) {
 // for now until the harness gains an APIMetricsRequireAuth knob; the
 // shape lives in prometheus-metrics.feature.
 func TestMetricsOptionalAuthGate(t *testing.T) {
+	t.Parallel()
 	t.Skip("FS-MetricsOptionalAuthGate exercised once cluster harness exposes APIMetricsRequireAuth knob")
 }
 

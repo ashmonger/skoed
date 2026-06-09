@@ -70,6 +70,7 @@ func fetchAudit(t *testing.T, n *Node, qs string) auditPage {
 
 // FS-AuditWriteRecorded
 func TestAuditWriteRecorded(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -114,6 +115,7 @@ func TestAuditWriteRecorded(t *testing.T) {
 // blocklist body (missing name / source). Blocklist POST upserts on
 // duplicate id, so we can't use that to trigger an error.
 func TestAuditFailedWriteRecorded(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	before := fetchAudit(t, n, "limit=1").Total
@@ -133,6 +135,7 @@ func TestAuditFailedWriteRecorded(t *testing.T) {
 
 // FS-AuditReadsNotRecorded
 func TestAuditReadsNotRecorded(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	before := fetchAudit(t, n, "limit=1").Total
@@ -150,6 +153,7 @@ func TestAuditReadsNotRecorded(t *testing.T) {
 
 // FS-AuditListEndpointShape
 func TestAuditListEndpointShape(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	// Make 3 mutations so we have at least 3 entries.
@@ -185,11 +189,13 @@ func TestAuditListEndpointShape(t *testing.T) {
 
 // FS-AuditFilterByActor — exercised once M7 ships a second user.
 func TestAuditFilterByActor(t *testing.T) {
+	t.Parallel()
 	t.Skip("FS-AuditFilterByActor needs M7 multi-user support to seed entries from two actors")
 }
 
 // FS-AuditFilterByAction
 func TestAuditFilterByAction(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	// Seed a blocklist (action: blocklist.create).
@@ -225,6 +231,7 @@ func TestAuditFilterByAction(t *testing.T) {
 // verifies every node sees the same newest audit entry after a single
 // mutation on the leader.
 func TestAuditReplicatesAcrossNodes(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t).Node
 	body := mustJSON(t, map[string]any{
@@ -264,6 +271,7 @@ func TestAuditReplicatesAcrossNodes(t *testing.T) {
 
 // FS-AuditRequiresAuth
 func TestAuditRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	resp := n.apiDoNoAuth(t, "GET", "/api/v1/audit")
@@ -281,6 +289,7 @@ func TestAuditRequiresAuth(t *testing.T) {
 // until first observation, so the warm-up POST guarantees the series
 // exists before we sample the baseline.
 func TestAuditMetricsCounter(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 

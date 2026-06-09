@@ -22,6 +22,7 @@ import (
 )
 
 func TestApiDocsServed(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -46,6 +47,7 @@ func TestApiDocsServed(t *testing.T) {
 }
 
 func TestApiDocsOpenApiYamlServed(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -75,6 +77,7 @@ func TestApiDocsOpenApiYamlServed(t *testing.T) {
 }
 
 func TestApiDocsAssetsServed(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -106,6 +109,7 @@ func TestApiDocsAssetsServed(t *testing.T) {
 }
 
 func TestApiDocsDisabledByConfig(t *testing.T) {
+	t.Parallel()
 	// Skip until we have a harness knob to write api.docs.enabled=false.
 	// Will be wired in the impl commit when ApiSection.Docs lands in
 	// cluster.NodeYAML.

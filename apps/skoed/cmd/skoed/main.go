@@ -255,9 +255,14 @@ func runDaemon(cfgPath string) {
 			if !last.IsZero() {
 				age = time.Since(last).Seconds()
 			}
+			originCounts := map[string]int{}
+			for o, n := range dhcpMgr.OriginCounts() {
+				originCounts[string(o)] = n
+			}
 			return &metrics.DhcpSnapshot{
 				Source:          dhcpMgr.Source(),
 				Leases:          len(dhcpMgr.Snapshot()),
+				OriginCounts:    originCounts,
 				AnomaliesOpen:   countOpenAnomalies(dhcpMgr.Anomalies()),
 				LastPollAgeSecs: age,
 				PollErrorsTotal: dhcpMgr.PollErrorsTotal(),
@@ -368,6 +373,8 @@ func runDaemon(cfgPath string) {
 			Username:       node.Node.DHCP.Username,
 			Password:       node.Node.DHCP.Password,
 			RefreshSeconds: node.Node.DHCP.RefreshSeconds,
+			ConfigPath:     node.Node.DHCP.ConfigPath,
+			FilePathV6:     node.Node.DHCP.FilePathV6,
 		})
 		if err != nil {
 			log.Fatalf("init DHCP connector: %v", err)

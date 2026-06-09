@@ -53,6 +53,7 @@ func fetchClient(t *testing.T, n *Node, ip string) (enrichedClient, int) {
 
 // FS-ClientLookupReturnsEnrichedRecord
 func TestClientLookupReturnsEnrichedRecord(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -77,6 +78,7 @@ func TestClientLookupReturnsEnrichedRecord(t *testing.T) {
 
 // FS-ClientLookupFallsBackToIp
 func TestClientLookupFallsBackToIp(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -98,6 +100,7 @@ func TestClientLookupFallsBackToIp(t *testing.T) {
 
 // FS-QueryLogShowsHostname
 func TestQueryLogShowsHostname(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -125,6 +128,7 @@ func TestQueryLogShowsHostname(t *testing.T) {
 
 // FS-QueryLogOmitsEnrichmentWhenNoLease
 func TestQueryLogOmitsEnrichmentWhenNoLease(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -146,6 +150,7 @@ func TestQueryLogOmitsEnrichmentWhenNoLease(t *testing.T) {
 
 // FS-ProfileMatchesByClientId
 func TestProfileMatchesByClientId(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -173,6 +178,7 @@ func TestProfileMatchesByClientId(t *testing.T) {
 
 // FS-ProfileMatchesByMac
 func TestProfileMatchesByMac(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -198,6 +204,7 @@ func TestProfileMatchesByMac(t *testing.T) {
 
 // FS-ProfileMatchesByHostname
 func TestProfileMatchesByHostname(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -223,6 +230,7 @@ func TestProfileMatchesByHostname(t *testing.T) {
 
 // FS-ProfileMatchPriority — Client-ID wins over MAC.
 func TestProfileMatchPriority(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -262,5 +270,6 @@ func TestProfileMatchPriority(t *testing.T) {
 // effect: after a new lease appears in the source, the enriched API
 // returns it within one refresh cycle.
 func TestLeaseCacheRefreshInterval(t *testing.T) {
+	t.Parallel()
 	t.Skipf("M3.6 impl pending — covered functionally by TestDhcpConnectorRefreshInterval")
 }

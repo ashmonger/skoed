@@ -68,7 +68,6 @@ func safesearchUpstreamHandler() dns.HandlerFunc {
 // the EDNS0 client-IP override is honoured by the DNS handler.
 func startSafeSearchNode(t *testing.T) *Node {
 	t.Helper()
-	t.Setenv("SKOED_TEST_MODE", "1")
 	upstream := startFakeUpstream(t, safesearchUpstreamHandler())
 	return startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -139,6 +138,7 @@ func assertNoCNAMERewrite(t *testing.T, msg *dns.Msg) {
 
 // FS-SafeSearchGoogle
 func TestSafeSearchGoogle(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "kids", []string{"google"})
 
@@ -151,6 +151,7 @@ func TestSafeSearchGoogle(t *testing.T) {
 
 // FS-SafeSearchBing
 func TestSafeSearchBing(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "kids", []string{"bing"})
 
@@ -162,6 +163,7 @@ func TestSafeSearchBing(t *testing.T) {
 
 // FS-SafeSearchYoutube
 func TestSafeSearchYoutube(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "kids", []string{"youtube"})
 
@@ -173,6 +175,7 @@ func TestSafeSearchYoutube(t *testing.T) {
 
 // FS-SafeSearchDuckDuckGo
 func TestSafeSearchDuckDuckGo(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "kids", []string{"duckduckgo"})
 
@@ -187,6 +190,7 @@ func TestSafeSearchDuckDuckGo(t *testing.T) {
 // The "adults" profile has an empty safesearch list — a Google query MUST
 // NOT carry a SafeSearch CNAME; it must be forwarded as a plain A response.
 func TestSafeSearchOptInPerProfile(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "adults", []string{})
 
@@ -203,6 +207,7 @@ func TestSafeSearchOptInPerProfile(t *testing.T) {
 //
 // The rewrite must apply equally to AAAA queries.
 func TestSafeSearchAaaa(t *testing.T) {
+	t.Parallel()
 	n := startSafeSearchNode(t)
 	createSafeSearchProfile(t, n, "kids", []string{"google"})
 

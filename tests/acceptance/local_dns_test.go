@@ -72,6 +72,7 @@ func addLocalAAAA(t *testing.T, n *Node, hostname, ip string) localDNSEntry {
 // FS-LocalDnsEntryAddA
 // Admin adds an A record for an internal hostname; client resolves it correctly.
 func TestLocalDnsEntryAddA(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -97,6 +98,7 @@ func TestLocalDnsEntryAddA(t *testing.T) {
 // FS-LocalDnsEntryAddAAAA
 // Admin adds an AAAA record; client resolves it via AAAA query.
 func TestLocalDnsEntryAddAAAA(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -114,6 +116,7 @@ func TestLocalDnsEntryAddAAAA(t *testing.T) {
 // Admin adds a CNAME record pointing to another hostname that has a local A record.
 // Client receives the CNAME record in the answer section.
 func TestLocalDnsEntryAddCNAME(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -169,6 +172,7 @@ func TestLocalDnsEntryAddCNAME(t *testing.T) {
 // FS-LocalDnsEntryPriorityOverUpstream
 // A local entry is returned without contacting any upstream resolver.
 func TestLocalDnsEntryPriorityOverUpstream(t *testing.T) {
+	t.Parallel()
 	upstreamContacted := false
 	upstream := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		upstreamContacted = true
@@ -196,6 +200,7 @@ func TestLocalDnsEntryPriorityOverUpstream(t *testing.T) {
 // FS-LocalDnsEntryPriorityOverBlocklist
 // A local entry is served even when the hostname appears on an active blocklist.
 func TestLocalDnsEntryPriorityOverBlocklist(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -222,6 +227,7 @@ func TestLocalDnsEntryPriorityOverBlocklist(t *testing.T) {
 // FS-LocalDnsEntryUpdate
 // Admin updates an existing local entry; client receives the new address.
 func TestLocalDnsEntryUpdate(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -250,6 +256,7 @@ func TestLocalDnsEntryUpdate(t *testing.T) {
 // FS-LocalDnsEntryDelete
 // Admin deletes a local entry; subsequent query is forwarded to upstream.
 func TestLocalDnsEntryDelete(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -278,6 +285,7 @@ func TestLocalDnsEntryDelete(t *testing.T) {
 // After deleting a local entry for a domain that does not exist in upstream DNS,
 // the response is NXDOMAIN.
 func TestLocalDnsEntryNxdomainWhenNoUpstream(t *testing.T) {
+	t.Parallel()
 	// Upstream that knows nothing about internal.home
 	upstream := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		m := new(dns.Msg)

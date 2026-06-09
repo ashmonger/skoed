@@ -57,7 +57,7 @@ func fetchDohStatus(t *testing.T, n *Node, clientIP string) (clientDohStatus, in
 
 // FS-ClientDohStatusEndpointShape
 func TestClientDohStatusEndpointShape(t *testing.T) {
-	t.Setenv("SKOED_TEST_MODE", "1") // EDNS0 client-IP spoofing only honored in test mode
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -98,6 +98,7 @@ func TestClientDohStatusEndpointShape(t *testing.T) {
 
 // FS-ClientDohStatusNoProbes
 func TestClientDohStatusNoProbes(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -121,6 +122,7 @@ func TestClientDohStatusNoProbes(t *testing.T) {
 
 // FS-ClientDohStatusUnauthenticated
 func TestClientDohStatusUnauthenticated(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -136,6 +138,7 @@ func TestClientDohStatusUnauthenticated(t *testing.T) {
 
 // FS-ClientDohStatusInvalidIp
 func TestClientDohStatusInvalidIp(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -157,6 +160,7 @@ func TestClientDohStatusInvalidIp(t *testing.T) {
 // table-driven test. Each probe is emitted, then the endpoint is queried
 // and the inferred provider is checked.
 func TestClientDohStatusSuspectedProvider(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		domain   string
 		provider string // empty string ⇒ expect nil
@@ -170,7 +174,6 @@ func TestClientDohStatusSuspectedProvider(t *testing.T) {
 	}
 	for i, tc := range cases {
 		t.Run(tc.domain, func(t *testing.T) {
-			t.Setenv("SKOED_TEST_MODE", "1") // EDNS0 client-IP spoof only in test mode
 			c := startCluster(t, 1)
 			n := c.Leader(t).Node
 

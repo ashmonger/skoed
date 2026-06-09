@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
+	"github.com/skoed/skoed/internal/dhcp"
 	"github.com/skoed/skoed/internal/dohresolvers"
 	"github.com/hashicorp/raft"
 )
@@ -562,6 +563,45 @@ func (c *Cluster) RecordDohResolverRefreshFailure(attemptedAt time.Time, reason 
 // the API handlers. Returns (nil, nil) when no snapshot exists yet.
 func (c *Cluster) CurrentDohSnapshot() (*dohresolvers.Snapshot, error) {
 	return c.store.DohResolverSnapshot()
+}
+
+// ReplicateLeases commits the leader's most recent canonical lease set
+// through Raft. Coalesced upstream — the manager only calls this when
+// the incoming snapshot differs from the previously-applied one.
+func (c *Cluster) ReplicateLeases(p LeasesReplacePayload) error {
+	if p.LeaderNodeID == "" {
+		p.LeaderNodeID = c.node.Node.ID
+	}
+	return c.applyAsLeader(CmdLeasesReplace, p, 10*time.Second)
+}
+
+// ReplicateAnomaly commits a single anti-spoof anomaly through Raft.
+func (c *Cluster) ReplicateAnomaly(a dhcp.Anomaly) error {
+	return c.applyAsLeader(CmdAnomalyAppend, AnomalyAppendPayload{Anomaly: a}, 0)
+}
+
+// AcknowledgeAnomaly flips acknowledged_at on the named anomaly through
+// Raft.
+func (c *Cluster) AcknowledgeAnomaly(id string, at time.Time) error {
+	return c.applyAsLeader(CmdAnomalyAcknowledge, AnomalyAckPayload{
+		ID:               id,
+		AcknowledgedUnix: at.Unix(),
+	}, 0)
+}
+
+// SweepAnomalies drops anomalies older than the cutoff through Raft.
+func (c *Cluster) SweepAnomalies(beforeUnix int64) error {
+	return c.applyAsLeader(CmdAnomalySweep, AnomalySweepPayload{BeforeUnix: beforeUnix}, 0)
+}
+
+// CurrentLeaseSnapshot is a convenience accessor for handlers.
+func (c *Cluster) CurrentLeaseSnapshot() (*LeasesReplacePayload, error) {
+	return c.store.LeaseSnapshot()
+}
+
+// CurrentLeaseAnomalies is a convenience accessor for handlers.
+func (c *Cluster) CurrentLeaseAnomalies() ([]dhcp.Anomaly, error) {
+	return c.store.LeaseAnomalies()
 }
 
 // EnsureDefaultProfile creates the reserved "default" profile if missing.
