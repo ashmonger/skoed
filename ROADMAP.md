@@ -778,8 +778,7 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 
 ## Pre-1.0 release tasks (no milestone number)
 
-- **Find a better name.** Trademark / GitHub / crates.io search; secure a domain. Probably happens between M5 and M5.5.
-- **IPv6-only / dual-stack validation.** Already-coded features need real-world IPv6-only deploy sign-off. Lightweight; rides alongside any milestone.
+- ~~**Find a better name.**~~ **Done** — name is **skoed**.
 
 ## Dependencies and risks (cross-milestone)
 
@@ -794,14 +793,10 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 ## Non-goals (permanent)
 
 - DHCP server
+- Transparent proxy mode (L4 transparent proxy to redirect hardcoded-resolver clients)
+- Deep packet inspection / HTTP filtering (out of scope; puts skoed in Squid/e2guardian territory)
+- Cloud-hosted SaaS (contradicts self-hosted-first thesis)
 
 ## Non-goals under reconsideration
 
-These items were previously listed as permanent non-goals; they're being
-re-evaluated. Listed here so the open status stays visible until a UoR
-decision lands.
-
-- Transparent proxy mode (was: "VPN or proxy")
-- Deep packet inspection / HTTP filtering
-- Mobile application
-- Cloud-hosted SaaS
+- **Mobile application** — native iOS/Android admin app. Deferred until there is confirmed evidence that "official" DNS (ISP resolver, DoH built into browsers/OS) is bypassed by skoed in the target deploy topology. Without that, a mobile app would give operators false confidence. Needs M7 API tokens first for safe credential handling.

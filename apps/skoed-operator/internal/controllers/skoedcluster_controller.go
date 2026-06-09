@@ -15,7 +15,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,16 +48,7 @@ func (r *SkoedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Apply defaults for zero-value ports.
-	if cluster.Spec.API.Port == 0 {
-		cluster.Spec.API.Port = 8080
-	}
-	if cluster.Spec.DNS.Port == 0 {
-		cluster.Spec.DNS.Port = 53
-	}
-	if cluster.Spec.Replicas == 0 {
-		cluster.Spec.Replicas = 1
-	}
+	r.applyDefaults(cluster)
 
 	for _, step := range []func(context.Context, *skoedv1alpha1.SkoedCluster) error{
 		r.reconcileBootstrapSecret,
@@ -79,6 +69,18 @@ func (r *SkoedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return ctrl.Result{RequeueAfter: requeueInterval}, nil
+}
+
+func (r *SkoedClusterReconciler) applyDefaults(cluster *skoedv1alpha1.SkoedCluster) {
+	if cluster.Spec.API.Port == 0 {
+		cluster.Spec.API.Port = 8080
+	}
+	if cluster.Spec.DNS.Port == 0 {
+		cluster.Spec.DNS.Port = 53
+	}
+	if cluster.Spec.Replicas == 0 {
+		cluster.Spec.Replicas = 1
+	}
 }
 
 // ── bootstrap secret ─────────────────────────────────────────────────────────
@@ -361,14 +363,14 @@ func (r *SkoedClusterReconciler) preDeregisterIfScalingDown(ctx context.Context,
 
 		// If this pod is the leader, transfer leadership first.
 		if podName == leaderPod {
-			if _, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodPost, "/api/v1/cluster/leadership/transfer", nil); err != nil {
+			if _, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodPost, "/api/v1/cluster/leadership/transfer"); err != nil {
 				logger.Info("leadership transfer failed (best-effort)", "pod", podName, "err", err)
 			}
 		}
 
 		// Deregister the node — auto-forwarded to current leader by skoed.
 		if _, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodDelete,
-			"/api/v1/cluster/nodes/"+podName, nil); err != nil {
+			"/api/v1/cluster/nodes/"+podName); err != nil {
 			logger.Info("node deregistration failed (best-effort)", "pod", podName, "err", err)
 		}
 	}
@@ -432,12 +434,15 @@ func (r *SkoedClusterReconciler) updateStatus(ctx context.Context, cluster *skoe
 	}
 	cluster.Status.ReadyReplicas = sts.Status.ReadyReplicas
 
+	logger := log.FromContext(ctx)
 	user, pass := r.adminCreds(ctx, cluster)
-	body, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodGet, "/api/v1/cluster/status", nil)
+	body, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodGet, "/api/v1/cluster/status")
 
 	var leader string
 	var voters []string
-	if err == nil {
+	if err != nil {
+		logger.V(1).Info("cluster status API unreachable", "err", err)
+	} else {
 		var resp clusterStatusResp
 		if json.Unmarshal(body, &resp) == nil {
 			for _, n := range resp.Nodes {
@@ -472,7 +477,7 @@ func (r *SkoedClusterReconciler) adminCreds(ctx context.Context, cluster *skoedv
 }
 
 func (r *SkoedClusterReconciler) queryLeader(ctx context.Context, cluster *skoedv1alpha1.SkoedCluster, user, pass string) string {
-	body, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodGet, "/api/v1/cluster/status", nil)
+	body, err := r.callAPI(ctx, cluster, 0, user, pass, http.MethodGet, "/api/v1/cluster/status")
 	if err != nil {
 		return ""
 	}
@@ -490,7 +495,7 @@ func (r *SkoedClusterReconciler) queryLeader(ctx context.Context, cluster *skoed
 
 // callAPI calls the management API on pod at ordinal podIndex and returns the response body.
 func (r *SkoedClusterReconciler) callAPI(ctx context.Context, cluster *skoedv1alpha1.SkoedCluster,
-	podIndex int32, user, pass, method, path string, _ []byte) ([]byte, error) {
+	podIndex int32, user, pass, method, path string) ([]byte, error) {
 
 	url := fmt.Sprintf("http://%s-%d.%s.%s.svc.cluster.local:%d%s",
 		cluster.Name, podIndex, cluster.Name, cluster.Namespace, cluster.Spec.API.Port, path)
@@ -587,5 +592,3 @@ func (r *SkoedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// suppress unused import (resource is used via resource.Quantity in types)
-var _ = resource.MustParse

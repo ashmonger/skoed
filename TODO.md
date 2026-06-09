@@ -14,22 +14,21 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 9 — Kubernetes Operator**
-Current phase: **Phase 6 — Demo + UoR validation**
+**Milestone 9 — Kubernetes Operator** — refactoring phase pending; all other phases complete.
 
 ## Completed milestones
-- [x] M1–M8 merged to dblock-m8; M8 demo note written; UoR approved ("commit, go M9") — 2026-06-09
+- [x] M1–M9 merged to master — 2026-06-09
 
 ## Current tasks
 
 - [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
-- [x] M9 — UoR validated functional spec ("I don't really know about k8s so, do what is meant to be done") — 2026-06-09
+- [x] M9 — UoR validated functional spec — 2026-06-09
 - [x] M9 — technical spec written: `specs/technical/kubernetes-operator.md` (TS-KubernetesOperator) — 2026-06-09
 - [x] M9 — acceptance tests written: `tests/acceptance/kubernetes_operator_test.go` (7 FSIDs + 2 skip stubs) — 2026-06-09
-- [x] M9 — implementation done: `apps/skoed-operator/` (controller-runtime v0.19.0, SkoedCluster + SkoedNode CRDs, Helm chart at `deploy/helm/skoed-operator/`) — 2026-06-09
-- [ ] M9 — refactoring phase
-- [ ] M9 — demo note written: `demos/m9/DEMO_NOTE.md` — awaiting UoR validation
-- [ ] M9 — merge to master
+- [x] M9 — implementation done: `apps/skoed-operator/` (controller-runtime v0.19.0, SkoedCluster + SkoedNode CRDs, Helm chart) — 2026-06-09
+- [x] M9 — demo note written: `demos/m9/DEMO_NOTE.md` — 2026-06-09
+- [x] M9 — merged to master (ab2bd92) — 2026-06-09
+- [x] M9 — refactoring phase (removed unused resource import/hack, extracted applyDefaults, dropped unused callAPI body param, added status API log) — 2026-06-09
 
 ## Blockers
 
@@ -83,10 +82,7 @@ None.
 
 ### Strategic
 
-- **Find a better name.** "skoed" is functional but not memorable.
-  Audit existing trademarks, check DNS/GitHub/crates.io availability,
-  reserve a domain. Defer rename until at least M5 ships so we don't
-  rebrand during active growth. — added 2026-06-05.
+- ~~**Find a better name.**~~ Done — name is **skoed**. — closed 2026-06-09
 
 ### From the ROADMAP post-M5 backlog (now mirrored here for tracking)
 
@@ -99,12 +95,8 @@ None.
   priority of the encrypted-DNS family.
 - **API token authentication.** Replace HTTP Basic Auth with revocable
   tokens (scopes, per-token rate limits, audit log integration).
-- **IPv6-only / dual-stack network support validation.** Already-coded
-  features (DNS, DoH, DoT, ACME) need real-world IPv6-only deploy
-  validation.
-- **Kubernetes operator** for lifecycle management. Would supersede
-  the M2.5 Helm chart for serious K8s users — handles cluster scaling,
-  cert rotation, lease-data PVCs.
+- ~~**IPv6-only / dual-stack validation.**~~ Closed — dual-stack (IPv4+IPv6 simultaneous) is the shipped mode; IPv6-only standalone deploy is low-value. — 2026-06-09
+- ~~**Kubernetes operator.**~~ Done — M9 shipped (SkoedCluster + SkoedNode CRDs, controller-runtime v0.19.0). — 2026-06-09
 - **Firewall-rule generators** (from M3.5 carve-out). Templates for
   iptables / nftables / MikroTik RouterOS / OpnSense / pfSense / UniFi
   to close the hardcoded-resolver-IP DoH bypass.
@@ -121,24 +113,13 @@ None.
 
 ### Under reconsideration — needs UoR decision
 
-These were previously listed as permanent non-goals and have since
-moved to the "Non-goals under reconsideration" sections of
-`PROBLEM_STATEMENT.md` and `ROADMAP.md`. Each needs a separate
-decision to either (a) commit to a milestone or (b) push back to
-permanent non-goal. — added 2026-06-05.
+- **Mobile application.** Deferred until there is confirmed evidence
+  that "official" DNS (ISP resolver, DoH in browser/OS) is bypassed
+  by skoed in the target deploy topology. Needs M7 API tokens first.
+  — still open 2026-06-09
 
-- **Transparent proxy mode.** Operate as a transparent L4 proxy so
-  clients with hardcoded resolver IPs are redirected to skoed
-  regardless of their DNS settings. Was "VPN or proxy" non-goal.
-- **Deep-packet inspection / HTTP filtering.** Inspect cleartext HTTP
-  to enforce content rules at a level DNS can't reach. Puts skoed
-  into the same category as Squid / e2guardian.
-- **Mobile application.** Native iOS / Android admin app — read-only
-  dashboards at minimum, full management as a stretch. Probably needs
-  the M5 audit log + API tokens first so revocation works cleanly.
-- **Cloud-hosted SaaS.** Run skoed as a managed service (per-customer
-  cluster, billing, multi-tenant isolation). Big strategic pivot;
-  contradicts the self-hosted-first thesis but worth a thought.
+*(Transparent proxy, DPI/HTTP filtering, and cloud SaaS moved to permanent
+non-goals — 2026-06-09)*
 
 ## Open questions
 
