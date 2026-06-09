@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"strings"
 	"sync"
@@ -73,6 +75,13 @@ type App struct {
 	cfgMu     sync.RWMutex
 	cfg       *config.Config
 	filterEng *filter.Engine
+
+	// apiTokensByHash is an in-memory lookup table rebuilt on every onApply.
+	// Key = hex(sha256(rawToken)); value = pointer into apiTokensByID.
+	// tokenMu guards both maps.
+	tokenMu        sync.RWMutex
+	apiTokensByHash map[string]*cluster.APIToken
+	apiTokensByID   map[string]*cluster.APIToken
 }
 
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
@@ -336,6 +345,8 @@ func NewApp(
 	}
 	// Keep the cache fresh after every replicated apply.
 	c.Subscribe(a.onApply)
+	// Prime the token cache from whatever is already in bbolt.
+	a.rebuildTokenCache()
 	return a
 }
 
@@ -356,6 +367,9 @@ func (a *App) onApply() {
 	// M6.5 (TS-BlockDyn): re-wire the lease origin lookup every time the
 	// engine is rebuilt so block_dynamic_clients profiles resolve correctly.
 	a.wireLeaseOriginLookup()
+
+	// M7 (TS-ApiToken): keep the in-memory token cache in sync with bbolt.
+	a.rebuildTokenCache()
 
 	// Sync auth.Store with the replicated credentials so admin can log into
 	// any node with the same password.
@@ -430,6 +444,45 @@ func (a *App) RebuildDNSFromCfg() error {
 
 // GetAuth returns the auth store.
 func (a *App) GetAuth() *auth.Store { return a.authStore }
+
+// rebuildTokenCache rebuilds the in-memory Bearer token lookup maps from
+// bbolt. Called from onApply and NewApp so the cache is always fresh.
+func (a *App) rebuildTokenCache() {
+	tokens, err := a.cluster.APITokens()
+	if err != nil {
+		return
+	}
+	byHash := make(map[string]*cluster.APIToken, len(tokens))
+	byID := make(map[string]*cluster.APIToken, len(tokens))
+	for i := range tokens {
+		t := &tokens[i]
+		byHash[t.Hash] = t
+		byID[t.ID] = t
+	}
+	a.tokenMu.Lock()
+	a.apiTokensByHash = byHash
+	a.apiTokensByID = byID
+	a.tokenMu.Unlock()
+}
+
+// lookupAPIToken validates a raw Bearer token string and returns the
+// corresponding APIToken. The caller must still check IsExpired().
+func (a *App) lookupAPIToken(raw string) (*cluster.APIToken, bool) {
+	sum := sha256.Sum256([]byte(raw))
+	h := hex.EncodeToString(sum[:])
+	a.tokenMu.RLock()
+	tok, ok := a.apiTokensByHash[h]
+	a.tokenMu.RUnlock()
+	return tok, ok
+}
+
+// LookupAPITokenByID returns a token by its public ID (for handler use).
+func (a *App) LookupAPITokenByID(id string) (*cluster.APIToken, bool) {
+	a.tokenMu.RLock()
+	tok, ok := a.apiTokensByID[id]
+	a.tokenMu.RUnlock()
+	return tok, ok
+}
 
 // GetFilterEng returns the current filter engine.
 func (a *App) GetFilterEng() *filter.Engine {
@@ -513,10 +566,12 @@ func (a *App) Router() http.Handler {
 	r.Post("/api/v1/cluster/_internal/aggregates", h.ClusterInternalAggregates)
 
 	r.Group(func(r chi.Router) {
-		r.Use(a.BasicAuth)
+		r.Use(a.Auth)
 		// M5.2 — audit every authenticated mutating call. Read verbs
 		// (GET/HEAD/OPTIONS) are skipped inside the middleware itself.
 		r.Use(a.auditMiddleware)
+		// M7 — block mutating verbs for read-only Bearer tokens.
+		r.Use(a.requireWrite)
 
 		// M5.2 — audit log read
 		r.Get("/api/v1/audit", h.AuditList)
@@ -625,6 +680,16 @@ func (a *App) Router() http.Handler {
 		// failovers without a separate /cluster/status round-trip.
 		r.Get("/api/v1/leases", h.GetLeases)
 		r.Get("/api/v1/leases/source", h.GetLeasesSource)
+
+		// M7 (TS-ApiToken) — bearer token management. Requires cluster:admin scope.
+		r.Group(func(r chi.Router) {
+			r.Use(a.RequireScope("cluster:admin"))
+			tok := handlers.NewTokensAPI(a)
+			r.Get("/api/v1/tokens", tok.List)
+			r.Post("/api/v1/tokens", a.forward(tok.Create))
+			r.Delete("/api/v1/tokens/{id}", a.forward(tok.Delete))
+			r.Patch("/api/v1/tokens/{id}", a.forward(tok.Patch))
+		})
 
 		// Cluster endpoints — most write paths forwarded.
 		r.Post("/api/v1/cluster/tokens", a.forward(h.CreateJoinToken))

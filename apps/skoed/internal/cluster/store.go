@@ -32,6 +32,8 @@ var (
 	// M5.2: replicated audit log. Keys are big-endian 8-byte sequence numbers
 	// (monotonic, never recycled); values are JSON-encoded AuditEntry rows.
 	bucketAudit = []byte("audit")
+	// M7: revocable, scoped API bearer tokens. Key = token ID.
+	bucketAPITokens = []byte("api_tokens")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -73,6 +75,7 @@ func (s *Store) init() error {
 			bucketProfiles, bucketSchedules, bucketScheduleBindings,
 			bucketCategoryOverrides,
 			bucketAudit,
+			bucketAPITokens,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -448,6 +451,24 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return applyAnomalySweep(tx, p.BeforeUnix)
+
+	case CmdAPITokenUpsert:
+		var p APITokenUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Token)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketAPITokens).Put([]byte(p.Token.ID), v)
+
+	case CmdAPITokenDelete:
+		var p APITokenDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketAPITokens).Delete([]byte(p.ID))
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
