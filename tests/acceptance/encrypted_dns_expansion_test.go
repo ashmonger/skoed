@@ -9,7 +9,7 @@
 //   FS-DnscryptStampPublished       → TestDnscryptStampPublished
 //   FS-DnscryptKeyReplicatedViaRaft → TestDnscryptKeyReplicatedViaRaft
 //   FS-DnscryptDisabledByDefault    → TestDnscryptDisabledByDefault
-//   FS-DoH3DnscryptIndependent      → TestDoH3DnscryptIndependent
+//   FS-Doh3IndependentEnable        → TestDoh3IndependentEnable
 //
 // Tests self-skip when the binary is absent or the relevant ports are 0.
 package acceptance
@@ -382,10 +382,10 @@ func TestDnscryptKeyReplicatedViaRaft(t *testing.T) {
 	}
 }
 
-// TestDoH3DnscryptIndependent — DoH3 and DNSCrypt can each be independently
-// enabled or disabled without affecting each other.
-// FS-DoH3DnscryptIndependent
-func TestDoH3DnscryptIndependent(t *testing.T) {
+// TestDoh3IndependentEnable — DoH3 can be enabled independently of other
+// transports; DNSCrypt does not start when only DoH3 is configured.
+// FS-Doh3IndependentEnable
+func TestDoh3IndependentEnable(t *testing.T) {
 	bin := skoedBinary(t)
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 

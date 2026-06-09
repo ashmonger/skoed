@@ -40,8 +40,8 @@ The `transportTaggedWriter` is extended with `"doh3"` and `"dnscrypt"` tags.
 
 | Library                             | Version | Purpose                             |
 |-------------------------------------|---------|-------------------------------------|
-| `github.com/quic-go/quic-go`        | v0.48+  | QUIC transport + HTTP/3 server      |
-| `github.com/ameshkov/dnscrypt/v2`   | v2.3+   | DNSCrypt v2 server (cert gen, parse)|
+| `github.com/quic-go/quic-go`        | v0.60.0 | QUIC transport + HTTP/3 server      |
+| `github.com/ameshkov/dnscrypt/v2`   | v2.4.0  | DNSCrypt v2 server (cert gen, parse)|
 
 Both are MIT-licensed, well-maintained, and widely used in the DNS ecosystem.
 `quic-go` is the de-facto Go QUIC implementation; `ameshkov/dnscrypt` is used
@@ -58,10 +58,10 @@ both dependencies. Record approval in `decisions/` before `go get`.
 node:
   dns:
     listen:
-      doh3_port:     8443    # UDP; 0 = disabled
-      dnscrypt_port: 5443    # UDP; 0 = disabled
+      doh3_port:     8443    # UDP; 0 = disabled (default)
+      dnscrypt_port: 5443    # UDP; 0 = disabled (default)
     dnscrypt:
-      cert_ttl_hours: 24     # keypair rotation interval; default 24h
+      cert_ttl_hours: 8760   # keypair TTL in hours; 0 = library default (1 year)
 ```
 
 The `doh3_port` and `dnscrypt_port` keys follow the same pattern as
@@ -105,10 +105,12 @@ type EncryptedServer struct {
 }
 
 func (s *EncryptedServer) startDoH3() error { … }
-func (s *EncryptedServer) shutdownDoH3()    { … }
+// Shutdown() calls doh3Srv.Shutdown(ctx) inline — no separate shutdownDoH3 helper.
 ```
 
-`UpdateHandler` is extended to swap the handler in the HTTP/3 server as well.
+`UpdateHandler` swaps the shared `swappableHandler`; all transports (DoH, DoT, DoH3)
+see the new handler automatically because they all hold a pointer to the same wrapper.
+No HTTP/3-specific handler-swap logic is required.
 
 ---
 
@@ -125,41 +127,59 @@ exchange.
 ### 5.2 Library usage (`ameshkov/dnscrypt/v2`)
 
 ```go
-import dncrypt "github.com/ameshkov/dnscrypt/v2"
+import dnscrypt "github.com/ameshkov/dnscrypt/v2"
 
-// Server cert (rotated every cert_ttl_hours):
-cert, privateKey, err := dnscrypt.GenerateCert(resolverName, ttl)
+// Keypair generation (leader only):
+rc, err := dnscrypt.GenerateResolverConfig(providerName, nil /* = generate new key */)
+cert, err := rc.CreateCert()   // produces the signed cert from the resolver config
+
+// Serialize for Raft replication and bbolt storage:
+configJSON, _ := json.Marshal(rc)   // stores the full ResolverConfig (incl. private key)
 
 // UDP server wrapping our dns.Handler:
 srv := &dnscrypt.Server{
-    ProviderName: "2.dnscrypt-cert.<node_id>",
+    ProviderName: rc.ProviderName,
     ResolverCert: cert,
-    Handler:      dnscryptAdapter{handler},
+    Handler:      &dnscryptHandlerBridge{wrapper: swappable},
 }
-srv.ListenAndServe(addr)
+conn, _ := net.ListenUDP("udp", &net.UDPAddr{Port: port})
+go srv.ServeUDP(conn)   // ServeUDP blocks; runs in its own goroutine
 ```
 
-`dnscryptAdapter` bridges `ameshkov/dnscrypt`'s `Handler` interface to
+`dnscryptHandlerBridge` bridges `ameshkov/dnscrypt`'s `Handler` interface to
 `miekg/dns.Handler`, injecting the `"dnscrypt"` transport tag.
+`dnscryptResponseWriter` adapts `dnscrypt.ResponseWriter` (3 methods) to the
+full `miekg/dns.ResponseWriter` interface (8 methods); the extra methods are no-ops.
 
 ### 5.3 Keypair storage and Raft replication
 
-The DNSCrypt server keypair (cert + private key) is stored in a new bbolt
-bucket `dnscrypt_keys`. A new FSM command `CmdDNSCryptKeysSet` replicates it.
+The DNSCrypt server keypair is stored as a JSON-serialised `ResolverConfig` in a
+new bbolt bucket `dnscrypt_keys`. A new FSM command `CmdDNSCryptKeysSet` replicates it.
 
 ```go
 type DNSCryptKeys struct {
-    Cert       []byte    `json:"cert"`       // serialised dnscrypt.Cert
-    PrivateKey []byte    `json:"private_key"` // 32-byte X25519 scalar (encrypted at rest?)
-    CreatedAt  time.Time `json:"created_at"`
-    ExpiresAt  time.Time `json:"expires_at"`
+    Config    string    `json:"config"`      // JSON-marshalled dnscrypt.ResolverConfig
+    CreatedAt time.Time `json:"created_at"`
+    ExpiresAt time.Time `json:"expires_at"`
 }
 ```
 
-Only the **leader** generates new keypairs. On expiry (checked on each
-`onApply` and on a 1-minute ticker on the leader), the leader generates a
-new keypair and applies `CmdDNSCryptKeysSet`. Followers receive it via
-normal Raft replication.
+Storing the full `ResolverConfig` (rather than splitting cert and private key into
+separate byte fields) lets the library round-trip its own types without any custom
+serialisation logic. The private key is embedded in the marshalled JSON.
+
+Only the **leader** generates new keypairs. Rotation works in two phases:
+
+1. **Initial key generation** — a goroutine started at boot retries every 30 s
+   until this node becomes leader, then calls `GenerateResolverConfig` + `SetDNSCryptKeys`
+   exactly once to seed the cluster.
+2. **Ongoing rotation** — an hourly ticker on the leader checks whether the current
+   cert is within 10 % of its TTL. If so, a new keypair is generated and applied
+   via `CmdDNSCryptKeysSet`. Followers receive it through normal Raft log replication.
+
+When a follower node that has `dnscrypt_port > 0` receives a new `CmdDNSCryptKeysSet`
+log entry and `dnscryptSrv == nil` (server not yet started), the `rebuildDNS`
+callback attempts to start the DNSCrypt server at that moment (deferred start).
 
 ### 5.4 Stamp construction (FS-DnscryptStampPublished)
 
@@ -170,16 +190,21 @@ An `sdns://` stamp is constructed per RFC from:
 - Public key fingerprint (SHA-256 of cert's resolver public key)
 
 The stamp is exposed via `GET /api/v1/settings` in a new top-level
-`dnscrypt_stamp` field (read-only; computed on-the-fly from the current
-keypair). It is also returned in `GET /api/v1/cluster/self` for convenience.
+`dnscrypt_stamp` field (read-only; computed on-the-fly from the current keypair).
+`dnscrypt_stamp` is absent from the response when no keypair exists yet or when
+`dnscrypt_port` is 0.
 
 ### 5.5 Key rotation transition
 
-Before replacing the active cert, the server briefly serves **both** the old
-and new cert in the certificate query response. The `ameshkov/dnscrypt`
-library supports this natively via `Server.ResolverCert` slice. The old cert
-continues to validate in-flight sessions during a 60-second grace window, then
-is removed.
+**Not implemented in M8.** The leader replaces the keypair by shutting down the
+old `DNSCryptServer` and starting a new one with the rotated cert. In-flight
+sessions from clients still using the old cert will fail until those clients
+re-fetch the certificate (which their resolver is designed to do on any
+decryption error).
+
+Serving both old and new certs during a grace window (the `ameshkov/dnscrypt`
+library does support a `ResolverCert` slice for this) is deferred to a future
+milestone. This limitation is documented in `demos/m8/DEMO_NOTE.md`.
 
 ### 5.6 Private key security
 
