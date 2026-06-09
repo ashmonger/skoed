@@ -50,7 +50,7 @@ func (a *App) auditMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		actor := "user:" + currentActor(a, r)
+		actor := principalActor(r)
 		action := actionForRoute(r)
 		target := targetFromPath(r, bodyBytes)
 		result := "ok"
@@ -129,15 +129,16 @@ func (w *auditResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func currentActor(a *App, r *http.Request) string {
-	u, _, ok := r.BasicAuth()
-	if !ok || u == "" {
-		// Pre-setup, the request still gets here if it's POST /auth/setup
-		// but that's auditExempt. Any other auth-less mutation is a bug
-		// caught by the BasicAuth middleware before this runs.
-		return "anonymous"
+// principalActor returns the audit actor string from the request context.
+// M7: uses the Principal set by the Auth middleware so Bearer tokens record
+// "token:<id>" and Basic Auth sessions record "user:<username>".
+func principalActor(r *http.Request) string {
+	if p := PrincipalFrom(r); p != nil {
+		return p.ActorString()
 	}
-	return u
+	// Pre-setup or unauthenticated (should not reach here via the normal
+	// middleware stack; included as a safe fallback).
+	return "anonymous"
 }
 
 // actionForRoute maps the request to a "<resource>.<verb>" action. The
@@ -210,6 +211,10 @@ var auditActionCatalogue = map[string]string{
 	"POST /api/v1/config/import":                                 "config.import",
 	"POST /api/v1/dns/cache/purge":                               "dns_cache.purge",
 	"POST /api/v1/upgrade/start":                                 "upgrade.start",
+	// M7 (TS-ApiToken) — API bearer token management
+	"POST /api/v1/tokens":         "api_token.create",
+	"DELETE /api/v1/tokens/{id}":  "api_token.delete",
+	"PATCH /api/v1/tokens/{id}":   "api_token.update",
 }
 
 // targetFromPath returns "<resource>:<id>" when an id is available

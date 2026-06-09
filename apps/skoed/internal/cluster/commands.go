@@ -48,6 +48,9 @@ const (
 	CmdAnomalyAppend      CommandKind = "dhcp_anomaly.append"
 	CmdAnomalyAcknowledge CommandKind = "dhcp_anomaly.acknowledge"
 	CmdAnomalySweep       CommandKind = "dhcp_anomaly.sweep"
+	// M7 — revocable, scoped API bearer tokens (TS-ApiToken).
+	CmdAPITokenUpsert CommandKind = "api_token.upsert"
+	CmdAPITokenDelete CommandKind = "api_token.delete"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON

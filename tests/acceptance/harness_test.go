@@ -256,6 +256,29 @@ func (n *Node) apiDoNoAuth(t *testing.T, method, path string) *http.Response {
 	return n.apiDoAs(t, method, path, "", "", "")
 }
 
+// apiDoBearer sends an HTTP request with a Bearer token in the Authorization header.
+// Used by M7 API token acceptance tests.
+func (n *Node) apiDoBearer(t *testing.T, method, path, body, token string) *http.Response {
+	t.Helper()
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, n.APIBase+path, bodyReader)
+	if err != nil {
+		t.Fatalf("build request %s %s: %v", method, path, err)
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request %s %s: %v", method, path, err)
+	}
+	return resp
+}
+
 // mustJSON encodes v as JSON or fails the test.
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
