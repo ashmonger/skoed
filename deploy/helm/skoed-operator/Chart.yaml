@@ -1,0 +1,12 @@
+apiVersion: v2
+name: skoed-operator
+description: Kubernetes operator for skoed DNS filter clusters
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - dns
+  - operator
+  - kubernetes
+  - skoed
+home: https://github.com/skoed/skoed

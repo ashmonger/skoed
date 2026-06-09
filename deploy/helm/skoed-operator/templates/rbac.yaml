@@ -1,0 +1,40 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "skoed-operator.fullname" . }}
+  labels:
+    {{- include "skoed-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["skoed.io"]
+    resources: ["skoedclusters", "skoednodes"]
+    verbs: ["*"]
+  - apiGroups: ["skoed.io"]
+    resources: ["skoedclusters/status", "skoednodes/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "skoed-operator.fullname" . }}
+  labels:
+    {{- include "skoed-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "skoed-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "skoed-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

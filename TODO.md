@@ -14,22 +14,22 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 8 — Encrypted DNS Expansion (DoH3 + DNSCrypt v2)**
-Current phase: **Phase 6 — Demo + UoR validation** (awaiting demo sign-off + merge)
+**Milestone 9 — Kubernetes Operator**
+Current phase: **Phase 6 — Demo + UoR validation**
 
 ## Completed milestones
-- [x] M1–M7 merged to master; 350 acceptance tests green as of 2026-06-09
+- [x] M1–M8 merged to dblock-m8; M8 demo note written; UoR approved ("commit, go M9") — 2026-06-09
 
 ## Current tasks
 
-- [x] M8 — functional spec written: `specs/functional/encrypted-dns-expansion.feature` (17 FSIDs) — 2026-06-09
-- [x] M8 — technical spec written: `specs/technical/encrypted-dns-expansion.md` (TS-EncryptedDnsExpansion) — 2026-06-09
-- [x] M8 — UoR validates spec + dependency approval: quic-go + ameshkov/dnscrypt (decision: `decisions/20260609-M8ExternalDependencies.md`) — 2026-06-09
-- [x] M8 — acceptance tests written: `tests/acceptance/encrypted_dns_expansion_test.go` (9 FSIDs) — 2026-06-09
-- [x] M8 — implementation done: DoH3 (quic-go/http3), DNSCrypt v2 (ameshkov/dnscrypt), Raft keypair rotation, settings stamp — 2026-06-09
-- [ ] M8 — refactoring phase
-- [ ] M8 — demo note written: `demos/m8/DEMO_NOTE.md` — awaiting UoR validation
-- [ ] M8 — merge to master
+- [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
+- [x] M9 — UoR validated functional spec ("I don't really know about k8s so, do what is meant to be done") — 2026-06-09
+- [x] M9 — technical spec written: `specs/technical/kubernetes-operator.md` (TS-KubernetesOperator) — 2026-06-09
+- [x] M9 — acceptance tests written: `tests/acceptance/kubernetes_operator_test.go` (7 FSIDs + 2 skip stubs) — 2026-06-09
+- [x] M9 — implementation done: `apps/skoed-operator/` (controller-runtime v0.19.0, SkoedCluster + SkoedNode CRDs, Helm chart at `deploy/helm/skoed-operator/`) — 2026-06-09
+- [ ] M9 — refactoring phase
+- [ ] M9 — demo note written: `demos/m9/DEMO_NOTE.md` — awaiting UoR validation
+- [ ] M9 — merge to master
 
 ## Blockers
 
