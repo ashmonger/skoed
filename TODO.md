@@ -14,12 +14,19 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 9 — Kubernetes Operator** — refactoring phase pending; all other phases complete.
+**Milestone 10 — Active-Active Cluster** — implementation done.
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
 
 ## Current tasks
+
+- [x] M10 — functional spec written: `specs/functional/active-active-cluster.feature` (7 FSIDs) — 2026-06-09
+- [x] M10 — UoR validated functional spec — 2026-06-09
+- [x] M10 — technical spec written: `specs/technical/active-active-cluster.md` (TS-ActiveActiveCluster) — 2026-06-09
+- [x] M10 — acceptance tests written: `tests/acceptance/active_active_cluster_test.go` (5 pass + 2 skip stubs) — 2026-06-09
+- [x] M10 — implementation done: `WriteForwardMiddleware`, `clusterWriteAdapter`, `NodeID()`, `CommitIndex()`, handler redirects removed — 2026-06-09
+- [x] M10 — demo note written: `demos/m10/DEMO_NOTE.md` — 2026-06-09
 
 - [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
 - [x] M9 — UoR validated functional spec — 2026-06-09

@@ -177,14 +177,11 @@ func writeLeaderRedirect(w http.ResponseWriter, c *cluster.Cluster, msg string) 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
 // CreateJoinToken handles POST /api/v1/cluster/tokens. Only the leader can
-// issue tokens (because issuance writes via Raft); followers redirect.
+// issue tokens (because issuance writes via Raft); the write-forward
+// middleware ensures this handler only runs on the leader.
 func (h *Handler) CreateJoinToken(w http.ResponseWriter, r *http.Request) {
 	c := h.requireCluster(w)
 	if c == nil {
-		return
-	}
-	if !c.IsLeader() {
-		writeLeaderRedirect(w, c, "not the leader")
 		return
 	}
 
@@ -230,11 +227,6 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !c.IsLeader() {
-		writeLeaderRedirect(w, c, "not the leader")
-		return
-	}
-
 	res, err := c.EnrollNode(req.Token, req.NodeID, req.RaftAddress, req.APIAddress)
 	if err != nil {
 		// Token validation failure → 403, as per the OpenAPI contract.
@@ -273,10 +265,6 @@ func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Token == "" || req.NodeID == "" {
 		writeError(w, http.StatusBadRequest, "token and node_id are required")
-		return
-	}
-	if !c.IsLeader() {
-		writeLeaderRedirect(w, c, "not the leader")
 		return
 	}
 	ca, leaf, key, err := c.MintLeafForJoin(req.Token, req.NodeID)
@@ -635,11 +623,6 @@ func (h *Handler) TransferLeadership(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !c.IsLeader() {
-		writeLeaderRedirect(w, c, "not the leader")
-		return
-	}
-
 	// Validate the target is currently in the Raft configuration so we can
 	// surface a clean 409 instead of an opaque raft error.
 	if !nodeInConfig(c, req.TargetNodeID) {
@@ -697,11 +680,6 @@ func (h *Handler) RemoveNode(w http.ResponseWriter, r *http.Request) {
 	nodeID := chi.URLParam(r, "node_id")
 	if nodeID == "" {
 		writeError(w, http.StatusBadRequest, "node_id is required")
-		return
-	}
-
-	if !c.IsLeader() {
-		writeLeaderRedirect(w, c, "not the leader")
 		return
 	}
 

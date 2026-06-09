@@ -1,8 +1,12 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -572,6 +576,9 @@ func (a *App) Router() http.Handler {
 		r.Use(a.auditMiddleware)
 		// M7 — block mutating verbs for read-only Bearer tokens.
 		r.Use(a.requireWrite)
+		// M10 — forward all mutating requests from followers to the leader so
+		// every node is writable without requiring per-route forwarding logic.
+		r.Use(WriteForwardMiddleware(newClusterWriteAdapter(a.cluster)))
 
 		// M5.2 — audit log read
 		r.Get("/api/v1/audit", h.AuditList)
@@ -819,3 +826,76 @@ type clusterAdapter struct{ c *cluster.Cluster }
 func (a clusterAdapter) IsLeader() bool           { return a.c.IsLeader() }
 func (a clusterAdapter) LeaderAPIAddress() string { return a.c.LeaderAPIAddress() }
 func (a clusterAdapter) LeaderID() string         { return a.c.LeaderID() }
+
+// clusterWriteAdapter implements WriteForwarder on top of *cluster.Cluster.
+// It is used by WriteForwardMiddleware so the middleware package does not
+// import the concrete cluster type.
+type clusterWriteAdapter struct {
+	c      *cluster.Cluster
+	client *http.Client
+}
+
+func newClusterWriteAdapter(c *cluster.Cluster) *clusterWriteAdapter {
+	return &clusterWriteAdapter{
+		c:      c,
+		client: &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+func (a *clusterWriteAdapter) NodeID() string      { return a.c.Node().Node.ID }
+func (a *clusterWriteAdapter) CommitIndex() uint64 { return a.c.Raft().CommitIndex() }
+func (a *clusterWriteAdapter) IsLeader() bool      { return a.c.IsLeader() }
+
+func (a *clusterWriteAdapter) ForwardWrite(ctx context.Context, method string, path string, body []byte, inHeaders http.Header) (int, []byte, http.Header, error) {
+	leaderBase := strings.TrimRight(a.c.LeaderAPIAddress(), "/")
+	if leaderBase == "" {
+		return 0, nil, nil, fmt.Errorf("no leader currently elected")
+	}
+
+	var bodyReader io.Reader
+	if len(body) > 0 {
+		bodyReader = bytes.NewReader(body)
+	}
+
+	outReq, err := http.NewRequestWithContext(ctx, method, leaderBase+path, bodyReader)
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("build forward request: %w", err)
+	}
+	copyForwardHeaders(outReq.Header, inHeaders)
+
+	resp, err := a.client.Do(outReq)
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("forward to leader: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("read leader response: %w", err)
+	}
+	return resp.StatusCode, respBody, resp.Header, nil
+}
+
+// copyForwardHeaders copies inHeaders into dst skipping hop-by-hop headers.
+// Mirrors the logic in middleware/forward.go to keep behaviour consistent.
+func copyForwardHeaders(dst, src http.Header) {
+	hopByHop := map[string]struct{}{
+		"Connection":          {},
+		"Proxy-Connection":    {},
+		"Keep-Alive":          {},
+		"Proxy-Authenticate":  {},
+		"Proxy-Authorization": {},
+		"Te":                  {},
+		"Trailer":             {},
+		"Transfer-Encoding":   {},
+		"Upgrade":             {},
+	}
+	for k, vs := range src {
+		if _, skip := hopByHop[http.CanonicalHeaderKey(k)]; skip {
+			continue
+		}
+		for _, v := range vs {
+			dst.Add(k, v)
+		}
+	}
+}
