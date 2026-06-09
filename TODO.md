@@ -15,20 +15,20 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 ## Active feature
 
 **Milestone 9 — Kubernetes Operator**
-Current phase: **Phase 1 — Functional spec** (awaiting UoR validation)
+Current phase: **Phase 6 — Demo + UoR validation**
 
 ## Completed milestones
 - [x] M1–M8 merged to dblock-m8; M8 demo note written; UoR approved ("commit, go M9") — 2026-06-09
 
 ## Current tasks
 
-- [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (8 FSIDs) — 2026-06-09
-- [ ] M9 — UoR validates functional spec
-- [ ] M9 — technical spec: `specs/technical/kubernetes-operator.md` (TS-KubernetesOperator)
-- [ ] M9 — acceptance tests: `tests/acceptance/kubernetes_operator_test.go`
-- [ ] M9 — implementation: operator controller, CRDs, Helm chart
+- [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
+- [x] M9 — UoR validated functional spec ("I don't really know about k8s so, do what is meant to be done") — 2026-06-09
+- [x] M9 — technical spec written: `specs/technical/kubernetes-operator.md` (TS-KubernetesOperator) — 2026-06-09
+- [x] M9 — acceptance tests written: `tests/acceptance/kubernetes_operator_test.go` (7 FSIDs + 2 skip stubs) — 2026-06-09
+- [x] M9 — implementation done: `apps/skoed-operator/` (controller-runtime v0.19.0, SkoedCluster + SkoedNode CRDs, Helm chart at `deploy/helm/skoed-operator/`) — 2026-06-09
 - [ ] M9 — refactoring phase
-- [ ] M9 — demo note: `demos/m9/DEMO_NOTE.md`
+- [ ] M9 — demo note written: `demos/m9/DEMO_NOTE.md` — awaiting UoR validation
 - [ ] M9 — merge to master
 
 ## Blockers

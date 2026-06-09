@@ -1,0 +1,63 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: skoednodes.skoed.io
+  annotations:
+    "helm.sh/resource-policy": keep
+  labels:
+    app.kubernetes.io/part-of: skoed-operator
+spec:
+  group: skoed.io
+  names:
+    kind: SkoedNode
+    listKind: SkoedNodeList
+    plural: skoednodes
+    singular: skoednode
+    shortNames:
+      - sn
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Pod
+          type: string
+          jsonPath: .status.podName
+        - name: Role
+          type: string
+          jsonPath: .status.role
+        - name: Healthy
+          type: boolean
+          jsonPath: .status.healthy
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            status:
+              type: object
+              properties:
+                podName:
+                  type: string
+                role:
+                  type: string
+                  enum: [leader, follower, candidate, unknown]
+                healthy:
+                  type: boolean
+                commitIndex:
+                  type: integer
+                  format: int64
+                lastContact:
+                  type: string
+                  format: date-time

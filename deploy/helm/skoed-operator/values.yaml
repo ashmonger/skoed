@@ -1,0 +1,27 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/skoed/skoed-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "128Mi"
+  requests:
+    cpu: "10m"
+    memory: "64Mi"
+
+leaderElect: true
+metricsPort: 8080
+healthProbePort: 8081
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
