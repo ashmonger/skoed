@@ -2,16 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/skoed/skoed/internal/config"
+	dnsengine "github.com/skoed/skoed/internal/dns"
 )
 
 // settingsResponse is the JSON shape returned by GET /api/v1/settings.
 type settingsResponse struct {
-	DNS         config.DNSConfig      `json:"dns"`
-	Filtering   filteringSettings     `json:"filtering"`
-	QueryLog    config.QueryLogConfig `json:"query_log"`
+	DNS           config.DNSConfig      `json:"dns"`
+	Filtering     filteringSettings     `json:"filtering"`
+	QueryLog      config.QueryLogConfig `json:"query_log"`
+	DNSCryptStamp string                `json:"dnscrypt_stamp,omitempty"` // M8: sdns:// URI
 }
 
 type filteringSettings struct {
@@ -26,9 +30,34 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		Filtering: filteringSettings{
 			BlockPolicy: cfg.Filtering.BlockPolicy,
 		},
-		QueryLog: cfg.QueryLog,
+		QueryLog:      cfg.QueryLog,
+		DNSCryptStamp: dnscryptStamp(h),
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// dnscryptStamp returns the sdns:// URI for this node, or "" when DNSCrypt
+// is not configured or no keypair has been generated yet.
+func dnscryptStamp(h *Handler) string {
+	c := h.app.GetCluster()
+	if c == nil {
+		return ""
+	}
+	node := c.Node()
+	if node == nil || node.Node.DNS.Listen.DNSCryptPort == 0 {
+		return ""
+	}
+	keys, err := c.GetDNSCryptKeys()
+	if err != nil || keys == nil {
+		return ""
+	}
+	// Derive the public host from the API address (strip port, keep IP).
+	host, _, splitErr := net.SplitHostPort(node.Node.APIAddress)
+	if splitErr != nil {
+		host = node.Node.APIAddress
+	}
+	addr := fmt.Sprintf("%s:%d", host, node.Node.DNS.Listen.DNSCryptPort)
+	return dnsengine.DNSCryptStamp(keys.Config, addr)
 }
 
 // settingsPatch is the body accepted by PATCH /api/v1/settings.
@@ -160,7 +189,8 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		Filtering: filteringSettings{
 			BlockPolicy: cfg.Filtering.BlockPolicy,
 		},
-		QueryLog: cfg.QueryLog,
+		QueryLog:      cfg.QueryLog,
+		DNSCryptStamp: dnscryptStamp(h),
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

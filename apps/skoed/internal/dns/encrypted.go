@@ -4,6 +4,9 @@ package dns
 // queries through the *same* dns.Handler that serves UDP/TCP, so the
 // filter, allowlist, local-DNS, and query-log pipeline applies uniformly.
 // Outcomes get a -doh / -dot suffix via the transportTaggedWriter below.
+//
+// M8: DoH3 (HTTP/3 over QUIC) is added to EncryptedServer. It shares the
+// same dohHandler path; only the transport tag differs ("doh3").
 
 import (
 	"context"
@@ -19,6 +22,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/quic-go/quic-go/http3"
 )
 
 // transportTag is the context-key-ish marker on a wrapped dns.ResponseWriter
@@ -57,15 +61,16 @@ func (w *transportTaggedWriter) RemoteAddr() net.Addr {
 // local-DNS / filter / SafeSearch state immediately, not at next boot.
 type EncryptedServer struct {
 	wrapper *swappableHandler
-	dohPort int
-	dotPort int
+	dohPort  int
+	dotPort  int
+	doh3Port int // M8: HTTP/3 over QUIC; 0 = disabled
 	// When acme is non-nil, tls.Config.GetCertificate routes through it.
-	// Otherwise cert is used directly (static self-signed or operator
-	// PEMs).
+	// Otherwise cert is used directly (static self-signed or operator PEMs).
 	cert tls.Certificate
 	acme *AcmeManager
 
 	httpSrv *http.Server
+	doh3Srv *http3.Server // M8
 	dotLn   net.Listener
 	mu      sync.Mutex
 	stopped bool
@@ -78,12 +83,13 @@ type EncryptedServer struct {
 // startup. When acme is non-nil, autocert's GetCertificate is used per
 // connection; certFile + keyFile become the self-signed fallback the
 // AcmeManager falls back to if ACME is unreachable.
-func NewEncryptedServer(handler dns.Handler, dohPort, dotPort int, certFile, keyFile string, acme *AcmeManager) (*EncryptedServer, error) {
+func NewEncryptedServer(handler dns.Handler, dohPort, dotPort, doh3Port int, certFile, keyFile string, acme *AcmeManager) (*EncryptedServer, error) {
 	s := &EncryptedServer{
-		wrapper: &swappableHandler{current: handler},
-		dohPort: dohPort,
-		dotPort: dotPort,
-		acme:    acme,
+		wrapper:  &swappableHandler{current: handler},
+		dohPort:  dohPort,
+		dotPort:  dotPort,
+		doh3Port: doh3Port,
+		acme:     acme,
 	}
 	if acme == nil {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -127,10 +133,15 @@ func (s *EncryptedServer) Start() error {
 			return fmt.Errorf("start DoT: %w", err)
 		}
 	}
+	if s.doh3Port > 0 {
+		if err := s.startDoH3(); err != nil {
+			return fmt.Errorf("start DoH3: %w", err)
+		}
+	}
 	return nil
 }
 
-// Shutdown stops both listeners. Safe to call multiple times.
+// Shutdown stops all listeners. Safe to call multiple times.
 func (s *EncryptedServer) Shutdown() {
 	s.mu.Lock()
 	if s.stopped {
@@ -139,13 +150,17 @@ func (s *EncryptedServer) Shutdown() {
 	}
 	s.stopped = true
 	httpSrv := s.httpSrv
+	doh3Srv := s.doh3Srv
 	dotLn := s.dotLn
 	s.mu.Unlock()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	if httpSrv != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
 		_ = httpSrv.Shutdown(ctx)
+	}
+	if doh3Srv != nil {
+		_ = doh3Srv.Shutdown(ctx)
 	}
 	if dotLn != nil {
 		_ = dotLn.Close()
@@ -182,6 +197,16 @@ func (s *EncryptedServer) startDoH() error {
 }
 
 func (s *EncryptedServer) handleDoH(w http.ResponseWriter, r *http.Request) {
+	s.serveHTTPDNS("doh", w, r)
+}
+
+func (s *EncryptedServer) handleDoH3(w http.ResponseWriter, r *http.Request) {
+	s.serveHTTPDNS("doh3", w, r)
+}
+
+// serveHTTPDNS is the shared implementation for DoH (HTTP/1.1 and HTTP/2)
+// and DoH3 (HTTP/3). The transport tag controls the query-log outcome suffix.
+func (s *EncryptedServer) serveHTTPDNS(transport string, w http.ResponseWriter, r *http.Request) {
 	var wireQuery []byte
 	switch r.Method {
 	case http.MethodPost:
@@ -219,7 +244,7 @@ func (s *EncryptedServer) handleDoH(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tw := &dohResponseWriter{
-		transport: "doh",
+		transport: transport,
 		clientIP:  remoteHostNoPort(r.RemoteAddr),
 		done:      make(chan struct{}, 1),
 	}
@@ -300,6 +325,36 @@ func remoteHostNoPort(addr string) string {
 		return addr
 	}
 	return host
+}
+
+// ─── DoH3 (HTTP/3 over QUIC) — M8 ──────────────────────────────────────────
+
+func (s *EncryptedServer) startDoH3() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/dns-query", s.handleDoH3)
+
+	// QUIC mandates TLS 1.3; bump the floor from the shared tlsConfig.
+	tlsCfg := s.tlsConfig()
+	tlsCfg.MinVersion = tls.VersionTLS13
+
+	srv := &http3.Server{
+		Addr:      fmt.Sprintf(":%d", s.doh3Port),
+		TLSConfig: tlsCfg,
+		Handler:   mux,
+	}
+
+	s.mu.Lock()
+	s.doh3Srv = srv
+	s.mu.Unlock()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			// Listener closed normally on Shutdown; other errors are unexpected
+			// but not fatal — the rest of the server keeps running.
+			_ = err
+		}
+	}()
+	return nil
 }
 
 // ─── DoT ─────────────────────────────────────────────────────────────────

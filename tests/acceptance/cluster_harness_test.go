@@ -79,6 +79,9 @@ type M2NodeConfig struct {
 	// M4: optional encrypted DNS listeners. Zero/unset = disabled.
 	DoHPort int
 	DoTPort int
+	// M8: optional DoH3 (HTTP/3 over QUIC) and DNSCrypt v2 listeners.
+	DoH3Port     int
+	DNSCryptPort int
 	// M4 ACME: when set, written under node.dns.tls.acme.* in config.yaml.
 	Acme *AcmeOpts
 	// M4 FS-DohConfiguredCert: when both set, written under
@@ -327,6 +330,12 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 	if cfg.DoTPort > 0 {
 		n.DoTAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoTPort)
 	}
+	if cfg.DoH3Port > 0 {
+		n.DoH3Addr = fmt.Sprintf("127.0.0.1:%d", cfg.DoH3Port)
+	}
+	if cfg.DNSCryptPort > 0 {
+		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
+	}
 	cn := &ClusterNode{
 		Node:     n,
 		NodeID:   cfg.NodeID,
@@ -356,6 +365,12 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 	}
 	if cfg.DoTPort > 0 {
 		n.DoTAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoTPort)
+	}
+	if cfg.DoH3Port > 0 {
+		n.DoH3Addr = fmt.Sprintf("127.0.0.1:%d", cfg.DoH3Port)
+	}
+	if cfg.DNSCryptPort > 0 {
+		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
 	}
 	cn := &ClusterNode{
 		Node:     n,
@@ -411,11 +426,13 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	t.Helper()
 
 	type listenSection struct {
-		Port    int  `yaml:"port"`
-		IPv4    bool `yaml:"ipv4"`
-		IPv6    bool `yaml:"ipv6"`
-		DoHPort int  `yaml:"doh_port,omitempty"`
-		DoTPort int  `yaml:"dot_port,omitempty"`
+		Port         int  `yaml:"port"`
+		IPv4         bool `yaml:"ipv4"`
+		IPv6         bool `yaml:"ipv6"`
+		DoHPort      int  `yaml:"doh_port,omitempty"`
+		DoTPort      int  `yaml:"dot_port,omitempty"`
+		DoH3Port     int  `yaml:"doh3_port,omitempty"`
+		DNSCryptPort int  `yaml:"dnscrypt_port,omitempty"`
 	}
 	type acmeSection struct {
 		Enabled           bool     `yaml:"enabled"`
@@ -484,7 +501,10 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 			DNS: dnsSection{
 				Listen: listenSection{
 					Port: cfg.DNSPort, IPv4: true, IPv6: false,
-					DoHPort: cfg.DoHPort, DoTPort: cfg.DoTPort,
+					DoHPort:      cfg.DoHPort,
+					DoTPort:      cfg.DoTPort,
+					DoH3Port:     cfg.DoH3Port,
+					DNSCryptPort: cfg.DNSCryptPort,
 				},
 				TLS: func() *tlsSection {
 					if cfg.Acme == nil && cfg.TLSCertFile == "" && cfg.TLSKeyFile == "" {

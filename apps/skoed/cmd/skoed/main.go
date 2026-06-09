@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	dnscrypt "github.com/ameshkov/dnscrypt/v2"
 	"github.com/skoed/skoed/internal/api"
 	"github.com/skoed/skoed/internal/auth"
 	"github.com/skoed/skoed/internal/cli"
@@ -198,7 +199,8 @@ func runDaemon(cfgPath string) {
 
 	var app *api.App
 	var dnsServer *dnsengine.Server
-	var encryptedSrv *dnsengine.EncryptedServer // populated below; closure captures by name
+	var encryptedSrv *dnsengine.EncryptedServer  // populated below; closure captures by name
+	var dnscryptSrv  *dnsengine.DNSCryptServer  // M8: populated below if DNSCryptPort > 0
 	var dhcpMgr *dhcp.Manager                   // populated below; closure captures by name
 	// M4.7: long-lived DNS cache. Survives every Raft apply (config
 	// edits used to wipe the whole cache as a side effect of
@@ -336,6 +338,23 @@ func runDaemon(cfgPath string) {
 		// the boot-time handler until the process restarts.
 		if encryptedSrv != nil {
 			encryptedSrv.UpdateHandler(newHandler)
+		}
+		if dnscryptSrv != nil {
+			dnscryptSrv.UpdateHandler(newHandler)
+		} else if node.Node.DNS.Listen.DNSCryptPort > 0 {
+			// Keys may have just landed via Raft — try to start the server now.
+			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
+				srv, serr := dnsengine.NewDNSCryptServer(newHandler, node.Node.DNS.Listen.DNSCryptPort, keys.Config)
+				if serr == nil {
+					if serr = srv.Start(); serr == nil {
+						dnscryptSrv = srv
+						log.Printf("DNSCrypt server started on :%d (keys just replicated)", node.Node.DNS.Listen.DNSCryptPort)
+					}
+				}
+				if serr != nil {
+					log.Printf("DNSCrypt: deferred start failed: %v", serr)
+				}
+			}
 		}
 		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
 			dnsServer.UpdateHandler(newHandler)
@@ -505,12 +524,10 @@ func runDaemon(cfgPath string) {
 	}
 	log.Printf("DNS server listening on :%d (mode=%s)", snap.DNS.Listen.Port, snap.DNS.Mode)
 
-	// M4: encrypted DNS listeners (DoH/DoT). Both share a single TLS cert.
-	// Either port at 0 disables that transport; both at 0 skips the
-	// EncryptedServer entirely so non-M4 deployments behave exactly like
-	// they did before.
+	// M4/M8: encrypted DNS listeners (DoH/DoT/DoH3). All share a single TLS cert.
+	// A port at 0 disables that transport; all at 0 skips EncryptedServer.
 	var acmeMgr *dnsengine.AcmeManager
-	if snap.DNS.Listen.DoHPort > 0 || snap.DNS.Listen.DoTPort > 0 {
+	if snap.DNS.Listen.DoHPort > 0 || snap.DNS.Listen.DoTPort > 0 || node.Node.DNS.Listen.DoH3Port > 0 {
 		// Always materialise the self-signed cert: it's the ACME fallback
 		// AND it's what serves DoH during the first-boot window before
 		// autocert finishes issuing.
@@ -553,6 +570,7 @@ func runDaemon(cfgPath string) {
 			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
+			node.Node.DNS.Listen.DoH3Port,
 			certFile, keyFile,
 			acmeMgr,
 		)
@@ -572,6 +590,39 @@ func runDaemon(cfgPath string) {
 		if snap.DNS.Listen.DoTPort > 0 {
 			log.Printf("DoT server listening on :%d (cert=%s)", snap.DNS.Listen.DoTPort, certLabel)
 		}
+		if node.Node.DNS.Listen.DoH3Port > 0 {
+			log.Printf("DoH3 (HTTP/3) server listening on :%d (cert=%s)", node.Node.DNS.Listen.DoH3Port, certLabel)
+		}
+	}
+
+	// M8: DNSCrypt v2 listener. Requires a keypair already replicated in Raft.
+	// If no keypair exists yet the leader will generate one on its next rotation
+	// tick; the server starts once the keys land via rebuildDNS.
+	if node.Node.DNS.Listen.DNSCryptPort > 0 {
+		if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
+			dnscryptSrv, err = dnsengine.NewDNSCryptServer(
+				buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
+				node.Node.DNS.Listen.DNSCryptPort,
+				keys.Config,
+			)
+			if err != nil {
+				log.Fatalf("build DNSCrypt server: %v", err)
+			}
+			if err := dnscryptSrv.Start(); err != nil {
+				log.Fatalf("start DNSCrypt server: %v", err)
+			}
+			log.Printf("DNSCrypt server listening on :%d", node.Node.DNS.Listen.DNSCryptPort)
+		} else {
+			log.Printf("DNSCrypt: no keypair yet — server will start after leader generates keys")
+		}
+
+		// M8: Leader-only key rotation ticker. Generates the initial keypair
+		// (first boot) and rotates it when it approaches expiry.
+		certTTL := time.Duration(node.Node.DNS.DNSCrypt.CertTTLHours) * time.Hour
+		if certTTL <= 0 {
+			certTTL = 24 * 365 * time.Hour // default 1 year (matches ameshkov/dnscrypt default)
+		}
+		go runDNSCryptKeyRotation(c, certTTL)
 	}
 
 	log.Printf("skoed M2 node %q ready (raft=%s)", node.Node.ID, node.Node.RaftAddress)
@@ -589,6 +640,9 @@ func runDaemon(cfgPath string) {
 	dnsServer.Shutdown()
 	if encryptedSrv != nil {
 		encryptedSrv.Shutdown()
+	}
+	if dnscryptSrv != nil {
+		dnscryptSrv.Shutdown()
 	}
 	if acmeMgr != nil {
 		acmeMgr.Shutdown()
@@ -766,4 +820,71 @@ func joinExistingCluster(node *cluster.NodeYAML) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("join cluster: %w", lastErr)
+}
+
+// runDNSCryptKeyRotation is a leader-only goroutine that generates the initial
+// DNSCrypt keypair on first boot and rotates it when it is within 10% of its
+// TTL from expiry. All nodes converge via Raft — only the leader writes.
+//
+// The first check runs immediately (with a short retry loop until this node is
+// elected leader) so fresh single-node deployments get a keypair without
+// waiting the full hour for the first tick.
+func runDNSCryptKeyRotation(c *cluster.Cluster, certTTL time.Duration) {
+	// Initial fast-path: wait up to 30s for leadership, then generate if missing.
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if c.IsLeader() {
+			dnscryptRotateOnce(c, certTTL)
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		if !c.IsLeader() {
+			continue
+		}
+		dnscryptRotateOnce(c, certTTL)
+	}
+}
+
+// dnscryptRotateOnce generates a new DNSCrypt keypair if none exists or if
+// the existing one is within 10% of its TTL from expiry.
+func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
+	keys, err := c.GetDNSCryptKeys()
+	if err != nil {
+		log.Printf("DNSCrypt rotation: read keys: %v", err)
+		return
+	}
+	now := time.Now()
+	needsNew := keys == nil ||
+		now.After(keys.ExpiresAt.Add(-certTTL/10)) // rotate in last 10% of TTL
+	if !needsNew {
+		return
+	}
+	rc, genErr := dnscrypt.GenerateResolverConfig(
+		"2.dnscrypt-cert."+c.Node().Node.ID, nil,
+	)
+	if genErr != nil {
+		log.Printf("DNSCrypt rotation: generate config: %v", genErr)
+		return
+	}
+	rc.CertificateTTL = certTTL
+	cfgJSON, mErr := json.Marshal(rc)
+	if mErr != nil {
+		log.Printf("DNSCrypt rotation: marshal config: %v", mErr)
+		return
+	}
+	newKeys := cluster.DNSCryptKeys{
+		Config:    string(cfgJSON),
+		CreatedAt: now,
+		ExpiresAt: now.Add(certTTL),
+	}
+	if sErr := c.SetDNSCryptKeys(newKeys); sErr != nil {
+		log.Printf("DNSCrypt rotation: replicate keys: %v", sErr)
+		return
+	}
+	log.Printf("DNSCrypt keypair rotated (expires %s)", newKeys.ExpiresAt.Format(time.RFC3339))
 }

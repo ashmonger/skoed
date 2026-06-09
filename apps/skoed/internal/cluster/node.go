@@ -135,8 +135,10 @@ type DHCPSection struct {
 // DNSSection / ListenSection mirror the shape used in M1's config.yaml so
 // existing M1 binaries can still parse this listen subtree without surprise.
 type DNSSection struct {
-	Listen ListenSection `yaml:"listen"`
-	TLS    TLSSection    `yaml:"tls,omitempty"`
+	Listen   ListenSection    `yaml:"listen"`
+	TLS      TLSSection       `yaml:"tls,omitempty"`
+	// M8: DNSCrypt v2 server settings (keypair TTL etc.)
+	DNSCrypt DNSCryptSection  `yaml:"dnscrypt,omitempty"`
 }
 
 // ListenSection is the bind address for the DNS server.
@@ -147,6 +149,16 @@ type ListenSection struct {
 	// M4: encrypted-DNS listeners. Zero/unset = disabled.
 	DoHPort int `yaml:"doh_port,omitempty"`
 	DoTPort int `yaml:"dot_port,omitempty"`
+	// M8: DoH3 (HTTP/3 over QUIC) and DNSCrypt v2. Zero/unset = disabled.
+	DoH3Port     int `yaml:"doh3_port,omitempty"`
+	DNSCryptPort int `yaml:"dnscrypt_port,omitempty"`
+}
+
+// DNSCryptSection holds node-local M8 DNSCrypt v2 settings.
+type DNSCryptSection struct {
+	// CertTTLHours is how long each generated resolver certificate is valid.
+	// Default: 24 hours. The leader rotates the keypair before it expires.
+	CertTTLHours int `yaml:"cert_ttl_hours,omitempty"`
 }
 
 // TLSSection carries the certificate paths for the M4 DoH/DoT listeners.
