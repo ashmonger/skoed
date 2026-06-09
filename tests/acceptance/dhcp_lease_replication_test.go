@@ -157,7 +157,6 @@ func (s *countingLeaseSource) Close()      { s.srv.Close() }
 // dhcp_connectors_test helpers (fetchLeaseSnapshot) still work.
 func startReplicatedLeaseCluster(t *testing.T, opts DhcpOpts) *Cluster {
 	t.Helper()
-	t.Setenv("SKOED_TEST_MODE", "1")
 	c := &Cluster{t: t, bin: skoedBinary(t)}
 
 	// Bootstrap node-1 with DHCP enabled.
@@ -273,6 +272,7 @@ func waitForLeaseInSnapshot(t *testing.T, n *Node, ip string, d time.Duration) b
 // FS-LeaseReplOnlyLeaderPolls
 // Scenario: Only the leader polls the configured DHCP source
 func TestLeaseReplOnlyLeaderPolls(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.10", "aa:bb:cc:dd:ee:10", "host-10", "id:host10"),
 	})
@@ -330,6 +330,7 @@ func TestLeaseReplOnlyLeaderPolls(t *testing.T) {
 // FS-LeaseReplFollowersServeReplicatedSnapshot
 // Scenario: Followers serve the same /api/v1/clients view as the leader
 func TestLeaseReplFollowersServeReplicatedSnapshot(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.10", "aa:bb:cc:dd:ee:10", "host-10", "id:h10"),
 		sampleLease("10.42.0.11", "aa:bb:cc:dd:ee:11", "host-11", "id:h11"),
@@ -386,6 +387,7 @@ func TestLeaseReplFollowersServeReplicatedSnapshot(t *testing.T) {
 // FS-LeaseReplLeasesEndpointExposesSnapshot
 // Scenario: GET /api/v1/leases returns the replicated lease snapshot
 func TestLeaseReplLeasesEndpointExposesSnapshot(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.20", "aa:bb:cc:dd:ee:20", "alpha", "id:alpha"),
 	})
@@ -430,6 +432,7 @@ func TestLeaseReplLeasesEndpointExposesSnapshot(t *testing.T) {
 // FS-LeaseReplSourceEndpointReportsLeader
 // Scenario: GET /api/v1/leases/source reports which node owns the poll loop
 func TestLeaseReplSourceEndpointReportsLeader(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.30", "aa:bb:cc:dd:ee:30", "beta", "id:beta"),
 	})
@@ -473,6 +476,7 @@ func TestLeaseReplSourceEndpointReportsLeader(t *testing.T) {
 // FS-LeaseReplLeaderFailoverResumesPolling
 // Scenario: The newly-elected leader resumes polling without a cold start
 func TestLeaseReplLeaderFailoverResumesPolling(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.40", "aa:bb:cc:dd:ee:40", "gamma", "id:gamma"),
 	})
@@ -561,6 +565,7 @@ func TestLeaseReplLeaderFailoverResumesPolling(t *testing.T) {
 // FS-LeaseReplNoDoublePollDuringTransition
 // Scenario: At most one node polls the source even across a leadership change
 func TestLeaseReplNoDoublePollDuringTransition(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.50", "aa:bb:cc:dd:ee:50", "delta", "id:delta"),
 	})
@@ -602,6 +607,7 @@ func TestLeaseReplNoDoublePollDuringTransition(t *testing.T) {
 // FS-LeaseReplEmptyClusterReturns503
 // Scenario: No leader yet at boot — lease endpoints surface a clear retryable error
 func TestLeaseReplEmptyClusterReturns503(t *testing.T) {
+	t.Parallel()
 	// We cannot reliably create a "no leader ever elected" condition
 	// from the existing harness because bootstrapFirst implicitly
 	// makes node-1 a single-node leader the moment it boots. The best
@@ -641,6 +647,7 @@ func TestLeaseReplEmptyClusterReturns503(t *testing.T) {
 // FS-LeaseReplFollowerAnomaliesMatchLeader
 // Scenario: Anti-spoof anomalies surface on followers via replicated state
 func TestLeaseReplFollowerAnomaliesMatchLeader(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.60", "aa:bb:cc:dd:ee:60", "kid-tablet", "id:tablet60"),
 	})
@@ -702,6 +709,7 @@ func TestLeaseReplFollowerAnomaliesMatchLeader(t *testing.T) {
 // FS-LeaseReplFollowerWriteForwarded
 // Scenario: Acknowledging an anomaly on a follower is forwarded to the leader
 func TestLeaseReplFollowerWriteForwarded(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.70", "aa:bb:cc:dd:ee:70", "kid-tablet", "id:tablet70"),
 	})
@@ -768,6 +776,7 @@ func TestLeaseReplFollowerWriteForwarded(t *testing.T) {
 // FS-LeaseReplChurnDoesNotAmplifyRaftLog
 // Scenario: A high-churn lease source does not produce one Raft entry per lease per poll
 func TestLeaseReplChurnDoesNotAmplifyRaftLog(t *testing.T) {
+	t.Parallel()
 	// The invariant ("well under 1 entry per lease per poll") is
 	// observable in Raft commit_index growth across many polls. We
 	// build a 200-lease initial set, change exactly 5 of them between
@@ -841,6 +850,7 @@ func TestLeaseReplChurnDoesNotAmplifyRaftLog(t *testing.T) {
 // FS-LeaseReplStaleFollowerCatchesUp
 // Scenario: A follower reconnecting after a partition catches up to the current lease snapshot
 func TestLeaseReplStaleFollowerCatchesUp(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.80", "aa:bb:cc:dd:ee:80", "epsilon", "id:eps"),
 	})
@@ -916,6 +926,7 @@ func TestLeaseReplStaleFollowerCatchesUp(t *testing.T) {
 // FS-LeaseReplLastPollUnixAdvances
 // Scenario: last_poll_unix reflects the leader's most recent successful poll
 func TestLeaseReplLastPollUnixAdvances(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.90", "aa:bb:cc:dd:ee:90", "zeta", "id:zeta"),
 	})
@@ -964,6 +975,7 @@ func TestLeaseReplLastPollUnixAdvances(t *testing.T) {
 // FS-LeaseReplSourceUnreachableKeepsLastGood
 // Scenario: A transient DHCP source failure keeps the last known-good snapshot
 func TestLeaseReplSourceUnreachableKeepsLastGood(t *testing.T) {
+	t.Parallel()
 	src := newCountingLeaseSource([]map[string]any{
 		sampleLease("10.42.0.99", "aa:bb:cc:dd:ee:99", "eta", "id:eta"),
 	})

@@ -44,7 +44,6 @@ type DhcpOpts struct {
 // happens against the right IP).
 func startClusterWithDhcp(t *testing.T, opts DhcpOpts) *Cluster {
 	t.Helper()
-	t.Setenv("SKOED_TEST_MODE", "1")
 	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)

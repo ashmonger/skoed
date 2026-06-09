@@ -24,6 +24,7 @@ import (
 
 // FS-ConfigShadowYamlPresentOnDisk
 func TestConfigShadowYamlPresentOnDisk(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 
@@ -43,6 +44,7 @@ func TestConfigShadowYamlPresentOnDisk(t *testing.T) {
 
 // FS-ConfigShadowYamlUpdatesAfterWrite
 func TestConfigShadowYamlUpdatesAfterWrite(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 2)
 	leader := c.Leader(t)
 	follower := c.Followers(t)[0]
@@ -76,6 +78,7 @@ func TestConfigShadowYamlUpdatesAfterWrite(t *testing.T) {
 // while a reader goroutine tight-loops reading and decoding the shadow YAML.
 // Any decode failure on the reader side is the torn-write signature.
 func TestConfigShadowYamlAtomicWrite(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 	shadowPath := filepath.Join(leader.DataDir, "config.yaml")
@@ -143,6 +146,7 @@ func TestConfigShadowYamlAtomicWrite(t *testing.T) {
 
 // FS-ConfigShadowYamlIgnoredOnRead
 func TestConfigShadowYamlIgnoredOnRead(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 
@@ -190,6 +194,7 @@ func TestConfigShadowYamlIgnoredOnRead(t *testing.T) {
 // cluster sections — both must be present, but `cluster:`/`stats:` and
 // any `cluster_secret` field must not.
 func TestConfigShadowYamlExcludesNodeLocal(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 2)
 	leader := c.Leader(t)
 	c.MustCreateBlocklist(t, leader, "ads", "tracker.example.com")
@@ -298,6 +303,7 @@ func findForbiddenField(v any, forbidden map[string]struct{}) string {
 
 // FS-ConfigShadowYamlRebuiltOnBoot
 func TestConfigShadowYamlRebuiltOnBoot(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 	c.MustCreateBlocklist(t, leader, "boot-probe", "boot.example.com")
@@ -341,6 +347,7 @@ func TestConfigShadowYamlRebuiltOnBoot(t *testing.T) {
 // restore where the operator updates node section for the new host). The
 // new node's bbolt must reproduce the captured cluster state.
 func TestConfigShadowYamlRoundTrips(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	src := c.Leader(t)
 	c.MustCreateBlocklist(t, src, "round-trip", "round.example.com")

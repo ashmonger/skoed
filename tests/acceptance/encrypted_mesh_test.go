@@ -26,6 +26,7 @@ import (
 // This test asserts the default really IS off — boot a node with no
 // mtls config and confirm no cluster CA materialises on disk.
 func TestMtlsDefaultOffPlainStillWorks(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t)
 
@@ -43,6 +44,7 @@ func TestMtlsDefaultOffPlainStillWorks(t *testing.T) {
 // verifies every node ends up with the same CA bundle and that a
 // blocklist created on the leader replicates to every node.
 func TestMtlsClusterFormsAndReplicates(t *testing.T) {
+	t.Parallel()
 	c := startClusterMTLS(t, 3)
 	if c == nil {
 		t.Skip("M5.3 impl pending: startClusterMTLS unavailable")

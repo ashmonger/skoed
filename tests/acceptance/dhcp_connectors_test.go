@@ -106,6 +106,7 @@ func genericStub(t *testing.T, fixture string, fail503Once bool) *httptest.Serve
 
 // FS-DhcpKeaReadsLeases
 func TestDhcpKeaReadsLeases(t *testing.T) {
+	t.Parallel()
 	stub := keaStub(t, "kea-lease4-get-all.json", "", "")
 	defer stub.Close()
 
@@ -131,6 +132,7 @@ func TestDhcpKeaReadsLeases(t *testing.T) {
 
 // FS-DhcpKeaHandlesAuth
 func TestDhcpKeaHandlesAuth(t *testing.T) {
+	t.Parallel()
 	stub := keaStub(t, "kea-lease4-get-all.json", "admin", "kea-secret")
 	defer stub.Close()
 
@@ -148,6 +150,7 @@ func TestDhcpKeaHandlesAuth(t *testing.T) {
 
 // FS-DhcpDnsmasqParsesLeaseFile
 func TestDhcpDnsmasqParsesLeaseFile(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -174,6 +177,7 @@ func TestDhcpDnsmasqParsesLeaseFile(t *testing.T) {
 
 // FS-DhcpDnsmasqSkipsExpired
 func TestDhcpDnsmasqSkipsExpired(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -190,6 +194,7 @@ func TestDhcpDnsmasqSkipsExpired(t *testing.T) {
 
 // FS-DhcpConnectorMalformedSkips
 func TestDhcpConnectorMalformedSkips(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",
 		FilePath: fixturePath(t, "dnsmasq.leases"),
@@ -207,6 +212,7 @@ func TestDhcpConnectorMalformedSkips(t *testing.T) {
 
 // FS-DhcpGenericJsonRoundtrip
 func TestDhcpGenericJsonRoundtrip(t *testing.T) {
+	t.Parallel()
 	stub := genericStub(t, "generic-leases.json", false)
 	defer stub.Close()
 	c := startClusterWithDhcp(t, DhcpOpts{Kind: "http_json", URL: stub.URL})
@@ -225,6 +231,7 @@ func TestDhcpGenericJsonRoundtrip(t *testing.T) {
 
 // FS-DhcpGenericRetry
 func TestDhcpGenericRetry(t *testing.T) {
+	t.Parallel()
 	stub := genericStub(t, "generic-leases.json", true) // 503 once, then 200
 	defer stub.Close()
 	c := startClusterWithDhcp(t, DhcpOpts{
@@ -246,6 +253,7 @@ func TestDhcpGenericRetry(t *testing.T) {
 
 // FS-DhcpConnectorRefreshInterval
 func TestDhcpConnectorRefreshInterval(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++

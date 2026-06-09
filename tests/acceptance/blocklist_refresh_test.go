@@ -91,6 +91,7 @@ func createUrlBlocklist(t *testing.T, n *Node, id, url string, intervalSecs int)
 // refresh interval, change the served domain list, then wait for the
 // refresh worker to update domain_count on EVERY node.
 func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
 	lines.Store("0.0.0.0 a.example\n0.0.0.0 b.example\n")
@@ -137,6 +138,7 @@ func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
 
 // FS-AutoRefreshStatusFields
 func TestAutoRefreshStatusFields(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
 	lines.Store("0.0.0.0 only.example\n")
@@ -168,6 +170,7 @@ func TestAutoRefreshStatusFields(t *testing.T) {
 
 // FS-AutoRefreshFailureRecorded
 func TestAutoRefreshFailureRecorded(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	good := "0.0.0.0 domain.example\n"
 	bad := ""
@@ -226,6 +229,7 @@ func TestAutoRefreshFailureRecorded(t *testing.T) {
 
 // FS-AutoRefreshDisabledWhenZero
 func TestAutoRefreshDisabledWhenZero(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
 	lines.Store("0.0.0.0 disabled.example\n")
@@ -250,6 +254,7 @@ func TestAutoRefreshDisabledWhenZero(t *testing.T) {
 // FS-AutoRefreshLeaderOnly — explicit hit-counter assertion using the
 // httptest server. Only ONE node should be fetching.
 func TestAutoRefreshLeaderOnly(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
 	lines.Store("0.0.0.0 leaderonly.example\n")
@@ -276,6 +281,7 @@ func TestAutoRefreshLeaderOnly(t *testing.T) {
 
 // FS-AutoRefreshMetrics
 func TestAutoRefreshMetrics(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	lines := &atomic.Value{}
 	lines.Store("0.0.0.0 metrics.example\n")

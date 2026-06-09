@@ -103,6 +103,7 @@ func waitForFirstDohSnapshot(t *testing.T, n *Node, within time.Duration) dohSna
 
 // FS-DohResolverDbListSnapshotShape
 func TestDohResolverDbListSnapshotShape(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	snap := waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -152,6 +153,7 @@ func TestDohResolverDbListSnapshotShape(t *testing.T) {
 
 // FS-DohResolverDbSnapshotJsonExport
 func TestDohResolverDbSnapshotJsonExport(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	_ = waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -183,6 +185,7 @@ func TestDohResolverDbSnapshotJsonExport(t *testing.T) {
 
 // FS-DohResolverDbAdminForceRefresh
 func TestDohResolverDbAdminForceRefresh(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	initial := waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -226,6 +229,7 @@ func TestDohResolverDbAdminForceRefresh(t *testing.T) {
 
 // FS-DohResolverDbRefreshRequiresAuth
 func TestDohResolverDbRefreshRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -246,6 +250,7 @@ func TestDohResolverDbRefreshRequiresAuth(t *testing.T) {
 // then propagates to every node. The "daily" cadence is exercised
 // indirectly: the scheduler must tick at least once on its own.
 func TestDohResolverDbScheduledDailyRefresh(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t).Node
 	snap := waitForFirstDohSnapshot(t, leader, 15*time.Second)
@@ -279,6 +284,7 @@ func TestDohResolverDbScheduledDailyRefresh(t *testing.T) {
 // witnessed by TS-DohResolverDb's worker mutex, but the cross-node
 // equality is the operator-visible guarantee.
 func TestDohResolverDbLeaderOnlyScheduler(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t).Node
 	leaderSnap := waitForFirstDohSnapshot(t, leader, 15*time.Second)
@@ -303,6 +309,7 @@ func TestDohResolverDbLeaderOnlyScheduler(t *testing.T) {
 // Force a refresh on the leader and assert every follower converges to
 // the same snapshot_id and identical resolvers[] bytes.
 func TestDohResolverDbReplicatedAcrossNodes(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t).Node
 	initial := waitForFirstDohSnapshot(t, leader, 15*time.Second)
@@ -369,6 +376,7 @@ func TestDohResolverDbReplicatedAcrossNodes(t *testing.T) {
 // regressions where the handler unconditionally returns stale=true or
 // stale=false.
 func TestDohResolverDbStaleFlagAfterSevenDays(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	snap := waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -393,6 +401,7 @@ func TestDohResolverDbStaleFlagAfterSevenDays(t *testing.T) {
 // SKOED_TEST_DOH_RESOLVER_UPSTREAM points the scheduler at our
 // httptest server.
 func TestDohResolverDbUpstreamFailureKeepsLastGoodSnapshot(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	failing := &atomic.Bool{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -447,6 +456,7 @@ func TestDohResolverDbUpstreamFailureKeepsLastGoodSnapshot(t *testing.T) {
 // scheduler must keep retrying within the refresh window and
 // eventually land a fresh snapshot whose last_refresh_error is empty.
 func TestDohResolverDbRefreshRetriesWithBackoff(t *testing.T) {
+	t.Parallel()
 	hits := &atomic.Uint64{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := hits.Add(1)
@@ -494,6 +504,7 @@ func TestDohResolverDbRefreshRetriesWithBackoff(t *testing.T) {
 
 // FS-DohResolverDbReadEndpointPublicOrAuthenticated
 func TestDohResolverDbReadEndpointPublicOrAuthenticated(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	_ = waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -522,6 +533,7 @@ func TestDohResolverDbReadEndpointPublicOrAuthenticated(t *testing.T) {
 
 // FS-DohResolverDbResolverEntryShape
 func TestDohResolverDbResolverEntryShape(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	snap := waitForFirstDohSnapshot(t, n, 10*time.Second)
@@ -576,6 +588,7 @@ func TestDohResolverDbResolverEntryShape(t *testing.T) {
 
 // FS-DohResolverDbMetricsCounters
 func TestDohResolverDbMetricsCounters(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	_ = waitForFirstDohSnapshot(t, n, 10*time.Second)

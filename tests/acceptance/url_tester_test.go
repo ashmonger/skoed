@@ -167,6 +167,7 @@ func postPublicTest(t *testing.T, n *Node, body testBlocklistRequest, xff string
 // SSRF guard accepts httptest.NewServer's 127.0.0.1 binding; production
 // builds never set that env var.
 func TestPublicTestBlocklistOK(t *testing.T) {
+	t.Parallel()
 	n := startNodeForPublicTester(t, nil, true) // default: enabled, allow-private for httptest
 
 	hits := &atomic.Uint64{}
@@ -197,6 +198,7 @@ func TestPublicTestBlocklistOK(t *testing.T) {
 // FS-UrlTesterRefusesPrivateAddress — explicit 127.0.0.1 URL must be
 // refused by the SSRF guard before any fetch is attempted.
 func TestPublicTestBlocklistRefusesPrivateIP(t *testing.T) {
+	t.Parallel()
 	n := startNodeForPublicTester(t, nil, false) // no test bypass — production posture
 
 	cases := []string{
@@ -226,6 +228,7 @@ func TestPublicTestBlocklistRefusesPrivateIP(t *testing.T) {
 // FS-UrlTesterRateLimited — issue more requests than the burst allows
 // from the same source IP; at least one MUST return 429.
 func TestPublicTestBlocklistRateLimit(t *testing.T) {
+	t.Parallel()
 	n := startNodeForPublicTester(t, nil, false)
 
 	// Use an obviously bogus public URL — the SSRF guard accepts it
@@ -254,6 +257,7 @@ func TestPublicTestBlocklistRateLimit(t *testing.T) {
 //   - POST /api/v1/_public/test-blocklist returns 404
 //   - GET / redirects (or 404s) — i.e. the public landing surface is gone
 func TestPublicLandingDisabledReturnsLogin(t *testing.T) {
+	t.Parallel()
 	off := false
 	n := startNodeForPublicTester(t, &off, false)
 

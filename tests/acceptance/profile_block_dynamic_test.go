@@ -192,6 +192,7 @@ func seedDefaultUsesAds(t *testing.T, n *Node) {
 
 // FS-BlockDynPureBlockDynamicProfileMatchesAllDynamicClients
 func TestBlockDynPureBlockDynamicProfileMatchesAllDynamicClients(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	_, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -228,6 +229,7 @@ func TestBlockDynPureBlockDynamicProfileMatchesAllDynamicClients(t *testing.T) {
 
 // FS-BlockDynMixedCriteriaIsOrNotAnd
 func TestBlockDynMixedCriteriaIsOrNotAnd(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	_, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -270,6 +272,7 @@ func TestBlockDynMixedCriteriaIsOrNotAnd(t *testing.T) {
 
 // FS-BlockDynEmptyMatchSetIsFine
 func TestBlockDynEmptyMatchSetIsFine(t *testing.T) {
+	t.Parallel()
 	// Start with only static leases — the rule has zero matches at
 	// boot, which the spec says is fine.
 	leases := []blockDynLeaseWire{
@@ -329,6 +332,7 @@ func TestBlockDynEmptyMatchSetIsFine(t *testing.T) {
 
 // FS-BlockDynRejectedOnDefaultProfile
 func TestBlockDynRejectedOnDefaultProfile(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	_, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -356,6 +360,7 @@ func TestBlockDynRejectedOnDefaultProfile(t *testing.T) {
 
 // FS-BlockDynRouterAdvertisedAndManualAdminCountAsNotDynamic
 func TestBlockDynRouterAdvertisedAndManualAdminCountAsNotDynamic(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	leases = append(leases,
 		blockDynLeaseWire{IP: "192.168.2.1", MAC: "aa:bb:cc:dd:ee:01", Hostname: "ra-host", Origin: "router_advertised", ExpiresAt: "2287-11-09T11:46:39Z"},
@@ -399,6 +404,7 @@ func TestBlockDynRouterAdvertisedAndManualAdminCountAsNotDynamic(t *testing.T) {
 
 // FS-BlockDynUnknownClientIsNotDynamic
 func TestBlockDynUnknownClientIsNotDynamic(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	_, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -425,6 +431,7 @@ func TestBlockDynUnknownClientIsNotDynamic(t *testing.T) {
 
 // FS-BlockDynPriorityHigherTierStillWins
 func TestBlockDynPriorityHigherTierStillWins(t *testing.T) {
+	t.Parallel()
 	// 192.168.1.200 has Client-ID id:tablet42 AND origin=dhcp_dynamic —
 	// Client-ID match (tier 1) must win, untrusted (tier 4) must NOT
 	// apply. Trusted-tablet only blocks ads; untrusted blocks social.
@@ -482,6 +489,7 @@ func TestBlockDynPriorityHigherTierStillWins(t *testing.T) {
 
 // FS-BlockDynProfileApiCrud
 func TestBlockDynProfileApiCrud(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	c, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -532,6 +540,7 @@ func TestBlockDynProfileApiCrud(t *testing.T) {
 
 // FS-BlockDynClientLookupSurfacesMatchedProfile
 func TestBlockDynClientLookupSurfacesMatchedProfile(t *testing.T) {
+	t.Parallel()
 	leases := baselineWire()
 	_, n := startBlockDynCluster(t, &leases)
 	seedBlockDynBlocklists(t, n)
@@ -570,6 +579,7 @@ func TestBlockDynClientLookupSurfacesMatchedProfile(t *testing.T) {
 
 // FS-BlockDynUnknownOriginTreatedAsNotDynamic
 func TestBlockDynUnknownOriginTreatedAsNotDynamic(t *testing.T) {
+	t.Parallel()
 	// One lease with origin="" — connector could not determine it.
 	leases := []blockDynLeaseWire{
 		{IP: "192.168.3.3", MAC: "aa:bb:cc:dd:ee:33", Hostname: "unknown-origin-host", ClientID: "id:unknown33", Origin: "", ExpiresAt: "2287-11-09T11:46:39Z"},

@@ -250,6 +250,7 @@ func keaV6FixtureIaNaPlusIaPd() []byte {
 // FS-Dhcpv6LeaseKeaReadsLease6
 // Scenario: Kea connector reads lease6-get-all from the control-agent
 func TestDhcpv6LeaseKeaReadsLease6(t *testing.T) {
+	t.Parallel()
 	// Empty v4 body, three IA_NA leases on the v6 side.
 	v4 := []byte(`[{"result":0,"text":"0 IPv4 lease(s) found.","arguments":{"leases":[]}}]`)
 	stub := keaDualStackStub(t, v4, keaV6FixtureIANA(), 0)
@@ -295,6 +296,7 @@ func TestDhcpv6LeaseKeaReadsLease6(t *testing.T) {
 // FS-Dhcpv6LeaseKeaMergesIaNaAndIaPd
 // Scenario: Kea IA_NA + IA_PD entries for the same DUID merge into one Lease
 func TestDhcpv6LeaseKeaMergesIaNaAndIaPd(t *testing.T) {
+	t.Parallel()
 	v4 := []byte(`[{"result":0,"text":"0","arguments":{"leases":[]}}]`)
 	stub := keaDualStackStub(t, v4, keaV6FixtureIaNaPlusIaPd(), 0)
 	defer stub.Close()
@@ -329,6 +331,7 @@ func TestDhcpv6LeaseKeaMergesIaNaAndIaPd(t *testing.T) {
 // FS-Dhcpv6LeaseDnsmasqParsesLease6File
 // Scenario: dnsmasq connector parses /var/lib/misc/dnsmasq.leases6
 func TestDhcpv6LeaseDnsmasqParsesLease6File(t *testing.T) {
+	t.Parallel()
 	v6Path := writeDnsmasqV6File(t, []string{
 		// "<expiry-epoch> <iaid> <ipv6> <hostname> <duid>"
 		"9999999999 100 2001:db8::a 6host-a 00:01:00:01:aa:bb:cc:dd:ee:0a",
@@ -374,6 +377,7 @@ func TestDhcpv6LeaseDnsmasqParsesLease6File(t *testing.T) {
 // FS-Dhcpv6LeaseDnsmasqSkipsExpired
 // Scenario: dnsmasq v6 connector drops leases whose expiry epoch is in the past
 func TestDhcpv6LeaseDnsmasqSkipsExpired(t *testing.T) {
+	t.Parallel()
 	v6Path := writeDnsmasqV6File(t, []string{
 		"9999999999 200 2001:db8::active1 alive-a 00:01:00:01:aa:bb:cc:dd:ee:11",
 		"9999999999 201 2001:db8::active2 alive-b 00:01:00:01:aa:bb:cc:dd:ee:12",
@@ -406,6 +410,7 @@ func TestDhcpv6LeaseDnsmasqSkipsExpired(t *testing.T) {
 // FS-Dhcpv6LeaseDualStackMerge
 // Scenario: A client present in both v4 and v6 sources merges into one Lease
 func TestDhcpv6LeaseDualStackMerge(t *testing.T) {
+	t.Parallel()
 	// Reuse the M3.6 v4 fixture (192.168.1.10 → aa:bb:cc:dd:ee:10
 	// "home-laptop") and pair it with a v6 lease for the matching
 	// DUID-LL ending in the same MAC suffix.
@@ -478,6 +483,7 @@ func TestDhcpv6LeaseDualStackMerge(t *testing.T) {
 // FS-Dhcpv6LeaseV6OnlyClientLookupByV6
 // Scenario: GET /api/v1/clients/{ip} accepts an IPv6 literal
 func TestDhcpv6LeaseV6OnlyClientLookupByV6(t *testing.T) {
+	t.Parallel()
 	v6 := []byte(`[
   {
     "result": 0,
@@ -530,6 +536,7 @@ func TestDhcpv6LeaseV6OnlyClientLookupByV6(t *testing.T) {
 // FS-Dhcpv6LeaseProfileMatchingPriorityUnchanged
 // Scenario: Profile matching priority is unchanged at M6.5 (DUID is observational only)
 func TestDhcpv6LeaseProfileMatchingPriorityUnchanged(t *testing.T) {
+	t.Parallel()
 	// Use the existing M3.6 fixture: 192.168.1.42 has client_id "id:tablet42".
 	// We add a v6 lease for the same hostname so the merged record also
 	// carries a DUID. The kids profile pins by client_ids — DUID must
@@ -643,6 +650,7 @@ func readProfileRaw(t *testing.T, n *Node, id string) (map[string]any, error) {
 // True UI rendering is verified manually via the demo recipe — same
 // stance as FS-SpoofDashboardAlert in dhcp_spoof_detection_test.go.
 func TestDhcpv6LeaseClientsPageShowsV6Column(t *testing.T) {
+	t.Parallel()
 	v4 := []byte(`[
   {
     "result": 0,
@@ -740,6 +748,7 @@ func TestDhcpv6LeaseClientsPageShowsV6Column(t *testing.T) {
 // FS-Dhcpv6LeaseMalformedV6LineSkipped
 // Scenario: Malformed v6 lease lines are skipped, not fatal
 func TestDhcpv6LeaseMalformedV6LineSkipped(t *testing.T) {
+	t.Parallel()
 	v6Path := writeDnsmasqV6File(t, []string{
 		"9999999999 300 2001:db8::v1 host-v1 00:01:00:01:aa:bb:cc:dd:ee:21",
 		"this is a malformed v6 line",
@@ -776,6 +785,7 @@ func TestDhcpv6LeaseMalformedV6LineSkipped(t *testing.T) {
 // FS-Dhcpv6LeaseV6DisabledLegacyShapeUnchanged
 // Scenario: When no v6 source is configured the API shape stays M3.6-compatible
 func TestDhcpv6LeaseV6DisabledLegacyShapeUnchanged(t *testing.T) {
+	t.Parallel()
 	// Use the M3.6 fixture only — no v6 source configured at all.
 	c := startClusterWithDhcp(t, DhcpOpts{
 		Kind:     "dnsmasq",

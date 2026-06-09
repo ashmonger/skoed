@@ -28,6 +28,7 @@ import (
 
 // FS-DomainBlockingNxdomain
 func TestDomainBlockingNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -42,6 +43,7 @@ func TestDomainBlockingNXDOMAIN(t *testing.T) {
 
 // FS-DomainBlockingNull
 func TestDomainBlockingNULL(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -57,6 +59,7 @@ func TestDomainBlockingNULL(t *testing.T) {
 
 // FS-DomainBlockingNodata
 func TestDomainBlockingNODATA(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -73,6 +76,7 @@ func TestDomainBlockingNODATA(t *testing.T) {
 // FS-DomainBlockingSubdomain
 // A subdomain query for a domain on the blocklist is blocked.
 func TestDomainBlockingSubdomain(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -88,6 +92,7 @@ func TestDomainBlockingSubdomain(t *testing.T) {
 // FS-DomainBlockingNotBlocked
 // A domain not on any blocklist is resolved normally.
 func TestDomainNotBlocked(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -104,6 +109,7 @@ func TestDomainNotBlocked(t *testing.T) {
 // FS-DomainBlockingPerBlocklistPolicyOverridesGlobal
 // A per-blocklist policy (NULL) overrides the global default (NXDOMAIN).
 func TestPerBlocklistPolicyOverridesGlobal(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -121,6 +127,7 @@ func TestPerBlocklistPolicyOverridesGlobal(t *testing.T) {
 
 // FS-BlockPolicyConfigurationGlobalDefault
 func TestBlockPolicyGlobalDefault(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -136,6 +143,7 @@ func TestBlockPolicyGlobalDefault(t *testing.T) {
 // FS-BlockPolicyConfigurationPerBlocklist
 // Setting a per-blocklist policy does not affect other blocklists.
 func TestBlockPolicyPerBlocklistIsolation(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -158,6 +166,7 @@ func TestBlockPolicyPerBlocklistIsolation(t *testing.T) {
 // FS-BlockPolicyConfigurationChangeGlobal
 // Changing the global block policy via PATCH /api/v1/settings takes effect.
 func TestBlockPolicyChangeGlobal(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -185,6 +194,7 @@ func TestBlockPolicyChangeGlobal(t *testing.T) {
 // FS-BlockPolicyConfigurationPerBlocklistReset
 // Removing a per-blocklist policy causes it to inherit the global default.
 func TestBlockPolicyPerBlocklistReset(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -212,6 +222,7 @@ func TestBlockPolicyPerBlocklistReset(t *testing.T) {
 
 // FS-BlocklistAddManual
 func TestBlocklistAddManual(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -233,6 +244,7 @@ func TestBlocklistAddManual(t *testing.T) {
 
 // FS-BlocklistRemove
 func TestBlocklistRemove(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -257,6 +269,7 @@ func TestBlocklistRemove(t *testing.T) {
 
 // FS-BlocklistDisable
 func TestBlocklistDisable(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -277,6 +290,7 @@ func TestBlocklistDisable(t *testing.T) {
 
 // FS-BlocklistEnable
 func TestBlocklistEnable(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -299,6 +313,7 @@ func TestBlocklistEnable(t *testing.T) {
 // FS-BlocklistParseHostsFormat
 // A blocklist in hosts file format is parsed correctly (IPs are ignored, domains extracted).
 func TestBlocklistParseHostsFormat(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -335,6 +350,7 @@ func TestBlocklistParseHostsFormat(t *testing.T) {
 // FS-BlocklistParseAskoedFormat
 // A blocklist in AdBlock/ABP format is parsed correctly (comment lines ignored).
 func TestBlocklistParseAskoedFormat(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -364,6 +380,7 @@ func TestBlocklistParseAskoedFormat(t *testing.T) {
 // FS-BlocklistStats
 // The blocklist list endpoint returns domain count and metadata.
 func TestBlocklistStats(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -399,6 +416,7 @@ func TestBlocklistStats(t *testing.T) {
 // FS-BlocklistWildcardEntry
 // A wildcard entry *.example.com blocks the apex and all subdomains.
 func TestBlocklistWildcardEntry(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -427,6 +445,7 @@ func TestBlocklistWildcardEntry(t *testing.T) {
 
 // FS-AllowlistAddDomain / FS-AllowlistOverridesBlocklist
 func TestAllowlistOverridesBlocklist(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -452,6 +471,7 @@ func TestAllowlistOverridesBlocklist(t *testing.T) {
 
 // FS-AllowlistRemoveDomain
 func TestAllowlistRemove(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -476,6 +496,7 @@ func TestAllowlistRemove(t *testing.T) {
 // FS-AllowlistWildcardEntry
 // A wildcard allowlist entry *.example.com overrides blocklist for apex and all subdomains.
 func TestAllowlistWildcardEntry(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",
@@ -505,6 +526,7 @@ func TestAllowlistWildcardEntry(t *testing.T) {
 
 // FS-AllowlistDoesNotAffectUnblockedDomains
 func TestAllowlistDoesNotAffectUnblockedDomains(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNode(t, NodeConfig{
 		Mode:              "forwarding",

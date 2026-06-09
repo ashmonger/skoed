@@ -23,6 +23,7 @@ import (
 
 // FS-ClusterConfigSyncWriteToLeader
 func TestClusterConfigSyncWriteToLeader(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -39,6 +40,7 @@ func TestClusterConfigSyncWriteToLeader(t *testing.T) {
 
 // FS-ClusterConfigSyncWriteToFollowerIsForwarded
 func TestClusterConfigSyncWriteToFollowerIsForwarded(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	followers := c.Followers(t)
 	if len(followers) == 0 {
@@ -56,6 +58,7 @@ func TestClusterConfigSyncWriteToFollowerIsForwarded(t *testing.T) {
 
 // FS-ClusterConfigSyncBlocklistRemove
 func TestClusterConfigSyncBlocklistRemove(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -74,6 +77,7 @@ func TestClusterConfigSyncBlocklistRemove(t *testing.T) {
 
 // FS-ClusterConfigSyncAllowlist
 func TestClusterConfigSyncAllowlist(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -101,6 +105,7 @@ func TestClusterConfigSyncAllowlist(t *testing.T) {
 
 // FS-ClusterConfigSyncLocalDns
 func TestClusterConfigSyncLocalDns(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -127,6 +132,7 @@ func TestClusterConfigSyncLocalDns(t *testing.T) {
 
 // FS-ClusterConfigSyncSurvivesFollowerDisconnect
 func TestClusterConfigSyncSurvivesFollowerDisconnect(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
@@ -160,6 +166,7 @@ func TestClusterConfigSyncSurvivesFollowerDisconnect(t *testing.T) {
 // Approximation: a single surviving node out of a 3-node cluster (after the
 // other two are killed) cannot form quorum, so it MUST refuse writes.
 func TestClusterConfigSyncMinorityPartitionRefusesWrites(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 
 	// Kill 2 of 3 → remaining node is in a minority.
@@ -191,6 +198,7 @@ func TestClusterConfigSyncMinorityPartitionRefusesWrites(t *testing.T) {
 
 // FS-ClusterConfigSyncMajorityPartitionContinues
 func TestClusterConfigSyncMajorityPartitionContinues(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 
 	// Find a follower to kill (so the majority of 2 retains leader+1 follower).
@@ -215,6 +223,7 @@ func TestClusterConfigSyncMajorityPartitionContinues(t *testing.T) {
 
 // FS-ClusterConfigSyncQueryLogRawIsPerNode
 func TestClusterConfigSyncQueryLogRawIsPerNode(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 2)
 
 	// Add a blocklist so DNS queries actually produce log entries.

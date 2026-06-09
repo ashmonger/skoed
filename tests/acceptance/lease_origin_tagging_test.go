@@ -292,6 +292,7 @@ func requireOriginFieldSurfaced(t *testing.T, n *Node, ip string) {
 
 // FS-LeaseOriginKeaReservationsReportedHigh
 func TestLeaseOriginKeaReservationsReportedHigh(t *testing.T) {
+	t.Parallel()
 	// Mark 192.168.1.42 + 192.168.1.50 reserved; fixture leases include
 	// 192.168.1.42 + 192.168.1.10 (.50 is not in the lease fixture so
 	// it just exercises the reservation-set path, per the scenario).
@@ -322,6 +323,7 @@ func TestLeaseOriginKeaReservationsReportedHigh(t *testing.T) {
 
 // FS-LeaseOriginKeaReservationsUnreachableInferred
 func TestLeaseOriginKeaReservationsUnreachableInferred(t *testing.T) {
+	t.Parallel()
 	srv := newKeaWithReservationsServer(t, "kea-lease4-get-all.json", nil)
 	srv.setBehaviour("error") // reservation-get-all 500s
 	defer srv.Close()
@@ -352,6 +354,7 @@ func TestLeaseOriginKeaReservationsUnreachableInferred(t *testing.T) {
 
 // FS-LeaseOriginDnsmasqDhcpHostParsed
 func TestLeaseOriginDnsmasqDhcpHostParsed(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeDnsmasqConfig(t, dir, strings.Join([]string{
 		"dhcp-host=aa:bb:cc:dd:ee:42,192.168.1.42,kid-tablet",
@@ -397,6 +400,7 @@ func TestLeaseOriginDnsmasqDhcpHostParsed(t *testing.T) {
 
 // FS-LeaseOriginDnsmasqConfigUnreadable
 func TestLeaseOriginDnsmasqConfigUnreadable(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	leases := writeDnsmasqLeases(t, dir, []string{
 		"9999999999 aa:bb:cc:dd:ee:42 192.168.1.42 kid-tablet id:tablet42",
@@ -436,6 +440,7 @@ func TestLeaseOriginDnsmasqConfigUnreadable(t *testing.T) {
 
 // FS-LeaseOriginHttpJsonHonoursWireField
 func TestLeaseOriginHttpJsonHonoursWireField(t *testing.T) {
+	t.Parallel()
 	leases := []map[string]interface{}{
 		originLeasePayload("192.168.1.50", "aa:bb:cc:dd:ee:50", "nas", "id:nas", "dhcp_static"),
 		originLeasePayload("192.168.1.77", "aa:bb:cc:dd:ee:77", "guest", "id:guest", "dhcp_dynamic"),
@@ -474,6 +479,7 @@ func TestLeaseOriginHttpJsonHonoursWireField(t *testing.T) {
 
 // FS-LeaseOriginHttpJsonRejectsUnknownValue
 func TestLeaseOriginHttpJsonRejectsUnknownValue(t *testing.T) {
+	t.Parallel()
 	leases := []map[string]interface{}{
 		originLeasePayload("192.168.1.42", "aa:bb:cc:dd:ee:42", "kid-tablet", "id:tablet42",
 			"totally-made-up"),
@@ -504,6 +510,7 @@ func TestLeaseOriginHttpJsonRejectsUnknownValue(t *testing.T) {
 
 // FS-LeaseOriginClientLookupExposesFields
 func TestLeaseOriginClientLookupExposesFields(t *testing.T) {
+	t.Parallel()
 	leases := []map[string]interface{}{
 		originLeasePayload("192.168.1.42", "aa:bb:cc:dd:ee:42", "kid-tablet",
 			"id:tablet42", "dhcp_static"),
@@ -540,6 +547,7 @@ func TestLeaseOriginClientLookupExposesFields(t *testing.T) {
 
 // FS-LeaseOriginUnknownClientOmitsOrigin
 func TestLeaseOriginUnknownClientOmitsOrigin(t *testing.T) {
+	t.Parallel()
 	srv := newMutableLeaseServer([]map[string]interface{}{
 		originLeasePayload("192.168.1.42", "aa:bb:cc:dd:ee:42", "kid-tablet",
 			"id:tablet42", "dhcp_static"),
@@ -568,6 +576,7 @@ func TestLeaseOriginUnknownClientOmitsOrigin(t *testing.T) {
 
 // FS-LeaseOriginClientsListSurfacesBadge
 func TestLeaseOriginClientsListSurfacesBadge(t *testing.T) {
+	t.Parallel()
 	// The chip is rendered by the SPA (web/src/views/Clients.vue) — a
 	// black-box acceptance test asserts the field is present on the
 	// list endpoint, not the rendered HTML. The SPA exercise is part
@@ -630,7 +639,7 @@ func TestLeaseOriginClientsListSurfacesBadge(t *testing.T) {
 
 // FS-LeaseOriginQueryLogDoesNotChange
 func TestLeaseOriginQueryLogDoesNotChange(t *testing.T) {
-	t.Setenv("SKOED_TEST_MODE", "1")
+	t.Parallel()
 	srv := newMutableLeaseServer([]map[string]interface{}{
 		originLeasePayload("192.168.1.42", "aa:bb:cc:dd:ee:42", "kid-tablet",
 			"id:tablet42", "dhcp_static"),
@@ -690,6 +699,7 @@ func TestLeaseOriginQueryLogDoesNotChange(t *testing.T) {
 
 // FS-LeaseOriginPrometheusGauges
 func TestLeaseOriginPrometheusGauges(t *testing.T) {
+	t.Parallel()
 	// 2 static + 1 dynamic — matches the FSID phrasing.
 	leases := []map[string]interface{}{
 		originLeasePayload("192.168.1.42", "aa:bb:cc:dd:ee:42", "kid-tablet",
@@ -739,6 +749,7 @@ func TestLeaseOriginPrometheusGauges(t *testing.T) {
 
 // FS-LeaseOriginRefreshFlipsTag
 func TestLeaseOriginRefreshFlipsTag(t *testing.T) {
+	t.Parallel()
 	// Start with no reservations → 192.168.1.42 is dynamic.
 	srv := newKeaWithReservationsServer(t, "kea-lease4-get-all.json", nil)
 	defer srv.Close()

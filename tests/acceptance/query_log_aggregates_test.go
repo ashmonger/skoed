@@ -25,6 +25,7 @@ import (
 // SKOED_TEST_MODE=1 + SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1 reduces the flush
 // interval to 1 second so a short sleep is enough to observe per-node rows.
 func TestQueryLogAggregatesPerNodePerHour(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithEnv(t, 2, []string{
 		"SKOED_TEST_MODE=1",
 		"SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1",
@@ -51,6 +52,7 @@ func TestQueryLogAggregatesPerNodePerHour(t *testing.T) {
 
 // FS-QueryLogAggregatesClusterStats
 func TestQueryLogAggregatesClusterStats(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithEnv(t, 3, []string{
 		"SKOED_TEST_MODE=1",
 		"SKOED_TEST_AGGREGATE_FLUSH_SECONDS=1",
@@ -97,6 +99,7 @@ func TestQueryLogAggregatesClusterStats(t *testing.T) {
 
 // FS-QueryLogAggregatesAvailableDuringLeaderLoss
 func TestQueryLogAggregatesAvailableDuringLeaderLoss(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 	leaderIdx := indexOf(c, leader)
@@ -120,6 +123,7 @@ func TestQueryLogAggregatesAvailableDuringLeaderLoss(t *testing.T) {
 
 // FS-QueryLogAggregatesFanOutForRawEntries
 func TestQueryLogAggregatesFanOutForRawEntries(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	c.MustCreateBlocklist(t, c.Leader(t), "ads", "tracker.example.com")
 
@@ -172,6 +176,7 @@ func TestQueryLogAggregatesFanOutForRawEntries(t *testing.T) {
 
 // FS-QueryLogAggregatesFanOutPartialFailure
 func TestQueryLogAggregatesFanOutPartialFailure(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	c.MustCreateBlocklist(t, c.Leader(t), "ads", "tracker.example.com")
 
@@ -224,6 +229,7 @@ func TestQueryLogAggregatesFanOutPartialFailure(t *testing.T) {
 // returns success when supported. Older-than-retention removal correctness is
 // covered by unit tests in the cluster package.
 func TestQueryLogAggregatesRetention(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	resp := c.Leader(t).apiDo(t, "GET", "/api/v1/settings", "")
 	assertStatus(t, resp, 200)

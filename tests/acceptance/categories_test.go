@@ -76,6 +76,7 @@ func getCategory(t *testing.T, n *Node, name string) categoryEntry {
 
 // FS-CategoryCatalogListed
 func TestCategoryCatalogListed(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -110,6 +111,7 @@ func TestCategoryCatalogListed(t *testing.T) {
 
 // FS-CategoryEnableAddsBlocklist
 func TestCategoryEnableAddsBlocklist(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -158,6 +160,7 @@ func TestCategoryEnableAddsBlocklist(t *testing.T) {
 
 // FS-CategoryDisableRemovesAssociation
 func TestCategoryDisableRemovesAssociation(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -200,6 +203,7 @@ func TestCategoryDisableRemovesAssociation(t *testing.T) {
 
 // FS-CategoryOverrideUrl
 func TestCategoryOverrideUrl(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 
@@ -225,6 +229,7 @@ func TestCategoryOverrideUrl(t *testing.T) {
 
 // FS-CategoryDohEnabledByDefault
 func TestCategoryDohEnabledByDefault(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 

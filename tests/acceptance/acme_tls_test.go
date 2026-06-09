@@ -47,6 +47,7 @@ func requireAcmeHarness(t *testing.T, n *Node) {
 // what we DO expect is that the node still binds DoH (fallback) and
 // the ACME config didn't crash startup.
 func TestAcmeEnabledFromConfigBoots(t *testing.T) {
+	t.Parallel()
 	c := startClusterAcme(t, AcmeOpts{
 		Enabled:      true,
 		Email:        "ops@example.test",
@@ -73,6 +74,7 @@ func TestAcmeEnabledFromConfigBoots(t *testing.T) {
 
 // FS-AcmeChallengeListener
 func TestAcmeChallengeListener(t *testing.T) {
+	t.Parallel()
 	c := startClusterAcme(t, AcmeOpts{
 		Enabled:           true,
 		Email:             "ops@example.test",
@@ -101,6 +103,7 @@ func TestAcmeChallengeListener(t *testing.T) {
 // documented path. Reuse-across-restarts is covered manually by the
 // demo recipe (re-running with the same data_dir).
 func TestAcmeCacheDirectoryCreated(t *testing.T) {
+	t.Parallel()
 	c := startClusterAcme(t, AcmeOpts{
 		Enabled:      true,
 		Email:        "ops@example.test",
@@ -124,6 +127,7 @@ func TestAcmeCacheDirectoryCreated(t *testing.T) {
 // FS-AcmeFallsBackOnFailure (the explicit version — same shape as the
 // boot test but documents the fallback intent loudly).
 func TestAcmeFallsBackOnUnreachableDirectory(t *testing.T) {
+	t.Parallel()
 	c := startClusterAcme(t, AcmeOpts{
 		Enabled:      true,
 		Email:        "ops@example.test",

@@ -48,6 +48,7 @@ func startFeedServer(t *testing.T, version string) *httptest.Server {
 
 // FS-UpgradeCheckRequiresAuth
 func TestUpgradeCheckRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	resp := n.apiDoNoAuth(t, "GET", "/api/v1/upgrade/check")
@@ -62,6 +63,7 @@ func TestUpgradeCheckRequiresAuth(t *testing.T) {
 
 // FS-UpgradeCheckEndpoint
 func TestUpgradeCheckEndpoint(t *testing.T) {
+	t.Parallel()
 	feed := startFeedServer(t, "99.0.0")
 	c := startClusterWithEnv(t, 1, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	n := c.Leader(t).Node
@@ -105,6 +107,7 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 // is true; otherwise /start returns 409 before forwarding can be
 // observed.
 func TestUpgradeStartForwardedToLeader(t *testing.T) {
+	t.Parallel()
 	feed := startFeedServer(t, "99.0.0")
 	c := startClusterWithEnv(t, 3, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	leader := c.Leader(t)
@@ -144,6 +147,7 @@ func TestUpgradeStartForwardedToLeader(t *testing.T) {
 
 // FS-UpgradeStartRecordedInAudit
 func TestUpgradeStartRecordedInAudit(t *testing.T) {
+	t.Parallel()
 	feed := startFeedServer(t, "99.0.0")
 	c := startClusterWithEnv(t, 1, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
 	n := c.Leader(t).Node

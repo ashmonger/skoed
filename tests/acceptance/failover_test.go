@@ -15,6 +15,7 @@ import (
 
 // FS-LeaderFailoverAutomaticElection
 func TestLeaderFailoverAutomaticElection(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 
 	originalLeader := c.Leader(t)
@@ -60,6 +61,7 @@ func TestLeaderFailoverAutomaticElection(t *testing.T) {
 // NOT elect itself a leader (because it sees the existing leader's higher
 // term).
 func TestLeaderFailoverNoSplitBrainAcrossPartition(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	followers := c.Followers(t)
 	victimIdx := indexOf(c, followers[0])
@@ -91,6 +93,7 @@ func TestLeaderFailoverNoSplitBrainAcrossPartition(t *testing.T) {
 
 // FS-LeaderFailoverFormerLeaderRejoinsAsFollower
 func TestLeaderFailoverFormerLeaderRejoinsAsFollower(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 
 	originalLeader := c.Leader(t)
@@ -136,6 +139,7 @@ func TestLeaderFailoverFormerLeaderRejoinsAsFollower(t *testing.T) {
 // either succeeds the retry or returns a clear "no leader" status that the
 // admin could act on. Either outcome satisfies the spec.
 func TestLeaderFailoverWritesDuringTransition(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	originalLeader := c.Leader(t)
 	originalLeaderIdx := indexOf(c, originalLeader)
@@ -206,6 +210,7 @@ func TestLeaderFailoverWritesDuringTransition(t *testing.T) {
 
 // FS-LeaderFailoverManualTransfer
 func TestLeaderFailoverManualTransfer(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	originalLeader := c.Leader(t)
 	followers := c.Followers(t)

@@ -71,6 +71,7 @@ func warmCache(t *testing.T, n *Node, names []string) {
 
 // FS-CacheStatsEndpoint
 func TestCacheStatsEndpoint(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	s := fetchCacheStats(t, n)
@@ -84,6 +85,7 @@ func TestCacheStatsEndpoint(t *testing.T) {
 
 // FS-CacheRequiresAuth
 func TestCacheRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	cases := []struct {
@@ -106,6 +108,7 @@ func TestCacheRequiresAuth(t *testing.T) {
 
 // FS-CachePurgeAll
 func TestCachePurgeAll(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	warmCache(t, n, []string{"a.example", "b.example", "c.example"})
@@ -121,6 +124,7 @@ func TestCachePurgeAll(t *testing.T) {
 
 // FS-CachePurgeOneDomain
 func TestCachePurgeOneDomain(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	warmCache(t, n, []string{"keep.example", "drop.example"})
@@ -135,6 +139,7 @@ func TestCachePurgeOneDomain(t *testing.T) {
 // FS-CacheSurvivesConfigChange — adding an unrelated local DNS entry no
 // longer drops every cached entry.
 func TestCacheSurvivesConfigChange(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	warmCache(t, n, []string{"warm.example"})
@@ -159,6 +164,7 @@ func TestCacheSurvivesConfigChange(t *testing.T) {
 // FS-CacheInvalidatesOnAllowlistAdd — adding example.com to the
 // allowlist drops only that entry.
 func TestCacheInvalidatesOnAllowlistAdd(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	warmCache(t, n, []string{"target.example", "other.example"})

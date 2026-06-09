@@ -29,14 +29,13 @@ import (
 )
 
 const (
-	// readyTimeout was 10s — flaky under full-suite load. The suite
-	// spawns ~50 skoed subprocesses over 7+ minutes; by mid-run the
-	// kernel has thousands of TIME_WAIT sockets from prior tests and
-	// /tmp has tens of MB of leftover bbolt files. Individual tests
-	// boot in 1-3s, but a node started 5 minutes into the suite can
-	// take 20-40s to bind its API listener. 60s is the empirical
-	// upper bound — anything longer would mask a real regression.
-	readyTimeout      = 60 * time.Second
+	// readyTimeout was 10s (flaky under sequential load), then 60s.
+	// With t.Parallel() and -parallel 8, up to 24 skoed processes can
+	// start simultaneously (8 tests × 3-node clusters). On a loaded
+	// container the 8th process can take 60-80s to bind its API port.
+	// 90s is the new empirical upper bound with parallel execution;
+	// anything longer would mask a real regression.
+	readyTimeout      = 90 * time.Second
 	readyPollInterval = 100 * time.Millisecond
 	dnsQueryTimeout   = 3 * time.Second
 

@@ -59,5 +59,5 @@ docker run --rm \
     apk add --no-cache bind-tools >/dev/null
     go build -ldflags="-s -w" -o /tmp/skoed ./cmd/skoed/
     cd /src/tests/acceptance
-    SKOED_BINARY=/tmp/skoed exec go test -timeout 1200s "$@" ./...
+    SKOED_BINARY=/tmp/skoed exec go test -timeout 1200s -parallel 8 "$@" ./...
   ' -- "$@"

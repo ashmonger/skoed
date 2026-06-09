@@ -26,6 +26,7 @@ import (
 
 // FS-NodeEnrollmentGenerateToken
 func TestNodeEnrollmentGenerateToken(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 
 	resp := c.Leader(t).apiDo(t, "POST", "/api/v1/cluster/tokens", "")
@@ -58,6 +59,7 @@ func TestNodeEnrollmentGenerateToken(t *testing.T) {
 
 // FS-NodeEnrollmentJoinWithValidToken
 func TestNodeEnrollmentJoinWithValidToken(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 
@@ -78,6 +80,7 @@ func TestNodeEnrollmentJoinWithValidToken(t *testing.T) {
 
 // FS-NodeEnrollmentJoinTokenIsSingleUse
 func TestNodeEnrollmentJoinTokenIsSingleUse(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	token := c.MustCreateToken(t)
 
@@ -108,6 +111,7 @@ func TestNodeEnrollmentJoinTokenIsSingleUse(t *testing.T) {
 // SKOED_TEST_MODE=1 is set, SKOED_TEST_TOKEN_TTL_SECONDS overrides the
 // production 15-minute token TTL so the test runs in seconds, not minutes.
 func TestNodeEnrollmentJoinTokenExpires(t *testing.T) {
+	t.Parallel()
 	c := startClusterWithEnv(t, 1, []string{
 		"SKOED_TEST_MODE=1",
 		"SKOED_TEST_TOKEN_TTL_SECONDS=1",
@@ -134,6 +138,7 @@ func TestNodeEnrollmentJoinTokenExpires(t *testing.T) {
 
 // FS-NodeEnrollmentInvalidToken
 func TestNodeEnrollmentInvalidToken(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	resp := c.Leader(t).apiDo(t, "POST", "/api/v1/cluster/join", mustJSON(t, map[string]string{
 		"token":        "this-token-was-never-issued-by-anyone",
@@ -151,6 +156,7 @@ func TestNodeEnrollmentInvalidToken(t *testing.T) {
 
 // FS-NodeEnrollmentPreservesNodeLocalSettings
 func TestNodeEnrollmentPreservesNodeLocalSettings(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 	leaderDNSPort := leader.DNSPort
@@ -189,6 +195,7 @@ func TestNodeEnrollmentPreservesNodeLocalSettings(t *testing.T) {
 
 // FS-NodeEnrollmentSingleNodeBootstrap
 func TestNodeEnrollmentSingleNodeBootstrap(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	leader := c.Leader(t)
 
@@ -206,6 +213,7 @@ func TestNodeEnrollmentSingleNodeBootstrap(t *testing.T) {
 
 // FS-NodeEnrollmentM1ConfigMigration
 func TestNodeEnrollmentM1ConfigMigration(t *testing.T) {
+	t.Parallel()
 	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
 		t.Skipf("skoed binary not found at %s", bin)
@@ -305,6 +313,7 @@ api:
 
 // FS-NodeRemoval
 func TestNodeRemoval(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 	followers := c.Followers(t)

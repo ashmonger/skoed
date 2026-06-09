@@ -76,6 +76,7 @@ func startNodeNoAuth(t *testing.T, cfg NodeConfig) *Node {
 // A request to any management API endpoint without credentials returns 401
 // and includes a WWW-Authenticate header.
 func TestAuthUnauthenticatedRequestRejected(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
 	resp := n.apiDoNoAuth(t, "GET", "/api/v1/blocklists")
@@ -100,6 +101,7 @@ func TestAuthUnauthenticatedRequestRejected(t *testing.T) {
 //
 // API endpoints' auth behaviour is covered by sibling tests below.
 func TestAuthUnauthenticatedUiRedirect(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
 	client := &http.Client{
@@ -135,6 +137,7 @@ func TestAuthUnauthenticatedUiRedirect(t *testing.T) {
 // FS-WebUiAuthValidCredentials
 // A request with correct credentials returns 200.
 func TestAuthValidCredentials(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
 	resp := n.apiDo(t, "GET", "/api/v1/blocklists", "")
@@ -146,6 +149,7 @@ func TestAuthValidCredentials(t *testing.T) {
 // FS-WebUiAuthInvalidCredentials
 // A request with a wrong password returns 401.
 func TestAuthInvalidCredentials(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
 	resp := n.apiDoAs(t, "GET", "/api/v1/blocklists", "", defaultUsername, "wrongpassword")
@@ -158,6 +162,7 @@ func TestAuthInvalidCredentials(t *testing.T) {
 // On a fresh node with no credentials, POST /api/v1/auth/setup (no auth required)
 // creates credentials; subsequent requests require them.
 func TestAuthFirstRunSetup(t *testing.T) {
+	t.Parallel()
 	n := startNodeNoAuth(t, NodeConfig{})
 
 	// Before setup: the setup endpoint itself must be reachable without auth.
@@ -188,6 +193,7 @@ func TestAuthFirstRunSetup(t *testing.T) {
 // PUT /api/v1/auth/password with current+new password changes the password;
 // the old password is then rejected and the new password is accepted.
 func TestAuthPasswordChange(t *testing.T) {
+	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
 	newPassword := "newSecurePass99!"
@@ -216,6 +222,7 @@ func TestAuthPasswordChange(t *testing.T) {
 // DNS queries on port 53 work regardless of auth state.
 // Tested on a node that has NOT completed first-run setup.
 func TestAuthDnsUnaffected(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	n := startNodeNoAuth(t, NodeConfig{
 		Mode:              "forwarding",

@@ -84,6 +84,7 @@ func seedBlockedDomain(t *testing.T, n *Node) {
 
 // FS-TestDomainGuestVerdictBlocked
 func TestTestDomainGuestBlocked(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)
@@ -107,6 +108,7 @@ func TestTestDomainGuestBlocked(t *testing.T) {
 
 // FS-TestDomainGuestVerdictAllowed
 func TestTestDomainGuestAllowed(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	status, out := postTestDomain(t, n, "/api/v1/_public/test-domain",
@@ -124,6 +126,7 @@ func TestTestDomainGuestAllowed(t *testing.T) {
 
 // FS-TestDomainGuestRefusesInvalidInput
 func TestTestDomainGuestRefusesIP(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	for _, bad := range []string{
@@ -145,6 +148,7 @@ func TestTestDomainGuestRefusesIP(t *testing.T) {
 
 // FS-TestDomainGuestRateLimited
 func TestTestDomainGuestRateLimited(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	saw429 := false
@@ -166,6 +170,7 @@ func TestTestDomainGuestRateLimited(t *testing.T) {
 
 // FS-TestDomainAuthRequiresAuth
 func TestTestDomainAuthRequiresAuth(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	req, _ := http.NewRequest("POST", n.APIBase+"/api/v1/test-domain",
@@ -186,6 +191,7 @@ func TestTestDomainAuthRequiresAuth(t *testing.T) {
 
 // FS-TestDomainAuthReturnsFullChain
 func TestTestDomainAuthFullChain(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)
@@ -225,6 +231,7 @@ func TestTestDomainAuthFullChain(t *testing.T) {
 
 // FS-TestDomainAuthLocalDnsTakesPriority
 func TestTestDomainAuthLocalDnsPriority(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	entry := mustJSON(t, map[string]any{
@@ -254,6 +261,7 @@ func TestTestDomainAuthLocalDnsPriority(t *testing.T) {
 
 // FS-TestDomainAuthAllowlistOverridesBlocklist
 func TestTestDomainAuthAllowlistOverrides(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)
@@ -279,6 +287,7 @@ func TestTestDomainAuthAllowlistOverrides(t *testing.T) {
 
 // FS-TestDomainAuthFiresOnSameEvaluatorAsRealQueries
 func TestTestDomainMatchesRealQuery(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)
@@ -309,6 +318,7 @@ func TestTestDomainMatchesRealQuery(t *testing.T) {
 
 // FS-TestDomainCliVerb
 func TestTestDomainCli(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)
@@ -329,6 +339,7 @@ func TestTestDomainCli(t *testing.T) {
 
 // FS-TestDomainMetricsCounter
 func TestTestDomainMetricsCounter(t *testing.T) {
+	t.Parallel()
 	c := startCluster(t, 1)
 	n := c.Leader(t).Node
 	seedBlockedDomain(t, n)

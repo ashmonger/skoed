@@ -90,7 +90,6 @@ type profileBody struct {
 // the parent process env, so t.Setenv is enough.
 func startProfilesNode(t *testing.T, upstream string) *Node {
 	t.Helper()
-	t.Setenv("SKOED_TEST_MODE", "1")
 	return startNode(t, NodeConfig{
 		Mode:              "forwarding",
 		UpstreamResolvers: []string{upstream},
@@ -117,6 +116,7 @@ func createProfile(t *testing.T, n *Node, body profileBody) {
 
 // FS-ProfileAssignByIp
 func TestProfileAssignByIp(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
@@ -151,6 +151,7 @@ func TestProfileAssignByIp(t *testing.T) {
 
 // FS-ProfileAssignByCidr
 func TestProfileAssignByCidr(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
@@ -186,6 +187,7 @@ func TestProfileAssignByCidr(t *testing.T) {
 
 // FS-ProfileDefaultFallback
 func TestProfileDefaultFallback(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
@@ -224,6 +226,7 @@ func TestProfileDefaultFallback(t *testing.T) {
 
 // FS-ProfilePerClientAllowlist
 func TestProfilePerClientAllowlist(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
@@ -261,6 +264,7 @@ func TestProfilePerClientAllowlist(t *testing.T) {
 
 // FS-ProfileApiCrud
 func TestProfileApiCrud(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
@@ -339,6 +343,7 @@ func TestProfileApiCrud(t *testing.T) {
 // A single client IP appears in two profiles; the engine must apply the union
 // of their blocklists.
 func TestProfileSharedClientGroups(t *testing.T) {
+	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
 	n := startProfilesNode(t, upstream)
 
