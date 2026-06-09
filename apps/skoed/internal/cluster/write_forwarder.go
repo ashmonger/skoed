@@ -10,6 +10,26 @@ import (
 	"time"
 )
 
+
+// forwardClient is reused across ForwardWrite calls to benefit from
+// connection pooling. The 10 s timeout covers the full round-trip to the leader.
+var forwardClient = &http.Client{Timeout: 10 * time.Second}
+
+// hopByHopHeaders lists headers that must not be forwarded to the leader.
+// Includes the standard hop-by-hop set plus Host (leader address differs).
+var hopByHopHeaders = map[string]bool{
+	"Host":                true,
+	"Content-Length":      true,
+	"Transfer-Encoding":   true,
+	"Connection":          true,
+	"Keep-Alive":          true,
+	"Proxy-Authenticate":  true,
+	"Proxy-Authorization": true,
+	"Te":                  true,
+	"Trailer":             true,
+	"Upgrade":             true,
+}
+
 // ForwardWrite proxies a write request to the current Raft leader's HTTP API.
 // It is used by follower nodes that receive a mutating request: rather than
 // returning an error, the follower transparently forwards the request so the
@@ -50,22 +70,8 @@ func (c *Cluster) ForwardWrite(
 		return http.StatusServiceUnavailable, errBody, nil, fmt.Errorf("build forward request: %w", err)
 	}
 
-	// Copy relevant headers from the original request. Skip hop-by-hop and
-	// routing headers that must not be forwarded.
-	skipHeaders := map[string]bool{
-		"Host":              true,
-		"Content-Length":    true,
-		"Transfer-Encoding": true,
-		"Connection":        true,
-		"Keep-Alive":        true,
-		"Proxy-Authenticate": true,
-		"Proxy-Authorization": true,
-		"Te":                true,
-		"Trailer":           true,
-		"Upgrade":           true,
-	}
 	for k, vv := range inHeaders {
-		if skipHeaders[k] {
+		if hopByHopHeaders[k] {
 			continue
 		}
 		for _, v := range vv {
@@ -73,8 +79,7 @@ func (c *Cluster) ForwardWrite(
 		}
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := forwardClient.Do(req)
 	if err != nil {
 		errBody, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("forward to leader: %s", err)})
 		return http.StatusServiceUnavailable, errBody, nil, fmt.Errorf("forward to leader: %w", err)

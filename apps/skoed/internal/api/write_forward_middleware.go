@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,6 +52,9 @@ func WriteForwardMiddleware(cluster WriteForwarder) func(http.Handler) http.Hand
 			// Mirror the leader's headers onto the response, skipping any that
 			// WriteForwardMiddleware already wrote (X-Served-By, X-Raft-Commit-Index).
 			for k, vs := range respHeaders {
+				if k == "X-Served-By" || k == "X-Raft-Commit-Index" {
+					continue
+				}
 				for _, v := range vs {
 					w.Header().Add(k, v)
 				}
@@ -80,5 +82,5 @@ func writeForwardError(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	body, _ := json.Marshal(map[string]string{"error": msg})
-	_, _ = bytes.NewReader(body).WriteTo(w)
+	_, _ = w.Write(body)
 }
