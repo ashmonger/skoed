@@ -52,6 +52,8 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/vishvananda/netlink v1.3.1 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/mod v0.31.0 // indirect

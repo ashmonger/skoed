@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/skoed/skoed/internal/dhcp"
+	"github.com/skoed/skoed/internal/filter"
 )
 
 // clientResponse is the M3.6 + M6.5 wire shape served by
@@ -29,6 +30,8 @@ type clientResponse struct {
 	IPv6Addresses    []string       `json:"ipv6_addresses,omitempty"`
 	DUID             string         `json:"duid,omitempty"`
 	IsDualStack      bool           `json:"is_dual_stack,omitempty"`
+	// M6.5 (TS-BlockDyn): profiles currently matched for this client IP.
+	ProfileIDs []string `json:"profile_ids,omitempty"`
 }
 
 // GetClient returns the enriched record for one client IP. When no DHCP
@@ -73,6 +76,17 @@ func (h *Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 		}
 		if anomalies := mgr.AnomaliesForIP(ip); len(anomalies) > 0 {
 			out.Anomalies = anomalies
+		}
+	}
+	if eng := h.app.GetFilterEng(); eng != nil {
+		parsedIP := net.ParseIP(ip)
+		if parsedIP != nil {
+			id := filter.ClientIdentity{
+				ClientID: out.ClientID,
+				MAC:      out.MAC,
+				Hostname: out.Hostname,
+			}
+			out.ProfileIDs = eng.ProfilesMatching(parsedIP, id)
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -130,34 +144,88 @@ func (h *Handler) ListClients(w http.ResponseWriter, r *http.Request) {
 // ListAnomalies returns all anti-spoof anomalies, newest first (well —
 // unordered for now; the UI sorts by detected_at).
 //
+// M6.5 (FS-LeaseReplFollowerAnomaliesMatchLeader): when a cluster is
+// wired we read from the replicated bbolt bucket so every node returns
+// the same set the leader observed. Single-node / unit-test mode falls
+// back to the in-memory manager view.
+//
 // FSIDs: FS-SpoofMacChangedForKnownClientId, FS-SpoofClientIdChangedForKnownMac,
-//        FS-SpoofNewMacForExistingHostname, FS-SpoofAnomaliesInResponse.
+//        FS-SpoofNewMacForExistingHostname, FS-SpoofAnomaliesInResponse,
+//        FS-LeaseReplFollowerAnomaliesMatchLeader.
 func (h *Handler) ListAnomalies(w http.ResponseWriter, r *http.Request) {
-	mgr := h.app.GetDhcpMgr()
-	if mgr == nil {
-		writeJSON(w, http.StatusOK, []dhcp.Anomaly{})
-		return
+	kindFilter := r.URL.Query().Get("kind")
+
+	var all []dhcp.Anomaly
+	if c := h.app.GetCluster(); c != nil {
+		anomalies, err := c.CurrentLeaseAnomalies()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if anomalies == nil {
+			anomalies = []dhcp.Anomaly{}
+		}
+		all = anomalies
+	} else {
+		mgr := h.app.GetDhcpMgr()
+		if mgr == nil {
+			writeJSON(w, http.StatusOK, []dhcp.Anomaly{})
+			return
+		}
+		all = mgr.Anomalies()
 	}
-	writeJSON(w, http.StatusOK, mgr.Anomalies())
+
+	if kindFilter != "" {
+		filtered := all[:0]
+		for _, a := range all {
+			if string(a.Kind) == kindFilter {
+				filtered = append(filtered, a)
+			}
+		}
+		all = filtered
+	}
+	if all == nil {
+		all = []dhcp.Anomaly{}
+	}
+	writeJSON(w, http.StatusOK, all)
 }
 
 // AcknowledgeAnomaly marks one anomaly as acknowledged (operator
 // dismissed). The anomaly remains in the list but with AcknowledgedAt
 // set, so the Dashboard alert card can filter it out.
 //
-// FSID: FS-SpoofAcknowledge.
+// M6.5 (TS-LeaseRepl, FS-LeaseReplFollowerWriteForwarded): when a
+// cluster is wired the acknowledgement goes through Raft so every node
+// converges; the leader-forward middleware ensures this handler only
+// runs on the leader. The local manager is used as a fall-back in
+// single-node / non-clustered mode for backward compatibility.
+//
+// FSIDs: FS-SpoofAcknowledge, FS-LeaseReplFollowerWriteForwarded.
 func (h *Handler) AcknowledgeAnomaly(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing anomaly id", http.StatusBadRequest)
+		return
+	}
+	if c := h.app.GetCluster(); c != nil {
+		if err := c.AcknowledgeAnomaly(id, time.Now()); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		// Spec scenario expects 200, not 204. The body is empty.
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	mgr := h.app.GetDhcpMgr()
 	if mgr == nil {
 		http.Error(w, "DHCP integration disabled", http.StatusNotFound)
 		return
 	}
-	id := chi.URLParam(r, "id")
 	if !mgr.Acknowledge(id, time.Now()) {
 		http.Error(w, "anomaly not found", http.StatusNotFound)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 // ExportReservations serves the current lease snapshot as

@@ -114,6 +114,12 @@ const (
 	// pair appears claiming a hostname that's already in use by another
 	// known device.
 	AnomalyNewDeviceStealsHostname AnomalyKind = "new_device_steals_hostname"
+
+	// M6.5 — layer-3 ARP/NDP cross-check kinds (TS-ArpCheck).
+	AnomalyArpMacMismatch  AnomalyKind = "arp_mac_mismatch"
+	AnomalyNdpMacMismatch  AnomalyKind = "ndp_mac_mismatch"
+	AnomalyGhostLease      AnomalyKind = "ghost_lease"
+	AnomalyUnseenByKernel  AnomalyKind = "unseen_by_kernel"
 )
 
 // Anomaly is one anti-spoof event. Stored in bbolt with the same

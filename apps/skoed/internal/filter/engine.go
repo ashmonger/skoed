@@ -87,6 +87,12 @@ type Engine struct {
 	// blocklistByID lets profile evaluation locate a blocklist's set
 	// without an O(N) linear walk per query.
 	blocklistByID map[string]*blocklistEntry
+
+	// M6.5 (TS-BlockDyn): optional lease-origin lookup. When non-nil,
+	// tier-4 profile matching also checks block_dynamic_clients profiles.
+	// Returns the DHCP Origin of the IP ("dhcp_dynamic", "dhcp_static",
+	// ..., or "" when no lease exists).
+	leaseOriginFn func(ip string) string
 }
 
 // profileEntry is the engine-internal, pre-parsed form of a config.Profile.
@@ -101,6 +107,9 @@ type profileEntry struct {
 	clientIDs       []string
 	clientMACs      []string
 	clientHostnames []string
+	// M6.5 (TS-BlockDyn): when true this profile matches any client
+	// whose DHCP lease Origin is exactly "dhcp_dynamic".
+	blockDynamicClients bool
 }
 
 func parsePolicy(s string) BlockPolicy {
@@ -220,11 +229,21 @@ func NewProfiled(cfg *config.Config) *Engine {
 		for _, s := range p.ClientHostnames {
 			pe.clientHostnames = append(pe.clientHostnames, s)
 		}
+		pe.blockDynamicClients = p.BlockDynamicClients
 		e.profiles = append(e.profiles, pe)
 	}
 	e.schedules = append([]config.Schedule(nil), cfg.Schedules...)
 	e.bindings = append([]config.ScheduleBinding(nil), cfg.Bindings...)
 	return e
+}
+
+// SetLeaseOriginLookup wires the M6.5 block-dynamic-clients lease lookup.
+// fn receives the client IP string and returns the DHCP Origin ("dhcp_dynamic",
+// "dhcp_static", "", ...). Safe to call concurrently or after construction.
+func (e *Engine) SetLeaseOriginLookup(fn func(ip string) string) {
+	e.mu.Lock()
+	e.leaseOriginFn = fn
+	e.mu.Unlock()
 }
 
 // ClientIdentity bundles the optional M3.6 identity fields for a query.
@@ -245,49 +264,7 @@ type ClientIdentity struct {
 func (e *Engine) ProfilesMatching(clientIP net.IP, id ClientIdentity) []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-
-	// M3.6: prefer the highest-priority identity match. Walk profiles
-	// in priority tiers; the first non-empty tier wins.
-	if id.ClientID != "" {
-		for _, p := range e.profiles {
-			for _, x := range p.clientIDs {
-				if x == id.ClientID {
-					return []string{p.id}
-				}
-			}
-		}
-	}
-	if id.MAC != "" {
-		mac := strings.ToLower(id.MAC)
-		for _, p := range e.profiles {
-			for _, x := range p.clientMACs {
-				if x == mac {
-					return []string{p.id}
-				}
-			}
-		}
-	}
-	if id.Hostname != "" {
-		for _, p := range e.profiles {
-			for _, x := range p.clientHostnames {
-				if x == id.Hostname {
-					return []string{p.id}
-				}
-			}
-		}
-	}
-
-	// Fall back to legacy IP/CIDR matching (M3 behavior).
-	var out []string
-	for _, p := range e.profiles {
-		if matchesProfileIP(p, clientIP) {
-			out = append(out, p.id)
-		}
-	}
-	if len(out) == 0 {
-		out = []string{"default"}
-	}
-	return out
+	return e.profilesMatchingLockedWithIdentity(clientIP, id)
 }
 
 func matchesProfileIP(p profileEntry, ip net.IP) bool {
@@ -458,6 +435,29 @@ func (e *Engine) profilesMatchingLockedWithIdentity(ip net.IP, id ClientIdentity
 	for _, p := range e.profiles {
 		if matchesProfileIP(p, ip) {
 			out = append(out, p.id)
+		}
+	}
+	// M6.5 (TS-BlockDyn): add any block_dynamic_clients profile that
+	// matches this client's DHCP origin. Only the exact string
+	// "dhcp_dynamic" triggers the rule.
+	if e.leaseOriginFn != nil {
+		origin := e.leaseOriginFn(ip.String())
+		if origin == "dhcp_dynamic" {
+			for _, p := range e.profiles {
+				if !p.blockDynamicClients {
+					continue
+				}
+				already := false
+				for _, existing := range out {
+					if existing == p.id {
+						already = true
+						break
+					}
+				}
+				if !already {
+					out = append(out, p.id)
+				}
+			}
 		}
 	}
 	if len(out) == 0 {

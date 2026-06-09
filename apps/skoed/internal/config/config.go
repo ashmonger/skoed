@@ -43,6 +43,11 @@ type Profile struct {
 	ClientIDs       []string `yaml:"client_ids,omitempty"       json:"client_ids,omitempty"`
 	ClientMACs      []string `yaml:"client_macs,omitempty"      json:"client_macs,omitempty"`
 	ClientHostnames []string `yaml:"client_hostnames,omitempty" json:"client_hostnames,omitempty"`
+
+	// M6.5 (TS-BlockDyn): when true, every client whose DHCP lease
+	// Origin is exactly "dhcp_dynamic" matches this profile as part of
+	// the tier-4 (IP/CIDR) union. Not allowed on the "default" profile.
+	BlockDynamicClients bool `yaml:"block_dynamic_clients,omitempty" json:"block_dynamic_clients,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a
