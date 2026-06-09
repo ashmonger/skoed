@@ -572,6 +572,9 @@ func (a *App) Router() http.Handler {
 		r.Use(a.auditMiddleware)
 		// M7 — block mutating verbs for read-only Bearer tokens.
 		r.Use(a.requireWrite)
+		// M10 — forward all mutating requests from followers to the leader so
+		// every node is writable without requiring per-route forwarding logic.
+		r.Use(WriteForwardMiddleware(a.cluster))
 
 		// M5.2 — audit log read
 		r.Get("/api/v1/audit", h.AuditList)

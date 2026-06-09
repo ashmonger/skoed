@@ -14,12 +14,23 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 9 — Kubernetes Operator** — refactoring phase pending; all other phases complete.
+None — all milestones complete.
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
+- [x] M10 — Active-Active Cluster — merged to master — 2026-06-09
 
 ## Current tasks
+
+- [x] M10 — functional spec written: `specs/functional/active-active-cluster.feature` (7 FSIDs) — 2026-06-09
+- [x] M10 — UoR validated functional spec — 2026-06-09
+- [x] M10 — technical spec written: `specs/technical/active-active-cluster.md` (TS-ActiveActiveCluster) — 2026-06-09
+- [x] M10 — acceptance tests written: `tests/acceptance/active_active_cluster_test.go` (5 pass + 2 skip stubs) — 2026-06-09
+- [x] M10 — implementation done: `WriteForwardMiddleware`, `NodeID()`, `CommitIndex()`, `IsLeader()`, handler redirects removed — 2026-06-09
+- [x] M10 — refactoring phase: removed clusterWriteAdapter (~75 lines), extracted package-level forwardClient + hopByHopHeaders, fixed X-Served-By header dedup in middleware — 2026-06-09
+- [x] M10 — demo script: `demos/m10/demo.sh` (3-node cluster, write forwarding verified live) — 2026-06-09
+- [x] M10 — demo note written: `demos/m10/DEMO_NOTE.md` — 2026-06-09
+- [x] M10 — merged to master — 2026-06-09
 
 - [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
 - [x] M9 — UoR validated functional spec — 2026-06-09

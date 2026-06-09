@@ -67,5 +67,8 @@ This directory contains technical specifications that describe HOW functional re
 ### Milestone 8
 - `encrypted-dns-expansion.md` (TS-EncryptedDnsExpansion) — DoH3 (HTTP/3 over QUIC) + DNSCrypt v2 server, Raft keypair replication
 
+### Milestone 10
+- `active-active-cluster.md` (TS-ActiveActiveCluster) — transparent write forwarding (any node accepts writes, followers proxy to Raft leader), X-Served-By + X-Raft-Commit-Index response headers
+
 ### Documentation / Tooling
 - `documentation-site.md` (TS-DocumentationSite) — mdBook + Pagefind + GitHub Pages deployment

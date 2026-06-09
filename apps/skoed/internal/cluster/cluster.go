@@ -227,6 +227,12 @@ func (c *Cluster) Raft() *raftNode { return c.raft }
 // IsLeader reports whether this node is the current Raft leader.
 func (c *Cluster) IsLeader() bool { return c.raft.IsLeader() }
 
+// NodeID returns this node's configured identifier.
+func (c *Cluster) NodeID() string { return c.node.Node.ID }
+
+// CommitIndex returns the latest log index applied by this node's FSM.
+func (c *Cluster) CommitIndex() uint64 { return c.raft.CommitIndex() }
+
 // LeaderAPIAddress returns the HTTP base URL of the current leader (e.g.
 // "http://192.168.1.10:8080") or "" if no leader is yet known. Looks up the
 // leader's NodeID from Raft and resolves its api_address from the replicated
