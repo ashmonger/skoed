@@ -14,7 +14,7 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**Milestone 11 — Distribution & Documentation** — in progress.
+None — all milestones complete.
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
@@ -46,7 +46,7 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 - [x] M11 — README.md rewrite (badges, quickstart, feature list, install matrix, cluster quickstart) — 2026-06-10
 - [x] M11 — All 15 doc stubs filled: docker, kubernetes, cluster ops, all configuration pages, all operations pages, all reference pages — 2026-06-10
 - [x] M11 — demo note: `demos/m11/DEMO_NOTE.md` — 2026-06-10
-- [ ] M11 — merged to master
+- [x] M11 — merged to master — 2026-06-10
 
 - [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
 - [x] M9 — UoR validated functional spec — 2026-06-09
