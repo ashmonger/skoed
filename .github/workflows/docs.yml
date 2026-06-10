@@ -42,8 +42,6 @@ jobs:
           path: docs/book
 
   deploy:
-    # Set PAGES_ENABLED=true in repo Settings → Variables to activate deployment.
-    if: ${{ vars.PAGES_ENABLED == 'true' }}
     needs: build
     runs-on: ubuntu-latest
     environment:
