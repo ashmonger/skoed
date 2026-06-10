@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [master, 'skoed-*']
+    branches: [master, 'dblock-*', 'skoed-*']
   pull_request:
 
 permissions:
@@ -74,3 +74,35 @@ jobs:
 
       - name: make test-deb
         run: make test-deb
+
+      - name: make apk
+        run: PATH="$(go env GOPATH)/bin:$PATH" make apk
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.16.0'
+
+      - name: Helm lint
+        run: helm lint charts/skoed
+
+      - name: Helm template
+        run: helm template skoed charts/skoed | grep -c 'kind:' | xargs -I{} echo "{} Kubernetes resources rendered"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mdbook
+        run: |
+          curl -fsSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz -C /usr/local/bin
+
+      - name: mdbook build
+        run: mdbook build docs

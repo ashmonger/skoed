@@ -1,0 +1,97 @@
+replicaCount: 1
+
+# Deployment or DaemonSet. DaemonSet places one pod per node; useful when
+# all nodes should resolve DNS locally. Deployment is easier to scale.
+kind: Deployment
+
+image:
+  repository: ghcr.io/ashmonger/skoed
+  pullPolicy: IfNotPresent
+  # Defaults to Chart.appVersion when empty.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  dnsPort: 53
+  apiPort: 8080
+  # For hostNetwork DNS access set type: NodePort or LoadBalancer.
+  # NodePort example:
+  #   type: NodePort
+  #   nodePort: 30053
+
+# Raw skoed config.yaml content, templated into a ConfigMap.
+# Required fields: node.id (auto-set to pod name when empty), node.data_dir.
+config: |
+  node:
+    id: ""
+    api_address: "0.0.0.0:8080"
+    dns:
+      listen:
+        port: 53
+        ipv4: true
+        ipv6: true
+      upstreams:
+        - "https://dns.cloudflare.com/dns-query"
+        - "https://dns.google/dns-query"
+    data_dir: "/var/lib/skoed"
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+resources: {}
+  # limits:
+  #   cpu: 200m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 50m
+  #   memory: 64Mi
+
+livenessProbe:
+  httpGet:
+    path: /api/v1/health
+    port: api
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /api/v1/health
+    port: api
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

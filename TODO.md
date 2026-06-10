@@ -14,7 +14,7 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-None — all milestones complete.
+**Milestone 11 — Distribution & Documentation** — in progress.
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
@@ -31,6 +31,22 @@ None — all milestones complete.
 - [x] M10 — demo script: `demos/m10/demo.sh` (3-node cluster, write forwarding verified live) — 2026-06-09
 - [x] M10 — demo note written: `demos/m10/DEMO_NOTE.md` — 2026-06-09
 - [x] M10 — merged to master — 2026-06-09
+
+## M11 tasks
+
+- [x] M11 — functional spec: `specs/functional/packaging-and-distribution.feature` (10 FSIDs) — 2026-06-10
+- [x] M11 — technical spec: `specs/technical/packaging-and-distribution.md` (TS-PackagingAndDistribution) — 2026-06-10
+- [x] M11 — acceptance tests: `tests/acceptance/packaging_test.go` (5 pass + 2 skip stubs) — 2026-06-10
+- [x] M11 — Alpine APK: goreleaser apk format + `make apk`/`make apk-arm64` — 2026-06-10
+- [x] M11 — AUR PKGBUILD: `packaging/aur/PKGBUILD` + `.SRCINFO` + CI sync step — 2026-06-10
+- [x] M11 — Helm chart: `charts/skoed/` (Deployment/DaemonSet, PVC, Service, ConfigMap, SA) — 2026-06-10
+- [x] M11 — Proxmox script in goreleaser extra_files — 2026-06-10
+- [x] M11 — CI updated: `dblock-*` branches, helm-lint job, docs build job, apk packaging step — 2026-06-10
+- [x] M11 — Release workflow: Helm OCI publish, AUR sync, docs dispatch — 2026-06-10
+- [x] M11 — README.md rewrite (badges, quickstart, feature list, install matrix, cluster quickstart) — 2026-06-10
+- [x] M11 — All 15 doc stubs filled: docker, kubernetes, cluster ops, all configuration pages, all operations pages, all reference pages — 2026-06-10
+- [x] M11 — demo note: `demos/m11/DEMO_NOTE.md` — 2026-06-10
+- [ ] M11 — merged to master
 
 - [x] M9 — functional spec written: `specs/functional/kubernetes-operator.feature` (9 FSIDs) — 2026-06-09
 - [x] M9 — UoR validated functional spec — 2026-06-09

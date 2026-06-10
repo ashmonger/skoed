@@ -776,6 +776,29 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 
 ---
 
+### Milestone 11 — Distribution & Documentation
+
+**Outcome**: skoed is a first-class citizen on every mainstream Linux packaging channel. An operator can install it from their native package manager, the docs site answers every "how do I…" question without opening the source tree, and the GitHub README gives a first-time visitor all the context needed to try skoed in under 5 minutes.
+
+**Capabilities:**
+- Alpine Linux `.apk` package built and attached to every GitHub Release (amd64 + arm64)
+- AUR PKGBUILD (`packaging/aur/PKGBUILD`) kept in sync with releases; automated CI push to AUR
+- Helm chart (`charts/skoed/`) — deploys skoed as a DaemonSet or Deployment on any CNCF-conformant Kubernetes cluster; published as an OCI chart to `ghcr.io/ashmonger/charts/skoed`
+- Proxmox LXC bootstrap script attached to every GitHub Release as `proxmox-create.sh`
+- CI release workflow publishes all of the above atomically on `v*` tags
+- Documentation site: all stub pages replaced with real content — install (Docker, Kubernetes), all configuration options, cluster operations, reference (YAML schema, CLI, API)
+- `README.md` rewritten as a product README: badges, 30-second quickstart, feature summary, install matrix, screenshots
+
+**Non-goals:**
+- Publishing to official Debian/Ubuntu PPA (requires Debian Developer sponsorship; out of scope)
+- Publishing to Alpine's official `edge` repository (requires Alpine maintainer; out of scope)
+- Homebrew formula (macOS install; skoed runs on Linux only)
+- Automatic documentation translation
+
+**Dependencies:** M1–M10 complete.
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.
