@@ -1,6 +1,6 @@
 pkgbase = skoed
 	pkgdesc = Self-hosted DNS filtering with multi-node sync (Pi-Hole / AdGuard Home replacement)
-	pkgver = 0.5.0
+	pkgver = 0.1.0
 	pkgrel = 1
 	url = https://github.com/ashmonger/skoed
 	arch = x86_64
@@ -9,9 +9,9 @@ pkgbase = skoed
 	provides = skoed
 	conflicts = skoed-bin
 	conflicts = skoed-git
-	source_x86_64 = skoed-0.5.0-x86_64.tar.gz::https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_linux_amd64.tar.gz
+	source_x86_64 = skoed-0.1.0-x86_64.tar.gz::https://github.com/ashmonger/skoed/releases/download/v0.1.0/skoed_0.1.0_linux_amd64.tar.gz
 	sha256sums_x86_64 = SKIP
-	source_aarch64 = skoed-0.5.0-aarch64.tar.gz::https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_linux_arm64.tar.gz
+	source_aarch64 = skoed-0.1.0-aarch64.tar.gz::https://github.com/ashmonger/skoed/releases/download/v0.1.0/skoed_0.1.0_linux_arm64.tar.gz
 	sha256sums_aarch64 = SKIP
 
 pkgname = skoed

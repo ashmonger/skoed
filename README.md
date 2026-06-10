@@ -106,15 +106,15 @@ Open `http://localhost:8080` to complete first-run setup.
 
 ## Installation
 
-> **Note:** Commands below use version `0.5.0` as an example. Check the [releases page](https://github.com/ashmonger/skoed/releases) for the latest version.
+> **Note:** Commands below use version `0.1.0` as an example. Check the [releases page](https://github.com/ashmonger/skoed/releases) for the latest version.
 
 | Method | Platform | Command |
 |--------|----------|---------|
 | **Docker** | Any | `docker run -d -p 53:53/udp -p 53:53/tcp -p 8080:8080 ghcr.io/ashmonger/skoed:latest` |
-| **Debian / Ubuntu** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_amd64.deb && sudo dpkg -i skoed_0.5.0_amd64.deb` |
-| **Alpine Linux** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_amd64.apk && apk add --allow-untrusted skoed_0.5.0_amd64.apk` |
+| **Debian / Ubuntu** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.1.0/skoed_0.1.0_amd64.deb && sudo dpkg -i skoed_0.1.0_amd64.deb` |
+| **Alpine Linux** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.1.0/skoed_0.1.0_amd64.apk && apk add --allow-untrusted skoed_0.1.0_amd64.apk` |
 | **Helm (Kubernetes)** | Kubernetes 1.24+ | `helm install skoed oci://ghcr.io/ashmonger/charts/skoed` |
-| **Proxmox LXC** | Proxmox VE | `./scripts/proxmox-create.sh --id 200 --hostname skoed-1 --deb skoed_0.5.0_amd64.deb` |
+| **Proxmox LXC** | Proxmox VE | `./scripts/proxmox-create.sh --id 200 --hostname skoed-1 --deb skoed_0.1.0_amd64.deb` |
 
 After installing the `.deb` package, skoed starts automatically as a systemd service. Complete first-run setup at `http://<host>:8080`.
 

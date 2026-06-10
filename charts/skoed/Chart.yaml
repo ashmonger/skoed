@@ -3,7 +3,7 @@ name: skoed
 description: Self-hosted DNS filtering with multi-node sync
 type: application
 version: 0.1.0
-appVersion: "0.5.0"
+appVersion: "0.1.0"
 home: https://github.com/ashmonger/skoed
 sources:
   - https://github.com/ashmonger/skoed
