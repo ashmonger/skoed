@@ -32,7 +32,7 @@
 
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-IMG="golang:1.24-alpine"
+IMG="golang:1.25-alpine"
 
 GOMOD_VOL="${SKOED_GOMOD_VOLUME:-skoed-gomod-cache}"
 GOBUILD_VOL="${SKOED_GOBUILD_VOLUME:-skoed-gobuild-cache}"
@@ -56,7 +56,6 @@ docker run --rm \
   -e CGO_ENABLED=0 \
   -e SKOED_TEST_MODE=1 \
   "$IMG" sh -c '
-    apk add --no-cache bind-tools >/dev/null
     go build -ldflags="-s -w" -o /tmp/skoed ./cmd/skoed/
     cd /src/tests/acceptance
     SKOED_BINARY=/tmp/skoed exec go test -timeout 1200s -parallel 8 "$@" ./...
