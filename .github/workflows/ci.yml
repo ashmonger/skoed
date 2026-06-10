@@ -53,9 +53,41 @@ jobs:
         # on every run (no shared cache between ephemeral runners).
         # -parallel 4: the suite spawns real processes per test; 8 concurrent on
         # a 2-core runner causes resource contention and flaky timing failures.
+        # -json + tee: structured output written to /tmp/acc.json for the
+        # "show failures" step below; the python3 filter prints only FAIL lines.
         env:
           SKOED_BINARY: ${{ github.workspace }}/apps/skoed/skoed
-        run: cd tests/acceptance && go test -timeout 1200s -parallel 4 ./...
+        run: |
+          cd tests/acceptance
+          go test -timeout 1200s -parallel 4 -json ./... | tee /tmp/acc.json \
+            | python3 -c "
+          import sys, json
+          for line in sys.stdin:
+              try:
+                  e = json.loads(line)
+                  if e.get('Action') in ('fail','pass') and e.get('Test'):
+                      print(f\"{e['Action'].upper()}: {e['Test']} ({e.get('Elapsed',0):.2f}s)\")
+              except Exception:
+                  pass
+          "
+          exit ${PIPESTATUS[0]}
+
+      - name: show failing tests
+        if: failure()
+        run: |
+          python3 -c "
+          import json, sys
+          fails = []
+          with open('/tmp/acc.json') as f:
+              for line in f:
+                  try:
+                      e = json.loads(line)
+                      if e.get('Action') == 'fail' and e.get('Test'):
+                          fails.append(f\"FAIL: {e['Test']} ({e.get('Elapsed',0):.1f}s)\")
+                  except Exception:
+                      pass
+          print('\n'.join(fails) if fails else 'no individual test failures found (suite-level error)')
+          " 2>/dev/null || echo "could not parse test output"
 
   spec-lint:
     runs-on: ubuntu-latest
