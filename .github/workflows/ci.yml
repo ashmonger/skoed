@@ -43,8 +43,14 @@ jobs:
       - name: make build
         run: make build
 
-      - name: make acceptance
-        run: make acceptance
+      - name: acceptance tests
+        # Run directly on the host runner — each GitHub Actions run gets a fresh
+        # VM so there is no socket-accumulation or kernel-state pollution.
+        # Using Docker here would require downloading all Go modules from scratch
+        # on every run (no shared cache between ephemeral runners).
+        env:
+          SKOED_BINARY: ${{ github.workspace }}/apps/skoed/skoed
+        run: cd tests/acceptance && go test -timeout 1200s -parallel 8 ./...
 
   spec-lint:
     runs-on: ubuntu-latest
