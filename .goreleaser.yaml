@@ -50,6 +50,7 @@ nfpms:
     license: MIT
     formats:
       - deb
+      - apk
     bindir: /usr/bin
     section: net
     priority: optional
@@ -109,6 +110,9 @@ docker_manifests:
     image_templates:
       - "ghcr.io/skoed/skoed:latest-amd64"
       - "ghcr.io/skoed/skoed:latest-arm64"
+
+extra_files:
+  - glob: scripts/proxmox-create.sh
 
 checksum:
   name_template: checksums.txt

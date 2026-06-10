@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "skoed.fullname" . }}
+  labels:
+    {{- include "skoed.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "skoed.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: dns-udp
+      protocol: UDP
+      port: {{ .Values.service.dnsPort }}
+      targetPort: dns-udp
+    - name: dns-tcp
+      protocol: TCP
+      port: {{ .Values.service.dnsPort }}
+      targetPort: dns-tcp
+    - name: api
+      protocol: TCP
+      port: {{ .Values.service.apiPort }}
+      targetPort: api

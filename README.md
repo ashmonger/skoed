@@ -1,131 +1,159 @@
-# BDD-First, Agent-Friendly Repository Template
+# skoed
 
-A stack-neutral template for behavior-driven development (BDD) and agent-friendly collaboration. It standardizes how teams define problems, capture ubiquitous language, write functional and technical specifications, and enforce traceability — without assuming any programming language, test framework, CI provider, or hosting platform.
+**Self-hosted DNS filtering with multi-node sync**
 
-## Why this template exists
+[![CI](https://img.shields.io/github/actions/workflow/status/ashmonger/skoed/ci.yml?branch=master&label=CI)](https://github.com/ashmonger/skoed/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ashmonger/skoed)](https://github.com/ashmonger/skoed/releases)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fashmonger%2Fskoed-blue)](https://github.com/ashmonger/skoed/pkgs/container/skoed)
+[![License](https://img.shields.io/github/license/ashmonger/skoed)](LICENSE)
 
-- Create a shared, auditable source of truth across humans and AI agents.
-- Reduce ambiguity by separating functional intent from technical design.
-- Enable reproducible change by enforcing traceability and governance.
+skoed is a single-binary, self-hosted DNS filter and sinkhole. It replaces Pi-Hole and AdGuard Home with native multi-node Raft clustering, encrypted DNS protocols, and a built-in web UI — all in a statically linked Go binary with no runtime dependencies.
 
-## Quickstart
+![skoed dashboard](docs/screenshots/m5.9-dashboard.png)
 
-### 1. Clone and configure the operating mode
+---
 
-```bash
-cp .env.example .env   # or create .env manually
-```
-
-Set `AGENTS_MODE` in `.env` to match your situation (see [Operating Modes](#operating-modes) below).
-
-### 2. Read the rules
-
-Read `AGENTS.md` — it is the authoritative source for all process rules, specification standards, and workflow gates.
-
-### 3. Follow the path for your mode
-
-| Your situation | Mode to set | What to do first |
-|---|---|---|
-| Starting a new project from scratch | `standard` | Create the four foundation artifacts (see [Foundation Artifacts](#foundation-artifacts)), then follow the BDD-First delivery flow. |
-| Onboarding existing code in `apps/` | `reverse_engineering` | The agent analyzes existing code and generates all missing artifacts, specs, and tests. See Rule 2b in `AGENTS.md`. |
-| Modifying templates, tooling, or `AGENTS.md` itself | `ungated` | Process gates are bypassed. Switch back to `standard` when done. |
-
-### 4. Work with TODO.md
-
-`TODO.md` is the operational execution truth. Every active feature, current phase, blocker, and next action lives there. Agents and humans check it before starting any work.
-
-### 5. Validate
+## 30-second quickstart
 
 ```bash
-tools/spec-lint/spec_lint.sh
-tools/traceability/traceability_check.sh
+docker run -d \
+  --name skoed \
+  -p 53:53/udp -p 53:53/tcp -p 8080:8080 \
+  ghcr.io/ashmonger/skoed:latest
 ```
 
-## Operating Modes
+Open `http://localhost:8080` to complete first-run setup.
 
-The repository operates in one of three mutually exclusive modes, controlled by `AGENTS_MODE` in `.env`.
+---
 
-| Value | Purpose | When to use |
-|-------|---------|-------------|
-| `standard` | Full BDD-First delivery, all gates enforced | **Default.** Normal feature development. All foundation artifacts are validated and conformant. |
-| `reverse_engineering` | Onboarding existing code into conformance | `apps/` contains working source code but foundation artifacts, specs, or tests are missing. |
-| `ungated` | Template and process development | Modifying `AGENTS.md`, templates, or tooling. Bypasses process gates. |
+## Features
 
-**Rules:**
-- If `AGENTS_MODE` is absent or empty, the mode is `standard`.
-- Only one mode is active at a time.
-- Mode changes require UoR (User of Record) approval and MUST be logged in `LOGS.md`.
-- When the objective of a non-standard mode is achieved, set `AGENTS_MODE=standard`.
+### DNS
+- DNS-over-HTTPS (RFC 8484), DNS-over-TLS (RFC 7858), DoH3, and DNSCrypt server
+- Encrypted upstream resolvers: DoH, DoT, DoH3, and DNSCrypt
+- Local DNS records, per-client overrides, and recursive resolution mode
+- DNS cache with configurable TTL and manual flush
 
-## Foundation Artifacts
+### Filtering
+- Blocklist and allowlist management with automatic refresh
+- Per-client profiles with custom filter rules
+- Schedules and parental controls
+- Category-based filtering
+- Query log with full request/response detail
 
-These four documents must exist and be validated before any feature work begins (in `standard` mode):
+### UI and API
+- Vue 3 + Vite web UI embedded in the binary
+- REST management API with Swagger UI
+- API token authentication
+- Prometheus `/metrics` endpoint
+- Audit log
 
-| Artifact | Purpose |
-|---|---|
-| `PROBLEM_STATEMENT.md` | Immutable project intent — who, what problem, what impact |
-| `UBIQUITOUS_LANGUAGE.md` | Shared domain vocabulary for all contributors |
-| `GLOBAL_TECHNICAL_ARCHITECTURE.md` | Non-negotiable technical boundaries and architecture |
-| `ROADMAP.md` | Strategic direction and planned evolution |
+### Cluster
+- Multi-node Raft consensus — any node accepts writes, followers proxy to leader
+- Single-use join tokens for safe node enrolment
+- mTLS cluster mesh (mutual TLS between nodes)
+- Kubernetes operator with `SkoedCluster` and `SkoedNode` CRDs
 
-Bootstrap paths when artifacts are missing:
-1. **From existing code** (`reverse_engineering` mode) — artifacts are generated from code analysis.
-2. **From `SOLUTION.md`** — a single document that maps to all four artifacts. UoR approval required.
-3. **From UoR free-text** — the agent converts a free-text description into `SOLUTION.md`, then generates artifacts.
-4. **Manual creation** — each artifact is created individually using the validation checklists in `AGENTS.md` Appendix F.
+### Deployment
+- Statically linked binary (Alpine/musl compatible)
+- Debian/Ubuntu `.deb` package
+- Alpine Linux `.apk` package
+- Docker image and Helm chart
+- Proxmox LXC provisioning script
 
-## BDD-First Delivery Flow
+### Integrations
+- DHCP lease import for client identity (dnsmasq and Kea)
+- CLI: `skoed status`, `skoed token create`, `skoed domain`
+- TUI dashboard: `skoed top`
 
-All behavior work follows this strict order (no shortcuts):
+---
 
-1. Problem understanding
-2. Behavior definition (Gherkin, observable outcomes)
-3. Functional specifications (`specs/functional/*.feature`)
-4. Technical specifications (`specs/technical/`)
-5. Implementation plan (`IMPLEMENTATION_PLAN.md`)
-6. Acceptance tests (`tests/`)
-7. Implementation (`apps/<app-name>/`)
-8. Refactoring (no behavior change)
-9. Demo and user validation
+## Installation
 
-## Directory Structure
+> **Note:** Commands below use version `0.5.0` as an example. Check the [releases page](https://github.com/ashmonger/skoed/releases) for the latest version.
 
-```
-.
-├── AGENTS.md                          # Invariant operating rules
-├── PROBLEM_STATEMENT.md               # Project intent
-├── UBIQUITOUS_LANGUAGE.md             # Domain vocabulary
-├── GLOBAL_TECHNICAL_ARCHITECTURE.md   # Architecture boundaries
-├── ROADMAP.md                         # Strategic direction
-├── IMPLEMENTATION_PLAN.md             # Execution-level sequencing
-├── TODO.md                            # Operational execution truth
-├── QUESTIONS_AND_ANSWERS.md           # Blocking questions and answers
-├── LOGS.md                            # Decisions, hypotheses, outcomes
-├── SOLUTION.md                        # (optional) Bootstrap source
-├── apps/                              # Application source code
-│   └── <app-name>/
-├── specs/
-│   ├── functional/                    # Gherkin feature files (WHAT)
-│   └── technical/                     # OpenAPI / AsyncAPI specs (HOW)
-├── tests/
-│   └── acceptance/                    # Black-box acceptance tests
-├── decisions/                         # Decision records (YYYYMMDD-<Title>.md)
-├── summaries/                         # Artifact summaries
-├── templates/                         # Canonical templates for artifacts
-└── tools/                             # Validation and traceability scripts
-```
+| Method | Platform | Command |
+|--------|----------|---------|
+| **Docker** | Any | `docker run -d -p 53:53/udp -p 53:53/tcp -p 8080:8080 ghcr.io/ashmonger/skoed:latest` |
+| **Debian / Ubuntu** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_amd64.deb && sudo dpkg -i skoed_0.5.0_amd64.deb` |
+| **Alpine Linux** | x86-64, arm64 | `wget https://github.com/ashmonger/skoed/releases/download/v0.5.0/skoed_0.5.0_amd64.apk && apk add --allow-untrusted skoed_0.5.0_amd64.apk` |
+| **Helm (Kubernetes)** | Kubernetes 1.24+ | `helm install skoed oci://ghcr.io/ashmonger/charts/skoed` |
+| **Proxmox LXC** | Proxmox VE | `./scripts/proxmox-create.sh --id 200 --hostname skoed-1 --deb skoed_0.5.0_amd64.deb` |
 
-## Traceability
+After installing the `.deb` package, skoed starts automatically as a systemd service. Complete first-run setup at `http://<host>:8080`.
 
-Every change is traceable end-to-end:
+---
 
-```
-Roadmap feature → Implementation plan slice → FSID → TSID → Acceptance test
+## Cluster quickstart
+
+Bootstrap a 3-node cluster by starting the first node, generating a join token, then starting the remaining nodes with that token.
+
+**Step 1 — Start node 1 (bootstrap node)**
+
+```yaml
+# /etc/skoed/config.yaml on node-1
+node:
+  id: skoed-1
+  raft_address: 192.168.1.10:7000
+  api_address: 0.0.0.0:8080
+  data_dir: /var/lib/skoed
 ```
 
-- **FSID** (Functional Spec ID): `@fsid:FS-<ScenarioTitleCamelCase>` on every Gherkin scenario.
-- **TSID** (Technical Spec ID): `x-tsid: TS-<TitleCamelCase>` + `x-fsid-links` on every technical artifact.
+```bash
+systemctl restart skoed
+```
+
+**Step 2 — Generate a join token from node 1**
+
+```bash
+skoed token create --api http://192.168.1.10:8080
+```
+
+The command prints a `bootstrap:` block to paste into each joining node's config:
+
+```yaml
+bootstrap:
+  leader_address: http://192.168.1.10:8080
+  token:          <single-use-token>
+```
+
+**Step 3 — Start nodes 2 and 3**
+
+Paste the `bootstrap:` block into `/etc/skoed/config.yaml` on each joining node, set a unique `id` and `raft_address`, then start the service:
+
+```yaml
+# /etc/skoed/config.yaml on node-2
+node:
+  id: skoed-2
+  raft_address: 192.168.1.11:7000
+  api_address: 0.0.0.0:8080
+  data_dir: /var/lib/skoed
+
+bootstrap:
+  leader_address: http://192.168.1.10:8080
+  token:          <single-use-token>
+```
+
+```bash
+systemctl restart skoed
+```
+
+Repeat for node 3 with a fresh token (tokens are single-use). All nodes synchronise via Raft once enrolled.
+
+---
+
+## Configuration
+
+skoed is configured through `/etc/skoed/config.yaml`. The installed package ships a documented example at `/etc/skoed/config.yaml` covering single-node, cluster, mTLS, DHCP integration, and HTTPS API options. For the full configuration reference, see the [documentation](https://ashmonger.github.io/skoed).
+
+---
+
+## Documentation
+
+Full documentation is available at **[https://ashmonger.github.io/skoed](https://ashmonger.github.io/skoed)**.
+
+---
 
 ## License
 
-See `LICENSE`.
+MIT — see [LICENSE](LICENSE).

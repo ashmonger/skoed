@@ -23,4 +23,8 @@
 
 ## Exception pointers (optional)
 
-None.
+- **2026-06-10 — M11 Documentation Exemption** (Rule 6)
+  - Scope: `README.md` rewrite and all `docs/src/**/*.md` page content.
+  - Rationale: these deliverables are documentation only — they describe observable product behavior but do not themselves implement it. Changes have no effect on test outcomes.
+  - Mitigation: documentation accuracy is validated against the already-shipped implementation and FSID catalog; any claim in the docs maps to a spec or demo output.
+  - UoR approval: inline (UoR requested M11 explicitly including "full wiki" and "nice README.md").

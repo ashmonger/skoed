@@ -51,12 +51,78 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: goreleaser
+        id: goreleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: ${{ inputs.snapshot && 'release --snapshot --clean' || 'release --clean' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Helm
+        if: ${{ !inputs.snapshot }}
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.16.0'
+
+      - name: Publish Helm chart to GHCR
+        if: ${{ !inputs.snapshot }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+          helm package charts/skoed \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination /tmp/helm-pkg
+          helm push /tmp/helm-pkg/skoed-${VERSION}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Sync AUR PKGBUILD
+        if: ${{ !inputs.snapshot && secrets.AUR_SSH_PRIVATE_KEY != '' }}
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Write SSH key
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          echo "Host aur.archlinux.org" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+
+          # Compute checksums from goreleaser dist
+          SUM_AMD64=$(sha256sum dist/skoed_${VERSION}_linux_amd64.tar.gz | awk '{print $1}')
+          SUM_ARM64=$(sha256sum dist/skoed_${VERSION}_linux_arm64.tar.gz | awk '{print $1}')
+
+          # Patch PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" packaging/aur/PKGBUILD
+          sed -i "s|sha256sums_x86_64=.*|sha256sums_x86_64=('${SUM_AMD64}')|" packaging/aur/PKGBUILD
+          sed -i "s|sha256sums_aarch64=.*|sha256sums_aarch64=('${SUM_ARM64}')|" packaging/aur/PKGBUILD
+
+          # Push to AUR
+          git clone ssh://aur@aur.archlinux.org/skoed.git /tmp/aur-skoed
+          cp packaging/aur/PKGBUILD /tmp/aur-skoed/PKGBUILD
+
+          cd /tmp/aur-skoed
+          git config user.email "maintainers@skoed.io"
+          git config user.name "skoed-ci"
+
+          # Regenerate .SRCINFO using makepkg if available, else update manually
+          if command -v makepkg &>/dev/null; then
+            makepkg --printsrcinfo > .SRCINFO
+          else
+            sed -i "s/pkgver = .*/pkgver = ${VERSION}/" .SRCINFO
+            sed -i "s|sha256sums_x86_64 = .*|sha256sums_x86_64 = ${SUM_AMD64}|" .SRCINFO
+            sed -i "s|sha256sums_aarch64 = .*|sha256sums_aarch64 = ${SUM_ARM64}|" .SRCINFO
+          fi
+
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || git commit -m "Update to v${VERSION}"
+          git push
 
       - name: Upload snapshot artefacts
         if: ${{ inputs.snapshot }}
@@ -66,3 +132,10 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Dispatch docs rebuild
+        if: ${{ !inputs.snapshot }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: docs-rebuild

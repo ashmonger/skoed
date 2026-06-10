@@ -4,7 +4,7 @@
 SKOED_VERSION ?= 0.5.0
 SKOED_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-.PHONY: help build build-ui openapi-sync dev test acceptance acceptance-clean deb deb-arm64 test-deb clean
+.PHONY: help build build-ui openapi-sync dev test acceptance acceptance-clean deb deb-arm64 apk apk-arm64 test-deb helm-lint clean
 
 help:
 	@echo "Top-level targets:"
@@ -17,7 +17,10 @@ help:
 	@echo "  acceptance-clean  - remove the Docker go-mod/go-build cache volumes (M5.9.3)"
 	@echo "  deb               - build dist/skoed_<version>_amd64.deb via nfpm"
 	@echo "  deb-arm64         - build the arm64 .deb"
+	@echo "  apk               - build dist/skoed_<version>_amd64.apk via nfpm"
+	@echo "  apk-arm64         - build the arm64 .apk"
 	@echo "  test-deb          - smoke-test the .deb in a clean debian:bookworm container"
+	@echo "  helm-lint         - lint the charts/skoed Helm chart"
 	@echo "  clean             - remove dist/ and built artefacts"
 
 build:
@@ -55,9 +58,26 @@ deb-arm64: build
 		nfpm pkg --packager deb --config packaging/nfpm.yaml \
 		--target dist/ --arch arm64
 
+apk: build
+	@mkdir -p dist
+	SKOED_VERSION=$(SKOED_VERSION) SKOED_COMMIT=$(SKOED_COMMIT) \
+		nfpm pkg --packager apk --config packaging/nfpm.yaml --target dist/
+
+apk-arm64: build
+	@mkdir -p dist
+	SKOED_VERSION=$(SKOED_VERSION) SKOED_COMMIT=$(SKOED_COMMIT) \
+		nfpm pkg --packager apk --config packaging/nfpm.yaml \
+		--target dist/ --arch arm64
+
 test-deb:
 	packaging/test-deb.sh
 
+helm-lint:
+	helm lint charts/skoed
+
 clean:
+	rm -rf dist
+	$(MAKE) -C apps/skoed clean
+
 	rm -rf dist
 	$(MAKE) -C apps/skoed clean
