@@ -79,10 +79,16 @@ jobs:
             oci://ghcr.io/${{ github.repository_owner }}/charts
 
       - name: Sync AUR PKGBUILD
-        if: ${{ !inputs.snapshot && secrets.AUR_SSH_PRIVATE_KEY != '' }}
+        if: ${{ !inputs.snapshot }}
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
+          # Skip silently when no AUR deploy key is configured.
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "AUR_SSH_PRIVATE_KEY not set — skipping AUR sync"
+            exit 0
+          fi
+
           VERSION="${GITHUB_REF_NAME#v}"
 
           # Write SSH key
