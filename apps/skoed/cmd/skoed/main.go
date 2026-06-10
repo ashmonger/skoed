@@ -598,22 +598,28 @@ func runDaemon(cfgPath string) {
 	// M8: DNSCrypt v2 listener. Requires a keypair already replicated in Raft.
 	// If no keypair exists yet the leader will generate one on its next rotation
 	// tick; the server starts once the keys land via rebuildDNS.
+	// Guard: rebuildDNS may have already started the server during Raft state
+	// machine replay that ran before this startup path (e.g. a joining follower
+	// receiving keys via replication before reaching this point). Skip startup
+	// to avoid binding the same port twice.
 	if node.Node.DNS.Listen.DNSCryptPort > 0 {
-		if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
-			dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-				buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
-				node.Node.DNS.Listen.DNSCryptPort,
-				keys.Config,
-			)
-			if err != nil {
-				log.Fatalf("build DNSCrypt server: %v", err)
+		if dnscryptSrv == nil {
+			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
+				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
+					node.Node.DNS.Listen.DNSCryptPort,
+					keys.Config,
+				)
+				if err != nil {
+					log.Fatalf("build DNSCrypt server: %v", err)
+				}
+				if err := dnscryptSrv.Start(); err != nil {
+					log.Fatalf("start DNSCrypt server: %v", err)
+				}
+				log.Printf("DNSCrypt server listening on :%d", node.Node.DNS.Listen.DNSCryptPort)
+			} else {
+				log.Printf("DNSCrypt: no keypair yet — server will start after leader generates keys")
 			}
-			if err := dnscryptSrv.Start(); err != nil {
-				log.Fatalf("start DNSCrypt server: %v", err)
-			}
-			log.Printf("DNSCrypt server listening on :%d", node.Node.DNS.Listen.DNSCryptPort)
-		} else {
-			log.Printf("DNSCrypt: no keypair yet — server will start after leader generates keys")
 		}
 
 		// M8: Leader-only key rotation ticker. Generates the initial keypair

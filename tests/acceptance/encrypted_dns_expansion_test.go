@@ -15,6 +15,7 @@
 package acceptance
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	dnscrypt "github.com/ameshkov/dnscrypt/v2"
+	"github.com/ameshkov/dnsstamps"
 	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go/http3"
 )
@@ -165,18 +167,19 @@ func TestDoh3DisabledByDefault(t *testing.T) {
 // FS-Doh3ServerListens
 func TestDoh3ServerListens(t *testing.T) {
 	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 	cfg := M2NodeConfig{
-		NodeID:   "node-1",
-		DNSPort:  freeUDPPort(t),
-		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
-		DoHPort:  freeTCPPort(t),
-		DoTPort:  freeTCPPort(t),
-		DoH3Port: freeUDPPort(t),
+		NodeID:            "node-1",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DoHPort:           freeTCPPort(t),
+		DoTPort:           freeTCPPort(t),
+		DoH3Port:          freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
 	}
 	cn := c.spawnNode(t, cfg)
-	setupAuth(t, cn.Node)
 	n := cn.Node
 
 	if n.DoH3Addr == "" {
@@ -184,6 +187,7 @@ func TestDoh3ServerListens(t *testing.T) {
 	}
 
 	waitReady(t, n)
+	setupAuth(t, n)
 
 	// Test that the DoH3 server answers DNS queries.
 	resp := doh3Query(t, n.DoH3Addr, "example.com", dns.TypeA)
@@ -196,24 +200,26 @@ func TestDoh3ServerListens(t *testing.T) {
 // FS-Doh3AppliesFilter
 func TestDoh3AppliesFilter(t *testing.T) {
 	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 	cfg := M2NodeConfig{
-		NodeID:   "node-1",
-		DNSPort:  freeUDPPort(t),
-		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
-		DoHPort:  freeTCPPort(t),
-		DoTPort:  freeTCPPort(t),
-		DoH3Port: freeUDPPort(t),
+		NodeID:            "node-1",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DoHPort:           freeTCPPort(t),
+		DoTPort:           freeTCPPort(t),
+		DoH3Port:          freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
 	}
 	cn := c.spawnNode(t, cfg)
-	setupAuth(t, cn.Node)
 	n := cn.Node
 
 	if n.DoH3Addr == "" {
 		t.Skip("DoH3 not available on this node")
 	}
 	waitReady(t, n)
+	setupAuth(t, n)
 
 	// Add blocked.example.com to the allowlist-inverted path via blocklist.
 	blockResp := n.apiDo(t, "POST", "/api/v1/blocklists", `{"name":"test","format":"hosts","domains":["blocked.example.com"]}`)
@@ -257,13 +263,13 @@ func TestDnscryptStampPublished(t *testing.T) {
 		DNSCryptPort: freeUDPPort(t),
 	}
 	cn := c.spawnNode(t, cfg)
-	setupAuth(t, cn.Node)
 	n := cn.Node
 
 	if n.DNSCryptAddr == "" {
 		t.Skip("DNSCrypt not configured on this node")
 	}
 	waitReady(t, n)
+	setupAuth(t, n)
 
 	// Wait for the leader to generate the initial keypair (up to 45s).
 	stamp := waitForDNSCryptStamp(t, n, 45*time.Second)
@@ -278,22 +284,24 @@ func TestDnscryptStampPublished(t *testing.T) {
 // FS-DnscryptServerListens
 func TestDnscryptServerListens(t *testing.T) {
 	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	c := &Cluster{t: t, bin: bin}
 	cfg := M2NodeConfig{
-		NodeID:       "node-1",
-		DNSPort:      freeUDPPort(t),
-		APIPort:      freeTCPPort(t),
-		RaftPort:     freeTCPPort(t),
-		DNSCryptPort: freeUDPPort(t),
+		NodeID:            "node-1",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DNSCryptPort:      freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
 	}
 	cn := c.spawnNode(t, cfg)
-	setupAuth(t, cn.Node)
 	n := cn.Node
 
 	if n.DNSCryptAddr == "" {
 		t.Skip("DNSCrypt not configured on this node")
 	}
 	waitReady(t, n)
+	setupAuth(t, n)
 
 	stamp := waitForDNSCryptStamp(t, n, 45*time.Second)
 
@@ -307,22 +315,24 @@ func TestDnscryptServerListens(t *testing.T) {
 // FS-DnscryptAppliesFilter
 func TestDnscryptAppliesFilter(t *testing.T) {
 	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	c := &Cluster{t: t, bin: bin}
 	cfg := M2NodeConfig{
-		NodeID:       "node-1",
-		DNSPort:      freeUDPPort(t),
-		APIPort:      freeTCPPort(t),
-		RaftPort:     freeTCPPort(t),
-		DNSCryptPort: freeUDPPort(t),
+		NodeID:            "node-1",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DNSCryptPort:      freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
 	}
 	cn := c.spawnNode(t, cfg)
-	setupAuth(t, cn.Node)
 	n := cn.Node
 
 	if n.DNSCryptAddr == "" {
 		t.Skip("DNSCrypt not configured on this node")
 	}
 	waitReady(t, n)
+	setupAuth(t, n)
 
 	stamp := waitForDNSCryptStamp(t, n, 45*time.Second)
 
@@ -353,8 +363,8 @@ func TestDnscryptKeyReplicatedViaRaft(t *testing.T) {
 	}
 	cn1 := c.spawnNode(t, cfg1)
 	c.nodes = append(c.nodes, cn1)
-	setupAuth(t, cn1.Node)
 	waitReady(t, cn1.Node)
+	setupAuth(t, cn1.Node)
 
 	// Wait for the leader to generate the keypair, then get the stamp.
 	stamp1 := waitForDNSCryptStamp(t, cn1.Node, 45*time.Second)
@@ -375,9 +385,18 @@ func TestDnscryptKeyReplicatedViaRaft(t *testing.T) {
 	c.WaitConverged(t)
 	waitReady(t, cn2.Node)
 
-	// Both nodes must serve the same stamp (same keypair via Raft).
+	// Both nodes must publish the same keypair (replicated via Raft).
+	// Stamps legitimately differ — they embed the server's own address:port.
+	// Compare only the Ed25519 public key bytes.
 	stamp2 := waitForDNSCryptStamp(t, cn2.Node, 30*time.Second)
-	if stamp1 != stamp2 {
+	parseDNSCryptKey := func(stamp string) []byte {
+		s, err := dnsstamps.NewServerStampFromString(stamp)
+		if err != nil {
+			t.Fatalf("parse dnscrypt stamp %q: %v", stamp, err)
+		}
+		return s.ServerPk
+	}
+	if !bytes.Equal(parseDNSCryptKey(stamp1), parseDNSCryptKey(stamp2)) {
 		t.Errorf("keypair not replicated: node-1 stamp=%q node-2 stamp=%q", stamp1, stamp2)
 	}
 }
@@ -389,19 +408,21 @@ func TestDoh3IndependentEnable(t *testing.T) {
 	bin := skoedBinary(t)
 	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
 
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
 	// Node with only DoH3 (no DNSCrypt).
 	cfgDoH3Only := M2NodeConfig{
-		NodeID:   "node-doh3",
-		DNSPort:  freeUDPPort(t),
-		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
-		DoHPort:  freeTCPPort(t),
-		DoTPort:  freeTCPPort(t),
-		DoH3Port: freeUDPPort(t),
+		NodeID:            "node-doh3",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DoHPort:           freeTCPPort(t),
+		DoTPort:           freeTCPPort(t),
+		DoH3Port:          freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
 	}
 	cn := c.spawnNode(t, cfgDoH3Only)
-	setupAuth(t, cn.Node)
 	waitReady(t, cn.Node)
+	setupAuth(t, cn.Node)
 
 	if cn.Node.DoH3Addr == "" {
 		t.Skip("DoH3 not configured — skipping independence test")

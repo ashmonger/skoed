@@ -109,6 +109,10 @@ type M2NodeConfig struct {
 	// Env passes extra environment variables to the subprocess. Used by tests
 	// that need SKOED_TEST_* overrides (token TTL, aggregate flush interval).
 	Env []string
+	// UpstreamResolvers is written to the top-level dns.upstream_resolvers
+	// section (outside node:) so the DNS forwarder has a target. When empty
+	// the node has no upstream and returns SERVFAIL for forwarded queries.
+	UpstreamResolvers []string
 }
 
 // startCluster bootstraps node-1 as a single-node Raft cluster, then enrols
@@ -572,6 +576,24 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	if err != nil {
 		t.Fatalf("marshal config.yaml: %v", err)
 	}
+
+	// Append a top-level dns: section for upstream_resolvers when set.
+	// The cluster node config is parsed merged — node: + top-level config.Config
+	// fields inline — so upstream_resolvers lives outside node: at the root.
+	if len(cfg.UpstreamResolvers) > 0 {
+		type topDNS struct {
+			UpstreamResolvers []string `yaml:"upstream_resolvers"`
+		}
+		type topLevel struct {
+			DNS topDNS `yaml:"dns"`
+		}
+		extra, err := yaml.Marshal(topLevel{DNS: topDNS{UpstreamResolvers: cfg.UpstreamResolvers}})
+		if err != nil {
+			t.Fatalf("marshal dns upstream section: %v", err)
+		}
+		data = append(data, extra...)
+	}
+
 	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), data, 0600); err != nil {
 		t.Fatalf("write config.yaml: %v", err)
 	}
