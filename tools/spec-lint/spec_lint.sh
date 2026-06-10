@@ -73,9 +73,9 @@ if [ -d specs/technical ]; then
 fi
 
 if [ -d tests ]; then
-  acceptance_tests=$(find tests -type f -name "*.test.ts" 2>/dev/null || true)
+  acceptance_tests=$(find tests -type f \( -name "*.test.ts" -o -name "*_test.go" \) 2>/dev/null || true)
   if [ -z "$acceptance_tests" ]; then
-    echo "ERROR: tests exists but contains no *.test.ts acceptance tests." >&2
+    echo "ERROR: tests exists but contains no acceptance tests (*.test.ts or *_test.go)." >&2
     fail=1
   fi
 fi

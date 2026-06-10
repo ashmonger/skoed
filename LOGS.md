@@ -1,5 +1,10 @@
 # Logs
 
+## Decisions log
+
+- **2026-06-10** — M11 spec-lint updated to accept `*_test.go` acceptance tests (Go) alongside `*.test.ts` (TypeScript). The template default checks for TypeScript; this project uses Go throughout.
+- **2026-06-10** — M11 Rule 6 documentation exemption granted for `README.md` and all `docs/src/**/*.md` pages (see Exception pointers below).
+
 ## Outcomes log
 
 - **Date**: 2026-05-29
