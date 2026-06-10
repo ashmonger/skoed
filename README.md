@@ -9,8 +9,6 @@
 
 skoed is a single-binary, self-hosted DNS filter and sinkhole. It replaces Pi-Hole and AdGuard Home with native multi-node Raft clustering, encrypted DNS protocols, and a built-in web UI — all in a statically linked Go binary with no runtime dependencies.
 
-![skoed dashboard](docs/screenshots/m5.9-dashboard.png)
-
 ---
 
 ## 30-second quickstart
@@ -65,6 +63,44 @@ Open `http://localhost:8080` to complete first-run setup.
 - DHCP lease import for client identity (dnsmasq and Kea)
 - CLI: `skoed status`, `skoed token create`, `skoed domain`
 - TUI dashboard: `skoed top`
+
+---
+
+## Screenshots
+
+### Web UI
+
+<table>
+<tr>
+<td><strong>Dashboard</strong> — cluster health, query breakdown, top blocked domains</td>
+<td><strong>Blocklists</strong> — URL / adblock / hosts formats, per-list auto-refresh</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/m5.9-dashboard.png" alt="Dashboard"></td>
+<td><img src="docs/screenshots/m5.9-blocklists.png" alt="Blocklists"></td>
+</tr>
+<tr>
+<td><strong>Profiles</strong> — per-client filter sets, SafeSearch enforcement</td>
+<td><strong>Cluster</strong> — Raft leader election, node sync status, join-token flow</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/m5.9-profiles.png" alt="Profiles"></td>
+<td><img src="docs/screenshots/m5.9-cluster.png" alt="Cluster"></td>
+</tr>
+</table>
+
+### CLI and TUI
+
+<table>
+<tr>
+<td><strong><code>skoed health</code> · <code>skoed status</code> · <code>skoed token create</code></strong></td>
+<td><strong><code>skoed top</code></strong> — live TUI: nodes, DNS window, top blocked</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/m5.9.1-skoed-cli.png" alt="skoed CLI"></td>
+<td><img src="docs/screenshots/m5.9.1-skoed-top.png" alt="skoed top TUI"></td>
+</tr>
+</table>
 
 ---
 
