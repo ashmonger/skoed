@@ -111,9 +111,6 @@ docker_manifests:
       - "ghcr.io/ashmonger/skoed:latest-amd64"
       - "ghcr.io/ashmonger/skoed:latest-arm64"
 
-extra_files:
-  - glob: scripts/proxmox-create.sh
-
 checksum:
   name_template: checksums.txt
 
@@ -123,6 +120,8 @@ release:
     name: skoed
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: scripts/proxmox-create.sh
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
