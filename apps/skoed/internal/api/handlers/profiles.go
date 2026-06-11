@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/skoed/skoed/internal/config"
-	"github.com/go-chi/chi/v5"
 )
 
 // ListProfiles handles GET /api/v1/profiles.
@@ -19,7 +18,7 @@ func (h *Handler) ListProfiles(w http.ResponseWriter, r *http.Request) {
 
 // GetProfile handles GET /api/v1/profiles/{id}.
 func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	cfg := h.app.GetCfg()
 	for _, p := range cfg.Profiles {
 		if p.ID == id {
@@ -60,7 +59,7 @@ func (h *Handler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 // UpdateProfile handles PATCH /api/v1/profiles/{id}. Body is a partial
 // Profile; only present fields override.
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	var patch struct {
 		Name                *string  `json:"name"`
 		Blocklists          []string `json:"blocklists"`
@@ -125,7 +124,7 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 // DeleteProfile handles DELETE /api/v1/profiles/{id}.
 func (h *Handler) DeleteProfile(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	if id == "default" {
 		writeError(w, http.StatusConflict, "cannot delete the reserved default profile")
 		return

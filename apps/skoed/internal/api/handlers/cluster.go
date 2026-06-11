@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -554,10 +555,11 @@ func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]pe
 			continue
 		}
 		apiAddr := m.APIAddress
+		raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r := probePeer(client, apiAddr, authHeader)
+			r := probePeer(client, apiAddr, authHeader, raftHost)
 			mu.Lock()
 			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex}
 			mu.Unlock()
@@ -574,11 +576,11 @@ func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]pe
 // authHeader is forwarded so the peer's BasicAuth middleware accepts the
 // request — cluster auth state is replicated, so the admin's credentials
 // are valid on every node.
-func probePeer(client *http.Client, apiAddr, authHeader string) (out struct {
+func probePeer(client *http.Client, apiAddr, authHeader string, raftHostFallback ...string) (out struct {
 	alive       bool
 	commitIndex uint64
 }) {
-	base := apiBase(apiAddr)
+	base := apiBase(apiAddr, raftHostFallback...)
 	req, err := http.NewRequest(http.MethodGet, base+"/api/v1/cluster/self", nil)
 	if err != nil {
 		return
@@ -1022,7 +1024,8 @@ func remoteFanOut(client *http.Client, m cluster.Member, query, authHeader strin
 		entries []mergedQueryEntry
 		status  perNodeFanOut
 	}
-	base := apiBase(m.APIAddress)
+	raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
+	base := apiBase(m.APIAddress, raftHost)
 	url := base + "/api/v1/query-log"
 	if query != "" {
 		url += "?" + query
@@ -1080,8 +1083,9 @@ func remoteFanOut(client *http.Client, m cluster.Member, query, authHeader strin
 }
 
 // apiBase rewrites a "host:port" or "0.0.0.0:port" listen address into a
-// reachable HTTP base URL. Mirrors cluster.apiBaseURL (which is unexported).
-func apiBase(listenAddr string) string {
+// reachable HTTP base URL. When the listen address is bound to 0.0.0.0 or ::,
+// the first non-empty fallbackHost is used instead of 127.0.0.1.
+func apiBase(listenAddr string, fallbackHost ...string) string {
 	if strings.HasPrefix(listenAddr, "http://") || strings.HasPrefix(listenAddr, "https://") {
 		return strings.TrimRight(listenAddr, "/")
 	}
@@ -1092,6 +1096,12 @@ func apiBase(listenAddr string) string {
 	}
 	if host == "" || host == "0.0.0.0" || host == "::" {
 		host = "127.0.0.1"
+		for _, fb := range fallbackHost {
+			if fb != "" {
+				host = fb
+				break
+			}
+		}
 	}
 	if port == "" {
 		return "http://" + host

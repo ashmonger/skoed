@@ -18,11 +18,17 @@ type Category struct {
 
 // Catalog is the canonical category set. Keys match the API path component.
 var Catalog = map[string]Category{
-	"adult": {
-		Name:        "adult",
-		Description: "Adult content (OISD's curated set).",
+	"ads": {
+		Name:        "ads",
+		Description: "Ads, trackers, and telemetry (OISD small).",
 		DefaultURL:  "https://small.oisd.nl/domainswild",
 		Format:      "domainlist",
+	},
+	"adult": {
+		Name:        "adult",
+		Description: "Adult content (Steven Black porn extension).",
+		DefaultURL:  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts",
+		Format:      "hosts",
 	},
 	"gambling": {
 		Name:        "gambling",
@@ -38,7 +44,7 @@ var Catalog = map[string]Category{
 	},
 	"gaming": {
 		Name:        "gaming",
-		Description: "Online gaming services.",
+		Description: "Gambling and gaming services (blocklistproject).",
 		DefaultURL:  "https://raw.githubusercontent.com/blocklistproject/Lists/master/gambling.txt",
 		Format:      "hosts",
 	},

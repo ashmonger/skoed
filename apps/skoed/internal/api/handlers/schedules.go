@@ -4,17 +4,20 @@ import (
 	"net/http"
 
 	"github.com/skoed/skoed/internal/config"
-	"github.com/go-chi/chi/v5"
 )
 
 // ListSchedules handles GET /api/v1/schedules.
 func (h *Handler) ListSchedules(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, h.app.GetCfg().Schedules)
+	schedules := h.app.GetCfg().Schedules
+	if schedules == nil {
+		schedules = []config.Schedule{}
+	}
+	writeJSON(w, http.StatusOK, schedules)
 }
 
 // GetSchedule handles GET /api/v1/schedules/{id}.
 func (h *Handler) GetSchedule(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	for _, s := range h.app.GetCfg().Schedules {
 		if s.ID == id {
 			writeJSON(w, http.StatusOK, s)
@@ -47,7 +50,7 @@ func (h *Handler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 
 // UpdateSchedule handles PATCH /api/v1/schedules/{id}.
 func (h *Handler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	var patch struct {
 		Name    *string             `json:"name"`
 		Mode    *string             `json:"mode"`
@@ -87,7 +90,7 @@ func (h *Handler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 
 // DeleteSchedule handles DELETE /api/v1/schedules/{id}.
 func (h *Handler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	if err := h.app.GetCluster().DeleteSchedule(id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -97,7 +100,7 @@ func (h *Handler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 
 // AddScheduleBinding handles POST /api/v1/schedules/{id}/bindings.
 func (h *Handler) AddScheduleBinding(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	var body struct {
 		ProfileID   string `json:"profile_id"`
 		BlocklistID string `json:"blocklist_id"`
@@ -119,9 +122,9 @@ func (h *Handler) AddScheduleBinding(w http.ResponseWriter, r *http.Request) {
 
 // DeleteScheduleBinding handles DELETE /api/v1/schedules/{id}/bindings/{profile}/{blocklist}.
 func (h *Handler) DeleteScheduleBinding(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	profile := chi.URLParam(r, "profile")
-	blocklist := chi.URLParam(r, "blocklist")
+	id := urlParam(r, "id")
+	profile := urlParam(r, "profile")
+	blocklist := urlParam(r, "blocklist")
 	if err := h.app.GetCluster().DeleteScheduleBinding(id, profile, blocklist); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

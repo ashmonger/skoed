@@ -238,7 +238,7 @@ func (c *Cluster) CommitIndex() uint64 { return c.raft.CommitIndex() }
 // leader's NodeID from Raft and resolves its api_address from the replicated
 // members bucket.
 func (c *Cluster) LeaderAPIAddress() string {
-	_, id := c.raft.Leader()
+	raftAddr, id := c.raft.Leader()
 	if id == "" {
 		return ""
 	}
@@ -246,7 +246,8 @@ func (c *Cluster) LeaderAPIAddress() string {
 	if err != nil || m == nil {
 		return ""
 	}
-	return apiBaseURL(m.APIAddress)
+	raftHost, _, _ := net.SplitHostPort(string(raftAddr))
+	return apiBaseURL(m.APIAddress, raftHost)
 }
 
 // LeaderID returns the current leader's NodeID, or "" if unknown.
@@ -723,10 +724,11 @@ func (c *Cluster) CreateJoinToken(issuedBy string) (*TokenIssueResult, error) {
 	}, ApplyTimeout); err != nil {
 		return nil, err
 	}
+	raftHost, _, _ := net.SplitHostPort(c.node.Node.RaftAddress)
 	return &TokenIssueResult{
 		Token:         plaintext,
 		ExpiresAt:     expiresAt,
-		LeaderAddress: apiBaseURL(c.node.Node.APIAddress),
+		LeaderAddress: apiBaseURL(c.node.Node.APIAddress, raftHost),
 	}, nil
 }
 
@@ -903,9 +905,10 @@ func resolveTokenTTL() time.Duration {
 }
 
 // apiBaseURL turns a "host:port" listen address into a reachable HTTP base
-// URL. Listen addresses bound to 0.0.0.0 are rewritten to 127.0.0.1 for
-// loopback testing.
-func apiBaseURL(listenAddr string) string {
+// URL. When the listen address is bound to 0.0.0.0 or ::, the first non-empty
+// fallbackHost is used instead; if none is provided it falls back to 127.0.0.1
+// (useful for single-node / loopback testing).
+func apiBaseURL(listenAddr string, fallbackHost ...string) string {
 	host := listenAddr
 	port := ""
 	for i := len(listenAddr) - 1; i >= 0; i-- {
@@ -917,6 +920,12 @@ func apiBaseURL(listenAddr string) string {
 	}
 	if host == "" || host == "0.0.0.0" || host == "::" {
 		host = "127.0.0.1"
+		for _, fb := range fallbackHost {
+			if fb != "" {
+				host = fb
+				break
+			}
+		}
 	}
 	if port == "" {
 		return "http://" + host

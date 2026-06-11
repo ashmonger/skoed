@@ -7,7 +7,9 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/skoed/skoed/internal/auth"
 	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
@@ -87,6 +89,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // writeError writes a JSON error response.
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// urlParam returns the chi URL parameter for key, URL-decoded.
+// chi does not automatically decode path parameters, so IDs containing
+// special characters like ':' (e.g. "cat:adult" → "cat%3Aadult") would
+// not match their stored values without this decoding step.
+func urlParam(r *http.Request, key string) string {
+	v := chi.URLParam(r, key)
+	if decoded, err := url.PathUnescape(v); err == nil {
+		return decoded
+	}
+	return v
 }
 
 // decodeJSON decodes the request body into v. Returns false and writes a 400

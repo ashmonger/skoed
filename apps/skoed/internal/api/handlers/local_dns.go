@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/skoed/skoed/internal/config"
-	"github.com/go-chi/chi/v5"
 )
 
 // localDNSEntryRequest is the body accepted by POST and PUT local-dns endpoints.
@@ -113,7 +112,7 @@ func (h *Handler) CreateLocalDNSEntry(w http.ResponseWriter, r *http.Request) {
 
 // UpdateLocalDNSEntry handles PUT /api/v1/local-dns/{id}.
 func (h *Handler) UpdateLocalDNSEntry(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 
 	var req localDNSEntryRequest
 	if !decodeJSON(w, r, &req) {
@@ -178,7 +177,7 @@ func (h *Handler) UpdateLocalDNSEntry(w http.ResponseWriter, r *http.Request) {
 
 // DeleteLocalDNSEntry handles DELETE /api/v1/local-dns/{id}.
 func (h *Handler) DeleteLocalDNSEntry(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	found := false
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/filter"
-	"github.com/go-chi/chi/v5"
 )
 
 // blocklistResponse is the JSON representation of a blocklist exposed by the API.
@@ -20,7 +19,9 @@ type blocklistResponse struct {
 	LastUpdated            string                 `json:"last_updated,omitempty"`
 	Managed                bool                   `json:"managed,omitempty"`
 	// M5.4 — automated refresh state.
-	RefreshIntervalSeconds int    `json:"refresh_interval_seconds,omitempty"`
+	// Note: omitempty is intentionally absent so that 0 (disabled) is included in
+	// the response, allowing the Vue component to update its local state correctly.
+	RefreshIntervalSeconds int    `json:"refresh_interval_seconds"`
 	LastRefreshAt          string `json:"last_refresh_at,omitempty"`
 	LastRefreshStatus      string `json:"last_refresh_status,omitempty"`
 	LastRefreshError       string `json:"last_refresh_error,omitempty"`
@@ -131,7 +132,7 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 
 // GetBlocklist handles GET /api/v1/blocklists/{id}.
 func (h *Handler) GetBlocklist(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	cfg := h.app.GetCfg()
 	for _, bl := range cfg.Filtering.Blocklists {
 		if bl.ID == id {
@@ -144,14 +145,21 @@ func (h *Handler) GetBlocklist(w http.ResponseWriter, r *http.Request) {
 
 // updateBlocklistRequest is the body accepted by PATCH /api/v1/blocklists/{id}.
 type updateBlocklistRequest struct {
-	Name        *string `json:"name"`
-	Enabled     *bool   `json:"enabled"`
-	BlockPolicy *string `json:"block_policy"`
+	Name                   *string                `json:"name"`
+	Enabled                *bool                  `json:"enabled"`
+	BlockPolicy            *string                `json:"block_policy"`
+	Source                 *updateBlocklistSource `json:"source"`
+	RefreshIntervalSeconds *int                   `json:"refresh_interval_seconds"`
+}
+
+type updateBlocklistSource struct {
+	URL    string `json:"url"`
+	Format string `json:"format"`
 }
 
 // UpdateBlocklist handles PATCH /api/v1/blocklists/{id}.
 func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 
 	var req updateBlocklistRequest
 	if !decodeJSON(w, r, &req) {
@@ -172,6 +180,22 @@ func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
 				}
 				if req.BlockPolicy != nil {
 					cfg.Filtering.Blocklists[i].BlockPolicy = *req.BlockPolicy
+				}
+				if req.Source != nil && req.Source.URL != "" {
+					cfg.Filtering.Blocklists[i].Source.Type = "url"
+					cfg.Filtering.Blocklists[i].Source.URL = req.Source.URL
+					if req.Source.Format != "" {
+						cfg.Filtering.Blocklists[i].Source.Format = req.Source.Format
+					}
+					// Invalidate cached domains — they'll be repopulated on next refresh.
+					cfg.Filtering.Blocklists[i].Domains = nil
+					cfg.Filtering.Blocklists[i].LastUpdated = ""
+				}
+				if req.RefreshIntervalSeconds != nil {
+					if *req.RefreshIntervalSeconds < 0 {
+						*req.RefreshIntervalSeconds = 0
+					}
+					cfg.Filtering.Blocklists[i].RefreshIntervalSeconds = *req.RefreshIntervalSeconds
 				}
 				updated = cfg.Filtering.Blocklists[i]
 				found = true
@@ -203,7 +227,7 @@ func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
 
 // DeleteBlocklist handles DELETE /api/v1/blocklists/{id}.
 func (h *Handler) DeleteBlocklist(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	found := false
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {
@@ -243,7 +267,7 @@ func (h *Handler) DeleteBlocklist(w http.ResponseWriter, r *http.Request) {
 // RefreshBlocklist handles POST /api/v1/blocklists/{id}/refresh.
 // Only URL-type blocklists can be refreshed.
 func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := urlParam(r, "id")
 	cfg := h.app.GetCfg()
 
 	var sourceURL, sourceFormat string

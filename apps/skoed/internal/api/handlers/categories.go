@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
+	"github.com/skoed/skoed/internal/filter"
 	"github.com/skoed/skoed/internal/filter/categories"
-	"github.com/go-chi/chi/v5"
 )
 
 // categoryResponse is the JSON shape returned by GET /api/v1/categories.
@@ -33,7 +33,7 @@ func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 
 // GetCategory handles GET /api/v1/categories/{name}.
 func (h *Handler) GetCategory(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	name := urlParam(r, "name")
 	if _, ok := categories.Catalog[name]; !ok {
 		writeError(w, http.StatusNotFound, "unknown category")
 		return
@@ -68,7 +68,7 @@ func buildCategoryView(cfg *config.Config, name string) categoryResponse {
 // UpdateCategory handles PATCH /api/v1/categories/{name}. Operator overrides
 // for the catalog's default URL and parser format.
 func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	name := urlParam(r, "name")
 	if _, ok := categories.Catalog[name]; !ok {
 		writeError(w, http.StatusNotFound, "unknown category")
 		return
@@ -91,7 +91,7 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 // EnableCategory handles POST /api/v1/categories/{name}/enable.
 // Body: {profile_id}.
 func (h *Handler) EnableCategory(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	name := urlParam(r, "name")
 	cat, ok := categories.Catalog[name]
 	if !ok {
 		writeError(w, http.StatusNotFound, "unknown category")
@@ -141,6 +141,13 @@ func (h *Handler) EnableCategory(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// For URL-based categories download domains immediately so the blocklist
+		// is usable right after enablement without a separate manual refresh.
+		if src.Type == "url" && src.URL != "" {
+			if downloaded, err := filter.Download(src.URL, src.Format, 30*time.Second); err == nil {
+				domains = downloaded
+			}
+		}
 		bl := config.Blocklist{
 			ID:          blID,
 			Name:        cat.Description,
@@ -180,7 +187,7 @@ func (h *Handler) EnableCategory(w http.ResponseWriter, r *http.Request) {
 // DisableCategory handles POST /api/v1/categories/{name}/disable.
 // Body: {profile_id}.
 func (h *Handler) DisableCategory(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	name := urlParam(r, "name")
 	if _, ok := categories.Catalog[name]; !ok {
 		writeError(w, http.StatusNotFound, "unknown category")
 		return

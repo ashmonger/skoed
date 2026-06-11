@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/skoed/skoed/internal/config"
-	"github.com/go-chi/chi/v5"
 )
 
 // GetAllowlist handles GET /api/v1/allowlist.
@@ -73,7 +72,7 @@ func (h *Handler) AddAllowlistEntry(w http.ResponseWriter, r *http.Request) {
 
 // DeleteAllowlistEntry handles DELETE /api/v1/allowlist/{domain}.
 func (h *Handler) DeleteAllowlistEntry(w http.ResponseWriter, r *http.Request) {
-	domain := chi.URLParam(r, "domain")
+	domain := urlParam(r, "domain")
 	found := false
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {

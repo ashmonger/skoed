@@ -130,10 +130,12 @@ func parseDomains(raw []string, format string) []string {
 		return nil
 	}
 
-	detectedFormat := format
-	if detectedFormat == "auto" || detectedFormat == "" {
-		detectedFormat = detectFormat(raw)
-	}
+	// bl.Domains stores pre-parsed plain domain names produced by Download().
+	// Re-applying the original source format (e.g. "hosts") would fail because
+	// the stored entries no longer have the IP-address prefix. Always detect the
+	// actual content format so plain domains pass through as "domainlist",
+	// regardless of what the source format hint says.
+	detectedFormat := detectFormat(raw)
 
 	joined := strings.Join(raw, "\n")
 	r := strings.NewReader(joined)
