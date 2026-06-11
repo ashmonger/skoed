@@ -243,7 +243,7 @@ const joinPayloadText = computed(() => {
 // ─── Action gating ───────────────────────────────────────────────────────
 
 function canTransferTo(n: ClusterNode): boolean {
-  return localIsLeader.value && n.role === 'follower'
+  return n.role === 'follower'
 }
 
 function canRemove(n: ClusterNode): boolean {

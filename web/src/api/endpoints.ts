@@ -63,7 +63,15 @@ export function getBlocklist(id: string): Promise<Blocklist> {
   return getJSON(`/api/v1/blocklists/${encodeURIComponent(id)}`)
 }
 
-export function updateBlocklist(id: string, patch: Partial<Pick<Blocklist, 'name' | 'enabled' | 'block_policy'>>): Promise<Blocklist> {
+export interface BlocklistPatch {
+  name?: string
+  enabled?: boolean
+  block_policy?: string
+  refresh_interval_seconds?: number
+  source?: { url: string; format?: string }
+}
+
+export function updateBlocklist(id: string, patch: BlocklistPatch): Promise<Blocklist> {
   return patchJSON(`/api/v1/blocklists/${encodeURIComponent(id)}`, patch)
 }
 

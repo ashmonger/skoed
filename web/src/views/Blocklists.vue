@@ -66,18 +66,37 @@
               <td class="text-fg-muted text-xs">{{ formatRelative(bl.last_updated) }}</td>
               <td class="text-xs whitespace-nowrap">
                 <span v-if="bl.source.type !== 'url'" class="text-fg-subtle">—</span>
-                <span v-else-if="!bl.refresh_interval_seconds" class="text-fg-subtle">manual</span>
-                <template v-else>
-                  <span
-                    class="chip mr-1"
-                    :class="refreshChipClass(bl)"
-                    :title="bl.last_refresh_error || ''"
-                  >{{ bl.last_refresh_status || 'pending' }}</span>
-                  <span class="text-fg-muted">every {{ formatInterval(bl.refresh_interval_seconds) }}</span>
-                  <div v-if="bl.last_refresh_at" class="text-fg-subtle">
-                    last: {{ formatRelative(bl.last_refresh_at) }}
-                  </div>
-                </template>
+                <div v-else class="flex items-center gap-2">
+                  <!-- auto-refresh toggle -->
+                  <button type="button"
+                          :disabled="busyRows[bl.id]"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0"
+                          :class="bl.refresh_interval_seconds ? 'bg-success' : 'bg-bg-hover border border-border'"
+                          :title="bl.refresh_interval_seconds ? 'Disable auto-refresh' : 'Enable auto-refresh (24 h)'"
+                          @click="toggleAutoRefresh(bl)">
+                    <span class="inline-block h-4 w-4 rounded-full bg-bg-input shadow transform transition-transform"
+                          :class="bl.refresh_interval_seconds ? 'translate-x-4' : 'translate-x-1'" />
+                  </button>
+                  <!-- interval selector (visible when on) -->
+                  <template v-if="bl.refresh_interval_seconds">
+                    <select class="input !py-0 !px-1 text-xs h-6 w-20"
+                            :value="bl.refresh_interval_seconds"
+                            @change="setRefreshInterval(bl, +($event.target as HTMLSelectElement).value)">
+                      <option :value="3600">1 h</option>
+                      <option :value="21600">6 h</option>
+                      <option :value="43200">12 h</option>
+                      <option :value="86400">24 h</option>
+                      <option :value="604800">7 d</option>
+                    </select>
+                    <span v-if="bl.last_refresh_status"
+                          class="chip"
+                          :class="refreshChipClass(bl)"
+                          :title="bl.last_refresh_error || ''">
+                      {{ bl.last_refresh_status }}
+                    </span>
+                  </template>
+                  <span v-else class="text-fg-subtle">off</span>
+                </div>
               </td>
               <td class="text-right whitespace-nowrap">
                 <button v-if="bl.source.type === 'url'"
@@ -268,6 +287,9 @@ async function refresh() {
   try {
     blocklists.value = await listBlocklists()
     lastError.value = ''
+    // Clear stale row errors — on a successful list load they are no longer relevant
+    // (e.g. errors left over from a service restart or transient failure).
+    Object.keys(rowErrors).forEach(k => delete rowErrors[k])
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load blocklists')
   } finally {
@@ -287,6 +309,24 @@ async function toggleEnabled(bl: Blocklist) {
     Object.assign(bl, updated)
   } catch (err) {
     bl.enabled = prev // rollback
+    rowErrors[bl.id] = errMsg(err, 'Failed to update')
+  } finally {
+    busyRows[bl.id] = false
+  }
+}
+
+async function toggleAutoRefresh(bl: Blocklist) {
+  const next = bl.refresh_interval_seconds ? 0 : 86400
+  await setRefreshInterval(bl, next)
+}
+
+async function setRefreshInterval(bl: Blocklist, seconds: number) {
+  busyRows[bl.id] = true
+  rowErrors[bl.id] = ''
+  try {
+    const updated = await updateBlocklist(bl.id, { refresh_interval_seconds: seconds })
+    Object.assign(bl, updated)
+  } catch (err) {
     rowErrors[bl.id] = errMsg(err, 'Failed to update')
   } finally {
     busyRows[bl.id] = false
