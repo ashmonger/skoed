@@ -11,9 +11,11 @@ Feature: Config import and export
     - Upstream resolver settings
     - Trusted subnet settings
     - Log retention settings
-    - Admin credentials (hashed)
 
   What is NOT included in the export:
+    - Admin credentials — credentials are a per-node secret and must not travel
+      in a portable backup; importing a backup never modifies the current node's
+      admin login
     - Query log entries
     - Cluster enrollment state (node roles, join tokens)
     - Cached DNS responses

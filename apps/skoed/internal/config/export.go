@@ -11,12 +11,42 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// exportShape is a copy of Config with the Auth field omitted so that the
+// backup archive never contains admin credentials. Using a separate struct
+// (rather than zeroing the Auth field) ensures the field is absent from the
+// YAML output even when yaml.v3 does not honour omitempty on struct values.
+type exportShape struct {
+	Version    int             `yaml:"version"`
+	DNS        DNSConfig       `yaml:"dns"`
+	Filtering  FilteringConfig `yaml:"filtering"`
+	LocalDNS   LocalDNSConfig  `yaml:"local_dns"`
+	API        APIConfig       `yaml:"api"`
+	QueryLog   QueryLogConfig  `yaml:"query_log"`
+	Profiles   []Profile       `yaml:"profiles,omitempty"`
+	Schedules  []Schedule      `yaml:"schedules,omitempty"`
+	Bindings   []ScheduleBinding `yaml:"schedule_bindings,omitempty"`
+	Categories []CategoryOverride `yaml:"category_overrides,omitempty"`
+}
+
 // Export serialises the config to a tar.gz archive and writes it to w.
 // For URL-sourced blocklists the Domains field is cleared (they will be
 // re-downloaded on import). For inline blocklists Domains is included verbatim.
+// Admin credentials are never included — they are a per-node secret and must
+// not travel in a portable backup.
 func Export(c *Config, w io.Writer) error {
-	// Work on a shallow copy so we do not mutate the caller's config.
-	exported := *c
+	// Copy into the export shape which omits the Auth field entirely.
+	exported := exportShape{
+		Version:    c.Version,
+		DNS:        c.DNS,
+		Filtering:  c.Filtering,
+		LocalDNS:   c.LocalDNS,
+		API:        c.API,
+		QueryLog:   c.QueryLog,
+		Profiles:   c.Profiles,
+		Schedules:  c.Schedules,
+		Bindings:   c.Bindings,
+		Categories: c.Categories,
+	}
 	if len(exported.Filtering.Blocklists) > 0 {
 		lists := make([]Blocklist, len(exported.Filtering.Blocklists))
 		copy(lists, exported.Filtering.Blocklists)

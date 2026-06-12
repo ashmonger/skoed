@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -187,6 +188,52 @@ func (c *Cluster) Close() error {
 		_ = c.raft.Shutdown()
 	}
 	return c.store.Close()
+}
+
+// ResetRaftForJoin shuts down the current Raft node, removes all on-disk Raft
+// state (log store, stable store, snapshots), and restarts Raft with
+// Bootstrap=false so the node can join an existing cluster from a clean slate.
+//
+// This is a destructive operation: the node's own Raft history is wiped.
+// Call this BEFORE calling the leader's join API so the fresh Raft is ready
+// to receive AppendEntries when the leader's AddVoter completes.
+func (c *Cluster) ResetRaftForJoin() error {
+	if err := c.raft.Shutdown(); err != nil {
+		return fmt.Errorf("shutdown raft: %w", err)
+	}
+	dataDir := c.node.Node.DataDir
+
+	// Remove the Raft bolt stores.
+	for _, rel := range []string{raftLogPath, raftStablePath} {
+		p := filepath.Join(dataDir, rel)
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove %s: %w", rel, err)
+		}
+	}
+	// Remove the snapshot directory so the new Raft starts without any
+	// prior snapshot that could confuse cluster membership.
+	snapDir := filepath.Join(dataDir, raftSnapshotsDir)
+	if err := os.RemoveAll(snapDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove snapshots: %w", err)
+	}
+
+	// Rebuild a fresh Raft node with Bootstrap=false.
+	f := newFSM(c.store, func() {
+		c.applyCounter.Add(1)
+		c.fireSubscribers()
+	})
+	rn, err := newRaftNode(raftOptions{
+		NodeID:        c.node.Node.ID,
+		BindAddr:      c.node.Node.RaftAddress,
+		AdvertiseAddr: c.node.Node.RaftAddress,
+		DataDir:       dataDir,
+		Bootstrap:     false,
+	}, f)
+	if err != nil {
+		return fmt.Errorf("restart raft: %w", err)
+	}
+	c.raft = rn
+	return nil
 }
 
 // Subscribe registers fn to be called after every committed FSM apply on this

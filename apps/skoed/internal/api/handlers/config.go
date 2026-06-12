@@ -42,10 +42,13 @@ func (h *Handler) ImportConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply the new config atomically, preserving node-local settings that
-	// must not be overwritten by an imported archive (listen ports, API port).
+	// must not be overwritten by an imported archive (listen ports, API port,
+	// and admin credentials — credentials are a per-node secret; importing a
+	// backup must never lock the current admin out of the node).
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {
 		newCfg.DNS.Listen = cfg.DNS.Listen
 		newCfg.API.Port = cfg.API.Port
+		newCfg.Auth = cfg.Auth
 		*cfg = *newCfg
 		return nil
 	}); err != nil {
@@ -68,10 +71,6 @@ func (h *Handler) ImportConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sync query log retention limit.
-	// Note: the auth store cannot be hot-swapped without the plaintext password;
-	// the imported credentials are persisted to disk and will take effect on the
-	// next server restart.
 	h.app.GetQueryLog().SetMaxEntries(newCfg.QueryLog.MaxEntries)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "imported"})

@@ -128,6 +128,36 @@
       </div>
     </div>
 
+    <!-- ─── Join an existing cluster (single-node only) ─────────────────── -->
+    <div v-if="health?.mode === 'single-node'" class="card p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-fg-strong">Join an existing cluster</h2>
+      </div>
+      <p class="text-sm text-fg-muted">
+        Paste the join payload from the leader's Cluster page, then click
+        <strong>Join</strong>. The join payload contains the token, leader address,
+        and expiry — copy it in one click on the leader.
+      </p>
+
+      <p v-if="joinClusterError" class="text-sm text-danger">{{ joinClusterError }}</p>
+      <p v-if="joinClusterSuccess" class="text-sm text-success">
+        Joined cluster {{ joinClusterSuccess }}. This page will refresh shortly.
+      </p>
+
+      <textarea
+        v-model="joinPayloadInput"
+        rows="5"
+        class="input font-mono text-xs"
+        placeholder="token: xxxxxxxx&#10;leader_address: http://192.168.1.10:8080&#10;expires_at: 2026-01-01T00:00:00Z"
+        :disabled="joining" />
+
+      <div class="flex justify-end">
+        <button class="btn-primary" :disabled="joining || !joinPayloadInput.trim()" @click="doJoin">
+          {{ joining ? 'Joining…' : 'Join' }}
+        </button>
+      </div>
+    </div>
+
     <!-- ─── Transfer leadership modal ───────────────────────────────────── -->
     <div v-if="pendingTransfer"
          class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -186,7 +216,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import {
   clusterHealth, clusterStatus, createJoinToken,
-  removeNode, transferLeadership,
+  nodeSelfJoin, removeNode, transferLeadership,
 } from '@/api/endpoints'
 import type {
   ClusterHealth, ClusterNode, ClusterStatus, JoinTokenResponse,
@@ -218,6 +248,12 @@ const pendingTransfer = ref<ClusterNode | null>(null)
 const pendingRemove = ref<ClusterNode | null>(null)
 const actionBusy = ref(false)
 const actionError = ref('')
+
+// ─── Follower join ────────────────────────────────────────────────────────────
+const joinPayloadInput = ref('')
+const joining = ref(false)
+const joinClusterError = ref('')
+const joinClusterSuccess = ref('')
 
 // ─── Derived ─────────────────────────────────────────────────────────────
 
@@ -300,6 +336,45 @@ async function copyJoinPayload() {
 
 async function copyText(text: string) {
   try { await navigator.clipboard.writeText(text) } catch { /* ignore */ }
+}
+
+// ─── Follower join ────────────────────────────────────────────────────────
+
+// Parse a plain-text join payload of the form:
+//   token: <value>
+//   leader_address: <value>
+//   expires_at: <value>
+function parseJoinPayload(raw: string): { token: string; leader_address: string } | null {
+  const get = (key: string) => {
+    const m = raw.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))
+    return m ? m[1].trim() : ''
+  }
+  const token = get('token')
+  const leader_address = get('leader_address')
+  if (!token || !leader_address) return null
+  return { token, leader_address }
+}
+
+async function doJoin() {
+  joinClusterError.value = ''
+  joinClusterSuccess.value = ''
+  const parsed = parseJoinPayload(joinPayloadInput.value)
+  if (!parsed) {
+    joinClusterError.value = 'Invalid payload — expected lines: token, leader_address, expires_at'
+    return
+  }
+  joining.value = true
+  try {
+    const result = await nodeSelfJoin(parsed.token, parsed.leader_address)
+    joinClusterSuccess.value = result.cluster_id || 'ok'
+    joinPayloadInput.value = ''
+    // Refresh cluster state after a short delay to let Raft converge.
+    window.setTimeout(refresh, 3000)
+  } catch (err) {
+    joinClusterError.value = errMsg(err, 'Failed to join cluster')
+  } finally {
+    joining.value = false
+  }
 }
 
 // ─── Modals ──────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 // FSIDs covered:
 //   FS-ConfigExport, FS-ConfigImportOnFreshNode, FS-ConfigImportAtomic,
 //   FS-ConfigImportOverwritesExisting, FS-ConfigExportImportRoundTrip
+//   FS-ConfigBackupWebUiDownload, FS-ConfigBackupWebUiImport, FS-ConfigBackupWebUiRoundTrip
 
 package acceptance
 
@@ -13,6 +14,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/miekg/dns"
@@ -256,4 +258,99 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 
 	// Node B must resolve the local entry.
 	assertAnswerA(t, dnsQuery(t, nodeB.DNSAddr, "nas.home", dns.TypeA), "192.168.1.50")
+}
+
+// ── FS-ConfigBackupWebUiDownload ──────────────────────────────────────────────
+
+// FS-ConfigBackupWebUiDownload
+// The exported archive must not contain admin credentials (password_hash field).
+func TestConfigExportDoesNotIncludeCredentials(t *testing.T) {
+	t.Parallel()
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
+	n := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+	})
+
+	archive := exportConfig(t, n)
+
+	// Extract the YAML from the archive and verify no password_hash field.
+	gr, err := gzip.NewReader(bytes.NewReader(archive))
+	if err != nil {
+		t.Fatalf("open gzip: %v", err)
+	}
+	defer gr.Close()
+	tr := tar.NewReader(gr)
+	for {
+		_, err := tr.Next()
+		if err != nil {
+			break
+		}
+		data, _ := io.ReadAll(tr)
+		if strings.Contains(string(data), "password_hash") {
+			t.Fatal("exported archive contains password_hash — credentials must not be exported")
+		}
+	}
+}
+
+// ── FS-ConfigBackupWebUiImport ────────────────────────────────────────────────
+
+// FS-ConfigBackupWebUiImport
+// Importing a backup must not change the current node's admin credentials.
+// After import the original username/password must still authenticate.
+func TestConfigImportPreservesCredentials(t *testing.T) {
+	t.Parallel()
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
+
+	// nodeA: source of the backup.
+	nodeA := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+	})
+	addInlineBlocklist(t, nodeA, "from-a", []string{"from-a.example.com"}, "")
+	archive := exportConfig(t, nodeA)
+
+	// nodeB: import the backup. Its credentials are defaultUsername/defaultPassword.
+	nodeB := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+	})
+
+	importConfig(t, nodeB, archive)
+
+	// Verify nodeB still accepts the original credentials after import.
+	resp := nodeB.apiDo(t, "GET", "/api/v1/cluster/health", "")
+	assertStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}
+
+// ── FS-ConfigBackupWebUiRoundTrip ─────────────────────────────────────────────
+
+// FS-ConfigBackupWebUiRoundTrip
+// Config round-trips through the UI export→import flow preserving DNS behavior.
+// This is an alias for FS-ConfigExportImportRoundTrip tested from the Settings
+// page perspective; the same API is used so we verify the behaviour is intact.
+func TestConfigBackupWebUiRoundTrip(t *testing.T) {
+	t.Parallel()
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
+
+	nodeA := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+		BlockPolicy:       "nxdomain",
+	})
+	addInlineBlocklist(t, nodeA, "backup-list", []string{"backup-blocked.example.com"}, "")
+	addLocalDNSEntry(t, nodeA, "my-server.home", "10.0.0.1")
+
+	archive := exportConfig(t, nodeA)
+
+	nodeB := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+		BlockPolicy:       "nxdomain",
+	})
+	importConfig(t, nodeB, archive)
+
+	assertRcode(t, dnsQuery(t, nodeB.DNSAddr, "backup-blocked.example.com", dns.TypeA), dns.RcodeNameError)
+	assertAnswerA(t, dnsQuery(t, nodeB.DNSAddr, "my-server.home", dns.TypeA), "10.0.0.1")
 }

@@ -165,6 +165,10 @@ export function removeNode(node_id: string): Promise<void> {
   return deleteRequest(`/api/v1/cluster/nodes/${encodeURIComponent(node_id)}`)
 }
 
+export function nodeSelfJoin(token: string, leader_address: string): Promise<{ cluster_id: string }> {
+  return postJSON('/api/v1/node/join-cluster', { token, leader_address })
+}
+
 // ─── M3 — Profiles ───────────────────────────────────────────────────────
 
 export function listProfiles(): Promise<Profile[]> {
