@@ -554,6 +554,10 @@ func (a *App) Router() http.Handler {
 	// handles that transparently.
 	r.Post("/api/v1/cluster/join", a.forward(h.ClusterJoin))
 
+	// Follower-initiated self-join: the new node calls its own API with the
+	// join payload (token + leader_address); the handler calls the leader.
+	r.Post("/api/v1/node/join-cluster", h.NodeJoinCluster)
+
 	// M5.3 — pre-Raft mTLS bootstrap. The joining node fetches the cluster
 	// CA + a freshly-signed leaf BEFORE it starts its own Raft transport,
 	// so the subsequent join's AddVoter can reach a TLS-listening peer.

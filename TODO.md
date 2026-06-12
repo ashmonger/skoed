@@ -14,11 +14,37 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-None — all milestones complete.
+**M12 — Cluster Join via Web UI + Config Backup/Restore** — branch `feature/cluster-join-config-backup-ui`
+
+Current phase: **Demo & user validation** (implementation complete, pending merge).
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
 - [x] M10 — Active-Active Cluster — merged to master — 2026-06-09
+- [x] M11 — Distribution & Documentation — merged to master — 2026-06-10
+
+## M12 tasks
+
+- [x] M12 — functional spec: `specs/functional/cluster-join-webui.feature` (5 FSIDs) — 2026-06-12
+- [x] M12 — UoR validated functional spec — 2026-06-12
+- [x] M12 — functional spec: `specs/functional/config-backup-webui.feature` (3 FSIDs) — 2026-06-12
+- [x] M12 — UoR validated functional spec — 2026-06-12
+- [x] M12 — technical spec: `POST /api/v1/node/join-cluster` added to `specs/technical/management-api.openapi.yaml` (TS-ClusterJoinWebUi) — 2026-06-12
+- [x] M12 — technical spec: export/import endpoints updated with FS-ConfigBackupWebUi* links — 2026-06-12
+- [x] M12 — acceptance tests: `tests/acceptance/cluster_join_webui_test.go` (5 tests) — 2026-06-12
+- [x] M12 — acceptance tests: `tests/acceptance/config_test.go` extended (3 tests) — 2026-06-12
+- [x] M12 — all 8 acceptance tests green — 2026-06-12
+- [x] M12 — implementation: `POST /api/v1/node/join-cluster` handler, `Cluster.ResetRaftForJoin()` — 2026-06-12
+- [x] M12 — implementation: `exportShape` struct (credentials stripped from backup) — 2026-06-12
+- [x] M12 — implementation: `Cluster.vue` join panel (single-node mode only) — 2026-06-12
+- [x] M12 — implementation: `Settings.vue` config backup section — 2026-06-12
+- [x] M12 — committed: `99ed32a` on `feature/cluster-join-config-backup-ui` — 2026-06-12
+- [x] M12 — refactoring phase — implementation is clean, no behavior changes needed — 2026-06-12
+- [x] M12 — all 8 acceptance tests green in Docker — 2026-06-12
+- [x] M12 — demo note: `demos/m12/DEMO_NOTE.md` — 2026-06-12
+- [ ] M12 — CI green (branch must be `skoed-*` or PR opened for CI to trigger)
+- [ ] M12 — UoR demo validation
+- [ ] M12 — merge to master
 
 ## Current tasks
 

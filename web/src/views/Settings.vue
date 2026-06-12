@@ -242,18 +242,88 @@
           </router-link>
         </div>
       </section>
+
+      <!-- ─── Configuration backup ──────────────────────────────────────── -->
+      <section class="card p-5 space-y-4">
+        <header class="flex items-center gap-2">
+          <ArchiveBoxIcon class="h-5 w-5 text-accent" />
+          <h2 class="text-base font-semibold text-fg-strong">Configuration backup</h2>
+        </header>
+
+        <p class="text-sm text-fg-muted">
+          Download the full configuration as a portable archive, or restore a previously
+          downloaded backup. Admin credentials are <strong>not</strong> included in the
+          backup and are never changed by a restore.
+        </p>
+
+        <!-- Download -->
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+          <a :href="exportHref" download="skoed-config.tar.gz" class="btn-secondary">
+            Download backup
+          </a>
+          <span class="text-xs text-fg-muted">
+            Downloads <code class="font-mono">skoed-config.tar.gz</code>
+          </span>
+        </div>
+
+        <!-- Restore -->
+        <div class="border-t border-border pt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-fg-strong">Restore backup</h3>
+
+          <p v-if="backupError" class="text-sm text-danger">{{ backupError }}</p>
+          <p v-if="backupSuccess" class="text-sm text-success">{{ backupSuccess }}</p>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="btn-secondary cursor-pointer">
+              <input type="file" accept=".tar.gz,.tgz" class="sr-only"
+                     :disabled="restoring"
+                     @change="onBackupFileSelected" />
+              {{ selectedFile ? selectedFile.name : 'Choose archive…' }}
+            </label>
+            <button class="btn-danger"
+                    :disabled="!selectedFile || restoring"
+                    @click="restoreConfirm = true">
+              {{ restoring ? 'Restoring…' : 'Restore' }}
+            </button>
+          </div>
+        </div>
+      </section>
     </template>
+  </div>
+
+  <!-- ─── Restore confirmation modal ──────────────────────────────────────── -->
+  <div v-if="restoreConfirm"
+       class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+       @click.self="restoreConfirm = false">
+    <div class="card max-w-lg w-full p-6 space-y-4">
+      <h2 class="text-base font-semibold text-fg-strong">Restore configuration?</h2>
+      <p class="text-sm text-fg">
+        This will replace the current configuration with the contents of
+        <span class="font-mono text-xs text-fg-strong">{{ selectedFile?.name }}</span>.
+        <span class="text-fg-muted">Your admin credentials will not be changed.</span>
+      </p>
+      <p v-if="backupError" class="text-sm text-danger">{{ backupError }}</p>
+      <div class="flex justify-end gap-2">
+        <button class="btn-secondary" :disabled="restoring" @click="restoreConfirm = false">
+          Cancel
+        </button>
+        <button class="btn-danger" :disabled="restoring" @click="doRestore">
+          {{ restoring ? 'Restoring…' : 'Yes, restore' }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import {
-  ClipboardDocumentListIcon, DocumentTextIcon, GlobeAltIcon, ShieldCheckIcon,
+  ArchiveBoxIcon, ClipboardDocumentListIcon, DocumentTextIcon, GlobeAltIcon, ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
 } from '@/api/endpoints'
+import { getCreds } from '@/api/client'
 import type { DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -439,6 +509,49 @@ async function saveQueryLog() {
     queryLogError.value = errMsg(err, 'Failed to save query log settings')
   } finally {
     queryLogSaving.value = false
+  }
+}
+
+// ─── Configuration backup ──────────────────────────────────────────────────
+
+const exportHref = '/api/v1/config/export'
+
+const selectedFile = ref<File | null>(null)
+const restoring = ref(false)
+const restoreConfirm = ref(false)
+const backupError = ref('')
+const backupSuccess = ref('')
+
+function onBackupFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  selectedFile.value = input.files?.[0] ?? null
+  backupError.value = ''
+  backupSuccess.value = ''
+}
+
+async function doRestore() {
+  if (!selectedFile.value) return
+  backupError.value = ''
+  backupSuccess.value = ''
+  restoring.value = true
+  restoreConfirm.value = false
+  try {
+    const creds = getCreds()
+    const headers: Record<string, string> = {}
+    if (creds) headers.Authorization = 'Basic ' + btoa(`${creds.user}:${creds.pass}`)
+    const form = new FormData()
+    form.append('archive', selectedFile.value, selectedFile.value.name)
+    const resp = await fetch('/api/v1/config/import', { method: 'POST', headers, body: form })
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}))
+      throw new Error(body.error || `HTTP ${resp.status}`)
+    }
+    backupSuccess.value = 'Configuration restored. Refresh the page to see the updated settings.'
+    selectedFile.value = null
+  } catch (err) {
+    backupError.value = errMsg(err, 'Restore failed')
+  } finally {
+    restoring.value = false
   }
 }
 

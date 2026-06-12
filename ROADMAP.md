@@ -799,6 +799,33 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 
 ---
 
+### Milestone 12 — Cluster Join via Web UI + Config Backup/Restore
+
+**Outcome**: An operator can expand a single-node installation into a multi-node cluster entirely from the browser — no SSH, no CLI — and can download or upload the full configuration from the Settings page for safe migration and disaster recovery.
+
+**Capabilities:**
+
+*Cluster join (web UI):*
+- Leader's Cluster page shows a "Generate join token" button; clicking it calls `POST /api/v1/cluster/tokens` and displays the resulting payload block (token + leader_address + expires_at) ready to copy
+- Follower's Cluster page (when in `single-node` mode) shows a "Join an existing cluster" panel; operator pastes the payload and clicks Join
+- New follower-side endpoint `POST /api/v1/node/join-cluster`: validates the pasted payload, resets local Raft state (`ResetRaftForJoin`), then calls the leader's `POST /api/v1/cluster/join`; returns 409 if the node is already a cluster member; forwards the leader's 403 if the token has been consumed
+- Join panel auto-hides once the node's cluster health endpoint reports `mode: cluster`
+
+*Config backup/restore (Settings page):*
+- "Configuration backup" section with a "Download backup" link that calls `GET /api/v1/config/export` — produces a tar.gz archive with `config.yaml` stripped of admin credentials
+- File picker + "Restore" button that `POST /api/v1/config/import` with the archive; guarded by a confirmation modal
+- Export explicitly excludes `password_hash` and `auth.*` fields — credentials are a per-node secret that must not travel in portable backups; import preserves the current node's credentials unchanged
+
+**Non-goals:**
+- Cluster leave / node removal via UI (use API directly)
+- Scheduled or automatic backups (manual download only)
+- Backup encryption (operator is responsible for storage security)
+- Merge / diff between two backup archives
+
+**Dependencies:** M10 (active-active cluster, `cluster/tokens` endpoint, `cluster/join` endpoint already exist).
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.
