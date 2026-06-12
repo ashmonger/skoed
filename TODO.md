@@ -12,9 +12,10 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 - [x] ROADMAP.md validated by UoR
 - [ ] IMPLEMENTATION_PLAN.md created
 
-## Active feature
+## Active features
 
-None — all milestones complete.
+**M13 — Temporary Filtering Pause** — branch `feature/m13-filtering-pause`
+**M14 — Block Dynamic-Lease Clients** — branch `feature/m14-block-dynamic-clients`
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
@@ -86,51 +87,36 @@ None — all milestones complete.
 
 None.
 
-## Backlog (post-M4)
+## M13 tasks
 
-### Active
+- [x] M13 — ROADMAP.md entry — 2026-06-12
+- [ ] M13 — functional spec: `specs/functional/filtering-pause.feature`
+- [ ] M13 — UoR validated functional spec
+- [ ] M13 — technical spec: pause endpoints in `specs/technical/management-api.openapi.yaml`
+- [ ] M13 — acceptance tests: `tests/acceptance/filtering_pause_test.go`
+- [ ] M13 — implementation: pause state in config, filter engine short-circuit, API handlers, Dashboard UI
+- [ ] M13 — refactoring phase
+- [ ] M13 — demo note: `demos/m13/DEMO_NOTE.md`
+- [ ] M13 — UoR demo validation
+- [ ] M13 — merge to master
 
-- "Block dynamic-lease clients" category (M3.7 candidate). Requires
-  per-connector knowledge of static-vs-dynamic origin. dnsmasq lease
-  file alone doesn't surface this — would need a separate `dhcp-host=`
-  config parser, OR a skoed-owned static-pin list (duplicates state),
-  OR a "known vs unknown" approximation. Defer until after M3.6 ships
-  the export endpoint, which closes most of the bootstrapping pain
-  this category was supposed to address. — added 2026-06-05.
+## M14 tasks
 
-- **Temporary "filtering pause" / break-glass mode** — M3.x or M6.x
-  candidate. — added 2026-06-08.
-  - Scope: cluster-wide, per-profile, or per-group.
-  - Duration: 1m / 5m / 30m / 1h / custom, with a hard ceiling (e.g. 24h).
-  - During the window: all DNS queries forwarded as if no blocklist
-    / no profile rules matched. Local DNS entries + DNSSEC posture
-    unchanged.
-  - Surfaced on the Dashboard with a countdown chip + "Resume
-    filtering" button; auto-resumes when the timer expires.
-  - Replicated through Raft so every node honours the same window
-    (no split-brain where one node still blocks).
-  - Audited (M5.2): action = `filter.pause`, target = `cluster` |
-    `profile:<id>`, diff carries the duration + reason text.
-  - CLI: `skoed filter pause [--profile <id>] [--duration 30m]` +
-    `skoed filter resume`.
-  - Prometheus: `skoed_filter_pause_active{scope="…"} 1` + a
-    seconds-remaining gauge.
-  - Non-goal: scheduled recurring pauses (that's already M3 schedules).
-  - Implementation cost is mostly UI + a few lines in the filter
-    engine to short-circuit when pause.active; the Raft + audit +
-    metrics hooks are reuse.
+- [x] M14 — ROADMAP.md entry — 2026-06-12
+- [x] M14 — functional spec: `specs/functional/profile-block-dynamic-clients.feature` (10 FSIDs) — pre-existing
+- [x] M14 — acceptance tests: `tests/acceptance/profile_block_dynamic_test.go` (10 tests, skip-stubbed) — pre-existing
+- [ ] M14 — implementation: un-501 the profile field + filter engine wiring
+- [ ] M14 — all 10 acceptance tests green (remove skip stubs)
+- [ ] M14 — refactoring phase
+- [ ] M14 — demo note: `demos/m14/DEMO_NOTE.md`
+- [ ] M14 — UoR demo validation
+- [ ] M14 — merge to master
 
-### Packaging + deployment
+## Backlog
 
-- **Proxmox deploy script for LXC containers.** Single-command bootstrap
-  inside a Proxmox host (`pveam`, `pct create`, …) — installs skoed,
-  writes a sane config, hands the operator a working node URL. Target
-  the homelab Proxmox use case where the cluster topology fits in one
-  hypervisor. — added 2026-06-05.
-- **Debian packages (.deb).** Apt-installable build for amd64/arm64
-  Debian / Ubuntu / Raspberry Pi OS. systemd unit, default config in
-  `/etc/skoed/`, `skoed` user, `apt upgrade` path. Pairs with
-  the M5 in-place upgrade work. — added 2026-06-05.
+### Packaging + deployment (both shipped in M11 — strike)
+- ~~Proxmox LXC script~~ — shipped in M11 (`scripts/proxmox-cluster.sh`)
+- ~~Debian .deb packages~~ — shipped in M11 (goreleaser nfpm + `packaging/`)
 
 ### Strategic
 

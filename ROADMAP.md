@@ -826,6 +826,51 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 
 ---
 
+### Milestone 13 — Temporary Filtering Pause (Break-Glass Mode)
+
+**Outcome**: An operator can suspend all DNS filtering for a configurable window without touching config — useful for debugging, guest access, or a parent granting a temporary exception. Filtering resumes automatically when the timer expires.
+
+**Capabilities:**
+- `POST /api/v1/filter/pause` — body `{duration_seconds: N, reason?: string}` where N ≤ 86400 (24 h ceiling). Returns `{active: true, resumes_at: <ISO-8601>, reason}`. Cluster-wide: replicated through Raft so every node honours the same window simultaneously.
+- `DELETE /api/v1/filter/pause` — cancels an active pause early.
+- `GET /api/v1/filter/pause` — returns current pause state `{active, resumes_at?, reason?}`.
+- Filter engine short-circuits on every DNS query when a pause is active: blocklist + profile rules are skipped; local DNS entries and DNSSEC posture are unchanged. Query log entries during the window carry `outcome: forwarded` and `pause_active: true`.
+- Dashboard: countdown chip showing "Filtering paused — resumes in X:XX" + "Resume now" button. Chip disappears when the pause expires or is cancelled.
+- Pause state survives a node restart (stored in bbolt, replicated via Raft). Auto-expires correctly even across restarts.
+- Settings: configurable hard ceiling `filtering.pause_max_seconds` (default 86400). Operator can set it to 0 to disable the feature entirely.
+
+**Non-goals:**
+- Per-profile or per-group scope (cluster-wide only; combine with profile rules for finer control)
+- Scheduled recurring pauses (that is already M3 schedule-rules)
+- Notifications / push alerts when pause starts or expires
+
+**Dependencies:** M3 (filter engine + profiles). M5.2 audit log wires `action: filter.pause` / `filter.resume` automatically — implement if audit log is present, skip gracefully if not.
+
+---
+
+### Milestone 14 — Block Dynamic-Lease Clients (Profile Rule Completion)
+
+**Outcome**: An operator can create an "untrusted" profile that automatically catches any device receiving a DHCP dynamic lease — guest phones, unregistered IoT gadgets — without listing every device individually.
+
+**Capabilities:**
+- `block_dynamic_clients: true` field on any non-default profile: when set, the profile matches every DNS client whose lease `origin` is `"dhcp_dynamic"` (in addition to any explicit `client_ips` / `client_macs` / `client_cidrs` — OR semantics).
+- Only `"dhcp_dynamic"` origin triggers the rule. `"dhcp_static"`, `"router_advertised"`, `"manual_admin"`, empty/unknown origins are not matched (conservative default).
+- `block_dynamic_clients: true` is rejected on the `default` profile (400) — operator must create a dedicated profile.
+- Client-ID / MAC / hostname / IP match tiers still outrank `block_dynamic_clients` when a higher-priority profile also matches.
+- `GET /api/v1/clients/{ip}` — `profile_ids` list includes the dynamic-matched profile when applicable; `origin` field reflects the lease origin.
+- Replicates cluster-wide via Raft (profile field is already in the replicated config).
+
+**Non-goals:**
+- Auto-creating an "untrusted" profile on first boot
+- Per-blocklist application (all profile blocklists apply uniformly)
+- `block_static_clients` inverse rule
+- DHCPv6 DUID as a matcher (observational only at this milestone)
+- Time-bounded variants (use schedule-rules)
+
+**Dependencies:** M3.6 DHCP connectors (lease `Origin` field) — already shipped. Functional spec and acceptance tests already written; this milestone completes the implementation.
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.
