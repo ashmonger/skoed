@@ -14,14 +14,13 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active feature
 
-**M12 — Cluster Join via Web UI + Config Backup/Restore** — branch `feature/cluster-join-config-backup-ui`
-
-Current phase: **Demo & user validation** (implementation complete, pending merge).
+None — all milestones complete.
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
 - [x] M10 — Active-Active Cluster — merged to master — 2026-06-09
 - [x] M11 — Distribution & Documentation — merged to master — 2026-06-10
+- [x] M12 — Cluster Join via Web UI + Config Backup/Restore — merged to master — 2026-06-12
 
 ## M12 tasks
 
@@ -42,9 +41,9 @@ Current phase: **Demo & user validation** (implementation complete, pending merg
 - [x] M12 — refactoring phase — implementation is clean, no behavior changes needed — 2026-06-12
 - [x] M12 — all 8 acceptance tests green in Docker — 2026-06-12
 - [x] M12 — demo note: `demos/m12/DEMO_NOTE.md` — 2026-06-12
-- [ ] M12 — CI green (branch must be `skoed-*` or PR opened for CI to trigger)
-- [ ] M12 — UoR demo validation
-- [ ] M12 — merge to master
+- [x] M12 — CI green — runs on master push — 2026-06-12
+- [x] M12 — UoR demo validation — confirmed on Proxmox cluster — 2026-06-12
+- [x] M12 — merged to master at 87bb02a — 2026-06-12
 
 ## Current tasks
 
