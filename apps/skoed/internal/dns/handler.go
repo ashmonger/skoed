@@ -113,12 +113,12 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// network-wide DNS filtering is in effect.
 	if name == categories.FirefoxCanary {
 		_ = w.WriteMsg(nxdomain(r))
-		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "doh-canary", "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "doh-canary", "", false)
 		return
 	}
 	if name == categories.DDRProbeDomain {
 		_ = w.WriteMsg(noData(r))
-		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "ddr-probe", "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), "", "ddr-probe", "", false)
 		return
 	}
 
@@ -168,7 +168,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if result.BlocklistID == categories.BlocklistID("doh") {
 			cat = "doh-probe"
 		}
-		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), result.BlocklistID, cat, "")
+		h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeBlocked), result.BlocklistID, cat, "", false)
 		return
 	}
 
@@ -206,7 +206,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	resolved.SetReply(r)
 	resolved.Rcode = rcode
 	_ = w.WriteMsg(resolved)
-	h.logEntry(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeForwarded), "")
+	h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeForwarded), "", "", "", result.PauseActive)
 }
 
 // resolveClient returns the client's string IP and parsed net.IP. When
@@ -321,13 +321,14 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 
 // logEntry appends an entry to the query log if one is configured.
 func (h *Handler) logEntry(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID string) {
-	h.logCategorised(clientIP, domain, qtype, outcome, blocklistID, "", "")
+	h.logCategorised(clientIP, domain, qtype, outcome, blocklistID, "", "", false)
 }
 
 // logCategorised is the M3 form that also carries a category tag (e.g.
 // "doh-probe") and a profile id (best-effort). M3.6 adds optional
 // hostname / MAC / Client-ID enrichment from the DHCP lease cache.
-func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID, category, profileID string) {
+// M13 adds pauseActive to mark queries forwarded during a filtering pause.
+func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Outcome, blocklistID, category, profileID string, pauseActive bool) {
 	if h.ql == nil {
 		return
 	}
@@ -340,6 +341,7 @@ func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Ou
 		BlocklistID: blocklistID,
 		Category:    category,
 		ProfileID:   profileID,
+		PauseActive: pauseActive,
 	}
 	if h.dhcpFn != nil {
 		if host, mac, cid, ok := h.dhcpFn(clientIP); ok {

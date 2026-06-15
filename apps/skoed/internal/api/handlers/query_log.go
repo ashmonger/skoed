@@ -19,6 +19,7 @@ type queryLogEntry struct {
 	ClientHostname string    `json:"client_hostname,omitempty"`
 	ClientMAC      string    `json:"client_mac,omitempty"`
 	ClientID       string    `json:"client_id,omitempty"`
+	PauseActive    bool      `json:"pause_active,omitempty"`
 }
 
 type queryLogResponse struct {
@@ -64,6 +65,7 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 			ClientHostname: e.ClientHostname,
 			ClientMAC:      e.ClientMAC,
 			ClientID:       e.ClientID,
+			PauseActive:    e.PauseActive,
 		}
 	}
 

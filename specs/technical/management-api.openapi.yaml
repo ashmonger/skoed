@@ -104,6 +104,32 @@ components:
 
   schemas:
 
+    FilterPauseRequest:
+      type: object
+      required: [duration_seconds]
+      properties:
+        duration_seconds:
+          type: integer
+          minimum: 1
+          description: How long to pause filtering. Must not exceed filtering.pause_max_seconds.
+        reason:
+          type: string
+          description: Optional operator note stored with the pause state.
+
+    FilterPauseState:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+        resumes_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when the pause will expire. Present only when active=true.
+        reason:
+          type: string
+          description: Reason string provided when the pause was created. Present only when active=true.
+
     BlocklistSource:
       type: object
       required: [type]
@@ -1350,6 +1376,147 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ClusterQueryLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Filtering Pause ──────────────────────────────────────────────────────────
+
+  /api/v1/filter/pause:
+    get:
+      summary: Get global filtering pause state
+      operationId: getFilterPause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseGlobalSuspendsAllProfiles, FS-FilterPauseGlobalExpiresAutomatically, FS-FilterPauseGlobalCancelledEarly, FS-FilterPauseGlobalSurvivesRestart, FS-FilterPauseQueryLogMarkedDuringGlobalPause]
+      responses:
+        "200":
+          description: Current global pause state (active or inactive)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterPauseState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Activate a global filtering pause
+      operationId: createFilterPause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseGlobalSuspendsAllProfiles, FS-FilterPauseGlobalEnforcedCeiling, FS-FilterPauseGlobalIdempotentWhileActive, FS-FilterPauseCeilingEnforced, FS-FilterPauseFeatureDisabledWhenCeilingZero]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FilterPauseRequest"
+      responses:
+        "200":
+          description: Pause activated (or replaced if one was already active)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterPauseState"
+        "400":
+          description: duration_seconds exceeds filtering.pause_max_seconds, or feature is disabled (pause_max_seconds=0)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      summary: Cancel an active global filtering pause
+      operationId: deleteFilterPause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseGlobalCancelledEarly]
+      responses:
+        "204":
+          description: Pause cancelled; filtering is immediately restored
+        "404":
+          description: No active global pause
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/profiles/{id}/pause:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+
+    get:
+      summary: Get the pause state for a specific profile
+      operationId: getProfilePause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseProfileSuspendsOneProfile, FS-FilterPauseProfileExpiresAutomatically, FS-FilterPauseProfileCancelledEarly, FS-FilterPauseQueryLogMarkedDuringProfilePause]
+      responses:
+        "200":
+          description: Current pause state for this profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterPauseState"
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Activate a filtering pause for a specific profile
+      operationId: createProfilePause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseProfileSuspendsOneProfile, FS-FilterPauseProfileDoesNotAffectOtherProfiles, FS-FilterPauseProfileMultipleSimultaneous, FS-FilterPauseGlobalOverridesProfile, FS-FilterPauseCeilingEnforced, FS-FilterPauseFeatureDisabledWhenCeilingZero]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FilterPauseRequest"
+      responses:
+        "200":
+          description: Profile pause activated (or replaced if one was already active)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterPauseState"
+        "400":
+          description: duration_seconds exceeds filtering.pause_max_seconds, or feature is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      summary: Cancel an active pause for a specific profile
+      operationId: deleteProfilePause
+      x-tsid: TS-FilterPause
+      x-fsid-links: [FS-FilterPauseProfileCancelledEarly]
+      responses:
+        "204":
+          description: Profile pause cancelled; filtering is immediately restored for that profile's clients
+        "404":
+          description: Profile not found or no active pause on this profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
 

@@ -77,7 +77,8 @@ type dnsPatch struct {
 }
 
 type filteringPatch struct {
-	BlockPolicy *string `json:"block_policy"`
+	BlockPolicy     *string `json:"block_policy"`
+	PauseMaxSeconds *int    `json:"pause_max_seconds"`
 }
 
 type queryLogPatch struct {
@@ -140,6 +141,12 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 				}
 				cfg.Filtering.BlockPolicy = *f.BlockPolicy
 				rebuildFilter = true
+			}
+			if f.PauseMaxSeconds != nil {
+				if *f.PauseMaxSeconds < 0 {
+					return &validationError{"filtering.pause_max_seconds must be >= 0"}
+				}
+				cfg.Filtering.PauseMaxSeconds = *f.PauseMaxSeconds
 			}
 		}
 		if patch.QueryLog != nil {

@@ -987,3 +987,48 @@ func apiBaseURL(listenAddr string, fallbackHost ...string) string {
 func (c *Cluster) MembersFromRaftConfig() []raft.Server {
 	return c.raft.Configuration().Servers
 }
+
+// ─── M13: Filtering pause (TS-FilterPause) ───────────────────────────────────
+
+// SetGlobalPause replicates a global filtering pause deadline through Raft.
+func (c *Cluster) SetGlobalPause(resumesAt time.Time, reason string) error {
+	return c.applyAsLeader(CmdGlobalPauseSet, GlobalPauseSetPayload{ResumesAt: resumesAt, Reason: reason}, 0)
+}
+
+// ClearGlobalPause removes the global filtering pause through Raft.
+func (c *Cluster) ClearGlobalPause() error {
+	return c.applyAsLeader(CmdGlobalPauseClear, struct{}{}, 0)
+}
+
+// SetProfilePause replicates a per-profile filtering pause deadline through Raft.
+func (c *Cluster) SetProfilePause(profileID string, resumesAt time.Time, reason string) error {
+	return c.applyAsLeader(CmdProfilePauseSet, ProfilePauseSetPayload{ProfileID: profileID, ResumesAt: resumesAt, Reason: reason}, 0)
+}
+
+// ClearProfilePause removes the per-profile filtering pause through Raft.
+func (c *Cluster) ClearProfilePause(profileID string) error {
+	return c.applyAsLeader(CmdProfilePauseClear, ProfilePauseClearPayload{ProfileID: profileID}, 0)
+}
+
+// GetGlobalPause reads the current global pause state from bbolt (local read, no Raft).
+func (c *Cluster) GetGlobalPause() *config.PauseState {
+	snap, err := c.store.Snapshot()
+	if err != nil {
+		return nil
+	}
+	return snap.Filtering.GlobalPause
+}
+
+// GetProfilePause reads the current pause state for a named profile from bbolt.
+func (c *Cluster) GetProfilePause(id string) *config.PauseState {
+	snap, err := c.store.Snapshot()
+	if err != nil {
+		return nil
+	}
+	for _, p := range snap.Profiles {
+		if p.ID == id {
+			return p.Pause
+		}
+	}
+	return nil
+}
