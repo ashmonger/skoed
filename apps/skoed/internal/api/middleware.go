@@ -9,6 +9,11 @@ import (
 // token issued by POST /api/v1/auth/login (node-local, 8 h TTL) or an M7
 // API token issued by POST /api/v1/tokens.
 //
+// Forwarded writes from follower nodes carry X-Cluster-Secret instead of an
+// Authorization header. A valid cluster secret is accepted and grants full
+// write scope so that session-token users on followers can transparently
+// trigger writes via the leader.
+//
 // On success the authenticated Principal is stored on the request context
 // (see PrincipalFrom). Scope enforcement is performed by RequireScope and
 // by the individual route handlers for cluster:admin operations.
@@ -22,6 +27,25 @@ func (a *App) Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.authStore.IsConfigured() {
 			http.Error(w, `{"error":"authentication not configured — call POST /api/v1/auth/setup first"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// ── Inter-node forwarded write (cluster secret) ───────────────────
+		// Follower nodes strip their session token and add X-Cluster-Secret
+		// before forwarding mutating requests to the leader. Accept and give
+		// full write scope without requiring a user session/API token.
+		if cs := r.Header.Get("X-Cluster-Secret"); cs != "" {
+			if a.cluster.ValidateClusterSecret(cs) {
+				p := &Principal{
+					Kind:   "node",
+					ID:     r.Header.Get("X-Served-By"),
+					Scopes: []string{"read", "write", "cluster:admin"},
+				}
+				next.ServeHTTP(w, withPrincipal(r, p))
+				return
+			}
+			// Invalid secret — don't fall through to Bearer check; reject.
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 

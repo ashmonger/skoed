@@ -426,7 +426,7 @@ func (h *Handler) ClusterHealth(w http.ResponseWriter, r *http.Request) {
 	// Count reachable peers. The local node always counts as reachable.
 	reachable := 1
 	if resp.Members > 1 {
-		for _, r := range probeAllPeers(c, localID, r.Header.Get("Authorization")) {
+		for _, r := range probeAllPeers(c, localID, c.ClusterSecret()) {
 			if r.alive {
 				reachable++
 			}
@@ -564,7 +564,9 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 	// Probe every peer (except self) in parallel to learn liveness and
 	// commit_index. hashicorp/raft doesn't expose per-peer commit_index in
 	// Stats(), so we ask each peer directly via /cluster/self.
-	results := probeAllPeers(c, localID, r.Header.Get("Authorization"))
+	// Use the cluster secret for inter-node auth — session tokens are
+	// node-local and would be rejected by the target node.
+	results := probeAllPeers(c, localID, c.ClusterSecret())
 
 	for _, p := range peers {
 		entry := clusterNodeEntry{
@@ -619,12 +621,13 @@ type peerProbeResult struct {
 }
 
 // probeAllPeers fan-outs probePeer to every cluster member except localID
-// using the shared HTTP timeout. Each call inherits the caller's
-// Authorization header. Missing api_address counts as not-alive but is still
-// keyed in the returned map so the caller can iterate the full member list
-// uniformly. Both ClusterStatus and ClusterHealth use this; keeping the
-// pattern in one place avoids drift between the two views.
-func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]peerProbeResult {
+// using the shared HTTP timeout. Uses the cluster secret for inter-node auth
+// so that node-local session tokens do not need to be forwarded. Missing
+// api_address counts as not-alive but is still keyed in the returned map so
+// the caller can iterate the full member list uniformly. Both ClusterStatus
+// and ClusterHealth use this; keeping the pattern in one place avoids drift
+// between the two views.
+func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string]peerProbeResult {
 	servers := c.MembersFromRaftConfig()
 	out := make(map[string]peerProbeResult, len(servers))
 	var mu sync.Mutex
@@ -647,7 +650,7 @@ func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]pe
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r := probePeer(client, apiAddr, authHeader, raftHost)
+			r := probePeer(client, apiAddr, clusterSecret, raftHost)
 			mu.Lock()
 			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex}
 			mu.Unlock()
@@ -661,9 +664,9 @@ func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]pe
 // minimal handler that returns only the local node's view (no fan-out, no
 // recursion). The peer's authoritative commit_index is returned alongside
 // the liveness signal so the caller can compute behind / in_sync accurately.
-// authHeader is forwarded to the peer — the forwarded Bearer token or M7
-// API token is valid cluster-wide since auth state is Raft-replicated.
-func probePeer(client *http.Client, apiAddr, authHeader string, raftHostFallback ...string) (out struct {
+// clusterSecret is sent as X-Cluster-Secret so the peer accepts the probe
+// without a user session — session tokens are node-local and would be rejected.
+func probePeer(client *http.Client, apiAddr, clusterSecret string, raftHostFallback ...string) (out struct {
 	alive       bool
 	commitIndex uint64
 }) {
@@ -672,8 +675,8 @@ func probePeer(client *http.Client, apiAddr, authHeader string, raftHostFallback
 	if err != nil {
 		return
 	}
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+	if clusterSecret != "" {
+		req.Header.Set("X-Cluster-Secret", clusterSecret)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -994,7 +997,9 @@ func (h *Handler) ClusterQueryLog(w http.ResponseWriter, r *http.Request) {
 	// Build the query string we will forward. We deliberately do not forward
 	// the timeout_ms (it's a per-node deadline, not a downstream parameter).
 	fwdQuery := buildFwdQuery(client, outcome, limit, offset)
-	authHeader := r.Header.Get("Authorization")
+	// Use the cluster secret for inter-node requests — session tokens are
+	// node-local and would be rejected by the target node's auth middleware.
+	clusterSecret := c.ClusterSecret()
 	localID := c.Node().Node.ID
 
 	type fanResult struct {
@@ -1019,7 +1024,7 @@ func (h *Handler) ClusterQueryLog(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			results <- remoteFanOut(httpClient, m, fwdQuery, authHeader)
+			results <- remoteFanOut(httpClient, m, fwdQuery, clusterSecret)
 		}(m)
 	}
 
@@ -1103,7 +1108,9 @@ func localFanOut(h *Handler, nodeID, client, outcome string, limit, offset int) 
 }
 
 // remoteFanOut issues the per-node HTTP request and classifies the result.
-func remoteFanOut(client *http.Client, m cluster.Member, query, authHeader string) struct {
+// clusterSecret is sent as X-Cluster-Secret — session tokens are node-local
+// and would be rejected by the target node's auth middleware.
+func remoteFanOut(client *http.Client, m cluster.Member, query, clusterSecret string) struct {
 	entries []mergedQueryEntry
 	status  perNodeFanOut
 } {
@@ -1122,8 +1129,8 @@ func remoteFanOut(client *http.Client, m cluster.Member, query, authHeader strin
 	if err != nil {
 		return wrapped{status: perNodeFanOut{NodeID: m.NodeID, Status: "error", Error: err.Error()}}
 	}
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+	if clusterSecret != "" {
+		req.Header.Set("X-Cluster-Secret", clusterSecret)
 	}
 
 	resp, err := client.Do(req)

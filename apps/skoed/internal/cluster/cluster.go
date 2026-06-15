@@ -483,6 +483,12 @@ func (c *Cluster) forwardAggregate(agg HourAggregate) error {
 	return nil
 }
 
+// ClusterSecret returns the replicated cluster-wide secret, or "" if not yet set.
+func (c *Cluster) ClusterSecret() string {
+	s, _ := c.store.ClusterSecret()
+	return s
+}
+
 // ValidateClusterSecret returns true if the supplied secret matches the
 // replicated cluster secret. Used by the internal endpoint handler to
 // authenticate peer-to-peer requests without exposing admin credentials.

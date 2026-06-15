@@ -74,9 +74,23 @@ func (c *Cluster) ForwardWrite(
 		if hopByHopHeaders[k] {
 			continue
 		}
+		// Drop the original Authorization header — the session token that
+		// authenticated the request on this follower is node-local and will not
+		// be recognised by the leader's session store. The cluster secret below
+		// serves as authentication for the forwarded call instead.
+		if k == "Authorization" {
+			continue
+		}
 		for _, v := range vv {
 			req.Header.Add(k, v)
 		}
+	}
+
+	// Authenticate the forwarded request to the leader using the replicated
+	// cluster secret. The leader's Auth middleware accepts a valid cluster
+	// secret and grants write scope without a session/API token.
+	if secret, err := c.store.ClusterSecret(); err == nil && secret != "" {
+		req.Header.Set("X-Cluster-Secret", secret)
 	}
 
 	resp, err := forwardClient.Do(req)
