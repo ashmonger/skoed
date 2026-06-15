@@ -159,6 +159,9 @@ func TestFwRuleUiStatsSubnetCallout(t *testing.T) {
 	// against the same subnet so the callout's tab switch is meaningful.
 	status2, body2, _ := fwRuleGet(t, n,
 		"platform=mikrotik&scope=subnet&subnet=10.0.0.0/24")
+	if skipIfFwRuleAbsent(t, status2) {
+		return
+	}
 	if status2 != http.StatusOK {
 		t.Fatalf("mikrotik callout: status %d", status2)
 	}

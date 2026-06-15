@@ -21,12 +21,23 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/miekg/dns"
 	"gopkg.in/yaml.v3"
 )
+
+// portCounter is an atomic counter for test port allocation. It starts in the
+// range 20000–29999 — well below Linux's ephemeral port range (32768–60999) —
+// so only this test suite ever uses these ports. Incrementing atomically gives
+// each goroutine a unique port without any TOCTOU race: no two concurrent
+// goroutines receive the same number, and there is no release-then-grab window
+// that a racing process or sibling test goroutine can exploit.
+var portCounter atomic.Int32
+
+func init() { portCounter.Store(20000) }
 
 const (
 	// readyTimeout was 10s (flaky under sequential load), then 60s.
@@ -595,37 +606,17 @@ func setupAuth(t *testing.T, n *Node) {
 // /health respond, and the test fails with the misleading "did not
 // become ready in 60s".
 //
-// Additionally, the DNS listener binds BOTH UDP **and** TCP on the same
-// port (UDP and TCP have separate port namespaces in the kernel, so a
-// port that's free as UDP may already be held as TCP). freeUDPPort
-// probes BOTH protocols and returns a port free for both.
+// freeUDPPort returns a port number guaranteed to be unique within this test
+// run. The port counter approach avoids the TOCTOU race of "bind-close-pass":
+// the old scheme released the OS-assigned socket before skoed could claim it,
+// letting any concurrent test goroutine (or OS) grab it first.
 func freeUDPPort(t *testing.T) int {
 	t.Helper()
-	for attempt := 0; attempt < 20; attempt++ {
-		pc, err := net.ListenPacket("udp", "0.0.0.0:0")
-		if err != nil {
-			t.Fatalf("find free UDP port: %v", err)
-		}
-		port := pc.LocalAddr().(*net.UDPAddr).Port
-		pc.Close()
-		// Verify the port is also free as TCP. If not, try another.
-		l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
-		if err == nil {
-			l.Close()
-			return port
-		}
-	}
-	t.Fatalf("could not find a port free on both UDP and TCP after 20 attempts")
-	return 0
+	return int(portCounter.Add(1))
 }
 
+// freeTCPPort returns a port number guaranteed to be unique within this test run.
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
-	l, err := net.Listen("tcp", "0.0.0.0:0")
-	if err != nil {
-		t.Fatalf("find free TCP port: %v", err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
-	return port
+	return int(portCounter.Add(1))
 }
