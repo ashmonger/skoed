@@ -3,7 +3,7 @@ import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './cli
 import type {
   Anomaly, AuditPage, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
-  JoinTokenResponse, Lease, LocalDNSEntry, Profile, QueryLogPage, Schedule,
+  JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
   ScheduleBinding, Settings,
 } from './types'
 
@@ -340,6 +340,32 @@ export interface TestDomainResponse {
 
 export function testDomain(req: TestDomainRequest): Promise<TestDomainResponse> {
   return postJSON('/api/v1/test-domain', req)
+}
+
+// ─── M13 — Filtering pause ───────────────────────────────────────────────
+
+export function getGlobalPause(): Promise<PauseState> {
+  return getJSON('/api/v1/filtering/pause')
+}
+
+export function setGlobalPause(duration_seconds: number, reason?: string): Promise<PauseState> {
+  return postJSON('/api/v1/filtering/pause', { duration_seconds, reason: reason || undefined })
+}
+
+export function clearGlobalPause(): Promise<void> {
+  return deleteRequest('/api/v1/filtering/pause')
+}
+
+export function getProfilePause(id: string): Promise<PauseState> {
+  return getJSON(`/api/v1/profiles/${encodeURIComponent(id)}/pause`)
+}
+
+export function setProfilePause(id: string, duration_seconds: number, reason?: string): Promise<PauseState> {
+  return postJSON(`/api/v1/profiles/${encodeURIComponent(id)}/pause`, { duration_seconds, reason: reason || undefined })
+}
+
+export function clearProfilePause(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/profiles/${encodeURIComponent(id)}/pause`)
 }
 
 // ─── M6 — Firewall rule generator (TS-FwRuleGen, consumed by TS-FwRuleUi) ─

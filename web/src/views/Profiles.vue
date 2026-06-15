@@ -34,6 +34,7 @@
             <th>Blocklists</th>
             <th>Clients</th>
             <th>SafeSearch</th>
+            <th>Pause</th>
             <th class="text-right">Actions</th>
           </tr>
         </thead>
@@ -64,6 +65,20 @@
                   <span v-for="prov in p.safesearch" :key="prov" class="badge-success">{{ prov }}</span>
                 </div>
                 <span v-else class="text-xs text-fg-subtle">off</span>
+              </td>
+              <td @click.stop>
+                <button v-if="profilePauses[p.id]?.active"
+                        class="badge-warning cursor-pointer border-0 hover:opacity-80"
+                        :title="`Paused — ${formatRemaining(profileRemainingMs(p.id))}`"
+                        @click="openProfilePause(p.id)">
+                  paused
+                </button>
+                <button v-else
+                        class="btn-ghost text-xs text-fg-muted"
+                        title="Pause filtering for this profile"
+                        @click="openProfilePause(p.id)">
+                  <ClockIcon class="h-4 w-4" />
+                </button>
               </td>
               <td class="text-right whitespace-nowrap" @click.stop>
                 <button class="btn-ghost"
@@ -253,6 +268,79 @@
       </form>
     </div>
 
+    <!-- M13 — Per-profile pause modal -->
+    <div v-if="profilePauseTarget !== null"
+         class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+         @click.self="profilePauseTarget = null">
+      <div class="card max-w-sm w-full p-6 space-y-4">
+        <h2 class="text-base font-semibold text-fg-strong">
+          Pause filtering &mdash;
+          <span class="font-mono text-sm text-fg-muted">{{ profilePauseTarget }}</span>
+        </h2>
+
+        <p v-if="profilePauseError" class="text-sm text-danger">{{ profilePauseError }}</p>
+
+        <template v-if="profilePauseLoading">
+          <p class="text-sm text-fg-muted">Loading…</p>
+        </template>
+        <template v-else-if="profilePauses[profilePauseTarget]?.active">
+          <!-- Active pause: show status and resume option -->
+          <div class="rounded border border-warning bg-warning-subtle px-4 py-3 space-y-1">
+            <p class="text-sm font-medium text-warning">Filtering is paused</p>
+            <p class="text-xs text-fg-muted">
+              Resumes in
+              <span class="font-mono font-medium text-fg">{{ formatRemaining(profileRemainingMs(profilePauseTarget)) }}</span>
+              <span v-if="profilePauses[profilePauseTarget]?.reason">
+                &nbsp;&mdash; {{ profilePauses[profilePauseTarget]?.reason }}
+              </span>
+            </p>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button class="btn-secondary" @click="profilePauseTarget = null">Close</button>
+            <button class="btn-primary" :disabled="profilePauseSubmitting" @click="resumeProfileFiltering">
+              {{ profilePauseSubmitting ? 'Resuming…' : 'Resume now' }}
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <!-- No active pause: show duration selector -->
+          <div>
+            <span class="label">Duration</span>
+            <div class="grid grid-cols-4 gap-2">
+              <button v-for="p in PAUSE_PRESETS" :key="p.seconds"
+                      type="button"
+                      class="btn-secondary text-xs"
+                      :class="profilePauseCustomMinutes === null && profilePauseSelectedPreset === p.seconds
+                              ? 'border-accent !text-accent' : ''"
+                      @click="profilePauseSelectedPreset = p.seconds; profilePauseCustomMinutes = null">
+                {{ p.label }}
+              </button>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+              <input type="number" min="1" v-model.number="profilePauseCustomMinutes"
+                     class="input w-24" placeholder="Custom"
+                     :class="profilePauseCustomMinutes !== null ? 'border-accent ring-1 ring-accent' : ''"
+                     @input="profilePauseCustomMinutes = ($event.target as HTMLInputElement).valueAsNumber || null" />
+              <span class="text-sm text-fg-muted">minutes</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="pp-reason">Reason <span class="text-fg-subtle font-normal">(optional)</span></label>
+            <input id="pp-reason" v-model="profilePauseReason" class="input"
+                   placeholder="e.g. Temporary access" />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button class="btn-secondary" @click="profilePauseTarget = null">Cancel</button>
+            <button class="btn-primary" :disabled="profilePauseSubmitting" @click="activateProfilePause">
+              {{ profilePauseSubmitting ? 'Pausing…' : 'Pause filtering' }}
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- M6 — Copy DoH-gap rules modal (per-profile scope). -->
     <FirewallRulesModal
       v-if="fwRuleScope"
@@ -287,13 +375,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  ClipboardDocumentListIcon, PencilSquareIcon, PlusIcon, TrashIcon,
+  ClipboardDocumentListIcon, ClockIcon, PencilSquareIcon, PlusIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
 import {
-  createProfile, deleteProfile, listBlocklists, listProfiles, updateProfile,
+  clearProfilePause, createProfile, deleteProfile, getProfilePause,
+  listBlocklists, listProfiles, setProfilePause, updateProfile,
 } from '@/api/endpoints'
 import type { FwRuleScope } from '@/api/endpoints'
-import type { Blocklist, Profile } from '@/api/types'
+import type { Blocklist, PauseState, Profile } from '@/api/types'
 import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 // ─── Constants ───────────────────────────────────────────────────────────
@@ -349,6 +438,100 @@ const deleting = ref(false)
 const fwRuleScope = ref<FwRuleScope | null>(null)
 function openFwRules(scope: FwRuleScope) {
   fwRuleScope.value = scope
+}
+
+// ─── M13 — Per-profile pause ─────────────────────────────────────────────
+
+const PAUSE_PRESETS = [
+  { label: '15 min', seconds: 15 * 60 },
+  { label: '30 min', seconds: 30 * 60 },
+  { label: '1 hour', seconds: 3600 },
+  { label: '2 hours', seconds: 7200 },
+]
+
+const profilePauses = reactive<Record<string, PauseState>>({})
+const profilePauseTarget = ref<string | null>(null)
+const profilePauseLoading = ref(false)
+const profilePauseSubmitting = ref(false)
+const profilePauseError = ref('')
+const profilePauseSelectedPreset = ref(3600)
+const profilePauseCustomMinutes = ref<number | null>(null)
+const profilePauseReason = ref('')
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | null = null
+
+const profilePauseDurationSeconds = computed(() =>
+  profilePauseCustomMinutes.value != null && profilePauseCustomMinutes.value > 0
+    ? Math.round(profilePauseCustomMinutes.value * 60)
+    : profilePauseSelectedPreset.value,
+)
+
+function profileRemainingMs(id: string): number {
+  const p = profilePauses[id]
+  if (!p?.active || !p.resumes_at) return 0
+  return Math.max(0, new Date(p.resumes_at).getTime() - now.value)
+}
+
+function formatRemaining(ms: number): string {
+  const secs = Math.ceil(ms / 1000)
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+async function openProfilePause(id: string) {
+  profilePauseTarget.value = id
+  profilePauseLoading.value = true
+  profilePauseError.value = ''
+  profilePauseSelectedPreset.value = 3600
+  profilePauseCustomMinutes.value = null
+  profilePauseReason.value = ''
+  try {
+    profilePauses[id] = await getProfilePause(id)
+  } catch {
+    // keep existing state if already loaded; otherwise show empty form
+    if (!profilePauses[id]) profilePauses[id] = { active: false }
+  } finally {
+    profilePauseLoading.value = false
+  }
+}
+
+async function activateProfilePause() {
+  const id = profilePauseTarget.value
+  if (!id) return
+  profilePauseError.value = ''
+  const secs = profilePauseDurationSeconds.value
+  if (!secs || secs < 1) {
+    profilePauseError.value = 'Enter a valid duration.'
+    return
+  }
+  profilePauseSubmitting.value = true
+  try {
+    profilePauses[id] = await setProfilePause(id, secs, profilePauseReason.value || undefined)
+    profilePauseTarget.value = null
+  } catch (err) {
+    profilePauseError.value = errMsg(err, 'Failed to pause filtering')
+  } finally {
+    profilePauseSubmitting.value = false
+  }
+}
+
+async function resumeProfileFiltering() {
+  const id = profilePauseTarget.value
+  if (!id) return
+  profilePauseSubmitting.value = true
+  try {
+    await clearProfilePause(id)
+    profilePauses[id] = { active: false }
+    profilePauseTarget.value = null
+  } catch (err) {
+    profilePauseError.value = errMsg(err, 'Failed to resume filtering')
+  } finally {
+    profilePauseSubmitting.value = false
+  }
 }
 
 // ─── Derived ─────────────────────────────────────────────────────────────
@@ -529,15 +712,22 @@ function errMsg(err: unknown, fallback: string): string {
 
 function onKey(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
+  if (profilePauseTarget.value) { profilePauseTarget.value = null; return }
   if (pendingDelete.value) { pendingDelete.value = null; return }
   if (showModal.value && !submitting.value) { showModal.value = false }
 }
 
-onMounted(() => {
-  refresh()
+onMounted(async () => {
+  await refresh()
+  ticker = setInterval(() => { now.value = Date.now() }, 1000)
+  // Pre-load pause states for all profiles so the table column reflects reality.
+  for (const p of profiles.value) {
+    getProfilePause(p.id).then(s => { profilePauses[p.id] = s }).catch(() => {})
+  }
   window.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => {
+  if (ticker) clearInterval(ticker)
   window.removeEventListener('keydown', onKey)
 })
 </script>

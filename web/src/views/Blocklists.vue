@@ -7,6 +7,31 @@
       <button class="btn-ghost ml-2 !py-0 !px-1" @click="lastError = ''">dismiss</button>
     </p>
 
+    <!-- Filtering pause card -->
+    <div class="card p-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <ClockIcon class="h-5 w-5 text-fg-muted flex-shrink-0" />
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-fg-strong">Filtering</p>
+          <p v-if="pauseActive" class="text-xs text-fg-muted truncate">
+            Paused &mdash; resumes in
+            <span class="font-mono text-fg">{{ formatRemaining(pauseRemainingMs) }}</span>
+            <span v-if="globalPause?.reason"> &mdash; {{ globalPause.reason }}</span>
+          </p>
+          <p v-else class="text-xs text-fg-muted">Active &mdash; all blocklists enforced</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span v-if="pauseActive" class="badge-warning">paused</span>
+        <button v-if="pauseActive" class="btn-secondary" :disabled="resumingGlobal" @click="resumeFiltering">
+          <PlayCircleIcon class="h-4 w-4" /> Resume now
+        </button>
+        <button v-else class="btn-secondary" @click="openPauseModal">
+          <ClockIcon class="h-4 w-4" /> Pause filtering
+        </button>
+      </div>
+    </div>
+
     <!-- Toolbar -->
     <div class="flex items-center justify-between">
       <h1 class="text-lg font-semibold text-fg-strong">Blocklists</h1>
@@ -211,6 +236,51 @@
       </form>
     </div>
 
+    <!-- Pause filtering modal -->
+    <div v-if="showPauseModal"
+         class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+         @click.self="showPauseModal = false">
+      <div class="card max-w-sm w-full p-6 space-y-4">
+        <h2 class="text-base font-semibold text-fg-strong">Pause filtering</h2>
+
+        <p v-if="pauseError" class="text-sm text-danger">{{ pauseError }}</p>
+
+        <div>
+          <span class="label">Duration</span>
+          <div class="grid grid-cols-4 gap-2">
+            <button v-for="p in PAUSE_PRESETS" :key="p.seconds"
+                    type="button"
+                    class="btn-secondary text-xs"
+                    :class="pauseCustomMinutes === null && pauseSelectedPreset === p.seconds
+                            ? 'border-accent !text-accent' : ''"
+                    @click="pauseSelectedPreset = p.seconds; pauseCustomMinutes = null">
+              {{ p.label }}
+            </button>
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <input type="number" min="1" v-model.number="pauseCustomMinutes"
+                   class="input w-24" placeholder="Custom"
+                   :class="pauseCustomMinutes !== null ? 'border-accent ring-1 ring-accent' : ''"
+                   @input="pauseCustomMinutes = ($event.target as HTMLInputElement).valueAsNumber || null" />
+            <span class="text-sm text-fg-muted">minutes</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="label" for="pause-reason">Reason <span class="text-fg-subtle font-normal">(optional)</span></label>
+          <input id="pause-reason" v-model="pauseReason" class="input"
+                 placeholder="e.g. Updating software" />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button class="btn-secondary" @click="showPauseModal = false">Cancel</button>
+          <button class="btn-primary" :disabled="pausingGlobal" @click="activatePause">
+            {{ pausingGlobal ? 'Pausing…' : 'Pause filtering' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Delete confirmation modal -->
     <div v-if="pendingDelete"
          class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -235,16 +305,16 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  ArrowPathIcon, PlusIcon, TrashIcon,
+  ArrowPathIcon, ClockIcon, PlayCircleIcon, PlusIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
 import {
-  createBlocklist, deleteBlocklist, listBlocklists,
-  refreshBlocklist, updateBlocklist,
+  clearGlobalPause, createBlocklist, deleteBlocklist, getGlobalPause,
+  listBlocklists, refreshBlocklist, setGlobalPause, updateBlocklist,
   type CreateBlocklistInput,
 } from '@/api/endpoints'
-import type { Blocklist } from '@/api/types'
+import type { Blocklist, PauseState } from '@/api/types'
 
 // ─── State ───────────────────────────────────────────────────────────────
 
@@ -280,6 +350,99 @@ const form = reactive<FormState>(emptyForm())
 
 const pendingDelete = ref<Blocklist | null>(null)
 const deleting = ref(false)
+
+// ─── Filtering pause ─────────────────────────────────────────────────────
+
+const PAUSE_PRESETS = [
+  { label: '15 min', seconds: 15 * 60 },
+  { label: '30 min', seconds: 30 * 60 },
+  { label: '1 hour', seconds: 3600 },
+  { label: '2 hours', seconds: 7200 },
+]
+
+const globalPause = ref<PauseState | null>(null)
+const showPauseModal = ref(false)
+const pauseSelectedPreset = ref(3600)
+const pauseCustomMinutes = ref<number | null>(null)
+const pauseReason = ref('')
+const pausingGlobal = ref(false)
+const resumingGlobal = ref(false)
+const pauseError = ref('')
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | null = null
+
+const pauseActive = computed(() => {
+  const p = globalPause.value
+  if (!p?.active || !p.resumes_at) return false
+  return new Date(p.resumes_at).getTime() > now.value
+})
+
+const pauseRemainingMs = computed(() => {
+  if (!globalPause.value?.resumes_at) return 0
+  return Math.max(0, new Date(globalPause.value.resumes_at).getTime() - now.value)
+})
+
+const pauseDurationSeconds = computed(() =>
+  pauseCustomMinutes.value != null && pauseCustomMinutes.value > 0
+    ? Math.round(pauseCustomMinutes.value * 60)
+    : pauseSelectedPreset.value,
+)
+
+function formatRemaining(ms: number): string {
+  const secs = Math.ceil(ms / 1000)
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function openPauseModal() {
+  pauseSelectedPreset.value = 3600
+  pauseCustomMinutes.value = null
+  pauseReason.value = ''
+  pauseError.value = ''
+  showPauseModal.value = true
+}
+
+async function activatePause() {
+  pauseError.value = ''
+  const secs = pauseDurationSeconds.value
+  if (!secs || secs < 1) {
+    pauseError.value = 'Enter a valid duration.'
+    return
+  }
+  pausingGlobal.value = true
+  try {
+    globalPause.value = await setGlobalPause(secs, pauseReason.value || undefined)
+    showPauseModal.value = false
+  } catch (err) {
+    pauseError.value = errMsg(err, 'Failed to pause filtering')
+  } finally {
+    pausingGlobal.value = false
+  }
+}
+
+async function resumeFiltering() {
+  resumingGlobal.value = true
+  try {
+    await clearGlobalPause()
+    globalPause.value = { active: false }
+  } catch (err) {
+    lastError.value = errMsg(err, 'Failed to resume filtering')
+  } finally {
+    resumingGlobal.value = false
+  }
+}
+
+async function loadGlobalPause() {
+  try {
+    globalPause.value = await getGlobalPause()
+  } catch {
+    // non-critical — degrade gracefully
+  }
+}
 
 // ─── Data loading ────────────────────────────────────────────────────────
 
@@ -462,15 +625,19 @@ function refreshChipClass(bl: { last_refresh_status?: string }): string {
 
 function onKey(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
+  if (showPauseModal.value) { showPauseModal.value = false; return }
   if (pendingDelete.value) { pendingDelete.value = null; return }
   if (showCreate.value && !submitting.value) { showCreate.value = false }
 }
 
 onMounted(() => {
   refresh()
+  loadGlobalPause()
+  ticker = setInterval(() => { now.value = Date.now() }, 1000)
   window.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => {
+  if (ticker) clearInterval(ticker)
   window.removeEventListener('keydown', onKey)
 })
 </script>

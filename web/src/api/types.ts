@@ -276,3 +276,11 @@ export interface ClientRecord {
   last_seen?: string | null
   anomalies?: Anomaly[]
 }
+
+// ─── M13 — Filtering pause ────────────────────────────────────────────────
+
+export interface PauseState {
+  active: boolean
+  resumes_at?: string
+  reason?: string
+}
