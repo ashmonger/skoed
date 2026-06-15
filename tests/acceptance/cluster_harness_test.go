@@ -769,9 +769,26 @@ func (c *Cluster) Status(t *testing.T, n *ClusterNode) ClusterStatus {
 
 // nodeRole returns the role this node reports for ITSELF (peeked from its
 // own /cluster/status). Returns ok=false if the API isn't responding yet.
+// Uses APIHTTPSBase + InsecureSkipVerify when the node serves HTTPS so that
+// the single-port listener's HTTP→HTTPS redirect doesn't cause a TLS cert
+// failure (self-signed test certs have no IP SANs).
 func (c *Cluster) nodeRole(t *testing.T, n *ClusterNode) (string, bool) {
 	t.Helper()
-	resp := n.apiDo(t, "GET", "/api/v1/cluster/status", "")
+	base := n.Node.APIBase
+	client := http.DefaultClient
+	if n.Node.APIHTTPSBase != "" {
+		base = n.Node.APIHTTPSBase
+		client = tlsAPIClient()
+	}
+	req, err := http.NewRequest(http.MethodGet, base+"/api/v1/cluster/status", nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("Authorization", "Bearer "+n.Node.sessionToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return "", false
