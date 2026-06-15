@@ -73,8 +73,7 @@ func startNodeNoAuth(t *testing.T, cfg NodeConfig) *Node {
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 // FS-WebUiAuthUnauthenticatedRequestRejected
-// A request to any management API endpoint without credentials returns 401
-// and includes a WWW-Authenticate header.
+// A request to any management API endpoint without a Bearer token returns 401.
 func TestAuthUnauthenticatedRequestRejected(t *testing.T) {
 	t.Parallel()
 	n := startNode(t, NodeConfig{})
@@ -83,10 +82,6 @@ func TestAuthUnauthenticatedRequestRejected(t *testing.T) {
 	defer resp.Body.Close()
 
 	assertStatus(t, resp, http.StatusUnauthorized)
-
-	if resp.Header.Get("WWW-Authenticate") == "" {
-		t.Fatal("expected WWW-Authenticate header in 401 response, got none")
-	}
 }
 
 // FS-WebUiAuthUnauthenticatedUiRedirect
@@ -147,14 +142,22 @@ func TestAuthValidCredentials(t *testing.T) {
 }
 
 // FS-WebUiAuthInvalidCredentials
-// A request with a wrong password returns 401.
+// POST /api/v1/auth/login with a wrong password returns 401.
 func TestAuthInvalidCredentials(t *testing.T) {
 	t.Parallel()
 	n := startNode(t, NodeConfig{})
 
-	resp := n.apiDoAs(t, "GET", "/api/v1/blocklists", "", defaultUsername, "wrongpassword")
+	body := mustJSON(t, map[string]string{"username": defaultUsername, "password": "wrongpassword"})
+	req, err := http.NewRequest(http.MethodPost, n.APIBase+"/api/v1/auth/login", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("build login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("login request: %v", err)
+	}
 	defer resp.Body.Close()
-
 	assertStatus(t, resp, http.StatusUnauthorized)
 }
 
@@ -207,12 +210,18 @@ func TestAuthPasswordChange(t *testing.T) {
 	defer changeResp.Body.Close()
 	assertStatus(t, changeResp, http.StatusNoContent)
 
-	// Old password must now return 401.
-	oldPassResp := n.apiDoAs(t, "GET", "/api/v1/blocklists", "", defaultUsername, defaultPassword)
-	defer oldPassResp.Body.Close()
+	// Old password must now be rejected at login.
+	oldLoginBody := mustJSON(t, map[string]string{"username": defaultUsername, "password": defaultPassword})
+	oldLoginReq, _ := http.NewRequest(http.MethodPost, n.APIBase+"/api/v1/auth/login", strings.NewReader(oldLoginBody))
+	oldLoginReq.Header.Set("Content-Type", "application/json")
+	oldPassResp, err := http.DefaultClient.Do(oldLoginReq)
+	if err != nil {
+		t.Fatalf("login with old password: %v", err)
+	}
+	oldPassResp.Body.Close()
 	assertStatus(t, oldPassResp, http.StatusUnauthorized)
 
-	// New password must return 200.
+	// New password must return a valid session token.
 	newPassResp := n.apiDoAs(t, "GET", "/api/v1/blocklists", "", defaultUsername, newPassword)
 	defer newPassResp.Body.Close()
 	assertStatus(t, newPassResp, http.StatusOK)

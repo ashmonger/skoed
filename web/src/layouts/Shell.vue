@@ -219,8 +219,8 @@ function onPaletteChange(e: Event) {
   theme.setPalette(v)
 }
 
-function onLogout() {
-  auth.logout()
+async function onLogout() {
+  await auth.logout()
   router.replace({ name: 'login' })
 }
 

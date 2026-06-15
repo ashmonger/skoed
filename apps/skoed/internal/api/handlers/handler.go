@@ -42,6 +42,8 @@ type AppState interface {
 	UpdateAuthConfig() error
 
 	GetAuth() *auth.Store
+	CreateSession(rawToken, username string)
+	DeleteSession(rawToken string)
 	GetFilterEng() *filter.Engine
 	GetQueryLog() *log.QueryLog
 

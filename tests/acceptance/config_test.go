@@ -58,7 +58,9 @@ func importConfigExpect(t *testing.T, n *Node, archiveBytes []byte, wantStatus i
 		t.Fatalf("build import request: %v", err)
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.SetBasicAuth(defaultUsername, defaultPassword)
+	if n.sessionToken != "" {
+		req.Header.Set("Authorization", "Bearer "+n.sessionToken)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -59,9 +59,12 @@ type Node struct {
 	// https:// scheme; in dual_port mode it's a separate port.
 	APIHTTPSBase string
 	// M8: DoH3 (HTTP/3 over QUIC) and DNSCrypt v2 listeners; "" when disabled.
-	DoH3Addr      string // "127.0.0.1:port"
-	DNSCryptAddr  string // "127.0.0.1:port"
-	cmd           *exec.Cmd
+	DoH3Addr     string // "127.0.0.1:port"
+	DNSCryptAddr string // "127.0.0.1:port"
+	// sessionToken is the Bearer token obtained from POST /api/v1/auth/login
+	// at node startup. Used by apiDo for all authenticated calls.
+	sessionToken string
+	cmd          *exec.Cmd
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
@@ -128,6 +131,7 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 
 	waitReady(t, n)
 	setupAuth(t, n)
+	n.sessionToken = loginSession(t, n, defaultUsername, defaultPassword)
 	return n
 }
 
@@ -210,53 +214,101 @@ func dnsQueryWithDO(t *testing.T, server, name string, qtype uint16) *dns.Msg {
 	return r
 }
 
-// apiDo sends an authenticated HTTP request and returns the response.
+// apiDo sends an authenticated HTTP request using the node's session token.
 // Pass body="" for requests with no body.
 func (n *Node) apiDo(t *testing.T, method, path, body string) *http.Response {
 	t.Helper()
-	return n.apiDoAs(t, method, path, body, defaultUsername, defaultPassword)
+	return n.apiDoBearer(t, method, path, body, n.sessionToken)
 }
 
-// apiDoAs sends an HTTP request with explicit credentials. When the
-// node serves HTTPS (M4.6 — Node.APIHTTPSBase set), routes through
-// the HTTPS URL with an InsecureSkipVerify client (test cert).
+// apiDoAs exchanges username+password for a session token via
+// POST /api/v1/auth/login, then sends the request with Bearer auth.
+// Pass empty username to send without authentication.
 func (n *Node) apiDoAs(t *testing.T, method, path, body, username, password string) *http.Response {
 	t.Helper()
-	var bodyReader io.Reader
-	if body != "" {
-		bodyReader = strings.NewReader(body)
+	var token string
+	if username != "" {
+		token = loginSessionMaybe(t, n, username, password)
 	}
+	return n.apiDoBearer(t, method, path, body, token)
+}
+
+// loginSession calls POST /api/v1/auth/login and returns the Bearer token.
+// Fatal if the login fails.
+func loginSession(t *testing.T, n *Node, username, password string) string {
+	t.Helper()
+	body := mustJSON(t, map[string]string{"username": username, "password": password})
 	base := n.APIBase
-	client := http.DefaultClient
 	if n.APIHTTPSBase != "" {
 		base = n.APIHTTPSBase
-		client = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test code
-			},
-		}
 	}
-	req, err := http.NewRequest(method, base+path, bodyReader)
+	req, err := http.NewRequest(http.MethodPost, base+"/api/v1/auth/login", strings.NewReader(body))
 	if err != nil {
-		t.Fatalf("build request %s %s: %v", method, path, err)
+		t.Fatalf("build login request: %v", err)
 	}
-	if body != "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if username != "" {
-		req.SetBasicAuth(username, password)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test cert
+		},
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("request %s %s: %v", method, path, err)
+		t.Fatalf("login request: %v", err)
 	}
-	return resp
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login returned %d, want 200", resp.StatusCode)
+	}
+	var payload struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	return payload.Token
+}
+
+// loginSessionMaybe is like loginSession but returns "" (no token) when the
+// login request returns non-200 — used by apiDoAs to test auth rejection.
+func loginSessionMaybe(t *testing.T, n *Node, username, password string) string {
+	t.Helper()
+	body := mustJSON(t, map[string]string{"username": username, "password": password})
+	base := n.APIBase
+	if n.APIHTTPSBase != "" {
+		base = n.APIHTTPSBase
+	}
+	req, err := http.NewRequest(http.MethodPost, base+"/api/v1/auth/login", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("build login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test cert
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("login request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "" // caller sees no-auth → expects 401
+	}
+	var payload struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	return payload.Token
 }
 
 // apiDoNoAuth sends an HTTP request without any authentication.
 func (n *Node) apiDoNoAuth(t *testing.T, method, path string) *http.Response {
 	t.Helper()
-	return n.apiDoAs(t, method, path, "", "", "")
+	return n.apiDoBearer(t, method, path, "", "")
 }
 
 // apiDoBearer sends an HTTP request with a Bearer token in the Authorization header.

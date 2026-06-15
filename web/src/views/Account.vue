@@ -200,8 +200,8 @@ const canSubmit = computed(() =>
   confirmMatches.value,
 )
 
-function onLogout() {
-  auth.logout()
+async function onLogout() {
+  await auth.logout()
   router.replace({ name: 'login' })
 }
 
