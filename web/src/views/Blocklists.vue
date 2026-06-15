@@ -14,7 +14,11 @@
         <div class="min-w-0">
           <p class="text-sm font-medium text-fg-strong">Filtering</p>
           <p v-if="pauseActive" class="text-xs text-fg-muted truncate">
-            Paused &mdash; resumes in
+            Paused
+            <span v-if="globalPause?.profile_ids?.length" class="text-fg-subtle">
+              ({{ globalPause.profile_ids.map(profileName).join(', ') }})
+            </span>
+            &mdash; resumes in
             <span class="font-mono text-fg">{{ formatRemaining(pauseRemainingMs) }}</span>
             <span v-if="globalPause?.reason"> &mdash; {{ globalPause.reason }}</span>
           </p>
@@ -272,6 +276,27 @@
                  placeholder="e.g. Updating software" />
         </div>
 
+        <!-- Profile scope selector -->
+        <div v-if="pauseProfiles.length > 0">
+          <span class="label">Apply to</span>
+          <div class="space-y-1 mt-1">
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox"
+                     :checked="pauseSelectedProfileIds.length === 0"
+                     @change="pauseSelectedProfileIds = []" />
+              <span class="font-medium">All profiles</span>
+            </label>
+            <label v-for="prof in pauseProfiles" :key="prof.id"
+                   class="flex items-center gap-2 text-sm cursor-pointer pl-1">
+              <input type="checkbox"
+                     :value="prof.id"
+                     v-model="pauseSelectedProfileIds" />
+              <span>{{ prof.name }}</span>
+              <span class="text-fg-subtle text-xs font-mono">{{ prof.id }}</span>
+            </label>
+          </div>
+        </div>
+
         <div class="flex justify-end gap-2 pt-2">
           <button class="btn-secondary" @click="showPauseModal = false">Cancel</button>
           <button class="btn-primary" :disabled="pausingGlobal" @click="activatePause">
@@ -311,10 +336,10 @@ import {
 } from '@heroicons/vue/24/outline'
 import {
   clearGlobalPause, createBlocklist, deleteBlocklist, getGlobalPause,
-  listBlocklists, refreshBlocklist, setGlobalPause, updateBlocklist,
+  listBlocklists, listProfiles, refreshBlocklist, setGlobalPause, updateBlocklist,
   type CreateBlocklistInput,
 } from '@/api/endpoints'
-import type { Blocklist, PauseState } from '@/api/types'
+import type { Blocklist, PauseState, Profile } from '@/api/types'
 
 // ─── State ───────────────────────────────────────────────────────────────
 
@@ -365,6 +390,8 @@ const showPauseModal = ref(false)
 const pauseSelectedPreset = ref(3600)
 const pauseCustomMinutes = ref<number | null>(null)
 const pauseReason = ref('')
+const pauseSelectedProfileIds = ref<string[]>([])
+const pauseProfiles = ref<Profile[]>([])
 const pausingGlobal = ref(false)
 const resumingGlobal = ref(false)
 const pauseError = ref('')
@@ -403,6 +430,7 @@ function openPauseModal() {
   pauseCustomMinutes.value = null
   pauseReason.value = ''
   pauseError.value = ''
+  pauseSelectedProfileIds.value = []
   showPauseModal.value = true
 }
 
@@ -415,7 +443,11 @@ async function activatePause() {
   }
   pausingGlobal.value = true
   try {
-    globalPause.value = await setGlobalPause(secs, pauseReason.value || undefined)
+    globalPause.value = await setGlobalPause(
+      secs,
+      pauseReason.value || undefined,
+      pauseSelectedProfileIds.value.length ? pauseSelectedProfileIds.value : undefined,
+    )
     showPauseModal.value = false
   } catch (err) {
     pauseError.value = errMsg(err, 'Failed to pause filtering')
@@ -442,6 +474,18 @@ async function loadGlobalPause() {
   } catch {
     // non-critical — degrade gracefully
   }
+}
+
+async function loadProfiles() {
+  try {
+    pauseProfiles.value = await listProfiles()
+  } catch {
+    // non-critical
+  }
+}
+
+function profileName(id: string): string {
+  return pauseProfiles.value.find(p => p.id === id)?.name ?? id
 }
 
 // ─── Data loading ────────────────────────────────────────────────────────
@@ -633,6 +677,7 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => {
   refresh()
   loadGlobalPause()
+  loadProfiles()
   ticker = setInterval(() => { now.value = Date.now() }, 1000)
   window.addEventListener('keydown', onKey)
 })

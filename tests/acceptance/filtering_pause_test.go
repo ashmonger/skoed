@@ -1075,3 +1075,189 @@ func TestFilterPauseQueryLogMarkedDuringProfilePause(t *testing.T) {
 // keep fmt imported so tests referencing it compile even if a future edit
 // removes the only inline use (mirrors the pattern from profile_block_dynamic_test.go).
 var _ = fmt.Sprintf
+
+// ── Profile-selection pause (FS-FilterPauseProfileSelection*) ─────────────────
+
+// postGlobalPauseProfiles calls POST /api/v1/filtering/pause with a profile_ids
+// restriction. Returns (status, body).
+func postGlobalPauseProfiles(t *testing.T, n *Node, seconds int, profileIDs []string) (int, string) {
+	t.Helper()
+	body := mustJSON(t, map[string]any{"duration_seconds": seconds, "profile_ids": profileIDs})
+	resp := n.apiDo(t, "POST", "/api/v1/filtering/pause", body)
+	defer resp.Body.Close()
+	return resp.StatusCode, readBody(t, resp)
+}
+
+// startProfileSelectionNode starts a single node with a fake upstream, an inline
+// "ads" blocklist, and three non-overlapping profiles:
+//   - "kids" → 192.168.10.0/24
+//   - "work" → 192.168.20.0/24
+//   - "default" (patched) → 10.0.0.0/8, also references "ads"
+//
+// Assigning an explicit CIDR to the built-in "default" profile makes it
+// non-overlapping with the named profiles: 10.0.0.50 matches only "default",
+// 192.168.10.5 matches only "kids", 192.168.20.5 matches only "work". This
+// prevents the catch-all "default" profile from interfering with profile-level
+// pause semantics.
+func startProfileSelectionNode(t *testing.T) *Node {
+	t.Helper()
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
+	n := startNode(t, NodeConfig{
+		Mode:              "forwarding",
+		UpstreamResolvers: []string{upstream},
+		BlockPolicy:       "nxdomain",
+	})
+	addInlineBlocklist(t, n, "ads", []string{"doubleclick.net"}, "")
+
+	for _, prof := range []struct{ id, name, cidr string }{
+		{"kids", "Kids", "192.168.10.0/24"},
+		{"work", "Work", "192.168.20.0/24"},
+	} {
+		resp := n.apiDo(t, "POST", "/api/v1/profiles", mustJSON(t, map[string]any{
+			"id": prof.id, "name": prof.name,
+			"blocklists": []string{"ads"}, "allowlist": []string{},
+			"client_cidrs": []string{prof.cidr}, "client_ips": []string{},
+		}))
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			t.Skipf("profiles endpoint not yet implemented")
+		}
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create profile %s: status %d", prof.id, resp.StatusCode)
+		}
+	}
+
+	// Patch the built-in "default" profile: give it 10.0.0.0/8 so it no longer
+	// acts as a catch-all (the implicit catch-all rule only fires when a profile
+	// has NO identifiers at all). Assign "ads" so 10.0.0.x clients are blocked.
+	patchResp := n.apiDo(t, "PATCH", "/api/v1/profiles/default", mustJSON(t, map[string]any{
+		"blocklists":   []string{"ads"},
+		"client_cidrs": []string{"10.0.0.0/8"},
+	}))
+	defer patchResp.Body.Close()
+	if patchResp.StatusCode != http.StatusOK {
+		t.Fatalf("patch default profile: status %d", patchResp.StatusCode)
+	}
+
+	return n
+}
+
+// TestFilterPauseProfileSelectionPausesOnlySelectedProfiles verifies that a
+// global pause with profile_ids only suspends filtering for the listed profiles.
+//
+// FSIDs: FS-FilterPauseProfileSelectionPausesOnlySelectedProfiles
+func TestFilterPauseProfileSelectionPausesOnlySelectedProfiles(t *testing.T) {
+	t.Parallel()
+	n := startProfileSelectionNode(t)
+
+	// Pause only the "kids" profile (192.168.10.x clients);
+	// "work" (192.168.20.x) must remain blocked.
+	status, body := postGlobalPauseProfiles(t, n, 120, []string{"kids"})
+	if status != http.StatusOK {
+		t.Fatalf("POST pause with profile_ids: want 200, got %d: %s", status, body)
+	}
+
+	// Verify response carries profile_ids.
+	var pr map[string]any
+	if err := json.Unmarshal([]byte(body), &pr); err != nil {
+		t.Fatalf("decode pause response: %v", err)
+	}
+	ids, _ := pr["profile_ids"].([]any)
+	if len(ids) != 1 || ids[0] != "kids" {
+		t.Fatalf("response profile_ids: want [kids], got %v", ids)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	kidsAllowed, workBlocked := false, false
+	for time.Now().Before(deadline) {
+		r := dnsQueryAsClient(t, n.DNSAddr, "doubleclick.net", dns.TypeA, "192.168.10.5")
+		if r.Rcode == dns.RcodeSuccess && len(r.Answer) > 0 {
+			kidsAllowed = true
+		}
+		r2 := dnsQueryAsClient(t, n.DNSAddr, "doubleclick.net", dns.TypeA, "192.168.20.5")
+		if r2.Rcode == dns.RcodeNameError {
+			workBlocked = true
+		}
+		if kidsAllowed && workBlocked {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Errorf("profile-selection pause: kidsAllowed=%v workBlocked=%v", kidsAllowed, workBlocked)
+}
+
+// TestFilterPauseProfileSelectionMultipleProfiles pauses two specific profiles
+// while default-profile clients remain filtered.
+//
+// FSIDs: FS-FilterPauseProfileSelectionMultipleProfiles
+func TestFilterPauseProfileSelectionMultipleProfiles(t *testing.T) {
+	t.Parallel()
+	n := startProfileSelectionNode(t)
+
+	// Pause "kids" and "work"; default-profile clients (10.0.0.x) stay blocked.
+	status, body := postGlobalPauseProfiles(t, n, 120, []string{"kids", "work"})
+	if status != http.StatusOK {
+		t.Fatalf("POST pause with profile_ids: want 200, got %d: %s", status, body)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	kidsOK, workOK, defaultBlocked := false, false, false
+	for time.Now().Before(deadline) {
+		r := dnsQueryAsClient(t, n.DNSAddr, "doubleclick.net", dns.TypeA, "192.168.10.5")
+		if r.Rcode == dns.RcodeSuccess && len(r.Answer) > 0 {
+			kidsOK = true
+		}
+		r2 := dnsQueryAsClient(t, n.DNSAddr, "doubleclick.net", dns.TypeA, "192.168.20.5")
+		if r2.Rcode == dns.RcodeSuccess && len(r2.Answer) > 0 {
+			workOK = true
+		}
+		// Default profile client: not in pause list → still blocked.
+		r3 := dnsQueryAsClient(t, n.DNSAddr, "doubleclick.net", dns.TypeA, "10.0.0.50")
+		if r3.Rcode == dns.RcodeNameError {
+			defaultBlocked = true
+		}
+		if kidsOK && workOK && defaultBlocked {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Errorf("multi-profile pause: kidsOK=%v workOK=%v defaultBlocked=%v", kidsOK, workOK, defaultBlocked)
+}
+
+// TestFilterPauseProfileSelectionRejectsUnknownProfile verifies the API rejects
+// a pause request that names a profile that does not exist.
+//
+// FSIDs: FS-FilterPauseProfileSelectionRejectsUnknownProfile
+func TestFilterPauseProfileSelectionRejectsUnknownProfile(t *testing.T) {
+	t.Parallel()
+	n := startNode(t, NodeConfig{})
+
+	status, _ := postGlobalPauseProfiles(t, n, 60, []string{"nonexistent-profile"})
+	if status != http.StatusBadRequest {
+		t.Fatalf("want 400 for unknown profile, got %d", status)
+	}
+}
+
+// TestFilterPauseProfileSelectionGetReturnsProfileIDs verifies that GET
+// /api/v1/filtering/pause returns the profile_ids field when the pause was
+// created with a profile filter.
+//
+// FSIDs: FS-FilterPauseProfileSelectionGetReturnsProfileIDs
+func TestFilterPauseProfileSelectionGetReturnsProfileIDs(t *testing.T) {
+	t.Parallel()
+	n := startProfileSelectionNode(t)
+
+	postGlobalPauseProfiles(t, n, 120, []string{"kids"})
+
+	state := getGlobalPause(t, n)
+	if state == nil {
+		t.Fatal("GET /api/v1/filtering/pause returned nil")
+	}
+	if active, _ := state["active"].(bool); !active {
+		t.Fatal("expected active=true")
+	}
+	ids, _ := state["profile_ids"].([]any)
+	if len(ids) != 1 || ids[0] != "kids" {
+		t.Fatalf("expected profile_ids=[kids], got %v", ids)
+	}
+}

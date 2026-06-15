@@ -283,4 +283,5 @@ export interface PauseState {
   active: boolean
   resumes_at?: string
   reason?: string
+  profile_ids?: string[]
 }

@@ -307,8 +307,9 @@ type NameCount struct {
 // ─── M13 payloads (TS-FilterPause) ──────────────────────────────────────────
 
 type GlobalPauseSetPayload struct {
-	ResumesAt time.Time `json:"resumes_at"`
-	Reason    string    `json:"reason,omitempty"`
+	ResumesAt  time.Time `json:"resumes_at"`
+	Reason     string    `json:"reason,omitempty"`
+	ProfileIDs []string  `json:"profile_ids,omitempty"`
 }
 
 type ProfilePauseSetPayload struct {

@@ -524,8 +524,8 @@ func (a *App) UpdateAuthConfig() error {
 // ─── M13: Filtering pause accessors ─────────────────────────────────────────
 
 // SetGlobalPause replicates a global pause deadline through the cluster.
-func (a *App) SetGlobalPause(resumesAt time.Time, reason string) error {
-	return a.cluster.SetGlobalPause(resumesAt, reason)
+func (a *App) SetGlobalPause(resumesAt time.Time, reason string, profileIDs []string) error {
+	return a.cluster.SetGlobalPause(resumesAt, reason, profileIDs)
 }
 
 // ClearGlobalPause removes the global pause through the cluster.

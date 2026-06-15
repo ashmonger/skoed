@@ -348,8 +348,12 @@ export function getGlobalPause(): Promise<PauseState> {
   return getJSON('/api/v1/filtering/pause')
 }
 
-export function setGlobalPause(duration_seconds: number, reason?: string): Promise<PauseState> {
-  return postJSON('/api/v1/filtering/pause', { duration_seconds, reason: reason || undefined })
+export function setGlobalPause(duration_seconds: number, reason?: string, profile_ids?: string[]): Promise<PauseState> {
+  return postJSON('/api/v1/filtering/pause', {
+    duration_seconds,
+    reason: reason || undefined,
+    profile_ids: profile_ids?.length ? profile_ids : undefined,
+  })
 }
 
 export function clearGlobalPause(): Promise<void> {

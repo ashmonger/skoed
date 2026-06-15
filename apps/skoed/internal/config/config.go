@@ -12,9 +12,11 @@ import (
 
 // PauseState is stored in bbolt and replicated via Raft. ResumesAt is the
 // wall-clock deadline; if time.Now().Before(ResumesAt) the pause is active.
+// ProfileIDs restricts the pause to specific profiles; empty means all profiles.
 type PauseState struct {
-	ResumesAt time.Time `yaml:"resumes_at" json:"resumes_at"`
-	Reason    string    `yaml:"reason,omitempty" json:"reason,omitempty"`
+	ResumesAt  time.Time `yaml:"resumes_at" json:"resumes_at"`
+	Reason     string    `yaml:"reason,omitempty" json:"reason,omitempty"`
+	ProfileIDs []string  `yaml:"profile_ids,omitempty" json:"profile_ids,omitempty"`
 }
 
 const SchemaVersion = 1

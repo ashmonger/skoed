@@ -96,8 +96,9 @@ type Engine struct {
 	leaseOriginFn func(ip string) string
 
 	// M13: pause deadlines, replicated via Raft through config.PauseState.
-	globalPauseUntil  time.Time
-	profilePauseUntil map[string]time.Time
+	globalPauseUntil      time.Time
+	globalPauseProfileIDs map[string]bool // nil/empty = all profiles; non-empty = only those IDs
+	profilePauseUntil     map[string]time.Time
 }
 
 // profileEntry is the engine-internal, pre-parsed form of a config.Profile.
@@ -187,6 +188,12 @@ func New(cfg config.FilteringConfig) *Engine {
 
 	if cfg.GlobalPause != nil {
 		e.globalPauseUntil = cfg.GlobalPause.ResumesAt
+		if len(cfg.GlobalPause.ProfileIDs) > 0 {
+			e.globalPauseProfileIDs = make(map[string]bool, len(cfg.GlobalPause.ProfileIDs))
+			for _, id := range cfg.GlobalPause.ProfileIDs {
+				e.globalPauseProfileIDs[id] = true
+			}
+		}
 	}
 
 	for _, bl := range cfg.Blocklists {
@@ -330,7 +337,8 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 
 	domain = strings.ToLower(domain)
 
-	if !e.globalPauseUntil.IsZero() && now.Before(e.globalPauseUntil) {
+	// Global pause targeting ALL profiles: short-circuit immediately.
+	if !e.globalPauseUntil.IsZero() && now.Before(e.globalPauseUntil) && len(e.globalPauseProfileIDs) == 0 {
 		return Result{Disposition: Allow, PauseActive: true}
 	}
 
@@ -352,6 +360,19 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 	profileWasPaused := false
 	// Walk each matched profile's blocklists. First applicable block wins.
 	for _, pid := range matched {
+		// Check per-profile pause and global pause targeting specific profiles.
+		profileIsPaused := false
+		if until, ok := e.profilePauseUntil[pid]; ok && !until.IsZero() && now.Before(until) {
+			profileIsPaused = true
+		}
+		if !profileIsPaused && !e.globalPauseUntil.IsZero() && now.Before(e.globalPauseUntil) && e.globalPauseProfileIDs[pid] {
+			profileIsPaused = true
+		}
+		if profileIsPaused {
+			profileWasPaused = true
+			continue
+		}
+
 		p := e.findProfile(pid)
 		// "default" implicit profile (no Profile object): fall back to the
 		// engine's global blocklists.
@@ -361,11 +382,6 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 					return r
 				}
 			}
-			continue
-		}
-		// Per-profile pause: skip this profile's blocklists when it is paused.
-		if until, ok := e.profilePauseUntil[pid]; ok && !until.IsZero() && now.Before(until) {
-			profileWasPaused = true
 			continue
 		}
 		for _, blID := range p.blocklists {

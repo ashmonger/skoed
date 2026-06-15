@@ -10,7 +10,7 @@ import (
 
 // FilteringPauseApp is the subset of api.App required by the filtering-pause handlers.
 type FilteringPauseApp interface {
-	SetGlobalPause(resumesAt time.Time, reason string) error
+	SetGlobalPause(resumesAt time.Time, reason string, profileIDs []string) error
 	ClearGlobalPause() error
 	SetProfilePause(id string, resumesAt time.Time, reason string) error
 	ClearProfilePause(id string) error
@@ -22,22 +22,25 @@ type FilteringPauseApp interface {
 
 // pauseRequest is the body accepted by POST .../pause.
 type pauseRequest struct {
-	DurationSeconds int    `json:"duration_seconds"`
-	Reason          string `json:"reason,omitempty"`
+	DurationSeconds int      `json:"duration_seconds"`
+	Reason          string   `json:"reason,omitempty"`
+	// ProfileIDs restricts the pause to specific profiles. Absent or empty means all profiles.
+	ProfileIDs      []string `json:"profile_ids,omitempty"`
 }
 
 // pauseResponse is the body returned for an active pause.
 type pauseResponse struct {
-	Active    bool      `json:"active"`
-	ResumesAt time.Time `json:"resumes_at,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
+	Active     bool      `json:"active"`
+	ResumesAt  time.Time `json:"resumes_at,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
+	ProfileIDs []string  `json:"profile_ids,omitempty"`
 }
 
 func pauseStateResponse(ps *config.PauseState) pauseResponse {
 	if ps == nil || !time.Now().Before(ps.ResumesAt) {
 		return pauseResponse{Active: false}
 	}
-	return pauseResponse{Active: true, ResumesAt: ps.ResumesAt, Reason: ps.Reason}
+	return pauseResponse{Active: true, ResumesAt: ps.ResumesAt, Reason: ps.Reason, ProfileIDs: ps.ProfileIDs}
 }
 
 func validatePauseDuration(w http.ResponseWriter, n, maxSeconds int) bool {
@@ -76,12 +79,22 @@ func (h *FilteringPauseHandlers) SetGlobalPause(w http.ResponseWriter, r *http.R
 	if !validatePauseDuration(w, req.DurationSeconds, h.app.PauseMaxSeconds()) {
 		return
 	}
+	// Validate that all supplied profile IDs exist.
+	if len(req.ProfileIDs) > 0 {
+		cfg := h.app.GetCfg()
+		for _, pid := range req.ProfileIDs {
+			if !profileExistsInCfg(cfg, pid) && pid != "default" {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("profile not found: %s", pid))
+				return
+			}
+		}
+	}
 	resumesAt := time.Now().Add(time.Duration(req.DurationSeconds) * time.Second)
-	if err := h.app.SetGlobalPause(resumesAt, req.Reason); err != nil {
+	if err := h.app.SetGlobalPause(resumesAt, req.Reason, req.ProfileIDs); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, pauseResponse{Active: true, ResumesAt: resumesAt, Reason: req.Reason})
+	writeJSON(w, http.StatusOK, pauseResponse{Active: true, ResumesAt: resumesAt, Reason: req.Reason, ProfileIDs: req.ProfileIDs})
 }
 
 // ClearGlobalPause handles DELETE /api/v1/filtering/pause.

@@ -997,8 +997,9 @@ func (c *Cluster) MembersFromRaftConfig() []raft.Server {
 // ─── M13: Filtering pause (TS-FilterPause) ───────────────────────────────────
 
 // SetGlobalPause replicates a global filtering pause deadline through Raft.
-func (c *Cluster) SetGlobalPause(resumesAt time.Time, reason string) error {
-	return c.applyAsLeader(CmdGlobalPauseSet, GlobalPauseSetPayload{ResumesAt: resumesAt, Reason: reason}, 0)
+// profileIDs restricts the pause to specific profiles; nil/empty means all profiles.
+func (c *Cluster) SetGlobalPause(resumesAt time.Time, reason string, profileIDs []string) error {
+	return c.applyAsLeader(CmdGlobalPauseSet, GlobalPauseSetPayload{ResumesAt: resumesAt, Reason: reason, ProfileIDs: profileIDs}, 0)
 }
 
 // ClearGlobalPause removes the global filtering pause through Raft.

@@ -867,7 +867,7 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			if err := json.Unmarshal(v, &gp); err != nil {
 				return err
 			}
-			out.Filtering.GlobalPause = &config.PauseState{ResumesAt: gp.ResumesAt, Reason: gp.Reason}
+			out.Filtering.GlobalPause = &config.PauseState{ResumesAt: gp.ResumesAt, Reason: gp.Reason, ProfileIDs: gp.ProfileIDs}
 		}
 
 		// Auth.
