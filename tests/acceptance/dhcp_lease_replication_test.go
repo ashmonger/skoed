@@ -190,6 +190,8 @@ func startReplicatedLeaseCluster(t *testing.T, opts DhcpOpts) *Cluster {
 		cn.Node.LeaseSnapshotURL = fmt.Sprintf("http://127.0.0.1:%d/api/v1/clients/_leases", cfg.APIPort)
 		c.nodes = append(c.nodes, cn)
 		waitReady(t, cn.Node)
+		// Credentials are replicated via Raft; retry login until they arrive.
+		cn.Node.sessionToken = loginWithRetry(t, cn.Node, defaultUsername, defaultPassword)
 	}
 	c.WaitConverged(t)
 	return c

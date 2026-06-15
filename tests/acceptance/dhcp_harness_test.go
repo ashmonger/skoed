@@ -60,6 +60,6 @@ func startClusterWithDhcp(t *testing.T, opts DhcpOpts) *Cluster {
 	cn.Node.LeaseSnapshotURL = fmt.Sprintf("http://127.0.0.1:%d/api/v1/clients/_leases", cfg.APIPort)
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
-	setupAuth(t, c.nodes[0].Node)
+	setupAuth(t, c.nodes[0].Node) // also calls loginSession and sets sessionToken
 	return c
 }

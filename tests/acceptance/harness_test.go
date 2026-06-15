@@ -130,8 +130,7 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 	})
 
 	waitReady(t, n)
-	setupAuth(t, n)
-	n.sessionToken = loginSession(t, n, defaultUsername, defaultPassword)
+	setupAuth(t, n) // also calls loginSession and sets n.sessionToken
 	return n
 }
 
@@ -301,6 +300,52 @@ func loginSessionMaybe(t *testing.T, n *Node, username, password string) string 
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode login response: %v", err)
+	}
+	return payload.Token
+}
+
+// loginWithRetry retries POST /api/v1/auth/login until it returns a token or
+// the timeout expires. Used by cluster nodes that may be waiting for credentials
+// to be replicated from the leader before login is possible.
+func loginWithRetry(t *testing.T, n *Node, username, password string) string {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if tok := loginSessionMaybe(t, n, username, password); tok != "" {
+			return tok
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("could not login to %s within 10s — credentials not yet replicated?", n.APIBase)
+	return ""
+}
+
+// tryLogin attempts POST /api/v1/auth/login and returns the Bearer token on
+// success, or "" on any error (network error, non-200 status). Never calls
+// t.Fatalf — safe to use on nodes that may not yet be accepting connections.
+func tryLogin(n *Node, username, password string) string {
+	body, err := json.Marshal(map[string]string{"username": username, "password": password})
+	if err != nil {
+		return ""
+	}
+	req, err := http.NewRequest(http.MethodPost, n.APIBase+"/api/v1/auth/login", bytes.NewReader(body))
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "" // connection refused or other network error — node not ready
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var payload struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return ""
 	}
 	return payload.Token
 }
@@ -534,6 +579,8 @@ func setupAuth(t *testing.T, n *Node) {
 	if resp.StatusCode != 201 && resp.StatusCode != 409 {
 		t.Fatalf("auth setup returned unexpected status %d", resp.StatusCode)
 	}
+	// Always establish a session after setup so apiDo calls on this node work.
+	n.sessionToken = loginSession(t, n, defaultUsername, defaultPassword)
 }
 
 // freeUDPPort and freeTCPPort probe for a free port the subprocess can

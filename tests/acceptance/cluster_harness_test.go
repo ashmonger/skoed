@@ -146,7 +146,7 @@ func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
 	c := &Cluster{t: t, bin: bin, mtls: true}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
-	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
+	// setupAuth already called loginSession and set sessionToken.
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
 	}
@@ -193,7 +193,7 @@ func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
 	setupAuth(t, c.nodes[0].Node)
-	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
+	// setupAuth already called loginSession and set sessionToken.
 	return c
 }
 
@@ -210,7 +210,7 @@ func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env, encryptedDNS: encryptedDNS}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
-	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
+	// setupAuth already called loginSession and set sessionToken.
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
 	}
@@ -236,7 +236,7 @@ func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
-	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
+	// setupAuth already called loginSession and set sessionToken.
 
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
@@ -293,6 +293,8 @@ func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
+	// Credentials are replicated via Raft; retry login until they arrive.
+	cn.Node.sessionToken = loginWithRetry(t, cn.Node, defaultUsername, defaultPassword)
 	c.WaitConverged(t)
 	return cn
 }
@@ -665,6 +667,8 @@ func (c *Cluster) KillNode(t *testing.T, i int) {
 
 // RestartNode brings a previously-killed node back up using the same data dir
 // (so it rejoins as the same Raft member) and the same env vars.
+// The in-memory session store is cleared on restart, so the session token is
+// refreshed here so subsequent apiDo calls on this node continue to work.
 func (c *Cluster) RestartNode(t *testing.T, i int) {
 	t.Helper()
 	n := c.Node(i)
@@ -673,14 +677,27 @@ func (c *Cluster) RestartNode(t *testing.T, i int) {
 	}
 	c.startProcess(t, n)
 	waitReady(t, n.Node)
+	n.Node.sessionToken = loginSession(t, n.Node, defaultUsername, defaultPassword)
 }
 
 // WaitConverged blocks until every alive node reports the leader's
 // commit_index from GET /api/v1/cluster/status.
+// It also lazily acquires session tokens for nodes that joined without one
+// (e.g. via AddNodeWithToken), waiting until credentials are replicated.
 func (c *Cluster) WaitConverged(t *testing.T) {
 	t.Helper()
 	deadline := time.Now().Add(clusterConvergeTimeout)
 	for time.Now().Before(deadline) {
+		// Lazily acquire session tokens for nodes that don't have one yet
+		// (e.g. added via AddNodeWithToken). Use a non-fatal direct HTTP
+		// request so a not-yet-started node doesn't abort the test.
+		for _, n := range c.nodes {
+			if !n.killed && n.Node.sessionToken == "" {
+				if tok := tryLogin(n.Node, defaultUsername, defaultPassword); tok != "" {
+					n.Node.sessionToken = tok
+				}
+			}
+		}
 		leaderIdx, ok := c.leaderCommitIndex(t)
 		if ok && c.allAtCommitIndex(t, leaderIdx) {
 			return
@@ -819,10 +836,20 @@ func (c *Cluster) allAtCommitIndex(t *testing.T, target int) bool {
 }
 
 // tryStatus is the non-fatal variant: returns ok=false if the API isn't
-// answering yet (used during convergence polling).
+// answering yet or returns non-200 (used during convergence polling).
+// Does not call t.Fatalf — uses a raw HTTP request so connection refused
+// is treated as "not yet ready" rather than a test failure.
 func (c *Cluster) tryStatus(t *testing.T, n *ClusterNode) (ClusterStatus, bool) {
 	t.Helper()
-	resp := n.apiDo(t, "GET", "/api/v1/cluster/status", "")
+	req, err := http.NewRequest(http.MethodGet, n.Node.APIBase+"/api/v1/cluster/status", nil)
+	if err != nil {
+		return ClusterStatus{}, false
+	}
+	req.Header.Set("Authorization", "Bearer "+n.Node.sessionToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ClusterStatus{}, false // connection refused or timeout
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return ClusterStatus{}, false

@@ -382,8 +382,9 @@ func TestDnscryptKeyReplicatedViaRaft(t *testing.T) {
 	}
 	cn2 := c.spawnNode(t, cfg2)
 	c.nodes = append(c.nodes, cn2)
-	c.WaitConverged(t)
 	waitReady(t, cn2.Node)
+	cn2.Node.sessionToken = loginWithRetry(t, cn2.Node, defaultUsername, defaultPassword)
+	c.WaitConverged(t)
 
 	// Both nodes must publish the same keypair (replicated via Raft).
 	// Stamps legitimately differ — they embed the server's own address:port.

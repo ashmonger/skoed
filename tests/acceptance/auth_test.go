@@ -187,6 +187,8 @@ func TestAuthFirstRunSetup(t *testing.T) {
 	assertStatus(t, noAuthResp, http.StatusUnauthorized)
 
 	// After setup: a request with correct credentials must succeed.
+	// Login first — session tokens are not issued by /auth/setup itself.
+	n.sessionToken = loginSession(t, n, defaultUsername, defaultPassword)
 	authResp := n.apiDo(t, "GET", "/api/v1/blocklists", "")
 	defer authResp.Body.Close()
 	assertStatus(t, authResp, http.StatusOK)
