@@ -323,7 +323,7 @@ import {
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
 } from '@/api/endpoints'
-import { getCreds } from '@/api/client'
+import { getToken } from '@/api/client'
 import type { DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -536,9 +536,9 @@ async function doRestore() {
   restoring.value = true
   restoreConfirm.value = false
   try {
-    const creds = getCreds()
+    const token = getToken()
     const headers: Record<string, string> = {}
-    if (creds) headers.Authorization = 'Basic ' + btoa(`${creds.user}:${creds.pass}`)
+    if (token) headers.Authorization = `Bearer ${token}`
     const form = new FormData()
     form.append('archive', selectedFile.value, selectedFile.value.name)
     const resp = await fetch('/api/v1/config/import', { method: 'POST', headers, body: form })

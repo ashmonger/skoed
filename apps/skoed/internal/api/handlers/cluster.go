@@ -187,9 +187,6 @@ func (h *Handler) CreateJoinToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	issuedBy := "admin"
-	if u, _, ok := r.BasicAuth(); ok && u != "" {
-		issuedBy = u
-	}
 
 	res, err := c.CreateJoinToken(issuedBy)
 	if err != nil {
@@ -664,9 +661,8 @@ func probeAllPeers(c *cluster.Cluster, localID, authHeader string) map[string]pe
 // minimal handler that returns only the local node's view (no fan-out, no
 // recursion). The peer's authoritative commit_index is returned alongside
 // the liveness signal so the caller can compute behind / in_sync accurately.
-// authHeader is forwarded so the peer's BasicAuth middleware accepts the
-// request — cluster auth state is replicated, so the admin's credentials
-// are valid on every node.
+// authHeader is forwarded to the peer — the forwarded Bearer token or M7
+// API token is valid cluster-wide since auth state is Raft-replicated.
 func probePeer(client *http.Client, apiAddr, authHeader string, raftHostFallback ...string) (out struct {
 	alive       bool
 	commitIndex uint64

@@ -2,7 +2,42 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 )
+
+// Login handles POST /api/v1/auth/login. It validates username+password and
+// issues a node-local session Bearer token (8 h TTL). No auth middleware is
+// required on this endpoint — it IS the auth entry point.
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if !h.app.GetAuth().Verify(req.Username, req.Password) {
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	rawToken, _, _, err := generateToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "token generation failed")
+		return
+	}
+	h.app.CreateSession(rawToken, req.Username)
+	writeJSON(w, http.StatusOK, map[string]string{"token": rawToken})
+}
+
+// Logout handles DELETE /api/v1/auth/session. Revokes the session token
+// carried in the Authorization: Bearer header, if present.
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	hdr := r.Header.Get("Authorization")
+	if strings.HasPrefix(hdr, "Bearer ") {
+		h.app.DeleteSession(strings.TrimPrefix(hdr, "Bearer "))
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // authSetupRequest is the body accepted by POST /api/v1/auth/setup.
 type authSetupRequest struct {

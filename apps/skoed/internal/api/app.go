@@ -82,6 +82,10 @@ type App struct {
 	tokenMu        sync.RWMutex
 	apiTokensByHash map[string]*cluster.APIToken
 	apiTokensByID   map[string]*cluster.APIToken
+
+	// sessions holds short-lived login session tokens (8 h TTL, node-local).
+	// Issued by POST /api/v1/auth/login; revoked by DELETE /api/v1/auth/session.
+	sessions *sessionStore
 }
 
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
@@ -334,6 +338,7 @@ func NewApp(
 		rebuildDNS:           rebuildDNS,
 		publicLandingEnabled: true,
 		publicTester:         handlers.NewPublicTester(),
+		sessions:             newSessionStore(),
 	}
 	// Prime the cache.
 	if snap, err := c.Store().Snapshot(); err == nil {
@@ -445,6 +450,12 @@ func (a *App) RebuildDNSFromCfg() error {
 // GetAuth returns the auth store.
 func (a *App) GetAuth() *auth.Store { return a.authStore }
 
+// CreateSession stores a node-local session token issued by POST /api/v1/auth/login.
+func (a *App) CreateSession(rawToken, username string) { a.sessions.create(rawToken, username) }
+
+// DeleteSession removes a session token (logout).
+func (a *App) DeleteSession(rawToken string) { a.sessions.delete(rawToken) }
+
 // rebuildTokenCache rebuilds the in-memory Bearer token lookup maps from
 // bbolt. Called from onApply and NewApp so the cache is always fresh.
 func (a *App) rebuildTokenCache() {
@@ -510,6 +521,48 @@ func (a *App) UpdateAuthConfig() error {
 	return a.cluster.SetCredentials(exported.Username, exported.PasswordHash)
 }
 
+// ─── M13: Filtering pause accessors ─────────────────────────────────────────
+
+// SetGlobalPause replicates a global pause deadline through the cluster.
+func (a *App) SetGlobalPause(resumesAt time.Time, reason string) error {
+	return a.cluster.SetGlobalPause(resumesAt, reason)
+}
+
+// ClearGlobalPause removes the global pause through the cluster.
+func (a *App) ClearGlobalPause() error {
+	return a.cluster.ClearGlobalPause()
+}
+
+// SetProfilePause replicates a per-profile pause deadline through the cluster.
+func (a *App) SetProfilePause(id string, resumesAt time.Time, reason string) error {
+	return a.cluster.SetProfilePause(id, resumesAt, reason)
+}
+
+// ClearProfilePause removes the per-profile pause through the cluster.
+func (a *App) ClearProfilePause(id string) error {
+	return a.cluster.ClearProfilePause(id)
+}
+
+// GetGlobalPause returns the current global pause state, or nil if inactive.
+func (a *App) GetGlobalPause() *config.PauseState {
+	return a.cluster.GetGlobalPause()
+}
+
+// GetProfilePause returns the current pause state for a profile, or nil if inactive.
+func (a *App) GetProfilePause(id string) *config.PauseState {
+	return a.cluster.GetProfilePause(id)
+}
+
+// PauseMaxSeconds returns the configured pause ceiling. Snapshot() handles the default (86400);
+// 0 means the feature is explicitly disabled.
+func (a *App) PauseMaxSeconds() int {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return 86400
+	}
+	return cfg.Filtering.PauseMaxSeconds
+}
+
 // ============================================================================
 // HTTP routing
 // ============================================================================
@@ -521,9 +574,11 @@ func (a *App) Router() http.Handler {
 
 	h := handlers.New(a)
 
-	// Health and first-run setup never require auth.
+	// Health, first-run setup, and login never require auth.
 	r.Get("/api/v1/health", h.Health)
 	r.Post("/api/v1/auth/setup", a.forward(h.AuthSetup))
+	r.Post("/api/v1/auth/login", h.Login)
+	r.Delete("/api/v1/auth/session", h.Logout)
 
 	// M5.1 — Prometheus /metrics. Unauthenticated by default; the
 	// metrics package gates on its own RequireAuth callback when
@@ -616,12 +671,23 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/config/export", h.ExportConfig)
 		r.Post("/api/v1/config/import", a.forward(h.ImportConfig))
 
+		// M13 — Filtering pause (global + per-profile)
+		ph := handlers.NewFilteringPauseHandlers(a)
+		r.Get("/api/v1/filtering/pause", ph.GetGlobalPause)
+		r.Post("/api/v1/filtering/pause", a.forward(ph.SetGlobalPause))
+		r.Delete("/api/v1/filtering/pause", a.forward(ph.ClearGlobalPause))
+
 		// M3 — Profiles
 		r.Get("/api/v1/profiles", h.ListProfiles)
 		r.Post("/api/v1/profiles", a.forward(h.CreateProfile))
 		r.Get("/api/v1/profiles/{id}", h.GetProfile)
 		r.Patch("/api/v1/profiles/{id}", a.forward(h.UpdateProfile))
 		r.Delete("/api/v1/profiles/{id}", a.forward(h.DeleteProfile))
+
+		// M13 — Per-profile pause
+		r.Get("/api/v1/profiles/{id}/pause", ph.GetProfilePause)
+		r.Post("/api/v1/profiles/{id}/pause", a.forward(ph.SetProfilePause))
+		r.Delete("/api/v1/profiles/{id}/pause", a.forward(ph.ClearProfilePause))
 
 		// M3 — Schedules
 		r.Get("/api/v1/schedules", h.ListSchedules)

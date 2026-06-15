@@ -90,15 +90,15 @@ None.
 ## M13 tasks
 
 - [x] M13 — ROADMAP.md entry — 2026-06-12
-- [ ] M13 — functional spec: `specs/functional/filtering-pause.feature`
-- [ ] M13 — UoR validated functional spec
-- [ ] M13 — technical spec: pause endpoints in `specs/technical/management-api.openapi.yaml`
-- [ ] M13 — acceptance tests: `tests/acceptance/filtering_pause_test.go`
-- [ ] M13 — implementation: pause state in config, filter engine short-circuit, API handlers, Dashboard UI
-- [ ] M13 — refactoring phase
-- [ ] M13 — demo note: `demos/m13/DEMO_NOTE.md`
-- [ ] M13 — UoR demo validation
-- [ ] M13 — merge to master
+- [x] M13 — functional spec: `specs/functional/filtering-pause.feature` (16 FSIDs, global + per-profile, query log during pause) — 2026-06-12
+- [x] M13 — UoR validated functional spec — 2026-06-12
+- [x] M13 — technical spec: pause endpoints in `specs/technical/management-api.openapi.yaml` (TS-FilterPause, 6 endpoints, 2 schemas) — 2026-06-12
+- [x] M13 — acceptance tests: `tests/acceptance/filtering_pause_test.go` (16 tests, compile green) — 2026-06-12
+- [x] M13 — implementation: pause state in config, filter engine short-circuit, API handlers (16/16 acceptance tests green) — 2026-06-12
+- [x] M13 — refactoring phase: removed `now2` shadow, clarified sentinel comment — 2026-06-12
+- [x] M13 — demo note: `demos/m13/DEMO_NOTE.md` — 2026-06-12
+- [x] M13 — UoR demo validation — 2026-06-12
+- [x] M13 — merge to master — 2026-06-12
 
 ## M14 tasks
 

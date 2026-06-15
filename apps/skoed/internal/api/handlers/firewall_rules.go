@@ -8,9 +8,8 @@
 // the curated DoH/DoT resolver snapshot, dispatches to the per-platform
 // renderer, and emits the result as text/plain.
 //
-// Auth: mounted inside the authenticated group (Basic + audit
-// middleware). 401 is delivered by the BasicAuth middleware before
-// this handler runs. Audit middleware exempts GETs.
+// Auth: mounted inside the authenticated group. 401 is delivered by
+// the Auth middleware before this handler runs. Audit middleware exempts GETs.
 //
 // SSRF: no outbound calls — every input is consumed from in-memory
 // caches (the resolver snapshot is owned by the M6 scheduler).

@@ -7,14 +7,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Client is the auth-aware HTTP client used by every authenticated
-// subcommand. Wraps net/http with Basic Auth + a sensible timeout.
+// subcommand. Exchanges username+password for a session Bearer token on
+// the first authenticated request, then reuses it for the session lifetime.
 type Client struct {
 	creds Credentials
 	hc    *http.Client
+
+	tokenOnce sync.Once
+	token     string
+	tokenErr  error
 }
 
 // NewClient builds a Client from resolved credentials.
@@ -44,7 +50,54 @@ func (c *Client) PostJSON(path string, body, v any) error {
 	return c.do(http.MethodPost, path, body, v)
 }
 
+// login calls POST /api/v1/auth/login and caches the session token.
+func (c *Client) login() error {
+	c.tokenOnce.Do(func() {
+		if c.creds.Username == "" {
+			return
+		}
+		payload, err := json.Marshal(map[string]string{
+			"username": c.creds.Username,
+			"password": c.creds.Password,
+		})
+		if err != nil {
+			c.tokenErr = err
+			return
+		}
+		url := strings.TrimRight(c.creds.APIURL, "/") + "/api/v1/auth/login"
+		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(payload)))
+		if err != nil {
+			c.tokenErr = err
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := c.hc.Do(req)
+		if err != nil {
+			c.tokenErr = err
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			buf, _ := io.ReadAll(resp.Body)
+			c.tokenErr = fmt.Errorf("login failed (HTTP %d): %s", resp.StatusCode, strings.TrimSpace(string(buf)))
+			return
+		}
+		var body struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			c.tokenErr = fmt.Errorf("decode login response: %w", err)
+			return
+		}
+		c.token = body.Token
+	})
+	return c.tokenErr
+}
+
 func (c *Client) do(method, path string, body, out any) error {
+	if err := c.login(); err != nil {
+		return err
+	}
 	url := strings.TrimRight(c.creds.APIURL, "/") + path
 	var rd io.Reader
 	if body != nil {
@@ -61,8 +114,8 @@ func (c *Client) do(method, path string, body, out any) error {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if c.creds.Username != "" {
-		req.SetBasicAuth(c.creds.Username, c.creds.Password)
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 	resp, err := c.hc.Do(req)
 	if err != nil {

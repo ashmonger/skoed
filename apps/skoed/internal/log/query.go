@@ -28,6 +28,7 @@ type Entry struct {
 	BlocklistID string // set when Outcome == OutcomeBlocked
 	Category    string // M3: "", "doh-probe", "doh-canary", "ddr-probe"
 	ProfileID   string // M3: which profile decided the outcome (best-effort)
+	PauseActive bool   // M13: true when filtering was paused for this query
 	// M3.6 — DHCP enrichment. All optional; absent when no DHCP lease
 	// matched the client IP.
 	ClientHostname string `json:",omitempty"`

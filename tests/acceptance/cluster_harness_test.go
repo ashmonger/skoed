@@ -146,6 +146,7 @@ func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
 	c := &Cluster{t: t, bin: bin, mtls: true}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
+	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
 	}
@@ -192,6 +193,7 @@ func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
 	c.nodes = append(c.nodes, cn)
 	waitReady(t, cn.Node)
 	setupAuth(t, c.nodes[0].Node)
+	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
 	return c
 }
 
@@ -208,6 +210,7 @@ func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env, encryptedDNS: encryptedDNS}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
+	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
 	}
@@ -233,6 +236,7 @@ func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
+	c.nodes[0].Node.sessionToken = loginSession(t, c.nodes[0].Node, defaultUsername, defaultPassword)
 
 	for i := 1; i < initialNodes; i++ {
 		c.AddNode(t)
@@ -939,7 +943,9 @@ func (n *ClusterNode) apiDoNonFatal(method, path, body string) (*http.Response, 
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.SetBasicAuth(defaultUsername, defaultPassword)
+	if n.sessionToken != "" {
+		req.Header.Set("Authorization", "Bearer "+n.sessionToken)
+	}
 	return http.DefaultClient.Do(req)
 }
 

@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
@@ -53,6 +54,11 @@ const (
 	CmdAPITokenDelete CommandKind = "api_token.delete"
 	// M8 — DNSCrypt v2 keypair rotation (TS-EncryptedDnsExpansion).
 	CmdDNSCryptKeysSet CommandKind = "dnscrypt.keys.set"
+	// M13 — Filtering pause (TS-FilterPause).
+	CmdGlobalPauseSet    CommandKind = "filter.global_pause.set"
+	CmdGlobalPauseClear  CommandKind = "filter.global_pause.clear"
+	CmdProfilePauseSet   CommandKind = "filter.profile_pause.set"
+	CmdProfilePauseClear CommandKind = "filter.profile_pause.clear"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -113,7 +119,8 @@ type SettingsPatchPayload struct {
 }
 
 type FilteringPatch struct {
-	BlockPolicy *string `json:"block_policy,omitempty"`
+	BlockPolicy     *string `json:"block_policy,omitempty"`
+	PauseMaxSeconds *int    `json:"pause_max_seconds,omitempty"`
 }
 
 type AuthSetCredentialsPayload struct {
@@ -295,4 +302,21 @@ type HourAggregate struct {
 type NameCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
+}
+
+// ─── M13 payloads (TS-FilterPause) ──────────────────────────────────────────
+
+type GlobalPauseSetPayload struct {
+	ResumesAt time.Time `json:"resumes_at"`
+	Reason    string    `json:"reason,omitempty"`
+}
+
+type ProfilePauseSetPayload struct {
+	ProfileID string    `json:"profile_id"`
+	ResumesAt time.Time `json:"resumes_at"`
+	Reason    string    `json:"reason,omitempty"`
+}
+
+type ProfilePauseClearPayload struct {
+	ProfileID string `json:"profile_id"`
 }

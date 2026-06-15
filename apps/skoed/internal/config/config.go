@@ -5,9 +5,17 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// PauseState is stored in bbolt and replicated via Raft. ResumesAt is the
+// wall-clock deadline; if time.Now().Before(ResumesAt) the pause is active.
+type PauseState struct {
+	ResumesAt time.Time `yaml:"resumes_at" json:"resumes_at"`
+	Reason    string    `yaml:"reason,omitempty" json:"reason,omitempty"`
+}
 
 const SchemaVersion = 1
 
@@ -48,6 +56,8 @@ type Profile struct {
 	// Origin is exactly "dhcp_dynamic" matches this profile as part of
 	// the tier-4 (IP/CIDR) union. Not allowed on the "default" profile.
 	BlockDynamicClients bool `yaml:"block_dynamic_clients,omitempty" json:"block_dynamic_clients,omitempty"`
+
+	Pause *PauseState `yaml:"pause,omitempty" json:"pause,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a
@@ -114,9 +124,11 @@ type CacheConfig struct {
 }
 
 type FilteringConfig struct {
-	BlockPolicy string      `yaml:"block_policy"` // "nxdomain" | "null" | "nodata"
-	Blocklists  []Blocklist `yaml:"blocklists,omitempty"`
-	Allowlist   []string    `yaml:"allowlist,omitempty"`
+	BlockPolicy     string      `yaml:"block_policy"` // "nxdomain" | "null" | "nodata"
+	Blocklists      []Blocklist `yaml:"blocklists,omitempty"`
+	Allowlist       []string    `yaml:"allowlist,omitempty"`
+	PauseMaxSeconds int         `yaml:"pause_max_seconds,omitempty" json:"pause_max_seconds,omitempty"` // 0 = feature disabled; absent = 86400
+	GlobalPause     *PauseState `yaml:"global_pause,omitempty"      json:"global_pause,omitempty"`
 }
 
 // Blocklist describes a named set of domain rules.

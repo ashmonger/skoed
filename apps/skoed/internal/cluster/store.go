@@ -483,6 +483,60 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketDNSCryptKeys).Put([]byte("keys"), v)
+
+	case CmdGlobalPauseSet:
+		var p GlobalPauseSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketSettings).Put([]byte("global_pause"), v)
+
+	case CmdGlobalPauseClear:
+		return tx.Bucket(bucketSettings).Delete([]byte("global_pause"))
+
+	case CmdProfilePauseSet:
+		var p ProfilePauseSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v := tx.Bucket(bucketProfiles).Get([]byte(p.ProfileID))
+		if v == nil {
+			return fmt.Errorf("profile %q not found", p.ProfileID)
+		}
+		var prof config.Profile
+		if err := json.Unmarshal(v, &prof); err != nil {
+			return err
+		}
+		prof.Pause = &config.PauseState{ResumesAt: p.ResumesAt, Reason: p.Reason}
+		nv, err := json.Marshal(prof)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv)
+
+	case CmdProfilePauseClear:
+		var p ProfilePauseClearPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v := tx.Bucket(bucketProfiles).Get([]byte(p.ProfileID))
+		if v == nil {
+			return fmt.Errorf("profile %q not found", p.ProfileID)
+		}
+		var prof config.Profile
+		if err := json.Unmarshal(v, &prof); err != nil {
+			return err
+		}
+		prof.Pause = nil
+		nv, err := json.Marshal(prof)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -581,6 +635,21 @@ type AuditRow struct {
 	RequestID string `json:"request_id,omitempty"`
 }
 
+type storedFilteringSettings struct {
+	BlockPolicy     string `json:"block_policy"`
+	// PauseMaxSeconds: -1 = never explicitly set (first-boot sentinel, Snapshot returns default 86400);
+	// 0 = feature explicitly disabled; positive = operator-defined ceiling in seconds.
+	PauseMaxSeconds int    `json:"pause_max_seconds"`
+}
+
+func readStoredFiltering(b *bolt.Bucket) storedFilteringSettings {
+	var s storedFilteringSettings
+	if v := b.Get([]byte("filtering")); v != nil {
+		json.Unmarshal(v, &s) //nolint:errcheck — best-effort; zero value is safe
+	}
+	return s
+}
+
 func applySettingsPatch(tx *bolt.Tx, p SettingsPatchPayload) error {
 	b := tx.Bucket(bucketSettings)
 	if p.DNS != nil {
@@ -592,8 +661,15 @@ func applySettingsPatch(tx *bolt.Tx, p SettingsPatchPayload) error {
 			return err
 		}
 	}
-	if p.Filtering != nil && p.Filtering.BlockPolicy != nil {
-		v, err := json.Marshal(map[string]string{"block_policy": *p.Filtering.BlockPolicy})
+	if p.Filtering != nil {
+		s := readStoredFiltering(b)
+		if p.Filtering.BlockPolicy != nil {
+			s.BlockPolicy = *p.Filtering.BlockPolicy
+		}
+		if p.Filtering.PauseMaxSeconds != nil {
+			s.PauseMaxSeconds = *p.Filtering.PauseMaxSeconds
+		}
+		v, err := json.Marshal(s)
 		if err != nil {
 			return err
 		}
@@ -614,6 +690,13 @@ func applySettingsPatch(tx *bolt.Tx, p SettingsPatchPayload) error {
 }
 
 func importM1Config(tx *bolt.Tx, c config.Config) error {
+	// Remember whether the filtering key has been written before the wipe.
+	// On first boot (init() creates buckets but writes no data) it is nil.
+	// On subsequent imports (settings patches going through WithWriteLock)
+	// it is non-nil, so we can distinguish "first-boot 0 = not configured"
+	// from "explicit API call 0 = disabled".
+	isFirstBoot := tx.Bucket(bucketSettings).Get([]byte("filtering")) == nil
+
 	// Wipe & rewrite each replicated bucket from the M1 snapshot.
 	for _, name := range [][]byte{bucketBlocklists, bucketAllowlist, bucketLocalDNS, bucketSettings, bucketAuth} {
 		if err := tx.DeleteBucket(name); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) {
@@ -663,7 +746,17 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 	if err := tx.Bucket(bucketSettings).Put([]byte("dns"), dv); err != nil {
 		return err
 	}
-	fv, err := json.Marshal(map[string]string{"block_policy": c.Filtering.BlockPolicy})
+	// Determine pause ceiling to persist. On first boot with PauseMaxSeconds=0
+	// (Go zero value, meaning "not set in config"), use -1 as sentinel so
+	// Snapshot() can return the default 86400 instead of treating 0 as "disabled".
+	pauseMax := c.Filtering.PauseMaxSeconds
+	if isFirstBoot && pauseMax == 0 {
+		pauseMax = -1 // sentinel: "not yet explicitly configured"
+	}
+	fv, err := json.Marshal(storedFilteringSettings{
+		BlockPolicy:     c.Filtering.BlockPolicy,
+		PauseMaxSeconds: pauseMax,
+	})
 	if err != nil {
 		return err
 	}
@@ -751,17 +844,30 @@ func (s *Store) Snapshot() (*config.Config, error) {
 				return err
 			}
 		}
+		out.Filtering.PauseMaxSeconds = 86400 // default: not yet explicitly configured
 		if v := sb.Get([]byte("filtering")); v != nil {
-			var m map[string]string
-			if err := json.Unmarshal(v, &m); err != nil {
+			var s storedFilteringSettings
+			if err := json.Unmarshal(v, &s); err != nil {
 				return err
 			}
-			out.Filtering.BlockPolicy = m["block_policy"]
+			out.Filtering.BlockPolicy = s.BlockPolicy
+			// -1 is the sentinel written on first boot meaning "not configured";
+			// any other value (including 0 = disabled) was set explicitly.
+			if s.PauseMaxSeconds >= 0 {
+				out.Filtering.PauseMaxSeconds = s.PauseMaxSeconds
+			}
 		}
 		if v := sb.Get([]byte("query_log")); v != nil {
 			if err := json.Unmarshal(v, &out.QueryLog); err != nil {
 				return err
 			}
+		}
+		if v := sb.Get([]byte("global_pause")); v != nil {
+			var gp GlobalPauseSetPayload
+			if err := json.Unmarshal(v, &gp); err != nil {
+				return err
+			}
+			out.Filtering.GlobalPause = &config.PauseState{ResumesAt: gp.ResumesAt, Reason: gp.Reason}
 		}
 
 		// Auth.

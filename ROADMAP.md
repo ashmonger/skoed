@@ -828,19 +828,32 @@ Umbrella for several small landings — each lands as a separate PR but they're 
 
 ### Milestone 13 — Temporary Filtering Pause (Break-Glass Mode)
 
-**Outcome**: An operator can suspend all DNS filtering for a configurable window without touching config — useful for debugging, guest access, or a parent granting a temporary exception. Filtering resumes automatically when the timer expires.
+**Outcome**: An operator can suspend DNS filtering for a configurable window — either cluster-wide (all clients) or per-profile (only clients matched by that profile) — without touching config. Filtering resumes automatically when the timer expires.
 
 **Capabilities:**
-- `POST /api/v1/filter/pause` — body `{duration_seconds: N, reason?: string}` where N ≤ 86400 (24 h ceiling). Returns `{active: true, resumes_at: <ISO-8601>, reason}`. Cluster-wide: replicated through Raft so every node honours the same window simultaneously.
-- `DELETE /api/v1/filter/pause` — cancels an active pause early.
-- `GET /api/v1/filter/pause` — returns current pause state `{active, resumes_at?, reason?}`.
-- Filter engine short-circuits on every DNS query when a pause is active: blocklist + profile rules are skipped; local DNS entries and DNSSEC posture are unchanged. Query log entries during the window carry `outcome: forwarded` and `pause_active: true`.
+
+Global pause:
+- `POST /api/v1/filter/pause` — body `{duration_seconds: N, reason?: string}` where N ≤ `filtering.pause_max_seconds`. Returns `{active: true, resumes_at: <ISO-8601>, reason}`. Cluster-wide: replicated through Raft so every node honours the same window simultaneously.
+- `DELETE /api/v1/filter/pause` — cancels an active global pause early.
+- `GET /api/v1/filter/pause` — returns current global pause state `{active, resumes_at?, reason?}`.
+- Filter engine short-circuits all blocklist + profile rules for every client when a global pause is active; local DNS entries and DNSSEC posture are unchanged.
 - Dashboard: countdown chip showing "Filtering paused — resumes in X:XX" + "Resume now" button. Chip disappears when the pause expires or is cancelled.
+
+Per-profile pause:
+- `POST /api/v1/profiles/{id}/pause` — body `{duration_seconds: N, reason?: string}`. Suspends blocklist rules only for clients matched by that profile.
+- `DELETE /api/v1/profiles/{id}/pause` — cancels an active profile pause early.
+- `GET /api/v1/profiles/{id}/pause` — returns current pause state for that profile.
+- Profiles page: countdown badge + "Resume" button on paused profile cards.
+- Multiple profiles can be paused simultaneously with independent timers.
+- Global pause takes precedence: when a global pause is active, all clients see unfiltered DNS regardless of profile pause state.
+
+Common:
+- Query log entries during any pause carry `pause_active: true`.
 - Pause state survives a node restart (stored in bbolt, replicated via Raft). Auto-expires correctly even across restarts.
-- Settings: configurable hard ceiling `filtering.pause_max_seconds` (default 86400). Operator can set it to 0 to disable the feature entirely.
+- Settings: configurable hard ceiling `filtering.pause_max_seconds` (default 86400). Set to 0 to disable the feature entirely for all scopes.
 
 **Non-goals:**
-- Per-profile or per-group scope (cluster-wide only; combine with profile rules for finer control)
+- Per-client pause granularity (pause applies to a whole profile or globally, not to individual IPs)
 - Scheduled recurring pauses (that is already M3 schedule-rules)
 - Notifications / push alerts when pause starts or expires
 
