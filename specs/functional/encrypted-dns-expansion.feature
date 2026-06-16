@@ -126,6 +126,22 @@ Feature: Encrypted DNS Expansion — DoH3 and DNSCrypt v2
     Then DNSCrypt connections are refused
     And DoH, DoT, and plain DNS continue to accept queries
 
+  # ─── DoH3 advertisement via Alt-Svc (M15) ───────────────────────────────────
+
+  @fsid:FS-Doh3AltSvcAdvertised
+  Scenario: DoH (HTTP/2) responses advertise DoH3 via Alt-Svc when DoH3 is enabled
+    Given a node with both DoH (doh_port) and DoH3 (doh3_port) configured
+    When a client sends a DNS-over-HTTPS query over HTTP/2
+    Then the response includes an Alt-Svc header with "h3" and the configured doh3_port
+    And the max-age is at least 86400 seconds
+    And the filter result is correct regardless of the Alt-Svc header
+
+  @fsid:FS-Doh3AltSvcAbsentWhenDisabled
+  Scenario: Alt-Svc header is absent when DoH3 is not configured
+    Given a node with DoH enabled but doh3_port absent or zero
+    When a client sends a DNS-over-HTTPS query over HTTP/2
+    Then the response does not include an Alt-Svc header for "h3"
+
   # ─── Non-goals ───────────────────────────────────────────────────────────────
 
   # Non-goals for M8:
@@ -134,3 +150,6 @@ Feature: Encrypted DNS Expansion — DoH3 and DNSCrypt v2
   # - WebTransport or DoQ over non-standard ports — DoH3 covers the QUIC use case
   # - Per-token / per-client transport restrictions
   # - HTTP/3 for the management API (only the DNS path runs over QUIC)
+  # Non-goals for M15:
+  # - Alt-Svc on DoT responses (DoT is not HTTP; no Alt-Svc mechanism)
+  # - HTTPS management API advertising DoH3 via Alt-Svc

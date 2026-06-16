@@ -95,3 +95,8 @@ autoscaling:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# hostNetwork: true lets the pod bind port 53 directly on the node IP.
+# Required when there is no LoadBalancer (e.g. bare-metal / k3s without MetalLB).
+# dnsPolicy is automatically set to ClusterFirstWithHostNet when enabled.
+hostNetwork: false

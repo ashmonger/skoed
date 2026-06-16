@@ -28,6 +28,12 @@
 
 ## Exception pointers (optional)
 
+- **2026-06-16 — M15 keepalived Reference Exemption** (Rule 6)
+  - Scope: `deploy/keepalived/keepalived.conf.template`, `deploy/keepalived/skoed-health.sh`, `docs/src/cluster/keepalived.md`.
+  - Rationale: pure deployment-configuration templates and documentation. No skoed binary code changes; no effect on acceptance tests.
+  - Mitigation: templates manually validated against a 3-node Proxmox LXC cluster.
+  - UoR approval: inline (UoR requested M15-C explicitly).
+
 - **2026-06-10 — M11 Documentation Exemption** (Rule 6)
   - Scope: `README.md` rewrite and all `docs/src/**/*.md` page content.
   - Rationale: these deliverables are documentation only — they describe observable product behavior but do not themselves implement it. Changes have no effect on test outcomes.

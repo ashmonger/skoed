@@ -97,7 +97,7 @@ func TestAutoRefreshUpdatesAllNodes(t *testing.T) {
 	lines.Store("0.0.0.0 a.example\n0.0.0.0 b.example\n")
 	srv := startHostsServer(t, lines, hits)
 
-	c := startCluster(t, 3)
+	c := startClusterWithEnv(t, 3, []string{"SKOED_TEST_MODE=1"})
 	leader := c.Leader(t).Node
 	createUrlBlocklist(t, leader, "auto-refresh-bl", srv.URL, 2 /* seconds */)
 
@@ -144,7 +144,9 @@ func TestAutoRefreshStatusFields(t *testing.T) {
 	lines.Store("0.0.0.0 only.example\n")
 	srv := startHostsServer(t, lines, hits)
 
-	c := startCluster(t, 1)
+	// SKOED_TEST_MODE=1 drops scheduler tick to 1s so the refresh fires well
+	// within the 8s deadline (default 10s tick would time out the test).
+	c := startClusterWithEnv(t, 1, []string{"SKOED_TEST_MODE=1"})
 	n := c.Leader(t).Node
 	createUrlBlocklist(t, n, "status-fields-bl", srv.URL, 2)
 
@@ -186,23 +188,25 @@ func TestAutoRefreshFailureRecorded(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	c := startCluster(t, 1)
+	c := startClusterWithEnv(t, 1, []string{"SKOED_TEST_MODE=1"})
 	n := c.Leader(t).Node
 	createUrlBlocklist(t, n, "failure-recorded-bl", srv.URL, 2)
 
-	// Wait for the first successful refresh.
+	// Wait for the first successful refresh. "unchanged" is also valid —
+	// the create handler fetches inline, so the first scheduler tick sees
+	// identical content and records "unchanged" rather than "ok".
 	deadline := time.Now().Add(8 * time.Second)
 	var initialCount int
 	for time.Now().Before(deadline) {
 		b := fetchRefreshBlocklist(t, n, "failure-recorded-bl")
-		if b.LastRefreshStatus == "ok" {
+		if b.LastRefreshStatus == "ok" || b.LastRefreshStatus == "unchanged" {
 			initialCount = b.DomainCount
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 	if initialCount == 0 {
-		t.Skip("M5.4 impl pending: initial refresh never succeeded")
+		t.Fatalf("initial refresh never succeeded (no last_refresh_status within 8s)")
 	}
 
 	// Trigger failures.
@@ -260,7 +264,7 @@ func TestAutoRefreshLeaderOnly(t *testing.T) {
 	lines.Store("0.0.0.0 leaderonly.example\n")
 	srv := startHostsServer(t, lines, hits)
 
-	c := startCluster(t, 3)
+	c := startClusterWithEnv(t, 3, []string{"SKOED_TEST_MODE=1"})
 	n := c.Leader(t).Node
 	createUrlBlocklist(t, n, "leader-only-bl", srv.URL, 2)
 

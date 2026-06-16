@@ -197,6 +197,9 @@ func (s *EncryptedServer) startDoH() error {
 }
 
 func (s *EncryptedServer) handleDoH(w http.ResponseWriter, r *http.Request) {
+	if s.doh3Port > 0 {
+		w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%d"; ma=86400`, s.doh3Port))
+	}
 	s.serveHTTPDNS("doh", w, r)
 }
 

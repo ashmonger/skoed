@@ -1,15 +1,18 @@
 // Acceptance tests for M8 — DoH3 (HTTP/3 over QUIC) and DNSCrypt v2.
+// M15 additions: FS-Doh3AltSvcAdvertised, FS-Doh3AltSvcAbsentWhenDisabled
 //
 // FSIDs covered:
-//   FS-Doh3ServerListens            → TestDoh3ServerListens
-//   FS-Doh3AppliesFilter            → TestDoh3AppliesFilter
-//   FS-Doh3DisabledByDefault        → TestDoh3DisabledByDefault
-//   FS-DnscryptServerListens        → TestDnscryptServerListens
-//   FS-DnscryptAppliesFilter        → TestDnscryptAppliesFilter
-//   FS-DnscryptStampPublished       → TestDnscryptStampPublished
-//   FS-DnscryptKeyReplicatedViaRaft → TestDnscryptKeyReplicatedViaRaft
-//   FS-DnscryptDisabledByDefault    → TestDnscryptDisabledByDefault
-//   FS-Doh3IndependentEnable        → TestDoh3IndependentEnable
+//   FS-Doh3ServerListens              → TestDoh3ServerListens
+//   FS-Doh3AppliesFilter              → TestDoh3AppliesFilter
+//   FS-Doh3DisabledByDefault          → TestDoh3DisabledByDefault
+//   FS-DnscryptServerListens          → TestDnscryptServerListens
+//   FS-DnscryptAppliesFilter          → TestDnscryptAppliesFilter
+//   FS-DnscryptStampPublished         → TestDnscryptStampPublished
+//   FS-DnscryptKeyReplicatedViaRaft   → TestDnscryptKeyReplicatedViaRaft
+//   FS-DnscryptDisabledByDefault      → TestDnscryptDisabledByDefault
+//   FS-Doh3IndependentEnable          → TestDoh3IndependentEnable
+//   FS-Doh3AltSvcAdvertised           → TestDoh3AltSvcAdvertised
+//   FS-Doh3AltSvcAbsentWhenDisabled   → TestDoh3AltSvcAbsentWhenDisabled
 //
 // Tests self-skip when the binary is absent or the relevant ports are 0.
 package acceptance
@@ -445,5 +448,127 @@ func TestDoh3IndependentEnable(t *testing.T) {
 	body, _ := io.ReadAll(settingsResp.Body)
 	if strings.Contains(string(body), "sdns://") {
 		t.Errorf("expected no dnscrypt_stamp when DNSCrypt is not configured, got body=%s", string(body))
+	}
+}
+
+// ─── Alt-Svc advertisement (M15) ─────────────────────────────────────────────
+
+// TestDoh3AltSvcAdvertised — FS-Doh3AltSvcAdvertised
+// When both DoH and DoH3 are configured, the DoH (HTTP/2) response MUST
+// include Alt-Svc: h3=":<doh3_port>"; ma=86400.
+func TestDoh3AltSvcAdvertised(t *testing.T) {
+	t.Parallel()
+	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
+	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
+	cfg := M2NodeConfig{
+		NodeID:            "node-altsvc",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DoHPort:           freeTCPPort(t),
+		DoH3Port:          freeUDPPort(t),
+		UpstreamResolvers: []string{upstream},
+	}
+	n := c.spawnNode(t, cfg)
+	waitReady(t, n.Node)
+	setupAuth(t, n.Node)
+
+	if n.Node.DoHAddr == "" {
+		t.Skip("DoH not configured — cannot test Alt-Svc")
+	}
+
+	// Send a DoH POST over HTTP/2.
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn("example.com"), dns.TypeA)
+	wire, err := m.Pack()
+	if err != nil {
+		t.Fatalf("pack query: %v", err)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test
+		},
+	}
+	req, err := http.NewRequest("POST", "https://"+n.Node.DoHAddr+"/dns-query", bytes.NewReader(wire))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/dns-message")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DoH POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	altSvc := resp.Header.Get("Alt-Svc")
+	if altSvc == "" {
+		t.Fatal("Alt-Svc header absent; expected h3 advertisement")
+	}
+	wantH3Port := fmt.Sprintf("%d", cfg.DoH3Port)
+	if !strings.Contains(altSvc, "h3=") {
+		t.Errorf("Alt-Svc %q does not contain h3=", altSvc)
+	}
+	if !strings.Contains(altSvc, wantH3Port) {
+		t.Errorf("Alt-Svc %q does not contain DoH3 port %s", altSvc, wantH3Port)
+	}
+	if !strings.Contains(altSvc, "ma=") {
+		t.Errorf("Alt-Svc %q missing max-age (ma=)", altSvc)
+	}
+}
+
+// TestDoh3AltSvcAbsentWhenDisabled — FS-Doh3AltSvcAbsentWhenDisabled
+// When DoH3 is not configured (doh3_port = 0), the DoH response MUST NOT
+// include an Alt-Svc header.
+func TestDoh3AltSvcAbsentWhenDisabled(t *testing.T) {
+	t.Parallel()
+	bin := skoedBinary(t)
+	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("1.2.3.4"))
+	c := &Cluster{t: t, bin: bin, encryptedDNS: true}
+	cfg := M2NodeConfig{
+		NodeID:            "node-no-altsvc",
+		DNSPort:           freeUDPPort(t),
+		APIPort:           freeTCPPort(t),
+		RaftPort:          freeTCPPort(t),
+		DoHPort:           freeTCPPort(t),
+		// DoH3Port intentionally left 0 — DoH3 disabled.
+		UpstreamResolvers: []string{upstream},
+	}
+	n := c.spawnNode(t, cfg)
+	waitReady(t, n.Node)
+	setupAuth(t, n.Node)
+
+	if n.Node.DoHAddr == "" {
+		t.Skip("DoH not configured")
+	}
+
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn("example.com"), dns.TypeA)
+	wire, err := m.Pack()
+	if err != nil {
+		t.Fatalf("pack query: %v", err)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec — test
+		},
+	}
+	req, err := http.NewRequest("POST", "https://"+n.Node.DoHAddr+"/dns-query", bytes.NewReader(wire))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/dns-message")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DoH POST: %v", err)
+	}
+	defer resp.Body.Close()
+
+	altSvc := resp.Header.Get("Alt-Svc")
+	if strings.Contains(altSvc, "h3") {
+		t.Errorf("unexpected Alt-Svc h3 advertisement when DoH3 disabled: %q", altSvc)
 	}
 }

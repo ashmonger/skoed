@@ -126,7 +126,7 @@ pct push "$CT_ID" "$DEB" /tmp/skoed.deb
 pct exec "$CT_ID" -- bash -c '
     set -e
     apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends adduser
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends adduser curl
     dpkg -i /tmp/skoed.deb || DEBIAN_FRONTEND=noninteractive apt-get -f install -y
     rm /tmp/skoed.deb
 
@@ -148,7 +148,7 @@ cat > "$TMP_CONFIG" << EOF
 node:
   id: ${NODE_ID}
   raft_address: ${BARE_IP}:7000
-  api_address: ${BARE_IP}:8080
+  api_address: 0.0.0.0:8080
   data_dir: /var/lib/skoed
 
   dns:
