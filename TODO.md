@@ -55,7 +55,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M14 | Block Dynamic-Lease Clients | ✅ | — | [note](demos/m14/DEMO_NOTE.md) · [report](demos/m14/test-report.html) | [block-dyn](specs/functional/profile-block-dynamic-clients.feature) | [block-dyn](tests/acceptance/profile_block_dynamic_test.go) |
 | M15 | Test Suite Cleanup + keepalived Reference | ✅ | v0.1.3 | [note](demos/m15/DEMO_NOTE.md) · [report](demos/m15/test-report.html) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) · [refresh](tests/acceptance/blocklist_refresh_test.go) |
 | M16 | In-place Upgrade Binary Swap | ✅ | v0.1.4 | [note](demos/m16/DEMO_NOTE.md) · [report](demos/m16/test-report.html) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
-| M19 | Schedule Bindings + Config Export | 🔄 | — | — | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
+| M17 | Schedule Bindings + Config Export | 🔄 | — | — | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
+| M18 | Active-Active Cluster Phase 2 | ⬜ | — | — | — | — |
+| M19 | Query Log Aggregates (cluster-wide fan-out) | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
 
 ## M12 tasks
 
@@ -204,32 +206,32 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 
 ---
 
-## M19 tasks — Schedule Bindings + Config Export (branch: `feature/m19-schedule-bindings`)
+## M17 tasks — Schedule Bindings + Config Export (branch: `feature/m19-schedule-bindings`)
 
 **Scope (UoR-approved 2026-06-16):**
 - `GET /api/v1/schedules/{id}/bindings` — list profiles/clients currently bound to a schedule
 - Write schedules to `config.yaml` via `ShadowWriter` (currently schedules are bbolt-only)
 
-### M19 specs
-- [ ] M19 — functional spec: `FS-ScheduleBindingsList`, `FS-ScheduleConfigYaml` in `specs/functional/schedules.feature`
-- [ ] M19 — UoR validates functional spec
-- [ ] M19 — technical spec: add bindings endpoint + config.yaml schedule schema to `specs/technical/schedules.md`
-- [ ] M19 — UoR validates technical spec
+### M17 specs
+- [ ] M17 — functional spec: `FS-ScheduleBindingsList`, `FS-ScheduleConfigYaml` in `specs/functional/schedules.feature`
+- [ ] M17 — UoR validates functional spec
+- [ ] M17 — technical spec: add bindings endpoint + config.yaml schedule schema to `specs/technical/schedules.md`
+- [ ] M17 — UoR validates technical spec
 
-### M19 tests
-- [ ] M19 — acceptance test: `TestScheduleBindingsList`, `TestScheduleWrittenToConfigYaml` in `tests/acceptance/schedules_test.go`
-- [ ] M19 — UoR validates acceptance tests
+### M17 tests
+- [ ] M17 — acceptance test: `TestScheduleBindingsList`, `TestScheduleWrittenToConfigYaml` in `tests/acceptance/schedules_test.go`
+- [ ] M17 — UoR validates acceptance tests
 
-### M19 implementation
-- [ ] M19 — implement `GET /api/v1/schedules/{id}/bindings` handler
-- [ ] M19 — extend `ShadowWriter` to serialise schedules section
-- [ ] M19 — all acceptance tests green
+### M17 implementation
+- [ ] M17 — implement `GET /api/v1/schedules/{id}/bindings` handler
+- [ ] M17 — extend `ShadowWriter` to serialise schedules section
+- [ ] M17 — all acceptance tests green
 
-### M19 completion
-- [ ] M19 — refactoring phase
-- [ ] M19 — demo note: `demos/m19/DEMO_NOTE.md`
-- [ ] M19 — UoR demo validation
-- [ ] M19 — merge to master
+### M17 completion
+- [ ] M17 — refactoring phase
+- [ ] M17 — demo note: `demos/m19/DEMO_NOTE.md`
+- [ ] M17 — UoR demo validation
+- [ ] M17 — merge to master
 
 ---
 
