@@ -14,15 +14,17 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 ## Active features
 
-**M13 — Temporary Filtering Pause** — branch `feature/m13-filtering-pause`
-**M14 — Block Dynamic-Lease Clients** — branch `feature/m14-block-dynamic-clients`
-**M15 — Test Suite Cleanup + keepalived Reference** — branch `feature/m15-test-suite-keepalived`
+**M19 — Schedule Bindings + Config Export** — branch `feature/m19-schedule-bindings`
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
 - [x] M10 — Active-Active Cluster — merged to master — 2026-06-09
 - [x] M11 — Distribution & Documentation — merged to master — 2026-06-10
 - [x] M12 — Cluster Join via Web UI + Config Backup/Restore — merged to master — 2026-06-12
+- [x] M13 — Temporary Filtering Pause — merged to master — 2026-06-15
+- [x] M14 — Block Dynamic-Lease Clients — merged to master — 2026-06-16
+- [x] M15 — Test Suite Cleanup + keepalived Reference — merged to master — v0.1.3 — 2026-06-16
+- [x] M16 — In-place Upgrade Binary Swap — merged to master — v0.1.4 — 2026-06-16
 
 ## M12 tasks
 
@@ -167,7 +169,7 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 - [x] M16 — demo note: `demos/m16/DEMO_NOTE.md` — 2026-06-16
 - [x] M16 — test report: `demos/m16/test-report.html` — 2026-06-16
 - [x] M16 — UoR demo validation — 2026-06-16
-- [ ] M16 — merge to master + tag v0.1.4
+- [x] M16 — merge to master + tag v0.1.4 — 2026-06-16
 
 ---
 
