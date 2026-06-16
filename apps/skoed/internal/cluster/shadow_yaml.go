@@ -141,11 +141,13 @@ func (w *ShadowWriter) writeOnce() {
 // AND `api` (the API port moved to `node.api_address` in M2 and is no
 // longer cluster-replicated — it's node-local).
 type clusterSections struct {
-	DNS       config.DNSConfig       `yaml:"dns"`
-	Filtering config.FilteringConfig `yaml:"filtering"`
-	LocalDNS  config.LocalDNSConfig  `yaml:"local_dns"`
-	QueryLog  config.QueryLogConfig  `yaml:"query_log"`
-	Auth      config.AuthConfig      `yaml:"auth"`
+	DNS              config.DNSConfig          `yaml:"dns"`
+	Filtering        config.FilteringConfig     `yaml:"filtering"`
+	LocalDNS         config.LocalDNSConfig      `yaml:"local_dns"`
+	QueryLog         config.QueryLogConfig      `yaml:"query_log"`
+	Auth             config.AuthConfig          `yaml:"auth"`
+	Schedules        []config.Schedule         `yaml:"schedules,omitempty"`
+	ScheduleBindings []config.ScheduleBinding  `yaml:"schedule_bindings,omitempty"`
 }
 
 // shadowDoc is the on-disk merged YAML shape: a node-local section, an
@@ -172,11 +174,13 @@ func (w *ShadowWriter) snapshotAndWrite() error {
 		SchemaVersion: 1,
 		Node:          node.Node,
 		clusterSections: clusterSections{
-			DNS:       snap.DNS,
-			Filtering: snap.Filtering,
-			LocalDNS:  snap.LocalDNS,
-			QueryLog:  snap.QueryLog,
-			Auth:      snap.Auth,
+			DNS:              snap.DNS,
+			Filtering:        snap.Filtering,
+			LocalDNS:         snap.LocalDNS,
+			QueryLog:         snap.QueryLog,
+			Auth:             snap.Auth,
+			Schedules:        snap.Schedules,
+			ScheduleBindings: snap.Bindings,
 		},
 	}
 	if node.Bootstrap.LeaderAddress != "" || node.Bootstrap.Token != "" {

@@ -12,6 +12,10 @@ x-fsid-links:
   - FS-ScheduleMultipleProfiles
   - FS-ScheduleApiCrud
   - FS-ScheduleTimezoneIsNodeLocal
+  - FS-ScheduleBindingsList
+  - FS-ScheduleBindingsListEmpty
+  - FS-ScheduleBindingsListNotFound
+  - FS-ScheduleConfigYaml
 ---
 
 # TS-ProfilesAndSchedules — Per-client profiles and schedule rules
@@ -88,6 +92,26 @@ All replicated via Raft. `Store.applyTx` handles each kind exactly like the
 existing M2 commands. The shadow YAML writer adds two new top-level sections
 (`profiles:` and `schedules:`) so PBS-style backups capture them.
 
+**Shadow YAML schedule sections** (M17):
+
+```yaml
+schedules:
+  - id: evening-clamp
+    name: Evening clamp
+    mode: block_only_inside
+    windows:
+      - days: [Mon, Tue, Wed, Thu, Fri]
+        start: "20:00"
+        end: "23:59"
+
+schedule_bindings:
+  - schedule_id: evening-clamp
+    profile_id: kids
+    blocklist_id: social
+```
+
+Both sections are omitempty: absent from the file when no schedules exist.
+
 ## Profile resolution
 
 The DNS handler now does an extra step on every query:
@@ -148,7 +172,20 @@ DELETE /schedules/{id}        delete (cascades bindings)
 
 POST   /schedules/{id}/bindings              attach to (profile,blocklist)
 DELETE /schedules/{id}/bindings/{profile}/{blocklist}   detach
+GET    /schedules/{id}/bindings              list bindings for schedule
 ```
+
+**GET /schedules/{id}/bindings** response shape:
+
+```json
+[
+  {"schedule_id": "evening-clamp", "profile_id": "kids",  "blocklist_id": "social"},
+  {"schedule_id": "evening-clamp", "profile_id": "teens", "blocklist_id": "gaming"}
+]
+```
+
+Returns `[]` (empty array, not null) when no bindings exist. Returns 404
+when the schedule itself does not exist.
 
 Auth + leader-forwarding behave exactly like M2 endpoints.
 

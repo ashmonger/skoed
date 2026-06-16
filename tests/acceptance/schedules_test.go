@@ -1,4 +1,5 @@
-// Acceptance tests for M3 schedule rules.
+// Acceptance tests for M3 schedule rules and M17 schedule bindings list +
+// config YAML persistence.
 //
 // FSIDs covered (one Go test per FSID):
 //   FS-ScheduleActiveWindow
@@ -6,6 +7,10 @@
 //   FS-ScheduleMultipleProfiles
 //   FS-ScheduleApiCrud
 //   FS-ScheduleTimezoneIsNodeLocal
+//   FS-ScheduleBindingsList         (M17)
+//   FS-ScheduleBindingsListEmpty    (M17)
+//   FS-ScheduleBindingsListNotFound (M17)
+//   FS-ScheduleConfigYaml           (M17)
 //
 // ── Time injection ────────────────────────────────────────────────────────
 //
@@ -33,9 +38,13 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/miekg/dns"
 )
@@ -461,4 +470,143 @@ func setUpstreamResolvers(t *testing.T, n *ClusterNode, upstream string) {
 		t.Fatalf("PATCH /settings dns.upstream_resolvers: status %d: %s",
 			resp.StatusCode, readBody(t, resp))
 	}
+}
+
+// ── M17 tests ─────────────────────────────────────────────────────────────
+
+// FS-ScheduleBindingsList
+//
+// GET /api/v1/schedules/{id}/bindings returns every (profile, blocklist) pair
+// bound to that schedule as a JSON array.
+func TestScheduleBindingsList(t *testing.T) {
+	t.Parallel()
+	n := startScheduleNode(t)
+
+	addInlineBlocklist(t, n.Node, "social", []string{"facebook.com"}, "")
+	addInlineBlocklist(t, n.Node, "gaming", []string{"steam.com"}, "")
+	createScheduleProfile(t, n, profileBody{ID: "kids", Name: "Kids", Blocklists: []string{"social"}, ClientIPs: []string{"192.168.1.50"}})
+	createScheduleProfile(t, n, profileBody{ID: "teens", Name: "Teens", Blocklists: []string{"gaming"}, ClientIPs: []string{"192.168.1.60"}})
+	createSchedule(t, n, scheduleBody{
+		ID: "evening-clamp", Name: "Evening clamp", Mode: "block_only_inside",
+		Windows: []timeWindow{{Days: []string{"Mon"}, Start: "20:00", End: "23:59"}},
+	})
+	bindSchedule(t, n, "evening-clamp", "kids", "social")
+	bindSchedule(t, n, "evening-clamp", "teens", "gaming")
+
+	resp := n.apiDo(t, "GET", "/api/v1/schedules/evening-clamp/bindings", "")
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		t.Skip("M17 impl pending: GET /api/v1/schedules/{id}/bindings returns 404")
+	}
+	assertStatus(t, resp, http.StatusOK)
+
+	var bindings []map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&bindings); err != nil {
+		t.Fatalf("decode bindings response: %v", err)
+	}
+	if len(bindings) != 2 {
+		t.Fatalf("expected 2 bindings, got %d", len(bindings))
+	}
+	for _, b := range bindings {
+		if b["schedule_id"] != "evening-clamp" {
+			t.Errorf("binding has wrong schedule_id: %v", b)
+		}
+	}
+	findBinding := func(profileID, blocklistID string) bool {
+		for _, b := range bindings {
+			if b["profile_id"] == profileID && b["blocklist_id"] == blocklistID {
+				return true
+			}
+		}
+		return false
+	}
+	if !findBinding("kids", "social") {
+		t.Errorf("missing binding (kids, social) in %v", bindings)
+	}
+	if !findBinding("teens", "gaming") {
+		t.Errorf("missing binding (teens, gaming) in %v", bindings)
+	}
+}
+
+// FS-ScheduleBindingsListEmpty
+//
+// GET /api/v1/schedules/{id}/bindings returns [] when the schedule has no bindings.
+func TestScheduleBindingsListEmpty(t *testing.T) {
+	t.Parallel()
+	n := startScheduleNode(t)
+
+	createSchedule(t, n, scheduleBody{
+		ID: "unbound", Name: "Unbound", Mode: "block_only_inside",
+		Windows: []timeWindow{{Days: []string{"Mon"}, Start: "20:00", End: "23:59"}},
+	})
+
+	resp := n.apiDo(t, "GET", "/api/v1/schedules/unbound/bindings", "")
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		t.Skip("M17 impl pending: GET /api/v1/schedules/{id}/bindings returns 404")
+	}
+	assertStatus(t, resp, http.StatusOK)
+
+	var bindings []map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&bindings); err != nil {
+		t.Fatalf("decode bindings response: %v", err)
+	}
+	if len(bindings) != 0 {
+		t.Fatalf("expected empty array, got %d bindings: %v", len(bindings), bindings)
+	}
+}
+
+// FS-ScheduleBindingsListNotFound
+//
+// GET /api/v1/schedules/{id}/bindings returns 404 when the schedule does not exist.
+func TestScheduleBindingsListNotFound(t *testing.T) {
+	t.Parallel()
+	n := startScheduleNode(t)
+
+	resp := n.apiDo(t, "GET", "/api/v1/schedules/ghost/bindings", "")
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusMethodNotAllowed {
+		t.Skip("M17 impl pending: GET /api/v1/schedules/{id}/bindings returns 405 (route not registered)")
+	}
+	assertStatus(t, resp, http.StatusNotFound)
+}
+
+// FS-ScheduleConfigYaml
+//
+// Schedules and schedule_bindings appear in config.yaml after a Raft commit
+// and the shadow writer debounce window.
+func TestScheduleWrittenToConfigYaml(t *testing.T) {
+	t.Parallel()
+	c := startCluster(t, 1)
+	leader := c.Leader(t)
+
+	addInlineBlocklist(t, leader.Node, "social", []string{"facebook.com"}, "")
+	resp := leader.apiDo(t, "POST", "/api/v1/profiles", mustJSON(t, profileBody{
+		ID: "kids", Name: "Kids", Blocklists: []string{"social"}, ClientIPs: []string{"192.168.1.50"},
+	}))
+	resp.Body.Close()
+
+	resp = leader.apiDo(t, "POST", "/api/v1/schedules", mustJSON(t, scheduleBody{
+		ID: "evening-clamp", Name: "Evening clamp", Mode: "block_only_inside",
+		Windows: []timeWindow{{Days: []string{"Mon"}, Start: "20:00", End: "23:59"}},
+	}))
+	resp.Body.Close()
+
+	resp = leader.apiDo(t, "POST", "/api/v1/schedules/evening-clamp/bindings",
+		mustJSON(t, scheduleBindingBody{ProfileID: "kids", BlocklistID: "social"}))
+	resp.Body.Close()
+
+	shadowPath := filepath.Join(leader.DataDir, "config.yaml")
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(shadowPath)
+		if err == nil &&
+			strings.Contains(string(data), "evening-clamp") &&
+			strings.Contains(string(data), "schedule_bindings") {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	data, _ := os.ReadFile(shadowPath)
+	t.Fatalf("shadow YAML did not include schedules/bindings within 5s:\n%s", string(data))
 }

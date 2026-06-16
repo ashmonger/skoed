@@ -213,23 +213,24 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 - Write schedules to `config.yaml` via `ShadowWriter` (currently schedules are bbolt-only)
 
 ### M17 specs
-- [ ] M17 — functional spec: `FS-ScheduleBindingsList`, `FS-ScheduleConfigYaml` in `specs/functional/schedules.feature`
-- [ ] M17 — UoR validates functional spec
-- [ ] M17 — technical spec: add bindings endpoint + config.yaml schedule schema to `specs/technical/schedules.md`
-- [ ] M17 — UoR validates technical spec
+- [x] M17 — functional spec: 4 FSIDs in `specs/functional/schedules.feature` — 2026-06-16
+- [x] M17 — UoR validates functional spec — 2026-06-16
+- [x] M17 — technical spec: GET /bindings + schedule YAML schema in `specs/technical/profiles-and-schedules.md` — 2026-06-16
+- [x] M17 — UoR validates technical spec — 2026-06-16
 
 ### M17 tests
-- [ ] M17 — acceptance test: `TestScheduleBindingsList`, `TestScheduleWrittenToConfigYaml` in `tests/acceptance/schedules_test.go`
-- [ ] M17 — UoR validates acceptance tests
+- [x] M17 — acceptance tests: `TestScheduleBindingsList`, `TestScheduleBindingsListEmpty`, `TestScheduleBindingsListNotFound`, `TestScheduleWrittenToConfigYaml` — 2026-06-16
+- [x] M17 — UoR validates acceptance tests — 2026-06-16
 
 ### M17 implementation
-- [ ] M17 — implement `GET /api/v1/schedules/{id}/bindings` handler
-- [ ] M17 — extend `ShadowWriter` to serialise schedules section
-- [ ] M17 — all acceptance tests green
+- [x] M17 — `ListScheduleBindings` handler in `handlers/schedules.go` — 2026-06-16
+- [x] M17 — GET route wired in `api/app.go` — 2026-06-16
+- [x] M17 — `ShadowWriter.clusterSections` extended with `Schedules` + `ScheduleBindings` — 2026-06-16
+- [x] M17 — 4 M17 tests green; full suite (413 tests) green — 2026-06-16
 
 ### M17 completion
 - [ ] M17 — refactoring phase
-- [ ] M17 — demo note: `demos/m19/DEMO_NOTE.md`
+- [ ] M17 — demo note: `demos/m17/DEMO_NOTE.md`
 - [ ] M17 — UoR demo validation
 - [ ] M17 — merge to master
 

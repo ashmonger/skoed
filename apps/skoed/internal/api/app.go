@@ -695,6 +695,7 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/schedules/{id}", h.GetSchedule)
 		r.Patch("/api/v1/schedules/{id}", a.forward(h.UpdateSchedule))
 		r.Delete("/api/v1/schedules/{id}", a.forward(h.DeleteSchedule))
+		r.Get("/api/v1/schedules/{id}/bindings", h.ListScheduleBindings)
 		r.Post("/api/v1/schedules/{id}/bindings", a.forward(h.AddScheduleBinding))
 		r.Delete("/api/v1/schedules/{id}/bindings/{profile}/{blocklist}", a.forward(h.DeleteScheduleBinding))
 

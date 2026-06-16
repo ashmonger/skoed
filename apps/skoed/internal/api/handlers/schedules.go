@@ -98,6 +98,30 @@ func (h *Handler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListScheduleBindings handles GET /api/v1/schedules/{id}/bindings.
+func (h *Handler) ListScheduleBindings(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	cfg := h.app.GetCfg()
+	found := false
+	for _, s := range cfg.Schedules {
+		if s.ID == id {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "schedule not found")
+		return
+	}
+	bindings := make([]config.ScheduleBinding, 0)
+	for _, b := range cfg.Bindings {
+		if b.ScheduleID == id {
+			bindings = append(bindings, b)
+		}
+	}
+	writeJSON(w, http.StatusOK, bindings)
+}
+
 // AddScheduleBinding handles POST /api/v1/schedules/{id}/bindings.
 func (h *Handler) AddScheduleBinding(w http.ResponseWriter, r *http.Request) {
 	id := urlParam(r, "id")
