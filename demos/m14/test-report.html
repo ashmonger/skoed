@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M14 — Real-Environment Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #232636;
+    --border: #2e3250;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #7c6af7;
+    --accent2: #5eead4;
+    --pass: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+    --nxdomain: #818cf8;
+    --noerror: #34d399;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ── Layout ── */
+  header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span {
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── Summary cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.cyan::before   { background: var(--accent2); }
+  .card.yellow::before { background: var(--warn); }
+  .card.purple::before { background: #a855f7; }
+
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Sections ── */
+  section { margin-bottom: 40px; }
+  section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #c7d2fe;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(46,50,80,0.5);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .badge.pass    { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail    { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+  .badge.nxd     { background: rgba(129,140,248,0.15); color: var(--nxdomain); border: 1px solid rgba(129,140,248,0.3); }
+  .badge.noerr   { background: rgba(52,211,153,0.1); color: var(--noerror); border: 1px solid rgba(52,211,153,0.2); }
+  .badge.dyn     { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+  .badge.sta     { background: rgba(94,234,212,0.12); color: var(--accent2); border: 1px solid rgba(94,234,212,0.25); }
+  .badge.leader  { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+  .badge.follower{ background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot.green  { background: var(--pass); }
+  .dot.red    { background: var(--fail); }
+  .dot.yellow { background: var(--warn); }
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #a5b4fc;
+  }
+
+  /* ── Topology ── */
+  .topo-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+  }
+  .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
+
+  .node-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .node-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .node-card-header .nc-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #c7d2fe;
+  }
+  .node-card-body { padding: 12px 16px; }
+  .node-card .kv {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(46,50,80,0.35);
+    font-size: 12px;
+  }
+  .node-card .kv:last-child { border-bottom: none; }
+  .node-card .k  { color: var(--muted); min-width: 88px; flex-shrink: 0; }
+  .node-card .v  { color: var(--text); }
+  .node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+  .node-card .tags { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* ── Perf charts ── */
+  .perf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .perf-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .perf-box h3 { font-size: 13px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .perf-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(46,50,80,0.4); gap: 8px; }
+  .perf-row:last-child { border-bottom: none; }
+  .perf-row .pk  { color: var(--muted); font-size: 12px; flex: 1; }
+  .perf-row .pv  { color: #fff; font-weight: 600; font-size: 13px; font-family: monospace; }
+  .perf-row .pv.good { color: var(--pass); }
+  .perf-row .pv.ok   { color: var(--warn); }
+
+  /* ── bar sparklines ── */
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12px; }
+  .bar-row .bl { width: 160px; color: var(--muted); text-align: right; }
+  .bar-outer { flex: 1; background: rgba(255,255,255,0.06); border-radius: 3px; height: 8px; }
+  .bar-inner { height: 8px; border-radius: 3px; background: var(--accent); }
+  .bar-row .bv { color: #fff; font-family: monospace; min-width: 80px; }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: '';
+    position: absolute; left: 8px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .tl-item { position: relative; margin-bottom: 20px; }
+  .tl-item::before {
+    content: '';
+    position: absolute; left: -24px; top: 5px;
+    width: 10px; height: 10px;
+    border-radius: 50%; border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .tl-item.done::before { background: var(--pass); border-color: var(--pass); }
+  .tl-item .tl-title { font-weight: 600; color: #c7d2fe; font-size: 13px; }
+  .tl-item .tl-desc  { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M14 — Block Dynamic-Lease Clients</h1>
+  <p>Real-Environment Test Report &mdash; Proxmox 3-Node LXC Cluster</p>
+  <div class="meta">
+    <span>Date: 2026-06-16</span>
+    <span>Cluster: CT301/302/303 · 10.0.0.11-13</span>
+    <span>DHCP: dnsmasq (CT301)</span>
+    <span>DNS: Forwarding + Recursive (both tested)</span>
+    <span>Test mode: SKOED_TEST_MODE=1 on CT301</span>
+    <span>Tools: dnsperf 2.10.0, k6 2.0.0</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Summary cards ── -->
+  <div class="cards">
+    <div class="card green">
+      <div class="value" style="font-size:26px;">407/407</div>
+      <div class="unit">acceptance tests</div>
+      <div class="label">All passing</div>
+    </div>
+    <div class="card blue">
+      <div class="value">15/15</div>
+      <div class="unit">real-env DNS tests</div>
+      <div class="label">Filtering verified</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">14,583</div>
+      <div class="unit">queries/second</div>
+      <div class="label">DNS peak throughput</div>
+    </div>
+    <div class="card yellow">
+      <div class="value">391</div>
+      <div class="unit">API req/s</div>
+      <div class="label">20 VUs · 20s sustained</div>
+    </div>
+    <div class="card purple">
+      <div class="value">0%</div>
+      <div class="unit">error rate</div>
+      <div class="label">Both DNS and API</div>
+    </div>
+    <div class="card" style="border-top: 3px solid #f59e0b;">
+      <div class="value" style="font-size:28px;">5,998</div>
+      <div class="unit">queries/second</div>
+      <div class="label">Recursive mode peak</div>
+    </div>
+  </div>
+
+  <!-- ── Cluster topology ── -->
+  <section>
+    <h2>Cluster topology</h2>
+
+    <!-- SVG network diagram -->
+    <div class="topo-wrap">
+      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+        <defs>
+          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+        </defs>
+
+        <!-- Proxmox host background — height contains all 3 nodes (bottom at y=262) -->
+        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 10.0.0.0/24 (NAT)</text>
+
+        <!-- ═══ CT301 — Follower, dnsmasq, TEST_MODE ═══ -->
+        <rect x="28" y="46" width="242" height="208" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="50" cy="70" r="5" fill="#34d399"/>
+        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">CT301</text>
+        <rect x="190" y="58" width="62" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="221" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="63" y="90" font-size="11" fill="#636e8f">skoed-301</text>
+        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.11</text>
+        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="44" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="110" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <rect x="44" y="184" width="100" height="20" rx="6" fill="rgba(251,191,36,0.1)" stroke="rgba(251,191,36,0.35)"/>
+        <text x="94" y="198" font-size="10" fill="#fbbf24" text-anchor="middle" font-weight="600">dnsmasq DHCP</text>
+        <rect x="44" y="208" width="162" height="20" rx="6" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.3)"/>
+        <text x="125" y="222" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">SKOED_TEST_MODE=1</text>
+        <text x="44" y="244" font-size="10" fill="#636e8f">DNS mode</text>
+        <text x="110" y="244" font-size="10" fill="#e2e8f0">forwarding</text>
+
+        <!-- ═══ CT302 — Leader ═══ -->
+        <rect x="329" y="46" width="242" height="208" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+        <circle cx="351" cy="70" r="5" fill="#34d399"/>
+        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">CT302</text>
+        <rect x="491" y="58" width="62" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+        <text x="522" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+        <text x="364" y="90" font-size="11" fill="#636e8f">skoed-302</text>
+        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.12</text>
+        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="345" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="411" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <text x="345" y="200" font-size="10" fill="#636e8f">DNS mode</text>
+        <text x="411" y="200" font-size="10" fill="#e2e8f0">forwarding</text>
+
+        <!-- ═══ CT303 — Follower ═══ -->
+        <rect x="630" y="46" width="242" height="208" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="652" cy="70" r="5" fill="#34d399"/>
+        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">CT303</text>
+        <rect x="792" y="58" width="62" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="823" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="665" y="90" font-size="11" fill="#636e8f">skoed-303</text>
+        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.13</text>
+        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="646" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="712" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <text x="646" y="200" font-size="10" fill="#636e8f">DNS mode</text>
+        <text x="712" y="200" font-size="10" fill="#e2e8f0">forwarding</text>
+
+        <!-- ═══ Raft connections (double-headed arrows) ═══ -->
+        <!-- CT301 ↔ CT302 -->
+        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+        <!-- CT302 ↔ CT303 -->
+        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+      </svg>
+    </div>
+    <p style="text-align:center; font-size:11px; color:var(--muted); margin-top:6px;">
+      vmbr1 10.0.0.0/24 · Gateway: 10.0.0.1 → Internet · dnsmasq DHCP runs on CT301 only; lease info replicated via Raft
+    </p>
+  </section>
+
+  <!-- ── DHCP setup ── -->
+  <section>
+    <h2>DHCP lease setup (dnsmasq on CT301)</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      Three <strong>static/inferred</strong> clients (MAC pinned in <code>dhcp-host=</code> directives) and three <strong>dynamic</strong> clients (lease present but no directive). The dnsmasq connector classifies them automatically.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Client IP</th>
+            <th>Hostname</th>
+            <th>MAC</th>
+            <th>DHCP origin</th>
+            <th>Trust tier</th>
+            <th>Untrusted profile applies?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>10.0.0.110</code></td>
+            <td>home-laptop</td>
+            <td><code>aa:bb:cc:dd:ee:10</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td>inferred</td>
+            <td><span style="color:var(--pass)">✗ No (static)</span></td>
+          </tr>
+          <tr>
+            <td><code>10.0.0.142</code></td>
+            <td>kid-tablet</td>
+            <td><code>aa:bb:cc:dd:ee:42</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td>inferred</td>
+            <td><span style="color:var(--pass)">✗ No (static)</span></td>
+          </tr>
+          <tr>
+            <td><code>10.0.0.150</code></td>
+            <td>trusted-iot</td>
+            <td><code>aa:bb:cc:dd:ee:50</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td>inferred</td>
+            <td><span style="color:var(--pass)">✗ No (static)</span></td>
+          </tr>
+          <tr>
+            <td><code>10.0.0.177</code></td>
+            <td>guest-phone</td>
+            <td><code>aa:bb:cc:dd:ee:77</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td>high</td>
+            <td><span style="color:var(--fail)">✓ Yes — blocked by untrusted profile</span></td>
+          </tr>
+          <tr>
+            <td><code>10.0.0.188</code></td>
+            <td>stranger-laptop</td>
+            <td><code>aa:bb:cc:dd:ee:88</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td>high</td>
+            <td><span style="color:var(--fail)">✓ Yes — blocked by untrusted profile</span></td>
+          </tr>
+          <tr>
+            <td><code>10.0.0.199</code></td>
+            <td>unknown-device</td>
+            <td><code>aa:bb:cc:dd:ee:99</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td>high</td>
+            <td><span style="color:var(--fail)">✓ Yes — blocked by untrusted profile</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Blocklists & profile ── -->
+  <section>
+    <h2>Blocklists and profile configuration</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Blocklists</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Domains</th></tr></thead>
+            <tbody>
+              <tr><td><code>ads</code></td><td>Ads</td><td>2 (<code>doubleclick.net</code>, <code>ads.google.com</code>)</td></tr>
+              <tr><td><code>social</code></td><td>Social</td><td>3 (<code>facebook.com</code>, <code>twitter.com</code>, <code>instagram.com</code>)</td></tr>
+              <tr><td><code>cat:doh</code></td><td>DoH/DoT resolvers</td><td>40 (bundled IP list)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">Profiles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Profile</th><th>block_dynamic_clients</th><th>Linked blocklists</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>default</code> <span class="badge follower">built-in</span></td>
+                <td><code>false</code> (forbidden)</td>
+                <td>ads, cat:doh</td>
+              </tr>
+              <tr>
+                <td><code>untrusted</code> <span class="badge dyn">M14</span></td>
+                <td><code><strong style="color:var(--pass)">true</strong></code></td>
+                <td>ads, social, cat:doh</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DNS filtering tests ── -->
+  <section>
+    <h2>DNS filtering tests — real environment</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      Run on CT301 with <code>SKOED_TEST_MODE=1</code>. Client IP injected via EDNS0 option 65500 (4-byte IP).
+      Tool: <code>dig</code>. Upstream resolvers: <code>1.1.1.1:53</code>, <code>8.8.8.8:53</code>.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th>Client</th>
+            <th>Origin</th>
+            <th>Domain</th>
+            <th>Got</th>
+            <th>Expected</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Default profile (no spoof) -->
+          <tr>
+            <td colspan="7" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Default profile (no client IP spoof)</td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">default/example.com</td>
+            <td>—</td>
+            <td>—</td>
+            <td><code>example.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (forward)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">default/google.com</td>
+            <td>—</td>
+            <td>—</td>
+            <td><code>google.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (forward)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">default/doubleclick.net</td>
+            <td>—</td>
+            <td>—</td>
+            <td><code>doubleclick.net</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (ads blocklist)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">default/facebook.com</td>
+            <td>—</td>
+            <td>—</td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (social not in default)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+
+          <!-- Dynamic clients -->
+          <tr>
+            <td colspan="7" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Dynamic clients — untrusted profile active via block_dynamic_clients=true</td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">dyn.177/facebook.com</td>
+            <td><code>10.0.0.177</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (social blocklist)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">dyn.177/doubleclick.net</td>
+            <td><code>10.0.0.177</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>doubleclick.net</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (ads blocklist)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">dyn.177/example.com</td>
+            <td><code>10.0.0.177</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>example.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (not blocked)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">dyn.188/facebook.com</td>
+            <td><code>10.0.0.188</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (social blocklist)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">dyn.188/example.com</td>
+            <td><code>10.0.0.188</code></td>
+            <td><span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>example.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (not blocked)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+
+          <!-- Static clients -->
+          <tr>
+            <td colspan="7" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Static clients — untrusted profile does NOT apply</td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">sta.110/facebook.com</td>
+            <td><code>10.0.0.110</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (social not in default)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">sta.110/doubleclick.net</td>
+            <td><code>10.0.0.110</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td><code>doubleclick.net</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (ads blocklist in default profile)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">sta.110/example.com</td>
+            <td><code>10.0.0.110</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td><code>example.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (not blocked)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">sta.142/facebook.com</td>
+            <td><code>10.0.0.142</code></td>
+            <td><span class="badge sta">dhcp_static</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (social not in default)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+
+          <!-- Cross-node replication -->
+          <tr>
+            <td colspan="7" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Cross-node replication — config replicated via Raft</td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">node302/facebook.com</td>
+            <td style="white-space:nowrap;"><span class="badge leader">CT302 leader</span></td>
+            <td>—</td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (default profile)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td style="white-space:nowrap;">node303/doubleclick.net</td>
+            <td style="white-space:nowrap;"><span class="badge follower">CT303 follower</span></td>
+            <td>—</td>
+            <td><code>doubleclick.net</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (ads blocklist replicated)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--pass); font-size:13px; margin-top:12px; font-weight:600;">✓ 15/15 DNS filtering tests pass</p>
+    <p style="color:var(--muted); font-size:12px; margin-top:4px;">
+      Note: EDNS0 option 65500 client IP injection requires <code>SKOED_TEST_MODE=1</code> (enabled on CT301 via systemd override).
+      Production deployments do not need this flag — DHCP client identification uses actual source IPs.
+    </p>
+  </section>
+
+  <!-- ── Acceptance tests ── -->
+  <section>
+    <h2>Acceptance tests — full suite</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      407 tests across 51 feature files, run in Docker multi-node harness (<code>tests/acceptance/</code>).
+      M14 tests highlighted.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test file</th>
+            <th style="text-align:center; width:64px;">Tests</th>
+            <th style="width:100px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M1 — Core</td></tr>
+          <tr><td><code>dns_engine_test.go</code></td><td style="text-align:center">12</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>filtering_test.go</code></td><td style="text-align:center">22</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>local_dns_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>query_log_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>config_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>auth_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>cli_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M2–M4 — Cluster sync &amp; enrollment</td></tr>
+          <tr><td><code>sync_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>enrollment_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>failover_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>cluster_status_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M5 — TLS &amp; mTLS</td></tr>
+          <tr><td><code>management_api_https_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>encrypted_mesh_test.go</code></td><td style="text-align:center">2</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>acme_tls_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M6 — DHCP identity &amp; profiles</td></tr>
+          <tr><td><code>profiles_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_client_identity_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_connectors_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_spoof_detection_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>lease_origin_tagging_test.go</code></td><td style="text-align:center">12</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M7 — API tokens, audit log, safe search, schedules</td></tr>
+          <tr><td><code>api_token_test.go</code></td><td style="text-align:center">11</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>audit_log_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>test_domain_test.go</code></td><td style="text-align:center">11</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>url_tester_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>safesearch_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>schedules_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>client_doh_status_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M8 — DoH support</td></tr>
+          <tr><td><code>doh_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>doh_server_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>doh_resolver_database_test.go</code></td><td style="text-align:center">13</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M9 — Kubernetes operator</td></tr>
+          <tr><td><code>kubernetes_operator_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M10 — Active-active cluster</td></tr>
+          <tr><td><code>active_active_cluster_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M11 — Distribution &amp; packaging</td></tr>
+          <tr><td><code>packaging_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>helm_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M12 — Cluster join via web UI</td></tr>
+          <tr><td><code>cluster_join_webui_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M13 — Filtering pause</td></tr>
+          <tr><td><code>filtering_pause_test.go</code></td><td style="text-align:center">20</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:rgba(168,85,247,0.1)"><td colspan="3" style="font-size:11px; color:#d8b4fe; padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M14 — Block dynamic-lease clients ← this release</td></tr>
+          <tr style="background:rgba(168,85,247,0.04)"><td><code>profile_block_dynamic_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Additional features</td></tr>
+          <tr><td><code>blocklist_refresh_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dns_cache_controls_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>categories_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>query_log_aggregates_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>prometheus_metrics_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>shadow_yaml_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>api_docs_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>in_place_upgrade_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>encrypted_dns_expansion_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_arp_cross_check_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcpv6_lease_parsing_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_lease_replication_test.go</code></td><td style="text-align:center">13</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>firewall_rule_generator_test.go</code></td><td style="text-align:center">15</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>firewall_rules_web_ui_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg2); font-weight:700; border-top: 2px solid var(--border);">
+            <td style="color:#c7d2fe;">Total — 51 files</td>
+            <td style="text-align:center; color:var(--pass); font-size:15px;">407</td>
+            <td><span class="badge pass">✓ ALL PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--pass); font-size:13px; margin-top:12px; font-weight:600;">✓ 407/407 acceptance tests pass</p>
+  </section>
+
+  <!-- ── Performance results ── -->
+  <section>
+    <h2>Performance results</h2>
+    <div class="perf-grid">
+
+      <!-- DNS load test -->
+      <div class="perf-box">
+        <h3>DNS throughput — dnsperf 10s max QPS</h3>
+        <div class="perf-row">
+          <span class="pk">Peak QPS</span>
+          <span class="pv good">14,583 q/s</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Queries sent</span>
+          <span class="pv">146,059</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Completed</span>
+          <span class="pv good">100.00%</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Lost</span>
+          <span class="pv good">0 (0.00%)</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Avg latency</span>
+          <span class="pv">6.83 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Min latency</span>
+          <span class="pv good">0.014 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Max latency</span>
+          <span class="pv ok">27.5 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Std dev</span>
+          <span class="pv">3.49 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">NXDOMAIN rate</span>
+          <span class="pv">16.67% (filtered)</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Concurrency</span>
+          <span class="pv">10 clients</span>
+        </div>
+      </div>
+
+      <!-- DNS sustained test -->
+      <div class="perf-box">
+        <h3>DNS sustained — dnsperf 30s @ 100 QPS</h3>
+        <div class="perf-row">
+          <span class="pk">Target QPS</span>
+          <span class="pv">100 q/s</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Actual QPS</span>
+          <span class="pv good">99.999 q/s</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Queries sent</span>
+          <span class="pv">3,000</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Completed</span>
+          <span class="pv good">100.00%</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Avg latency</span>
+          <span class="pv good">0.52 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Min latency</span>
+          <span class="pv good">0.010 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Max latency</span>
+          <span class="pv good">10.26 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Std dev</span>
+          <span class="pv good">1.64 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Error rate</span>
+          <span class="pv good">0.00%</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Concurrency</span>
+          <span class="pv">5 clients</span>
+        </div>
+      </div>
+
+      <!-- API load test -->
+      <div class="perf-box">
+        <h3>Management API — k6 20 VUs × 20s</h3>
+        <div class="perf-row">
+          <span class="pk">Throughput</span>
+          <span class="pv good">391 req/s</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Iterations</span>
+          <span class="pv">7,840</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Checks passed</span>
+          <span class="pv good">15,680 / 15,680</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Error rate</span>
+          <span class="pv good">0.00%</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Avg duration</span>
+          <span class="pv good">521 µs</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Median</span>
+          <span class="pv good">145 µs</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">p90</span>
+          <span class="pv good">1.80 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">p95</span>
+          <span class="pv good">1.94 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Max</span>
+          <span class="pv ok">11.57 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Threshold p95&lt;500ms</span>
+          <span class="pv good">✓ PASS (1.94ms)</span>
+        </div>
+      </div>
+
+      <!-- DNS query mix breakdown -->
+      <div class="perf-box">
+        <h3>DNS query mix (load test)</h3>
+        <div style="margin-top:8px;">
+          <div class="bar-row">
+            <span class="bl">NOERROR (forwarded)</span>
+            <div class="bar-outer"><div class="bar-inner" style="width:83.33%; background:var(--pass);"></div></div>
+            <span class="bv">83.33%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl">NXDOMAIN (filtered)</span>
+            <div class="bar-outer"><div class="bar-inner" style="width:16.67%; background:var(--nxdomain);"></div></div>
+            <span class="bv">16.67%</span>
+          </div>
+        </div>
+        <div style="margin-top:16px; font-size:12px; color:var(--muted);">
+          Query file: 12 domains (example.com, google.com, github.com, cloudflare.com, facebook.com, doubleclick.net, ads.google.com, instagram.com, twitter.com, api.example.com, bbc.co.uk, wikipedia.org)<br><br>
+          2/12 domains blocked (ads blocklist on default profile) → 16.67% NXDOMAIN rate.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Cluster API verification ── -->
+  <section>
+    <h2>Cluster API verification</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th>Node</th>
+            <th>Endpoint</th>
+            <th>Result</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Auth setup</td>
+            <td>CT301/302/303</td>
+            <td><code>POST /api/v1/auth/setup</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>First-run credentials set</td>
+          </tr>
+          <tr>
+            <td>Bearer auth login</td>
+            <td>CT301/302/303</td>
+            <td><code>POST /api/v1/auth/login</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Node-local tokens, separate login per node</td>
+          </tr>
+          <tr>
+            <td>Profile creation</td>
+            <td>CT302 (leader)</td>
+            <td><code>POST /api/v1/profiles</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td><code>block_dynamic_clients: true</code> accepted</td>
+          </tr>
+          <tr>
+            <td>Default profile rejection</td>
+            <td>CT302 (leader)</td>
+            <td><code>PATCH /api/v1/profiles/default</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Returns HTTP 400 as expected</td>
+          </tr>
+          <tr>
+            <td>Raft replication</td>
+            <td>CT301/303 (followers)</td>
+            <td><code>GET /api/v1/profiles</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Untrusted profile visible on all nodes</td>
+          </tr>
+          <tr>
+            <td>DHCP connector</td>
+            <td>CT301</td>
+            <td><code>GET /api/v1/clients</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>6 clients, 3 static, 3 dynamic — origins correct</td>
+          </tr>
+          <tr>
+            <td>Client detail (origin + profile_ids)</td>
+            <td>CT301</td>
+            <td><code>GET /api/v1/clients/{ip}</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Dynamic clients show <code>profile_ids</code> with untrusted</td>
+          </tr>
+          <tr>
+            <td>Blocklist inline creation</td>
+            <td>CT302 (leader)</td>
+            <td><code>POST /api/v1/blocklists</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Ads + Social blocklists</td>
+          </tr>
+          <tr>
+            <td>DNS upstream settings</td>
+            <td>CT302 (leader)</td>
+            <td><code>PATCH /api/v1/settings</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>Plain DNS: <code>1.1.1.1:53</code>, <code>8.8.8.8:53</code></td>
+          </tr>
+          <tr>
+            <td>Cluster health</td>
+            <td>CT301/302/303</td>
+            <td><code>GET /api/v1/health</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+            <td>3/3 nodes <code>{"status":"ok"}</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Issues found ── -->
+  <section>
+    <h2>Issues found during real-env testing</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Severity</th>
+            <th>Root cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>DoH URL stored in upstream_resolvers breaks forwarding</td>
+            <td><span class="badge warn" style="background:rgba(251,191,36,0.15); color:var(--warn); border-color:rgba(251,191,36,0.3);">Medium</span></td>
+            <td><code>normaliseUpstream()</code> appends <code>:53</code> to HTTPS URLs; forwarder uses raw UDP/TCP DNS, not DoH</td>
+            <td>Use <code>1.1.1.1:53</code> / <code>8.8.8.8:53</code> in settings. Documentation should clarify that plain DNS addresses are required.</td>
+          </tr>
+          <tr>
+            <td>EDNS0 client IP injection requires SKOED_TEST_MODE=1</td>
+            <td><span class="badge noerr">By design</span></td>
+            <td>Security guard: spoofing is disabled in production</td>
+            <td>Not a bug. Production use relies on actual client source IPs. SKOED_TEST_MODE=1 is test-only.</td>
+          </tr>
+          <tr>
+            <td>DNS SERVFAIL after node restart (stale DoH upstreams)</td>
+            <td><span class="badge noerr">Resolved</span></td>
+            <td>Settings configured with DoH URLs; after restart node tried to forward to <code>https://....:53</code></td>
+            <td>Fixed by setting plain DNS upstreams via API on the leader.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Recursive mode ── -->
+  <section>
+    <h2>DNS mode comparison: forwarding vs recursive</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      After the forwarding tests, the cluster was switched to <strong>recursive mode</strong> via
+      <code>PATCH /api/v1/settings</code> on the leader (Raft-replicated to all nodes). In recursive mode
+      skoed resolves from root hints — no upstream resolver needed. Blocking and dynamic-client filtering
+      continue to work identically.
+    </p>
+
+    <!-- Filtering verification -->
+    <h3 style="font-size:14px; color:#c7d2fe; margin-bottom:12px; margin-top:0;">Filtering verification in recursive mode</h3>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead>
+          <tr><th>Test</th><th>Client</th><th>Domain</th><th>Got</th><th>Expected</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>example.com (all 3 nodes)</td>
+            <td>—</td>
+            <td><code>example.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (root resolution)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td>doubleclick.net blocked (all 3 nodes)</td>
+            <td>—</td>
+            <td><code>doubleclick.net</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (ads blocklist)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td>Dynamic client — facebook.com</td>
+            <td><code>10.0.0.177</code> <span class="badge dyn">dhcp_dynamic</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge nxd">NXDOMAIN</span></td>
+            <td>NXDOMAIN (untrusted profile)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td>Static client — facebook.com</td>
+            <td><code>10.0.0.110</code> <span class="badge sta">dhcp_static</span></td>
+            <td><code>facebook.com</code></td>
+            <td><span class="badge noerr">NOERROR</span></td>
+            <td>NOERROR (no untrusted profile)</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Performance comparison -->
+    <h3 style="font-size:14px; color:#c7d2fe; margin-bottom:12px;">Performance comparison</h3>
+    <div class="perf-grid">
+
+      <div class="perf-box">
+        <h3>Max throughput — 10s dnsperf, 10 clients</h3>
+        <!-- QPS bar comparison -->
+        <div style="margin-bottom:12px;">
+          <div class="bar-row">
+            <span class="bl" style="width:110px;">Forwarding</span>
+            <div class="bar-outer"><div class="bar-inner" style="width:100%; background:var(--pass);"></div></div>
+            <span class="bv">14,583 q/s</span>
+          </div>
+          <div class="bar-row">
+            <span class="bl" style="width:110px;">Recursive</span>
+            <div class="bar-outer"><div class="bar-inner" style="width:41%; background:var(--warn);"></div></div>
+            <span class="bv">5,998 q/s</span>
+          </div>
+        </div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.6;">
+          Recursive mode is <strong style="color:#fff;">~2.4× slower</strong> at peak because uncached queries
+          require a full root-→TLD-→authoritative traversal (3–5 round trips). Once the cache warms,
+          subsequent hits cost near-zero.
+          <br><br>
+          Lost queries: 62 / 60,201 (0.10%) in recursive vs 0 / 146,059 (0%) in forwarding.
+          Timeouts occur during the initial root traversal under high concurrency.
+        </div>
+      </div>
+
+      <div class="perf-box">
+        <h3>Sustained latency — 30s @ 100 QPS</h3>
+        <div class="perf-row">
+          <span class="pk"></span>
+          <span class="pv" style="color:var(--muted); font-size:11px;">Forwarding</span>
+          <span class="pv" style="color:var(--muted); font-size:11px;">Recursive</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Avg latency</span>
+          <span class="pv good">0.52 ms</span>
+          <span class="pv ok">2.21 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Min</span>
+          <span class="pv good">0.010 ms</span>
+          <span class="pv good">0.008 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Max</span>
+          <span class="pv good">10.26 ms</span>
+          <span class="pv ok">35.6 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Std dev</span>
+          <span class="pv good">1.64 ms</span>
+          <span class="pv ok">7.29 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Lost</span>
+          <span class="pv good">0 / 3,000</span>
+          <span class="pv good">0 / 3,000</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Response size</span>
+          <span class="pk">73 B avg</span>
+          <span class="pk">130 B avg</span>
+        </div>
+      </div>
+
+      <div class="perf-box">
+        <h3>Mode trade-off summary</h3>
+        <div style="font-size:12px; line-height:1.8; color:var(--muted);">
+          <div style="margin-bottom:10px;">
+            <strong style="color:#c7d2fe;">Forwarding</strong><br>
+            Delegates to upstream resolvers (1.1.1.1, 8.8.8.8). Fast because resolvers pre-cache the global DNS tree.
+            <span style="color:var(--pass);">✓</span> Lower latency &nbsp;
+            <span style="color:var(--pass);">✓</span> Higher peak QPS &nbsp;
+            <span style="color:var(--fail);">✗</span> Upstream dependency
+          </div>
+          <div>
+            <strong style="color:#c7d2fe;">Recursive</strong><br>
+            Resolves from IANA root hints. Self-contained, no upstream needed.
+            <span style="color:var(--pass);">✓</span> No upstream dependency &nbsp;
+            <span style="color:var(--pass);">✓</span> Privacy (no resolver sees all queries) &nbsp;
+            <span style="color:var(--fail);">✗</span> Higher cold latency &nbsp;
+            <span style="color:var(--fail);">✗</span> Needs Internet reach to root servers
+          </div>
+          <div style="margin-top:10px; padding: 8px; background: rgba(94,234,212,0.05); border-radius:6px; border: 1px solid rgba(94,234,212,0.15); color:var(--accent2);">
+            Blocking and dynamic-client filtering work identically in both modes. M14 behavior is mode-agnostic.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Test timeline ── -->
+  <section>
+    <h2>Test timeline</h2>
+    <div class="timeline">
+      <div class="tl-item done">
+        <div class="tl-title">Cluster provisioned</div>
+        <div class="tl-desc">3 Debian 12 LXC containers (CT301/302/303) on vmbr1, skoed installed from .deb, 3-node Raft cluster formed</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">dnsmasq DHCP configured</div>
+        <div class="tl-desc">CT301: 3 static leases (dhcp-host directives) + 3 dynamic leases. Lease file populated with 6 entries.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Blocklists and profile created</div>
+        <div class="tl-desc">Ads + Social blocklists created via API. "Untrusted" profile with block_dynamic_clients=true linked to both.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">DHCP origin detection verified</div>
+        <div class="tl-desc">GET /api/v1/clients confirmed: 3 clients with dhcp_static, 3 with dhcp_dynamic. Origins match lease file structure.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">DNS upstream fixed</div>
+        <div class="tl-desc">Switched from DoH URLs to plain DNS (1.1.1.1:53). All 3 nodes immediately served NOERROR for non-blocked domains.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">SKOED_TEST_MODE=1 enabled on CT301</div>
+        <div class="tl-desc">Systemd override added. EDNS0 option 65500 client IP injection now active for DNS test execution.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">DNS filtering tests — 15/15 PASS</div>
+        <div class="tl-desc">Default profile, dynamic clients (2), static clients (2), cross-node replication (2) all verified.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">DNS load test — 14,583 QPS</div>
+        <div class="tl-desc">dnsperf 10s max: 146,059 queries, 0 lost, avg 6.83ms, max 27.5ms. Sustained 30s @ 100 QPS: avg 0.52ms.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">API load test — 391 req/s</div>
+        <div class="tl-desc">k6 20 VUs × 20s: 7,840 iterations, 0 errors, p95 1.94ms. Threshold p95&lt;500ms: PASS.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Acceptance tests — 407/407 PASS</div>
+        <div class="tl-desc">10/10 M14 TestBlockDyn* + 397 tests across all milestones in Docker multi-node harness. No skip stubs.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Recursive mode — switched cluster-wide</div>
+        <div class="tl-desc">PATCH /api/v1/settings on leader; Raft replicated to CT301/303. Filtering verified: 4/4 tests pass.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Recursive mode load test — 5,998 QPS</div>
+        <div class="tl-desc">dnsperf 10s: 60,201 queries, 62 lost (0.10% under 10-client burst). Sustained 100 QPS: 0 lost, avg 2.21ms.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>skoed M14 — Block Dynamic-Lease Clients &mdash; Test report generated 2026-06-16</span>
+  <span>Cluster: CT301/302/303 · 3-node Raft · Proxmox vmbr1</span>
+</footer>
+
+</body>
+</html>

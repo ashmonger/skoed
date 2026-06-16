@@ -105,10 +105,10 @@ None.
 - [x] M14 — ROADMAP.md entry — 2026-06-12
 - [x] M14 — functional spec: `specs/functional/profile-block-dynamic-clients.feature` (10 FSIDs) — pre-existing
 - [x] M14 — acceptance tests: `tests/acceptance/profile_block_dynamic_test.go` (10 tests, skip-stubbed) — pre-existing
-- [ ] M14 — implementation: un-501 the profile field + filter engine wiring
-- [ ] M14 — all 10 acceptance tests green (remove skip stubs)
-- [ ] M14 — refactoring phase
-- [ ] M14 — demo note: `demos/m14/DEMO_NOTE.md`
+- [x] M14 — implementation: block_dynamic_clients field, filter engine wiring, validation, clients API origin/profile_ids
+- [x] M14 — all 10 acceptance tests green (no skip stubs)
+- [x] M14 — refactoring phase — implementation clean, no changes needed
+- [x] M14 — demo note: `demos/m14/DEMO_NOTE.md`
 - [ ] M14 — UoR demo validation
 - [ ] M14 — merge to master
 
