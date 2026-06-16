@@ -1,8 +1,8 @@
-// Package upgrade implements the M5.6 in-place upgrade check loop.
-// One goroutine per node polls the release feed and caches the latest
-// snapshot in memory; the API and UI read from this cache without
-// triggering a per-request fetch. The actual binary-swap pipeline is
-// gated behind node.upgrade.enable_swap (false for M5.6 v1).
+// Package upgrade implements the in-place upgrade subsystem:
+// - Checker polls the release feed on a background goroutine and caches
+//   the latest snapshot in memory (no per-request fetch).
+// - Swap (swapper.go) downloads the new tar.gz, extracts the binary, and
+//   atomically replaces the running executable via os.Rename.
 package upgrade
 
 import (
@@ -19,19 +19,21 @@ import (
 // Feed is the parsed release feed document. Matches the spec layout
 // in specs/technical/in-place-upgrade.md.
 type Feed struct {
-	Version         string `json:"version"`
-	PublishedAt     string `json:"published_at"`
-	ReleaseNotesURL string `json:"release_notes_url"`
+	Version         string            `json:"version"`
+	PublishedAt     string            `json:"published_at"`
+	ReleaseNotesURL string            `json:"release_notes_url"`
+	Assets          map[string]string `json:"assets"`
 }
 
 // CheckResult is the shape returned by /api/v1/upgrade/check.
 type CheckResult struct {
-	CurrentVersion   string `json:"current_version"`
-	AvailableVersion string `json:"available_version"`
-	UpgradeAvailable bool   `json:"upgrade_available"`
-	ReleaseNotesURL  string `json:"release_notes_url"`
-	PublishedAt      string `json:"published_at"`
-	CheckedAt        string `json:"checked_at"`
+	CurrentVersion   string            `json:"current_version"`
+	AvailableVersion string            `json:"available_version"`
+	UpgradeAvailable bool              `json:"upgrade_available"`
+	ReleaseNotesURL  string            `json:"release_notes_url"`
+	PublishedAt      string            `json:"published_at"`
+	CheckedAt        string            `json:"checked_at"`
+	Assets           map[string]string `json:"assets,omitempty"`
 }
 
 // Checker polls the release feed on a fixed interval and caches the
@@ -115,6 +117,7 @@ func (c *Checker) Latest() CheckResult {
 		r.ReleaseNotesURL = c.feed.ReleaseNotesURL
 		r.PublishedAt = c.feed.PublishedAt
 		r.UpgradeAvailable = isNewer(c.feed.Version, c.currentVersion)
+		r.Assets = c.feed.Assets
 	}
 	return r
 }

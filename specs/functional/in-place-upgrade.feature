@@ -40,6 +40,16 @@ Feature: In-place Upgrade
     Then a new audit entry with action="upgrade.start" exists
     And actor = "user:admin"
 
+  @fsid:FS-UpgradeBinarySwap
+  Scenario: POST /api/v1/upgrade/start downloads and swaps the binary
+    Given a 1-node cluster with a feed reporting version 99.0.0
+    And the feed's assets.linux_amd64 URL serves a valid skoed tar.gz
+    When the admin POSTs /api/v1/upgrade/start
+    Then the response is 202 with accepted=true and target_version=99.0.0
+    And the new binary has been written to the executable path
+    And (in production) the process calls os.Exit(0) so the supervisor restarts it
+    And an audit entry with action="upgrade.start" is created
+
   @fsid:FS-UpgradeBannerOnDashboard
   Scenario: Dashboard shows the upgrade-available banner
     Given the feed reports an available version > current
@@ -63,3 +73,5 @@ Feature: In-place Upgrade
       ever upgrades without intent)
     - Cosign signature verification — wired in M5.6.1, behind a
       `node.upgrade.require_signature` flag default false for v1
+    - Rolling cluster-aware upgrade (nodes upgrade independently when
+      triggered; coordinated rolling upgrade is M5.6.1)

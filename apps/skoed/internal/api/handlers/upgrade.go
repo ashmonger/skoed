@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/skoed/skoed/internal/upgrade"
 )
@@ -16,21 +18,18 @@ type UpgradeChecker interface {
 func (h *Handler) UpgradeCheck(w http.ResponseWriter, r *http.Request) {
 	chk := h.app.GetUpgradeChecker()
 	if chk == nil {
-		writeJSON(w, http.StatusOK, upgrade.CheckResult{
-			CurrentVersion: "",
-		})
+		writeJSON(w, http.StatusOK, upgrade.CheckResult{})
 		return
 	}
 	writeJSON(w, http.StatusOK, chk.Latest())
 }
 
 // UpgradeStart handles POST /api/v1/upgrade/start.
-//
-// M5.6 v1: validates the request reached the leader (LeaderForward
-// wrapper handles that) and returns 202. The actual binary swap is
-// gated behind node.upgrade.enable_swap (default false) — that branch
-// lands in M5.6.1 once M5.5 packaging + M5.7 multi-arch builds give
-// us the asset matrix to verify against.
+// Requires the request to have reached the leader (LeaderForward wrapper).
+// Downloads the binary for the current arch, atomically replaces the
+// running executable, responds 202, then schedules os.Exit(0) so the
+// supervisor (systemd / OpenRC) restarts the process with the new binary.
+// In SKOED_TEST_MODE=1 the exit is skipped so the test process survives.
 func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 	chk := h.app.GetUpgradeChecker()
 	if chk == nil {
@@ -42,12 +41,42 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "no upgrade available (running latest)")
 		return
 	}
-	// v1 stub: accept the request, audit middleware records who
-	// triggered it. The swap pipeline lands in M5.6.1.
+
+	assetKey := upgrade.AssetKey()
+	assetURL := res.Assets[assetKey]
+	if assetURL == "" {
+		writeError(w, http.StatusUnprocessableEntity, "no asset for "+assetKey+" in feed")
+		return
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "resolve exe: "+err.Error())
+		return
+	}
+	// SKOED_TEST_SWAP_DEST redirects the swap to a temp path so acceptance
+	// tests don't overwrite the binary used by the rest of the test suite.
+	if dest := os.Getenv("SKOED_TEST_SWAP_DEST"); dest != "" {
+		exePath = dest
+	}
+
+	if err := upgrade.Swap(assetURL, exePath); err != nil {
+		writeError(w, http.StatusInternalServerError, "swap failed: "+err.Error())
+		return
+	}
+
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted":          true,
-		"target_version":    res.AvailableVersion,
-		"swap_implemented":  false,
-		"message":           "upgrade.start recorded; binary swap lands in M5.6.1 (node.upgrade.enable_swap)",
+		"accepted":       true,
+		"target_version": res.AvailableVersion,
+		"message":        "binary swap initiated; process will restart",
 	})
+
+	// Give the response time to flush, then exit so the supervisor
+	// restarts with the new binary. Skipped in test mode.
+	if os.Getenv("SKOED_TEST_MODE") != "1" {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			os.Exit(0)
+		}()
+	}
 }

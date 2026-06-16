@@ -1,10 +1,11 @@
-// Acceptance tests for M5.6 — In-place upgrade (check + audit path).
+// Acceptance tests for M5.6/M16 — In-place upgrade.
 //
 // FSIDs covered:
 //   FS-UpgradeCheckEndpoint        → TestUpgradeCheckEndpoint
 //   FS-UpgradeCheckRequiresAuth    → TestUpgradeCheckRequiresAuth
 //   FS-UpgradeStartRequiresLeader  → TestUpgradeStartForwardedToLeader ← 3-node
 //   FS-UpgradeStartRecordedInAudit → TestUpgradeStartRecordedInAudit
+//   FS-UpgradeBinarySwap           → TestUpgradeBinarySwap
 //
 // FS-UpgradeBannerOnDashboard and FS-UpgradeNoBannerWhenCurrent are UI
 // scenarios — covered via the m5.6 screenshots.
@@ -12,11 +13,16 @@
 package acceptance
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,19 +37,65 @@ type upgradeCheckResp struct {
 	CheckedAt        string `json:"checked_at"`
 }
 
-// startFeedServer serves a synthetic release feed.
+// startFeedServer serves a synthetic release feed (no asset URLs).
 func startFeedServer(t *testing.T, version string) *httptest.Server {
+	t.Helper()
+	return startFeedServerWithAssets(t, version, "")
+}
+
+// startFeedServerWithAssets serves a feed that includes an asset URL for
+// linux_amd64 pointing at assetURL (empty string omits the assets field).
+func startFeedServerWithAssets(t *testing.T, version, assetURL string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		assets := ""
+		if assetURL != "" {
+			assets = fmt.Sprintf(`, "assets": {"linux_amd64": %q, "linux_arm64": %q}`, assetURL, assetURL)
+		}
 		fmt.Fprintf(w, `{
 			"version": "%s",
 			"published_at": "2026-07-01T09:00:00Z",
-			"release_notes_url": "https://example.test/releases/%s"
-		}`, version, version)
+			"release_notes_url": "https://example.test/releases/%s"%s
+		}`, version, version, assets)
 	}))
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// startAssetServer serves a minimal tar.gz containing a fake skoed binary.
+// The binary content is the sentinel bytes passed in binaryContent.
+func startAssetServer(t *testing.T, binaryContent []byte) *httptest.Server {
+	t.Helper()
+	tgz := buildFakeTarGz(t, binaryContent)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/gzip")
+		w.Write(tgz)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// buildFakeTarGz creates a tar.gz archive with a single "skoed" entry.
+func buildFakeTarGz(t *testing.T, content []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	hdr := &tar.Header{
+		Name: "skoed",
+		Mode: 0755,
+		Size: int64(len(content)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("tar header: %v", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatalf("tar write: %v", err)
+	}
+	tw.Close()
+	gz.Close()
+	return buf.Bytes()
 }
 
 // FS-UpgradeCheckRequiresAuth
@@ -53,9 +105,6 @@ func TestUpgradeCheckRequiresAuth(t *testing.T) {
 	n := c.Leader(t).Node
 	resp := n.apiDoNoAuth(t, "GET", "/api/v1/upgrade/check")
 	resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("M5.6 impl pending")
-	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("/upgrade/check no-auth: want 401, got %d", resp.StatusCode)
 	}
@@ -70,9 +119,6 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 
 	resp := n.apiDo(t, "GET", "/api/v1/upgrade/check", "")
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("M5.6 impl pending: /upgrade/check 404")
-	}
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
@@ -105,11 +151,17 @@ func TestUpgradeCheckEndpoint(t *testing.T) {
 
 // FS-UpgradeStartRequiresLeader — needs a feed URL so upgrade_available
 // is true; otherwise /start returns 409 before forwarding can be
-// observed.
+// observed. Also needs an asset URL so the handler doesn't 422.
 func TestUpgradeStartForwardedToLeader(t *testing.T) {
 	t.Parallel()
-	feed := startFeedServer(t, "99.0.0")
-	c := startClusterWithEnv(t, 3, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
+	asset := startAssetServer(t, []byte("#!/bin/sh\necho fake\n"))
+	feed := startFeedServerWithAssets(t, "99.0.0", asset.URL+"/skoed.tar.gz")
+	swapDest := filepath.Join(t.TempDir(), "skoed_swapped")
+	c := startClusterWithEnv(t, 3, []string{
+		"SKOED_UPGRADE_FEED_URL=" + feed.URL,
+		"SKOED_TEST_MODE=1",
+		"SKOED_TEST_SWAP_DEST=" + swapDest,
+	})
 	leader := c.Leader(t)
 	var follower *ClusterNode
 	for _, n := range c.nodes {
@@ -121,20 +173,14 @@ func TestUpgradeStartForwardedToLeader(t *testing.T) {
 	if follower == nil {
 		t.Skip("3-node cluster has no follower (??)")
 	}
-	// Give the checker time to populate.
 	waitUpgradeAvailable(t, follower.Node, 5*time.Second)
 
 	resp := follower.Node.apiDo(t, "POST", "/api/v1/upgrade/start", "")
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("M5.6 impl pending: /upgrade/start 404")
-	}
 	switch resp.StatusCode {
 	case 307, 308:
-		// LeaderForward returned a redirect — that's the contract.
 		return
 	case 200, 202:
-		// LeaderForward proxied transparently. Request reached leader. OK.
 		return
 	case 503:
 		body, _ := io.ReadAll(resp.Body)
@@ -148,23 +194,74 @@ func TestUpgradeStartForwardedToLeader(t *testing.T) {
 // FS-UpgradeStartRecordedInAudit
 func TestUpgradeStartRecordedInAudit(t *testing.T) {
 	t.Parallel()
-	feed := startFeedServer(t, "99.0.0")
-	c := startClusterWithEnv(t, 1, []string{"SKOED_UPGRADE_FEED_URL=" + feed.URL})
+	asset := startAssetServer(t, []byte("#!/bin/sh\necho fake\n"))
+	feed := startFeedServerWithAssets(t, "99.0.0", asset.URL+"/skoed.tar.gz")
+	swapDest := filepath.Join(t.TempDir(), "skoed_swapped")
+	c := startClusterWithEnv(t, 1, []string{
+		"SKOED_UPGRADE_FEED_URL=" + feed.URL,
+		"SKOED_TEST_MODE=1",
+		"SKOED_TEST_SWAP_DEST=" + swapDest,
+	})
 	n := c.Leader(t).Node
 	waitUpgradeAvailable(t, n, 5*time.Second)
 
 	beforePage := fetchAudit(t, n, "limit=1")
 	resp := n.apiDo(t, "POST", "/api/v1/upgrade/start", "")
 	resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("M5.6 impl pending")
-	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		t.Fatalf("/upgrade/start: status %d", resp.StatusCode)
 	}
 	got := waitForAudit(t, n, beforePage.Total+1, 3*time.Second)
 	if got.Entries[0].Action != "upgrade.start" {
 		t.Errorf("action: want upgrade.start, got %q", got.Entries[0].Action)
+	}
+}
+
+// FS-UpgradeBinarySwap
+func TestUpgradeBinarySwap(t *testing.T) {
+	t.Parallel()
+	// The fake binary content is a sentinel we can recognize after the swap.
+	sentinel := []byte("#!/bin/sh\n# skoed fake v99.0.0\necho 99.0.0\n")
+	asset := startAssetServer(t, sentinel)
+	feed := startFeedServerWithAssets(t, "99.0.0", asset.URL+"/skoed.tar.gz")
+
+	// SKOED_TEST_SWAP_DEST redirects the atomic rename to a temp file so
+	// the swap does not overwrite the binary used by the rest of the suite.
+	swapDest := filepath.Join(t.TempDir(), "skoed_swapped")
+
+	c := startClusterWithEnv(t, 1, []string{
+		"SKOED_UPGRADE_FEED_URL=" + feed.URL,
+		"SKOED_TEST_MODE=1",            // skip os.Exit(0)
+		"SKOED_TEST_SWAP_DEST=" + swapDest, // redirect swap target
+	})
+	n := c.Leader(t).Node
+	waitUpgradeAvailable(t, n, 5*time.Second)
+
+	resp := n.apiDo(t, "POST", "/api/v1/upgrade/start", "")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("/upgrade/start: want 202, got %d: %s", resp.StatusCode, body)
+	}
+
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if result["accepted"] != true {
+		t.Errorf("accepted: want true, got %v", result["accepted"])
+	}
+	if result["target_version"] != "99.0.0" {
+		t.Errorf("target_version: want 99.0.0, got %v", result["target_version"])
+	}
+
+	// Verify the swap actually wrote the sentinel content to the redirected path.
+	got, err := os.ReadFile(swapDest)
+	if err != nil {
+		t.Fatalf("swap dest not written: %v", err)
+	}
+	if !bytes.Equal(got, sentinel) {
+		t.Errorf("swap dest content mismatch: got %q, want %q", got, sentinel)
 	}
 }
 

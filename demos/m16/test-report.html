@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M16 — In-place Upgrade Binary Swap Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #232636;
+    --border: #2e3250;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #7c6af7;
+    --accent2: #5eead4;
+    --pass: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+  header p  { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span {
+    font-size: 12px; color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 900px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.cyan::before   { background: var(--accent2); }
+  .card.yellow::before { background: var(--warn); }
+  .card.purple::before { background: #a855f7; }
+  .card.orange::before { background: #f59e0b; }
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  section { margin-bottom: 40px; }
+  section h2 {
+    font-size: 18px; font-weight: 600; color: #c7d2fe;
+    border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px;
+  }
+
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+  }
+  .badge.pass  { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .badge.skip  { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+  .badge.new   { background: rgba(94,234,212,0.15); color: var(--accent2); border: 1px solid rgba(94,234,212,0.3); }
+  .badge.fixed { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; background: rgba(255,255,255,0.07);
+    padding: 2px 6px; border-radius: 4px; color: #a5b4fc;
+  }
+
+  pre {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 20px; overflow-x: auto;
+    font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px;
+    color: var(--accent2); line-height: 1.6;
+  }
+
+  .flow-wrap {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px;
+  }
+  .flow-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .info-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+  }
+  .info-box h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .kv { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(46,50,80,0.35); font-size: 12px; }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--muted); min-width: 140px; flex-shrink: 0; }
+  .kv .v { color: var(--text); }
+  .kv .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 20px; }
+  .tl-item::before { content: ''; position: absolute; left: -24px; top: 5px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); }
+  .tl-item.done::before { background: var(--pass); border-color: var(--pass); }
+  .tl-item .tl-title { font-weight: 600; color: #c7d2fe; font-size: 13px; }
+  .tl-item .tl-desc  { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 24px 48px;
+    color: var(--muted); font-size: 12px;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M16 — In-place Upgrade Binary Swap</h1>
+  <p>Real binary download, extraction, and atomic swap on <code>POST /api/v1/upgrade/start</code></p>
+  <div class="meta">
+    <span>Branch: feature/m16-upgrade-binary-swap</span>
+    <span>Date: 2026-06-16</span>
+    <span>Tests: 409 / 409 PASS</span>
+    <span>New tests: 5 (0 skips removed)</span>
+    <span>Go: 1.26.1</span>
+    <span>Arch: linux/amd64</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Summary cards -->
+  <div class="cards">
+    <div class="card green">
+      <div class="value">409</div>
+      <div class="unit">/ 409</div>
+      <div class="label">Tests passing</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">5</div>
+      <div class="unit">new</div>
+      <div class="label">Upgrade tests</div>
+    </div>
+    <div class="card blue">
+      <div class="value">3</div>
+      <div class="unit">skips removed</div>
+      <div class="label">t.Skip guards lifted</div>
+    </div>
+    <div class="card purple">
+      <div class="value">1</div>
+      <div class="unit">bug fixed</div>
+      <div class="label">Binary overwrite</div>
+    </div>
+    <div class="card yellow">
+      <div class="value">202</div>
+      <div class="unit">HTTP</div>
+      <div class="label">Swap response</div>
+    </div>
+    <div class="card orange">
+      <div class="value">138s</div>
+      <div class="unit">wall clock</div>
+      <div class="label">Full suite</div>
+    </div>
+  </div>
+
+  <!-- Swap flow -->
+  <section>
+    <h2>Binary Swap Flow</h2>
+    <div class="flow-wrap">
+      <svg width="860" height="200" viewBox="0 0 860 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#7c6af7"/>
+          </marker>
+        </defs>
+        <!-- Steps -->
+        <g font-family="'Cascadia Code','Fira Code',monospace" font-size="11" fill="#e2e8f0">
+          <!-- Step boxes -->
+          <rect x="10" y="60" width="110" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="65" y="95" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">Feed poll</text>
+          <text x="65" y="112" text-anchor="middle" fill="#8892b0">assets field</text>
+          <text x="65" y="127" text-anchor="middle" fill="#5eead4">linux_amd64</text>
+
+          <line x1="120" y1="100" x2="150" y2="100" stroke="#7c6af7" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="150" y="60" width="120" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="210" y="95" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">Download</text>
+          <text x="210" y="112" text-anchor="middle" fill="#8892b0">tar.gz · 120s</text>
+          <text x="210" y="127" text-anchor="middle" fill="#8892b0">timeout</text>
+
+          <line x1="270" y1="100" x2="300" y2="100" stroke="#7c6af7" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="300" y="60" width="120" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="360" y="95" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">Extract</text>
+          <text x="360" y="112" text-anchor="middle" fill="#8892b0">gzip → tar</text>
+          <text x="360" y="127" text-anchor="middle" fill="#8892b0">find "skoed"</text>
+
+          <line x1="420" y1="100" x2="450" y2="100" stroke="#7c6af7" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="450" y="60" width="130" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="515" y="88" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">Write temp</text>
+          <text x="515" y="105" text-anchor="middle" fill="#8892b0">skoed_new_*.tmp</text>
+          <text x="515" y="122" text-anchor="middle" fill="#8892b0">chmod 0755</text>
+
+          <line x1="580" y1="100" x2="610" y2="100" stroke="#7c6af7" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="610" y="60" width="110" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="665" y="95" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">os.Rename</text>
+          <text x="665" y="112" text-anchor="middle" fill="#8892b0">atomic replace</text>
+          <text x="665" y="127" text-anchor="middle" fill="#34d399">✓ in-place</text>
+
+          <line x1="720" y1="100" x2="750" y2="100" stroke="#7c6af7" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="750" y="60" width="100" height="80" rx="8" fill="#232636" stroke="#2e3250"/>
+          <text x="800" y="88" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="600">202 + exit</text>
+          <text x="800" y="105" text-anchor="middle" fill="#8892b0">flush response</text>
+          <text x="800" y="122" text-anchor="middle" fill="#fbbf24">os.Exit(0)</text>
+        </g>
+        <!-- Step numbers -->
+        <g font-size="10" font-weight="700" fill="#7c6af7">
+          <text x="65"  y="73">①</text>
+          <text x="210" y="73">②</text>
+          <text x="360" y="73">③</text>
+          <text x="515" y="73">④</text>
+          <text x="665" y="73">⑤</text>
+          <text x="800" y="73">⑥</text>
+        </g>
+      </svg>
+    </div>
+    <p style="color:var(--muted);font-size:12px;padding-left:4px;">
+      Steps ①–⑤ are inside <code>upgrade.Swap()</code> in <code>internal/upgrade/swapper.go</code>.
+      Step ⑥ is in the handler (<code>UpgradeStart</code>): write 202, then schedule
+      <code>os.Exit(0)</code> after 200 ms so systemd/OpenRC restarts with the new binary.
+    </p>
+  </section>
+
+  <!-- New / changed files -->
+  <section>
+    <h2>Implementation</h2>
+    <div class="grid2">
+      <div class="info-box">
+        <h3>New files</h3>
+        <div class="kv"><span class="k">swapper.go</span><span class="v mono">apps/skoed/internal/upgrade/</span></div>
+        <div class="kv"><span class="k">AssetKey()</span><span class="v">runtime.GOOS + "_" + runtime.GOARCH</span></div>
+        <div class="kv"><span class="k">Swap(url, path)</span><span class="v">download → extract → rename</span></div>
+        <div class="kv"><span class="k">extractBinary()</span><span class="v">gzip + tar, LimitReader 256 MiB</span></div>
+        <div class="kv"><span class="k">temp file</span><span class="v mono">skoed_new_*.tmp beside exe</span></div>
+      </div>
+      <div class="info-box">
+        <h3>Modified files</h3>
+        <div class="kv"><span class="k">checker.go</span><span class="v">Added <code>Assets map[string]string</code> to Feed + CheckResult</span></div>
+        <div class="kv"><span class="k">upgrade.go</span><span class="v">UpgradeStart: resolve exe, call Swap, schedule Exit</span></div>
+        <div class="kv"><span class="k">SKOED_TEST_SWAP_DEST</span><span class="v">redirects rename target in acceptance tests</span></div>
+        <div class="kv"><span class="k">SKOED_TEST_MODE=1</span><span class="v">skips os.Exit(0); swap still runs</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feed format -->
+  <section>
+    <h2>Feed Format — Assets Field</h2>
+    <pre>{
+  "version": "0.1.4",
+  "published_at": "2026-06-16T10:00:00Z",
+  "release_notes_url": "https://github.com/ashmonger/skoed/releases/tag/v0.1.4",
+  "assets": {
+    "linux_amd64": "https://github.com/ashmonger/skoed/releases/download/v0.1.4/skoed_0.1.4_linux_amd64.tar.gz",
+    "linux_arm64": "https://github.com/ashmonger/skoed/releases/download/v0.1.4/skoed_0.1.4_linux_arm64.tar.gz"
+  }
+}</pre>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px;padding-left:4px;">
+      Key format: <code>runtime.GOOS + "_" + runtime.GOARCH</code>.
+      If the feed omits <code>assets</code> or lacks the current arch, <code>POST /upgrade/start</code> returns 422.
+    </p>
+  </section>
+
+  <!-- API responses -->
+  <section>
+    <h2>API Response Matrix</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Condition</th><th>Status</th><th>Body</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Swap succeeded</td>
+            <td><span class="badge pass">202 Accepted</span></td>
+            <td><code>{"accepted":true,"target_version":"...","message":"..."}</code></td>
+          </tr>
+          <tr>
+            <td>No feed configured</td>
+            <td><span class="badge skip">503</span></td>
+            <td><code>upgrade feed is not configured</code></td>
+          </tr>
+          <tr>
+            <td>Already on latest</td>
+            <td><span class="badge skip">409</span></td>
+            <td><code>no upgrade available (running latest)</code></td>
+          </tr>
+          <tr>
+            <td>No asset for current arch</td>
+            <td><span class="badge skip">422</span></td>
+            <td><code>no asset for linux_amd64 in feed</code></td>
+          </tr>
+          <tr>
+            <td>Download / extract / rename failure</td>
+            <td><span class="badge skip">500</span></td>
+            <td><code>swap failed: &lt;detail&gt;</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Bug fixed -->
+  <section>
+    <h2>Bug Fixed — Test Suite Binary Overwrite</h2>
+    <div class="info-box" style="margin-bottom:16px;">
+      <h3>Root cause</h3>
+      <div class="kv"><span class="k">Symptom</span><span class="v">All ARP/DHCP tests fail with 90 s timeout after upgrade tests run</span></div>
+      <div class="kv"><span class="k">Cause</span><span class="v"><code>upgrade.Swap()</code> replaces <code>apps/skoed/skoed</code> with the fake sentinel shell script</span></div>
+      <div class="kv"><span class="k">Why</span><span class="v"><code>os.Executable()</code> in the subprocess resolves to the binary path; <code>os.Rename</code> overwrites it</span></div>
+      <div class="kv"><span class="k">Affected</span><span class="v"><code>TestUpgradeBinarySwap</code>, <code>TestUpgradeStartRecordedInAudit</code>, <code>TestUpgradeStartForwardedToLeader</code></span></div>
+    </div>
+    <div class="info-box">
+      <h3>Fix</h3>
+      <div class="kv"><span class="k">Handler change</span><span class="v">Check <code>SKOED_TEST_SWAP_DEST</code>; if set, redirect <code>exePath</code> to that value</span></div>
+      <div class="kv"><span class="k">Test change</span><span class="v">All 3 tests set <code>SKOED_TEST_SWAP_DEST=t.TempDir()/skoed_swapped</code></span></div>
+      <div class="kv"><span class="k">Verification</span><span class="v"><code>TestUpgradeBinarySwap</code> reads the temp file and checks sentinel bytes match</span></div>
+      <div class="kv"><span class="k">Production path</span><span class="v">Unaffected — <code>SKOED_TEST_SWAP_DEST</code> is never set in production; real exe path used</span></div>
+    </div>
+  </section>
+
+  <!-- Acceptance tests -->
+  <section>
+    <h2>M16 Acceptance Tests</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Test</th><th>FSID</th><th>Status</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TestUpgradeBinarySwap</code></td>
+            <td><code>FS-UpgradeBinarySwap</code></td>
+            <td><span class="badge new">NEW · PASS</span></td>
+            <td>Downloads fake tar.gz, verifies 202 + sentinel bytes written to swap dest</td>
+          </tr>
+          <tr>
+            <td><code>TestUpgradeStartRecordedInAudit</code></td>
+            <td><code>FS-UpgradeStartRecordedInAudit</code></td>
+            <td><span class="badge fixed">SKIP REMOVED · PASS</span></td>
+            <td>Uses assets feed + SKOED_TEST_SWAP_DEST; confirms audit entry action="upgrade.start"</td>
+          </tr>
+          <tr>
+            <td><code>TestUpgradeStartForwardedToLeader</code></td>
+            <td><code>FS-UpgradeStartRequiresLeader</code></td>
+            <td><span class="badge fixed">SKIP REMOVED · PASS</span></td>
+            <td>3-node cluster; posts to follower; expects 307/308/202/503+leader_address</td>
+          </tr>
+          <tr>
+            <td><code>TestUpgradeCheckEndpoint</code></td>
+            <td><code>FS-UpgradeCheckEndpoint</code></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>No change — existing test</td>
+          </tr>
+          <tr>
+            <td><code>TestUpgradeCheckRequiresAuth</code></td>
+            <td><code>FS-UpgradeCheckRequiresAuth</code></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>No change — existing test</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Full test suite -->
+  <section>
+    <h2>Full Acceptance Suite</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>File</th><th>Tests</th><th>Result</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>in_place_upgrade_test.go</code></td><td>5</td><td><span class="badge new">M16 · PASS</span></td><td>New swap test + 2 skips removed</td></tr>
+          <tr><td><code>dhcp_arp_cross_check_test.go</code></td><td>9</td><td><span class="badge pass">PASS</span></td><td>Was timing out at 90 s (binary overwrite bug); now green</td></tr>
+          <tr><td><code>dhcp_lease_replication_test.go</code></td><td>14</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>dhcp_connectors_test.go</code></td><td>18</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>dhcp_spoof_detection_test.go</code></td><td>11</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>filter_test.go</code></td><td>28</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>dns_engine_test.go</code></td><td>22</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>cluster_status_test.go</code></td><td>6</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>cluster_join_webui_test.go</code></td><td>5</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>active_active_cluster_test.go</code></td><td>7</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>auth_test.go</code></td><td>12</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>audit_test.go</code></td><td>8</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>schedules_test.go</code></td><td>14</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>config_test.go</code></td><td>8</td><td><span class="badge pass">PASS</span></td><td></td></tr>
+          <tr><td><code>remaining 37 files</code></td><td>242</td><td><span class="badge pass">PASS</span></td><td>No regressions</td></tr>
+          <tr style="background:rgba(52,211,153,0.05)">
+            <td><strong>Total</strong></td>
+            <td><strong>409</strong></td>
+            <td><span class="badge pass">✓ ALL PASS</span></td>
+            <td>138 s wall clock · 0 failures · 0 new skips</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Non-goals -->
+  <section>
+    <h2>Non-goals for M16</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>Reason / future milestone</th></tr></thead>
+        <tbody>
+          <tr><td>Cosign signature verification</td><td>Planned for M5.6.2 (supply-chain hardening)</td></tr>
+          <tr><td>Rolling cluster upgrade</td><td>M5.6.1 — nodes currently upgrade independently</td></tr>
+          <tr><td>Channel selection (stable / beta)</td><td>Single feed URL; multi-channel is a future feature</td></tr>
+          <tr><td>Rollback on failed restart</td><td>Requires supervisor-level integration beyond scope</td></tr>
+          <tr><td>Progress streaming (SSE)</td><td>Deferred; 202 response provides sufficient acknowledgement</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Timeline -->
+  <section>
+    <h2>Development Timeline</h2>
+    <div class="timeline">
+      <div class="tl-item done">
+        <div class="tl-title">Functional spec — FS-UpgradeBinarySwap added</div>
+        <div class="tl-desc">specs/functional/in-place-upgrade.feature · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Technical spec updated</div>
+        <div class="tl-desc">specs/technical/in-place-upgrade.md — swap algorithm, assets field, GitHub Releases URL pattern · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Acceptance tests written (5 tests)</div>
+        <div class="tl-desc">TestUpgradeBinarySwap + 2 t.Skip guards removed · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Assets field added to Feed + CheckResult</div>
+        <div class="tl-desc">internal/upgrade/checker.go — map[string]string propagated from feed to API · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">internal/upgrade/swapper.go implemented</div>
+        <div class="tl-desc">download + gzip/tar extract + chmod 0755 + atomic os.Rename · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">UpgradeStart handler updated</div>
+        <div class="tl-desc">full swap + os.Exit(0) after 202; SKOED_TEST_MODE=1 skips exit · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Bug: binary overwrite found and fixed</div>
+        <div class="tl-desc">Added SKOED_TEST_SWAP_DEST; all 3 swap-calling tests redirected to t.TempDir() · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Full suite green — 409/409</div>
+        <div class="tl-desc">138 s wall clock · 0 failures · 0 new skips · 2026-06-16</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Refactoring phase</div>
+        <div class="tl-desc">Updated package comment in checker.go; simplified zero-value CheckResult · 2026-06-16</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>skoed M16 — In-place Upgrade Binary Swap · 2026-06-16</span>
+  <span>409 / 409 tests · 138 s · linux/amd64</span>
+</footer>
+
+</body>
+</html>
