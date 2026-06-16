@@ -186,7 +186,7 @@ func TestDohResolverDbSnapshotJsonExport(t *testing.T) {
 // FS-DohResolverDbAdminForceRefresh
 func TestDohResolverDbAdminForceRefresh(t *testing.T) {
 	t.Parallel()
-	c := startCluster(t, 1)
+	c := startClusterWithEnv(t, 1, []string{"SKOED_TEST_MODE=1"})
 	n := c.Leader(t).Node
 	initial := waitForFirstDohSnapshot(t, n, 10*time.Second)
 	t0, err := time.Parse(time.RFC3339, initial.FetchedAt)
@@ -310,7 +310,7 @@ func TestDohResolverDbLeaderOnlyScheduler(t *testing.T) {
 // the same snapshot_id and identical resolvers[] bytes.
 func TestDohResolverDbReplicatedAcrossNodes(t *testing.T) {
 	t.Parallel()
-	c := startCluster(t, 3)
+	c := startClusterWithEnv(t, 3, []string{"SKOED_TEST_MODE=1"})
 	leader := c.Leader(t).Node
 	initial := waitForFirstDohSnapshot(t, leader, 15*time.Second)
 

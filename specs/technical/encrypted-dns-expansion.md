@@ -9,6 +9,8 @@ x-fsid-links:
   - FS-Doh3ForwardsUnmatched
   - FS-Doh3DisabledByDefault
   - FS-Doh3IndependentEnable
+  - FS-Doh3AltSvcAdvertised
+  - FS-Doh3AltSvcAbsentWhenDisabled
   - FS-DnscryptServerListens
   - FS-DnscryptAppliesFilter
   - FS-DnscryptServesLocalDns
@@ -256,6 +258,50 @@ outcome suffix, which is sufficient.
   queries. Verify filter application, local DNS, forwarding, stamp content,
   and that keypair rotation causes seamless reconnect (no dropped queries).
 - Both test types run inside Docker (per project feedback rules).
+
+---
+
+## 10. Alt-Svc advertisement (M15)
+
+### 10.1 Behaviour
+
+When `doh3_port > 0`, the DoH (HTTP/2) handler MUST set:
+
+```
+Alt-Svc: h3=":<doh3_port>"; ma=86400
+```
+
+on every successful DNS response (HTTP 200). The port value is the
+`node.dns.listen.doh3_port` config value. `ma=86400` (24 h) is hardcoded.
+
+When `doh3_port == 0` (DoH3 disabled), the `Alt-Svc` header MUST NOT appear.
+
+### 10.2 Implementation
+
+`handleDoH` in `apps/skoed/internal/dns/encrypted.go`:
+
+```go
+if s.doh3Port > 0 {
+    w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%d"; ma=86400`, s.doh3Port))
+}
+```
+
+No other changes. The existing `serveHTTPDNS` pipeline is unchanged.
+
+### 10.3 Test
+
+`TestDoh3AltSvcAdvertised` in `tests/acceptance/encrypted_dns_expansion_test.go`:
+- Start a node with both `doh_port` and `doh3_port` set.
+- Send an HTTP/2 DoH POST to `doh_port`.
+- Assert response has `Alt-Svc` containing `h3`:
+  ```
+  h3=":<doh3_port>"; ma=86400
+  ```
+
+`TestDoh3AltSvcAbsentWhenDisabled`:
+- Start a node with `doh_port` set but `doh3_port = 0`.
+- Send an HTTP/2 DoH POST.
+- Assert response has no `Alt-Svc` header.
 
 ---
 

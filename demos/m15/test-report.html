@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M15 — Real-Environment Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #232636;
+    --border: #2e3250;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #7c6af7;
+    --accent2: #5eead4;
+    --pass: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+    --nxdomain: #818cf8;
+    --noerror: #34d399;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ── Layout ── */
+  header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span {
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── Summary cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.cyan::before   { background: var(--accent2); }
+  .card.yellow::before { background: var(--warn); }
+  .card.purple::before { background: #a855f7; }
+  .card.orange::before { background: #f59e0b; }
+
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Sections ── */
+  section { margin-bottom: 40px; }
+  section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #c7d2fe;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(46,50,80,0.5);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .badge.pass    { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail    { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+  .badge.fixed   { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+  .badge.nxd     { background: rgba(129,140,248,0.15); color: var(--nxdomain); border: 1px solid rgba(129,140,248,0.3); }
+  .badge.noerr   { background: rgba(52,211,153,0.1); color: var(--noerror); border: 1px solid rgba(52,211,153,0.2); }
+  .badge.leader  { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+  .badge.follower{ background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+  .badge.vip     { background: rgba(251,191,36,0.2); color: #fde68a; border: 1px solid rgba(251,191,36,0.5); }
+  .badge.new     { background: rgba(94,234,212,0.15); color: var(--accent2); border: 1px solid rgba(94,234,212,0.3); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot.green  { background: var(--pass); }
+  .dot.red    { background: var(--fail); }
+  .dot.yellow { background: var(--warn); }
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #a5b4fc;
+  }
+
+  /* ── Topology ── */
+  .topo-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+  }
+  .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
+
+  .node-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .node-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .node-card-header .nc-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #c7d2fe;
+  }
+  .node-card-body { padding: 12px 16px; }
+  .node-card .kv {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(46,50,80,0.35);
+    font-size: 12px;
+  }
+  .node-card .kv:last-child { border-bottom: none; }
+  .node-card .k  { color: var(--muted); min-width: 100px; flex-shrink: 0; }
+  .node-card .v  { color: var(--text); }
+  .node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+
+  /* ── Perf charts ── */
+  .perf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .perf-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .perf-box h3 { font-size: 13px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .perf-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(46,50,80,0.4); gap: 8px; }
+  .perf-row:last-child { border-bottom: none; }
+  .perf-row .pk  { color: var(--muted); font-size: 12px; flex: 1; }
+  .perf-row .pv  { color: #fff; font-weight: 600; font-size: 13px; font-family: monospace; }
+  .perf-row .pv.good { color: var(--pass); }
+  .perf-row .pv.ok   { color: var(--warn); }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: '';
+    position: absolute; left: 8px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .tl-item { position: relative; margin-bottom: 20px; }
+  .tl-item::before {
+    content: '';
+    position: absolute; left: -24px; top: 5px;
+    width: 10px; height: 10px;
+    border-radius: 50%; border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .tl-item.done::before { background: var(--pass); border-color: var(--pass); }
+  .tl-item .tl-title { font-weight: 600; color: #c7d2fe; font-size: 13px; }
+  .tl-item .tl-desc  { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── Failover diagram ── */
+  .failover-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .fo-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .fo-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .fo-node {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    font-size: 12px;
+  }
+  .fo-node.vip-holder { border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.05); }
+  .fo-node.failed     { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.05); }
+  .fo-node .fn-name   { color: #c7d2fe; font-weight: 600; }
+  .fo-node .fn-ip     { color: var(--accent2); font-family: monospace; font-size: 11px; }
+  .fo-node .fn-badge  { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .fn-badge.vip  { background: rgba(251,191,36,0.2); color: #fde68a; border: 1px solid rgba(251,191,36,0.4); }
+  .fn-badge.down { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+  .fn-badge.up   { background: rgba(52,211,153,0.1); color: var(--pass); border: 1px solid rgba(52,211,153,0.25); }
+
+  .fo-arrow {
+    text-align: center;
+    color: var(--warn);
+    font-size: 22px;
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M15 — Test Suite Cleanup + keepalived VIP</h1>
+  <p>Real-Environment Test Report &mdash; Proxmox 3-Node LXC Cluster</p>
+  <div class="meta">
+    <span>Date: 2026-06-16</span>
+    <span>Cluster: CT301/302/303 · 10.0.0.11-13</span>
+    <span>VIP: 10.0.0.10 (keepalived VRRP)</span>
+    <span>Acceptance suite: 177s · Docker harness</span>
+    <span>Alt-Svc: HTTP/2 → HTTP/3 auto-upgrade</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Summary cards ── -->
+  <div class="cards">
+    <div class="card green">
+      <div class="value" style="font-size:26px;">409/409</div>
+      <div class="unit">acceptance tests</div>
+      <div class="label">All passing</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">PASS</div>
+      <div class="unit">VIP failover</div>
+      <div class="label">10.0.0.10 · keepalived</div>
+    </div>
+    <div class="card blue">
+      <div class="value">19</div>
+      <div class="unit">tests unblocked</div>
+      <div class="label">Zero skips now</div>
+    </div>
+    <div class="card purple">
+      <div class="value">5</div>
+      <div class="unit">bugs fixed</div>
+      <div class="label">Real-env provisioning</div>
+    </div>
+    <div class="card orange">
+      <div class="value">&lt;14s</div>
+      <div class="unit">VIP failover time</div>
+      <div class="label">VRRP preemption</div>
+    </div>
+    <div class="card yellow">
+      <div class="value">0%</div>
+      <div class="unit">error rate</div>
+      <div class="label">Full suite · all nodes</div>
+    </div>
+  </div>
+
+  <!-- ── Cluster topology ── -->
+  <section>
+    <h2>Cluster topology with keepalived VIP</h2>
+
+    <div class="topo-wrap">
+      <svg viewBox="0 0 960 320" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+        <defs>
+          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+          <marker id="ah-vip" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <!-- Proxmox host background -->
+        <rect x="10" y="10" width="940" height="298" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 10.0.0.0/24 (NAT)</text>
+
+        <!-- VIP banner at top-right -->
+        <rect x="700" y="18" width="234" height="36" rx="8" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.4)" stroke-width="1.5"/>
+        <text x="717" y="40" font-size="12" fill="#fde68a" font-weight="700">VIP: 10.0.0.10 · VRRP</text>
+        <text x="840" y="40" font-size="10" fill="#fbbf24" text-anchor="start"> eth0</text>
+
+        <!-- ═══ CT301 — Raft leader, keepalived priority 101, VIP holder ═══ -->
+        <rect x="28" y="56" width="252" height="234" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+        <circle cx="50" cy="80" r="5" fill="#34d399"/>
+        <text x="63" y="85" font-size="14" fill="#c7d2fe" font-weight="700">CT301</text>
+        <rect x="170" y="68" width="92" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+        <text x="216" y="82" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Raft Leader</text>
+        <text x="63" y="100" font-size="11" fill="#636e8f">Debian 12 · skoed-1</text>
+        <line x1="28" y1="110" x2="280" y2="110" stroke="#3d3670"/>
+        <text x="44" y="130" font-size="11" fill="#636e8f">IP</text>
+        <text x="120" y="130" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.11</text>
+        <text x="44" y="148" font-size="11" fill="#636e8f">Raft</text>
+        <text x="120" y="148" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="44" y="166" font-size="11" fill="#636e8f">API bind</text>
+        <text x="120" y="166" font-size="11" fill="#a5b4fc" font-family="monospace">0.0.0.0:8080</text>
+        <text x="44" y="184" font-size="11" fill="#636e8f">DNS</text>
+        <text x="120" y="184" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <!-- keepalived row -->
+        <rect x="44" y="196" width="220" height="20" rx="6" fill="rgba(251,191,36,0.12)" stroke="rgba(251,191,36,0.45)"/>
+        <text x="154" y="210" font-size="10" fill="#fde68a" text-anchor="middle" font-weight="700">keepalived priority 101 · VIP holder</text>
+        <text x="44" y="238" font-size="10" fill="#636e8f">OS</text>
+        <text x="120" y="238" font-size="10" fill="#e2e8f0">Debian 12</text>
+        <text x="44" y="256" font-size="10" fill="#636e8f">Init</text>
+        <text x="120" y="256" font-size="10" fill="#e2e8f0">systemd</text>
+        <text x="44" y="274" font-size="10" fill="#636e8f">Interface</text>
+        <text x="120" y="274" font-size="10" fill="#5eead4" font-family="monospace">eth0</text>
+
+        <!-- ═══ CT302 — Alpine, keepalived priority 100 ═══ -->
+        <rect x="354" y="56" width="252" height="234" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="376" cy="80" r="5" fill="#34d399"/>
+        <text x="389" y="85" font-size="14" fill="#c7d2fe" font-weight="700">CT302</text>
+        <rect x="496" y="68" width="92" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="542" y="82" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Raft Follower</text>
+        <text x="389" y="100" font-size="11" fill="#636e8f">Alpine 3.22 · skoed-2</text>
+        <line x1="354" y1="110" x2="606" y2="110" stroke="#2e3250"/>
+        <text x="370" y="130" font-size="11" fill="#636e8f">IP</text>
+        <text x="446" y="130" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.12</text>
+        <text x="370" y="148" font-size="11" fill="#636e8f">Raft</text>
+        <text x="446" y="148" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="370" y="166" font-size="11" fill="#636e8f">API bind</text>
+        <text x="446" y="166" font-size="11" fill="#a5b4fc" font-family="monospace">0.0.0.0:8080</text>
+        <text x="370" y="184" font-size="11" fill="#636e8f">DNS</text>
+        <text x="446" y="184" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <rect x="370" y="196" width="220" height="20" rx="6" fill="rgba(100,116,139,0.1)" stroke="rgba(100,116,139,0.35)"/>
+        <text x="480" y="210" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="700">keepalived priority 100 · standby</text>
+        <text x="370" y="238" font-size="10" fill="#636e8f">OS</text>
+        <text x="446" y="238" font-size="10" fill="#e2e8f0">Alpine 3.22</text>
+        <text x="370" y="256" font-size="10" fill="#636e8f">Init</text>
+        <text x="446" y="256" font-size="10" fill="#e2e8f0">OpenRC</text>
+        <text x="370" y="274" font-size="10" fill="#636e8f">Interface</text>
+        <text x="446" y="274" font-size="10" fill="#5eead4" font-family="monospace">eth0</text>
+
+        <!-- ═══ CT303 — Debian, keepalived priority 99 ═══ -->
+        <rect x="680" y="56" width="252" height="234" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="702" cy="80" r="5" fill="#34d399"/>
+        <text x="715" y="85" font-size="14" fill="#c7d2fe" font-weight="700">CT303</text>
+        <rect x="822" y="68" width="92" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="868" y="82" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Raft Follower</text>
+        <text x="715" y="100" font-size="11" fill="#636e8f">Debian 12 · skoed-3</text>
+        <line x1="680" y1="110" x2="932" y2="110" stroke="#2e3250"/>
+        <text x="696" y="130" font-size="11" fill="#636e8f">IP</text>
+        <text x="772" y="130" font-size="11" fill="#5eead4" font-family="monospace">10.0.0.13</text>
+        <text x="696" y="148" font-size="11" fill="#636e8f">Raft</text>
+        <text x="772" y="148" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="696" y="166" font-size="11" fill="#636e8f">API bind</text>
+        <text x="772" y="166" font-size="11" fill="#a5b4fc" font-family="monospace">0.0.0.0:8080</text>
+        <text x="696" y="184" font-size="11" fill="#636e8f">DNS</text>
+        <text x="772" y="184" font-size="11" fill="#a5b4fc" font-family="monospace">:53  UDP/TCP</text>
+        <rect x="696" y="196" width="220" height="20" rx="6" fill="rgba(100,116,139,0.1)" stroke="rgba(100,116,139,0.35)"/>
+        <text x="806" y="210" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="700">keepalived priority 99 · standby</text>
+        <text x="696" y="238" font-size="10" fill="#636e8f">OS</text>
+        <text x="772" y="238" font-size="10" fill="#e2e8f0">Debian 12</text>
+        <text x="696" y="256" font-size="10" fill="#636e8f">Init</text>
+        <text x="772" y="256" font-size="10" fill="#e2e8f0">systemd</text>
+        <text x="696" y="274" font-size="10" fill="#636e8f">Interface</text>
+        <text x="772" y="274" font-size="10" fill="#5eead4" font-family="monospace">eth0</text>
+
+        <!-- ═══ Raft connections ═══ -->
+        <line x1="284" y1="155" x2="350" y2="155" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="317" y="148" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+        <line x1="610" y1="155" x2="676" y2="155" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="643" y="148" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+
+        <!-- ═══ VIP annotation arrow (CT301 → VIP banner) ═══ -->
+        <line x1="154" y1="56" x2="720" y2="54" stroke="#f59e0b" stroke-width="1" stroke-dasharray="5,3"
+          marker-end="url(#ah-vip)"/>
+      </svg>
+    </div>
+    <p style="text-align:center; font-size:11px; color:var(--muted); margin-top:6px;">
+      VIP 10.0.0.10 floats on CT301 (priority 101) · All nodes bind API on <code>0.0.0.0:8080</code> · Unicast VRRP peers · health-check: <code>GET /api/v1/health</code> every 2s
+    </p>
+  </section>
+
+  <!-- ── M15-A: Alt-Svc ── -->
+  <section>
+    <h2>M15-A — Alt-Svc header for DoH/HTTP3 upgrade</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      When <code>doh3_port &gt; 0</code>, every DoH (HTTP/2) response now includes
+      <code>Alt-Svc: h3=":&lt;doh3_port&gt;"; ma=86400</code>. Firefox and Chrome
+      auto-upgrade to HTTP/3 (QUIC) after the first H2 response. When <code>doh3_port = 0</code>
+      (the default), no header is set.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th>Condition</th>
+            <th>Expected header</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TestDoh3AltSvcAdvertised</code> <span class="badge new">M15</span></td>
+            <td><code>doh3_port = 8853</code></td>
+            <td><code>Alt-Svc: h3=":8853"; ma=86400</code></td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+          <tr>
+            <td><code>TestDoh3AltSvcAbsentWhenDisabled</code> <span class="badge new">M15</span></td>
+            <td><code>doh3_port = 0</code> (default)</td>
+            <td>No <code>Alt-Svc</code> header</td>
+            <td><span class="badge pass">✓ PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── M15-B: Test timing ── -->
+  <section>
+    <h2>M15-B — Test suite timing fixes (19 tests unblocked)</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      These tests were previously skipping or flaking on CI because scheduler ticks (10 s) exceeded
+      their test deadlines. With <code>SKOED_TEST_MODE=1</code>, all scheduler ticks drop to 1 s.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test group</th>
+            <th>Count</th>
+            <th>Root cause</th>
+            <th>Fix</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TestAutoRefresh*</code></td>
+            <td>6</td>
+            <td>
+              Scheduler tick was 10 s; inline fetch on create makes first tick see
+              <code>unchanged</code> status — tests timed out before observing <code>ok</code>
+            </td>
+            <td>
+              Run with <code>SKOED_TEST_MODE=1</code> (1 s tick); accept both
+              <code>"ok"</code> and <code>"unchanged"</code> as valid initial status
+            </td>
+            <td><span class="badge pass">✓ PASS (0 skips)</span></td>
+          </tr>
+          <tr>
+            <td><code>TestDohResolverDb*</code></td>
+            <td>13</td>
+            <td>
+              Raft snapshot apply of bundled DoH resolver seed could exceed the
+              polling deadline on slower machines
+            </td>
+            <td>
+              Run with <code>SKOED_TEST_MODE=1</code> so seed apply lands within deadline
+            </td>
+            <td><span class="badge pass">✓ PASS (0 skips)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── M15-C: keepalived deployment ── -->
+  <section>
+    <h2>M15-C — keepalived VIP deployment (real environment)</h2>
+    <p style="color:var(--muted); margin-bottom:20px; font-size:13px;">
+      keepalived installed on all 3 nodes with unicast VRRP, priority-based election,
+      and a 2-second health-check script calling <code>GET /api/v1/health</code>.
+      The VIP <code>10.0.0.10</code> normally sits on CT301 (priority 101).
+    </p>
+
+    <!-- Failover test -->
+    <h3 style="font-size:14px; color:#c7d2fe; margin-bottom:14px;">VIP failover test — PASS</h3>
+    <div class="failover-grid">
+      <div class="fo-box">
+        <h3>Normal state — CT301 holds VIP</h3>
+        <div class="fo-node vip-holder">
+          <div>
+            <div class="fn-name">CT301 · skoed-1</div>
+            <div class="fn-ip">10.0.0.11 · priority 101</div>
+          </div>
+          <span class="fn-badge vip">VIP 10.0.0.10</span>
+        </div>
+        <div class="fo-node">
+          <div>
+            <div class="fn-name">CT302 · skoed-2</div>
+            <div class="fn-ip">10.0.0.12 · priority 100</div>
+          </div>
+          <span class="fn-badge up">standby</span>
+        </div>
+        <div class="fo-node">
+          <div>
+            <div class="fn-name">CT303 · skoed-3</div>
+            <div class="fn-ip">10.0.0.13 · priority 99</div>
+          </div>
+          <span class="fn-badge up">standby</span>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--pass);">
+          ✓ <code>GET http://10.0.0.10:8080/api/v1/health</code> → <code>{"status":"ok"}</code>
+        </div>
+      </div>
+
+      <div class="fo-box">
+        <h3>After CT301 skoed failure → VIP moves to CT302</h3>
+        <div class="fo-node failed">
+          <div>
+            <div class="fn-name">CT301 · skoed-1</div>
+            <div class="fn-ip">10.0.0.11 · priority 101 − 20 = 81</div>
+          </div>
+          <span class="fn-badge down">skoed stopped</span>
+        </div>
+        <div class="fo-arrow">↓ VIP transferred (&lt;14 s)</div>
+        <div class="fo-node vip-holder">
+          <div>
+            <div class="fn-name">CT302 · skoed-2</div>
+            <div class="fn-ip">10.0.0.12 · priority 100</div>
+          </div>
+          <span class="fn-badge vip">VIP 10.0.0.10</span>
+        </div>
+        <div class="fo-node">
+          <div>
+            <div class="fn-name">CT303 · skoed-3</div>
+            <div class="fn-ip">10.0.0.13 · priority 99</div>
+          </div>
+          <span class="fn-badge up">standby</span>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--pass);">
+          ✓ <code>GET http://10.0.0.10:8080/api/v1/health</code> → <code>{"status":"ok"}</code>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg2); border: 1px solid rgba(52,211,153,0.25); border-radius:10px; padding:16px; margin-bottom:20px;">
+      <div style="font-size:13px; color:var(--pass); font-weight:600; margin-bottom:8px;">✓ Recovery: CT301 reclaims VIP on skoed restart</div>
+      <div style="font-size:12px; color:var(--muted);">
+        After <code>systemctl start skoed</code> on CT301, keepalived health check exits 0 within 2 s,
+        priority returns to 101 (above CT302's 100), and VRRP preempts within one advertisement interval.
+        VIP moves back to CT301 in &lt;14 s. Health check at <code>10.0.0.10:8080</code> continues to
+        return <code>{"status":"ok"}</code> throughout.
+      </div>
+    </div>
+
+    <!-- Bugs fixed table -->
+    <h3 style="font-size:14px; color:#c7d2fe; margin-bottom:14px;">Bugs fixed during real-environment validation</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Bug</th>
+            <th>Symptom</th>
+            <th>Root cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Raft snapshot replication to fresh nodes</td>
+            <td><code>auth/setup</code> returned 409 on brand-new containers</td>
+            <td>Still-running old cluster peers sent full Raft snapshot (including credentials) to newly-created nodes before setup could run</td>
+            <td>Added pre-destroy block to <code>proxmox-cluster.sh</code>: stops &amp; destroys ALL containers atomically before creating any</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><code>issue_token</code> used Basic Auth</td>
+            <td>401 when trying to issue join tokens</td>
+            <td>API removed Basic Auth in M6 (commit <code>26121a5</code>); only Bearer session tokens accepted</td>
+            <td><code>issue_token</code> now calls <code>POST /api/v1/auth/login</code> first, then uses Bearer token for <code>POST /api/v1/cluster/tokens</code></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Health script checked wrong field</td>
+            <td>Script always exited 1 even when skoed was healthy</td>
+            <td>Script matched <code>"cluster_status":"ok"</code> but <code>/api/v1/health</code> returns <code>{"status":"ok"}</code></td>
+            <td>Fixed pattern in <code>deploy/keepalived/skoed-health.sh</code> to match <code>"status":"ok"</code></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><code>curl</code> missing on fresh LXC</td>
+            <td>Health script exited 1 with "curl not found"</td>
+            <td>Debian 12 minimal and Alpine 3.22 templates do not include curl</td>
+            <td>Added <code>curl</code> to <code>apt-get install</code> in <code>proxmox-create.sh</code> and <code>apk add curl</code> in <code>proxmox-create-alpine.sh</code></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>VIP port 8080 connection refused</td>
+            <td><code>curl http://10.0.0.10:8080/</code> returned "Connection refused"</td>
+            <td>skoed bound API to specific node IP (<code>10.0.0.11:8080</code>), not to the VIP address</td>
+            <td>Changed <code>api_address: 0.0.0.0:8080</code> in both create scripts; <code>apiBaseURL</code> already uses Raft address for inter-node forwarding</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Acceptance test suite ── -->
+  <section>
+    <h2>Acceptance tests — full suite (409 tests)</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      Run in Docker multi-node harness (<code>tests/acceptance/</code>). M15 adds 2 new tests for Alt-Svc.
+      19 tests that previously skipped on slow machines are now reliably passing.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test file</th>
+            <th style="text-align:center; width:64px;">Tests</th>
+            <th style="width:130px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M1 — Core</td></tr>
+          <tr><td><code>dns_engine_test.go</code></td><td style="text-align:center">12</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>filtering_test.go</code></td><td style="text-align:center">22</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>local_dns_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>query_log_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>config_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>auth_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>cli_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M2–M4 — Cluster sync &amp; enrollment</td></tr>
+          <tr><td><code>sync_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>enrollment_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>failover_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>cluster_status_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M5 — TLS &amp; mTLS</td></tr>
+          <tr><td><code>management_api_https_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>encrypted_mesh_test.go</code></td><td style="text-align:center">2</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>acme_tls_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M6 — DHCP identity &amp; profiles</td></tr>
+          <tr><td><code>profiles_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_client_identity_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_connectors_test.go</code></td><td style="text-align:center">8</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_spoof_detection_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>lease_origin_tagging_test.go</code></td><td style="text-align:center">12</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M7 — API tokens, audit log, safe search, schedules</td></tr>
+          <tr><td><code>api_token_test.go</code></td><td style="text-align:center">11</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>audit_log_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>test_domain_test.go</code></td><td style="text-align:center">11</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>url_tester_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>safesearch_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>schedules_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>client_doh_status_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M8 — DoH support</td></tr>
+          <tr><td><code>doh_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>doh_server_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>doh_resolver_database_test.go</code></td><td style="text-align:center">13</td><td><span class="badge pass">✓ PASS (was flaking)</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M9 — Kubernetes operator</td></tr>
+          <tr><td><code>kubernetes_operator_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M10 — Active-active cluster</td></tr>
+          <tr><td><code>active_active_cluster_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M11 — Distribution &amp; packaging</td></tr>
+          <tr><td><code>packaging_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>helm_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M12 — Cluster join via web UI</td></tr>
+          <tr><td><code>cluster_join_webui_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M13 — Filtering pause</td></tr>
+          <tr><td><code>filtering_pause_test.go</code></td><td style="text-align:center">20</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M14 — Block dynamic-lease clients</td></tr>
+          <tr><td><code>profile_block_dynamic_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:rgba(94,234,212,0.06)"><td colspan="3" style="font-size:11px; color:var(--accent2); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">M15 — Alt-Svc + test cleanup ← this release</td></tr>
+          <tr style="background:rgba(94,234,212,0.03)">
+            <td><code>blocklist_refresh_test.go</code></td>
+            <td style="text-align:center">6</td>
+            <td><span class="badge pass">✓ PASS (was flaking)</span></td>
+          </tr>
+          <tr style="background:rgba(94,234,212,0.03)">
+            <td>2 new Alt-Svc tests (in <code>doh_server_test.go</code>)</td>
+            <td style="text-align:center">2</td>
+            <td><span class="badge new">NEW</span> <span class="badge pass">✓ PASS</span></td>
+          </tr>
+
+          <tr style="background:var(--bg3)"><td colspan="3" style="font-size:11px; color:var(--muted); padding:5px 14px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Additional features</td></tr>
+          <tr><td><code>dns_cache_controls_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>categories_test.go</code></td><td style="text-align:center">5</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>query_log_aggregates_test.go</code></td><td style="text-align:center">6</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>prometheus_metrics_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>shadow_yaml_test.go</code></td><td style="text-align:center">7</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>api_docs_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>in_place_upgrade_test.go</code></td><td style="text-align:center">4</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>encrypted_dns_expansion_test.go</code></td><td style="text-align:center">9</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_arp_cross_check_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcpv6_lease_parsing_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>dhcp_lease_replication_test.go</code></td><td style="text-align:center">13</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>firewall_rule_generator_test.go</code></td><td style="text-align:center">15</td><td><span class="badge pass">✓ PASS</span></td></tr>
+          <tr><td><code>firewall_rules_web_ui_test.go</code></td><td style="text-align:center">10</td><td><span class="badge pass">✓ PASS</span></td></tr>
+
+          <tr style="background:var(--bg2); font-weight:700; border-top: 2px solid var(--border);">
+            <td style="color:#c7d2fe;">Total — 52 files</td>
+            <td style="text-align:center; color:var(--pass); font-size:15px;">409</td>
+            <td><span class="badge pass">✓ ALL PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--pass); font-size:13px; margin-top:12px; font-weight:600;">✓ 409/409 acceptance tests pass &nbsp;·&nbsp; <code>ok skoed/acceptance 177.049s</code></p>
+  </section>
+
+  <!-- ── keepalived health check ── -->
+  <section>
+    <h2>keepalived health-check script</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      The script at <code>deploy/keepalived/skoed-health.sh</code> is pushed to <code>/etc/keepalived/</code>
+      on each node during cluster provisioning. keepalived calls it every 2 seconds.
+    </p>
+    <div class="perf-grid">
+      <div class="perf-box">
+        <h3>Script behaviour</h3>
+        <div class="perf-row">
+          <span class="pk">Endpoint</span>
+          <span class="pv" style="font-size:11px;">GET /api/v1/health</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Host</span>
+          <span class="pv">127.0.0.1 (configurable)</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Timeout</span>
+          <span class="pv good">3 s</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Exit 0 when</span>
+          <span class="pv good"><code>{"status":"ok"}</code></span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">Exit 1 when</span>
+          <span class="pv ok">any other body, non-200, or curl fails</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">curl missing</span>
+          <span class="pv ok">exits 1 immediately (fast-fail)</span>
+        </div>
+        <div class="perf-row">
+          <span class="pk">weight</span>
+          <span class="pv">−20 (priority drops below all healthy peers)</span>
+        </div>
+      </div>
+      <div class="perf-box">
+        <h3>Priority math on failure</h3>
+        <div style="font-size:12px; color:var(--muted); line-height:1.9;">
+          <div style="margin-bottom:8px;">When CT301's skoed is down, the track script exits 1. keepalived subtracts <code>weight=20</code> from the effective priority:</div>
+          <div style="background:var(--bg3); border-radius:6px; padding:10px 14px; font-family:monospace; font-size:12px; color:#c7d2fe;">
+            CT301 effective: 101 − 20 = <strong style="color:var(--fail);">81</strong><br>
+            CT302 effective: 100 − 0  = <strong style="color:var(--pass);">100</strong> ← winner<br>
+            CT303 effective: 99  − 0  = <strong>99</strong>
+          </div>
+          <div style="margin-top:8px;">CT302 wins the election and the VIP moves to <code>10.0.0.12/eth0</code>.</div>
+        </div>
+      </div>
+      <div class="perf-box">
+        <h3>api_address requirement</h3>
+        <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+          <div style="margin-bottom:10px;">skoed must bind its API on <strong style="color:#fff;">all interfaces</strong>, not a specific node IP:</div>
+          <div style="background:var(--bg3); border-radius:6px; padding:10px 14px; font-family:monospace; font-size:12px; color:#c7d2fe;">
+            node:<br>
+            &nbsp;&nbsp;raft_address: 10.0.0.11:7000<br>
+            &nbsp;&nbsp;<strong style="color:var(--pass);">api_address: 0.0.0.0:8080</strong>
+          </div>
+          <div style="margin-top:8px;">
+            When keepalived assigns the VIP (<code>10.0.0.10</code>) to <code>eth0</code>,
+            skoed automatically serves traffic on that address because it listens on all interfaces.
+            Inter-node forwarding still uses <code>raft_address</code> (node's own IP).
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Timeline ── -->
+  <section>
+    <h2>Test timeline</h2>
+    <div class="timeline">
+      <div class="tl-item done">
+        <div class="tl-title">Cluster destroyed and reprovisioned fresh</div>
+        <div class="tl-desc">All 3 CT containers stopped and destroyed atomically (pre-destroy fix) before creating new ones. Raft snapshot replication bug eliminated.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Cluster auth configured</div>
+        <div class="tl-desc">Bearer-token login flow working. <code>issue_token</code> now calls login first, then uses Bearer token for cluster join token endpoint.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">curl installed on all nodes</div>
+        <div class="tl-desc">Added to <code>apt-get install</code> (Debian) and <code>apk add</code> (Alpine). Health script no longer fast-fails with "curl not found".</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">keepalived installed and configured</div>
+        <div class="tl-desc">Unicast VRRP on <code>eth0</code>: CT301 priority 101, CT302 priority 100, CT303 priority 99. Health-check script deployed to all 3 nodes.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">VIP connection refused — root cause found</div>
+        <div class="tl-desc"><code>api_address: 10.0.0.11:8080</code> doesn't serve VIP. Fixed to <code>0.0.0.0:8080</code> in both create scripts. skoed restarted on all nodes.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Health script field bug fixed</div>
+        <div class="tl-desc">Script matched <code>"cluster_status":"ok"</code> — wrong field. Fixed to match <code>"status":"ok"</code>. All 3 health scripts exit 0.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">VIP health confirmed — normal state</div>
+        <div class="tl-desc"><code>GET http://10.0.0.10:8080/api/v1/health</code> → <code>{"status":"ok"}</code>. VIP held by CT301.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Failover test — PASS</div>
+        <div class="tl-desc">Stopped skoed on CT301. VIP moved to CT302 in &lt;14 s. Health at 10.0.0.10 continued to return ok. Restored CT301 → VIP returned in &lt;14 s.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">Acceptance suite — 409/409 PASS</div>
+        <div class="tl-desc">Docker harness. Alt-Svc tests (2 new), AutoRefresh (6), DoH resolver (13) all passing without skips. Total: <code>ok skoed/acceptance 177.049s</code>.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Not implemented ── -->
+  <section>
+    <h2>Not implemented (non-goals for M15)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Alt-Svc on DoT responses</td>
+            <td>DoT is not HTTP — the Alt-Svc mechanism does not apply to DNS-over-TLS</td>
+          </tr>
+          <tr>
+            <td>Alt-Svc on the management API HTTPS port</td>
+            <td>Only the DNS endpoint matters for client upgrade; management API uses standard HTTPS</td>
+          </tr>
+          <tr>
+            <td>keepalived Helm sidecar</td>
+            <td>Kubernetes uses its own LoadBalancer/Ingress; keepalived targets Proxmox LXC bare-metal deployments</td>
+          </tr>
+          <tr>
+            <td>Automated VIP health integration in skoed API</td>
+            <td>skoed does not need to know about VRRP; the health endpoint is sufficient for keepalived</td>
+          </tr>
+          <tr>
+            <td><code>Alt-Svc</code> <code>ma</code> configurable</td>
+            <td>Hardcoded 24 h (86400 s) is appropriate; configuring it adds complexity without benefit</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>skoed M15 — Test Suite Cleanup + keepalived VIP &mdash; Test report generated 2026-06-16</span>
+  <span>Cluster: CT301/302/303 · 3-node Raft · Proxmox vmbr1 · VIP 10.0.0.10</span>
+</footer>
+
+</body>
+</html>

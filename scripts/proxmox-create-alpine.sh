@@ -152,7 +152,7 @@ cat > "$TMP_CONFIG" << EOF
 node:
   id: ${NODE_ID}
   raft_address: ${BARE_IP}:7000
-  api_address: ${BARE_IP}:8080
+  api_address: 0.0.0.0:8080
   data_dir: /var/lib/skoed
 
   dns:

@@ -1,0 +1,82 @@
+# keepalived.conf.template — VRRP configuration for a skoed 3-node cluster.
+#
+# PURPOSE
+# -------
+# Provides a single floating IP (VIP) that DNS clients and the admin browser
+# can point at without knowing which skoed node is the Raft leader.
+#
+# HOW IT WORKS WITH SKOED
+# -----------------------
+# skoed already forwards every write from a Raft follower to the current
+# leader (LeaderForward middleware).  Any healthy skoed node is therefore a
+# valid write endpoint; the VIP just ensures clients always reach *a* healthy
+# node even when one goes down.
+#
+# The VRRP master (= VIP holder) is the node with the highest priority whose
+# health-check passes.  It is NOT necessarily the Raft leader — that is fine,
+# because follower → leader write forwarding handles the difference.
+#
+# USAGE
+# -----
+# 1. Copy this file to /etc/keepalived/keepalived.conf on EACH node.
+# 2. Replace ALL_CAPS placeholders:
+#      VRRP_INTERFACE   — LAN NIC name (e.g. eth0, ens18)
+#      VIRTUAL_IP       — floating IP to assign (e.g. 10.0.0.10)
+#      VIRTUAL_IP_CIDR  — subnet prefix (e.g. 24 for /24)
+#      NODE_PRIORITY    — unique per node: 101 (primary), 100, 99
+#      NODE_IP          — this node's own LAN IP
+#      PEER_IP_1        — first peer's LAN IP
+#      PEER_IP_2        — second peer's LAN IP
+#      VRRP_PASSWORD    — shared secret (8-char max, ASCII only)
+# 3. Copy deploy/keepalived/skoed-health.sh to /etc/keepalived/skoed-health.sh
+#    on each node and make it executable: chmod +x /etc/keepalived/skoed-health.sh
+# 4. Start / restart keepalived: systemctl restart keepalived
+#
+# After setup, configure DHCP to advertise VIRTUAL_IP as the DNS server.
+
+global_defs {
+    router_id skoed_vrrp
+    script_user root
+    enable_script_security
+}
+
+# Health-check script — runs every 2 s, fails after 3 consecutive failures.
+vrrp_script chk_skoed {
+    script "/etc/keepalived/skoed-health.sh"
+    interval 2
+    fall    3
+    rise    2
+    weight  -20    # reduce priority by 20 on failure so a healthy peer wins
+}
+
+vrrp_instance skoed_dns {
+    state BACKUP          # all nodes start as BACKUP; highest healthy priority wins
+    interface VRRP_INTERFACE
+    virtual_router_id 51  # same on every node; must be unique per LAN segment
+    priority NODE_PRIORITY
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass VRRP_PASSWORD
+    }
+
+    unicast_src_ip NODE_IP
+    unicast_peer {
+        PEER_IP_1
+        PEER_IP_2
+    }
+
+    virtual_ipaddress {
+        VIRTUAL_IP/VIRTUAL_IP_CIDR
+    }
+
+    track_script {
+        chk_skoed
+    }
+
+    # Optional: notify scripts for logging VIP transitions.
+    # notify_master "/etc/keepalived/notify.sh MASTER"
+    # notify_backup "/etc/keepalived/notify.sh BACKUP"
+    # notify_fault  "/etc/keepalived/notify.sh FAULT"
+}

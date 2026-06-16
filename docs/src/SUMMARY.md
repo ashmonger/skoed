@@ -20,6 +20,7 @@
 - [Bootstrap a 3-node cluster](cluster/bootstrap.md)
 - [Add or remove nodes](cluster/add-nodes.md)
 - [Encrypted mesh (mTLS)](cluster/encrypted-mesh.md)
+- [High-availability VIP (keepalived)](cluster/keepalived.md)
 
 # Configuration
 

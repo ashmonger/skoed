@@ -16,6 +16,7 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 
 **M13 — Temporary Filtering Pause** — branch `feature/m13-filtering-pause`
 **M14 — Block Dynamic-Lease Clients** — branch `feature/m14-block-dynamic-clients`
+**M15 — Test Suite Cleanup + keepalived Reference** — branch `feature/m15-test-suite-keepalived`
 
 ## Completed milestones
 - [x] M1–M9 merged to master — 2026-06-09
@@ -109,8 +110,34 @@ None.
 - [x] M14 — all 10 acceptance tests green (no skip stubs)
 - [x] M14 — refactoring phase — implementation clean, no changes needed
 - [x] M14 — demo note: `demos/m14/DEMO_NOTE.md`
-- [ ] M14 — UoR demo validation
+- [x] M14 — UoR demo validation — 2026-06-16
 - [ ] M14 — merge to master
+
+## M15 tasks
+
+### M15-A — Test suite cleanup + Alt-Svc
+- [x] M15 — functional spec: `FS-Doh3AltSvcAdvertised`, `FS-Doh3AltSvcAbsentWhenDisabled` added to `specs/functional/encrypted-dns-expansion.feature` — 2026-06-16
+- [x] M15 — UoR validated functional spec — 2026-06-16 (inline, scope approved)
+- [x] M15 — technical spec: Alt-Svc header behavior added to `specs/technical/encrypted-dns-expansion.md` (section 10) — 2026-06-16
+- [x] M15 — acceptance tests: `TestDoh3AltSvcAdvertised`, `TestDoh3AltSvcAbsentWhenDisabled` in `tests/acceptance/encrypted_dns_expansion_test.go` — 2026-06-16
+- [x] M15 — test fix: `tests/acceptance/blocklist_refresh_test.go` — `SKOED_TEST_MODE=1` + accept "unchanged" on initial refresh — 2026-06-16
+- [x] M15 — test fix: `tests/acceptance/doh_resolver_database_test.go` — `SKOED_TEST_MODE=1` on timing-sensitive tests — 2026-06-16
+- [x] M15 — implementation: Alt-Svc header in `apps/skoed/internal/dns/encrypted.go:handleDoH` — 2026-06-16
+- [x] M15 — all altered acceptance tests green (6/6 refresh, 2/2 Alt-Svc) — 2026-06-16
+
+### M15-C — keepalived reference (BDD-exempt, logged in LOGS.md)
+- [x] M15 — keepalived: `deploy/keepalived/keepalived.conf.template` + `deploy/keepalived/skoed-health.sh` — 2026-06-16
+- [x] M15 — keepalived: `docs/src/cluster/keepalived.md` page + SUMMARY.md entry — 2026-06-16
+- [x] M15 — keepalived: real-env deployment on CT301/302/303 — VIP 10.0.0.10 — failover PASS — 2026-06-16
+- [x] M15 — keepalived: fixed 5 provisioning bugs (pre-destroy, Bearer auth, health field, curl missing, api_address) — 2026-06-16
+- [x] M15 — keepalived: `docs/src/cluster/keepalived.md` corrected (eth0, curl prereq, api_address req) — 2026-06-16
+
+### M15 completion
+- [x] M15 — refactoring phase — no refactoring needed (changes are minimal) — 2026-06-16
+- [x] M15 — demo note: `demos/m15/DEMO_NOTE.md` updated with real-env keepalived results — 2026-06-16
+- [x] M15 — test report: `demos/m15/test-report.html` + `docs/src/releases/m15-test-report.html` — 2026-06-16
+- [ ] M15 — UoR demo validation
+- [ ] M15 — merge to master
 
 ## Backlog
 

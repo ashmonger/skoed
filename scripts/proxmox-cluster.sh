@@ -134,6 +134,26 @@ fi
 
 echo "  bridge $BRIDGE is ready ($HOST_IP/$CIDR, NAT enabled)"
 
+# ─── Pre-destroy all nodes upfront when --destroy is set ─────────────────────
+# Must happen before creating any node so that no old Raft peer can replicate
+# its state (auth credentials, config) to a newly-bootstrapped node.
+
+if [ "$DESTROY" -eq 1 ]; then
+    echo
+    echo "━━━ PRE-DESTROY: stopping all existing cluster nodes ━━━"
+    for _pre_id in "$NODE1_ID" "$NODE2_ID" "$NODE3_ID"; do
+        if pct status "$_pre_id" >/dev/null 2>&1; then
+            echo "  stopping + destroying container $_pre_id…"
+            pct stop "$_pre_id" 2>/dev/null || true
+        fi
+    done
+    sleep 4
+    for _pre_id in "$NODE1_ID" "$NODE2_ID" "$NODE3_ID"; do
+        pct destroy "$_pre_id" 2>/dev/null || true
+    done
+    echo "  all existing containers removed"
+fi
+
 # ─── Helper functions ─────────────────────────────────────────────────────────
 
 destroy_if_exists_ct() {
@@ -165,7 +185,17 @@ wait_health() {
 
 issue_token() {
     local leader_ip="$1"
-    curl -fsS -u "admin:${ADMIN_PASS}" \
+    # The API uses session Bearer tokens — Basic Auth is not accepted.
+    # Step 1: login to get a short-lived session token.
+    local BEARER
+    BEARER=$(curl -fsS \
+        -X POST "http://${leader_ip}:8080/api/v1/auth/login" \
+        -H "content-type: application/json" \
+        -d "{\"username\":\"admin\",\"password\":\"${ADMIN_PASS}\"}" \
+        | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+    # Step 2: use the Bearer token to issue a cluster join token.
+    curl -fsS \
+        -H "Authorization: Bearer ${BEARER}" \
         -X POST "http://${leader_ip}:8080/api/v1/cluster/tokens" \
         -H "content-type: application/json" \
         | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])"
