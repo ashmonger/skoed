@@ -55,9 +55,14 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M14 | Block Dynamic-Lease Clients | ✅ | — | [note](demos/m14/DEMO_NOTE.md) · [report](demos/m14/test-report.html) | [block-dyn](specs/functional/profile-block-dynamic-clients.feature) | [block-dyn](tests/acceptance/profile_block_dynamic_test.go) |
 | M15 | Test Suite Cleanup + keepalived Reference | ✅ | v0.1.3 | [note](demos/m15/DEMO_NOTE.md) · [report](demos/m15/test-report.html) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) · [refresh](tests/acceptance/blocklist_refresh_test.go) |
 | M16 | In-place Upgrade Binary Swap | ✅ | v0.1.4 | [note](demos/m16/DEMO_NOTE.md) · [report](demos/m16/test-report.html) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
-| M17 | Schedule Bindings + Config Export | 🔄 | — | — | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
-| M18 | Active-Active Cluster Phase 2 | ⬜ | — | — | — | — |
-| M19 | Query Log Aggregates (cluster-wide fan-out) | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
+| M17 | Schedule Bindings + Config Export | 🔄 | — | [note](demos/m17/DEMO_NOTE.md) | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
+| M18 | Active-Active Cluster Phase 2 (rolling upgrade + leader load-balancing) | ⬜ | — | — | — | — |
+| M19 | Query Log Aggregates + DoH3 test expansion | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
+| M20 | Cluster Security Hardening (token scoping + node cert rotation) | ⬜ | — | — | — | — |
+| M21 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
+| M22 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
+| M23 | DNSSEC Validation Mode | ⬜ | — | — | — | — |
+| M24 | Webhook / Push Alerts | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
@@ -229,8 +234,11 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 - [x] M17 — 4 M17 tests green; full suite (413 tests) green — 2026-06-16
 
 ### M17 completion
-- [ ] M17 — refactoring phase
-- [ ] M17 — demo note: `demos/m17/DEMO_NOTE.md`
+- [x] M17 — refactoring phase (implementation was already minimal and clean; no changes needed) — 2026-06-16
+- [x] M17 — demo note: `demos/m17/DEMO_NOTE.md` — 2026-06-16
+- [ ] M17 — real-condition test on Proxmox 3-node cluster (deploy latest binary, exercise bindings API + config.yaml shadow)
+- [ ] M17 — screenshots / captured proof of feature working in cluster
+- [ ] M17 — HTML test report: `demos/m17/test-report.html`
 - [ ] M17 — UoR demo validation
 - [ ] M17 — merge to master
 

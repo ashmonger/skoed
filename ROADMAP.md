@@ -884,6 +884,241 @@ Common:
 
 ---
 
+### Milestone 15 — Cluster Resilience: Test Suite Hardening + keepalived VIP
+
+**Outcome**: The multi-node test suite runs reproducibly in Docker so port races and TIME_WAIT accumulation no longer cause flakes; a VRRP Virtual IP managed by keepalived keeps the cluster reachable through a leader re-election.
+
+**Capabilities:**
+- Docker-based acceptance harness: full test suite spins up in isolated containers, eliminating host kernel state pollution across runs.
+- keepalived VRRP on all 3 Proxmox nodes: one VIP floats to the current primary; clients always hit the same address regardless of which node holds the Raft leader role.
+- Proxmox provisioning scripts updated to auto-install keepalived and write `/etc/keepalived/keepalived.conf` on first deploy.
+- Acceptance tests validate VIP failover: node eviction triggers leader election and VIP moves within the observable window.
+
+**Non-goals:**
+- Weighted VRRP priority based on Raft leader role (VIP always follows the provisioned priority order, not the dynamic leader)
+- Automated keepalived config rotation when a node is permanently removed
+
+**Dependencies:** M10 active-active cluster (Raft quorum); M14 test suite at 391 tests green.
+
+---
+
+### Milestone 16 — In-Place Upgrade: Binary Swap
+
+**Outcome**: A running skoed node can fetch the latest release tarball from GitHub, validate it, and atomically replace its own binary — all via a single API call — without dropping DNS service.
+
+**Capabilities:**
+- `GET /api/v1/upgrade/latest` — queries GitHub Releases API, returns `{tag, url, current_version, upgrade_available}`.
+- `POST /api/v1/upgrade/apply` — body `{url}`. Downloads tarball, extracts binary to a sibling path, fsyncs, renames over the running binary. Responds `{status: "applied", previous_version, new_version}`.
+- `SKOED_TEST_SWAP_DEST` env var redirects the swap target so acceptance tests can exercise the full code path without overwriting the test binary.
+- Three acceptance tests: upgrade available, upgrade not available (already latest), apply swap succeeds.
+- Binary is statically linked (`CGO_ENABLED=0`) so the swapped file runs on musl/Alpine identically to the build host.
+
+**Non-goals:**
+- Rolling cluster-wide upgrade coordination (that is M18)
+- Rollback to previous binary (operator responsibility; use PBS snapshot)
+- Signature / checksum verification beyond tar extraction (add in M20 with token scope gate)
+
+**Dependencies:** M10 cluster (API endpoint lives on each node); M7 API tokens (upgrade endpoint requires admin token).
+
+---
+
+### Milestone 17 — Schedule Bindings + Config Shadow Export
+
+**Outcome**: Schedules can be associated with (profile, blocklist) pairs via the API so time-windowed filtering rules are fully describable through the API; the cluster shadow `config.yaml` written by the ShadowWriter includes schedules and bindings so PBS/restic filesystem backups capture a complete, human-readable replica of cluster state.
+
+**Capabilities:**
+- `GET /api/v1/schedules/{id}/bindings` — returns the list of `{schedule_id, profile_id, blocklist_id}` bindings for the given schedule. Returns 404 if the schedule does not exist and an empty array if it exists with no bindings.
+- `ShadowWriter` extended: `clusterSections` now includes `schedules: []` and `schedule_bindings: []`; both are serialized into `config.yaml` after every FSM apply.
+- Acceptance tests: bindings list populated, bindings list empty, schedule not found, config.yaml written with schedule data after cluster mutation.
+
+**Non-goals:**
+- Bulk-binding multiple profiles in one request
+- Binding validation against schedule window overlap
+- UI for schedule binding management
+
+**Dependencies:** M3 schedule engine; M10 Raft FSM (bindings stored in bbolt `config_schedule_bindings` bucket).
+
+---
+
+### Milestone 18 — Active-Active Cluster Phase 2: Rolling Upgrade + Load Balancing
+
+**Outcome**: Multi-node clusters can upgrade all nodes sequentially — one at a time, each completing before the next starts — without dropping DNS service or losing quorum; API read traffic distributes across all healthy followers so the leader is not the single point for read load.
+
+**Capabilities:**
+
+Rolling upgrade:
+- `POST /api/v1/cluster/upgrade/apply` — body `{url}`. Orchestrates a sequential binary swap across all cluster members: drains one node (waits for it to be a follower, not the leader; if it is the leader, triggers a Raft leadership transfer first), upgrades it, confirms the node rejoined quorum, then moves to the next.
+- Upgrade is aborted immediately if any node fails to rejoin within a configurable timeout (`upgrade_node_timeout_seconds`).
+- Each node's upgrade uses the existing M16 `POST /api/v1/upgrade/apply` under the hood (no code duplication).
+- `GET /api/v1/cluster/upgrade/status` — returns current upgrade state: `{in_progress, pending_nodes, completed_nodes, failed_node?}`.
+
+Load balancing research:
+- Document which request classes are safe to serve from followers (all `GET` requests, DNS queries) vs. which must go to the leader (all mutating API calls).
+- Implement optional read-forwarding: followers respond directly to `GET` requests rather than proxying to leader. Mutating calls continue to forward to leader.
+- Evaluate whether keepalived VIP should route based on leader role; document the trade-off (dynamic VIP adds VRRP preempt complexity vs. static VIP with client-side retry).
+
+**Non-goals:**
+- Canary-style partial rollout (upgrade all or none)
+- Automated rollback on version mismatch (operator must intervene)
+- Blue-green node replacement (add a new node then decommission the old one)
+
+**Dependencies:** M15 keepalived VIP (cluster stays reachable during upgrade); M16 binary swap (single-node upgrade building block); M10 Raft leadership transfer.
+
+---
+
+### Milestone 19 — Query Log Aggregates + DoH3 Test Expansion
+
+**Outcome**: Operators get cluster-wide query statistics (top blocked domains, unique client count, block rate) aggregated in a single API call from all nodes; DoH3/HTTP3 acceptance test coverage is extended to validate alt-svc advertisement, fallback, and concurrent query behavior.
+
+**Capabilities:**
+
+Query log aggregates:
+- `GET /api/v1/query-log/aggregates` — fans out to all cluster members, aggregates: total queries, total blocked, block rate, top-10 blocked domains, top-10 querying clients, unique client count. Time range: last 1h / 24h / 7d via `?range=` param.
+- Each node responds with its local stats; the requesting node merges and deduplicates before returning.
+- Graceful degradation: if a node is unreachable, its stats are omitted and the response includes `{degraded: true, missing_nodes: [...]}`.
+- Response time budget: 2 s timeout per node; aggregate response must return within 3 s.
+
+DoH3 test expansion:
+- Acceptance test: `alt-svc` header present on DoH `GET /dns-query` responses advertising `h3=":443"`.
+- Acceptance test: concurrent DoH3 queries (10 parallel) all resolve correctly.
+- Acceptance test: DoH3 fallback — client connecting on HTTP/2 still gets correct responses (no protocol lock-in).
+- Acceptance test: DoH3 query with `OPT` records (EDNS0 extended payload) resolves without truncation.
+
+**Non-goals:**
+- Persistent aggregate storage (aggregates are computed on-demand from in-memory query logs)
+- Per-profile aggregates (whole-cluster view only)
+- Real-time streaming of aggregate stats (polling only)
+
+**Dependencies:** M10 cluster fan-out infrastructure; M6 DoH3 implementation.
+
+---
+
+### Milestone 20 — Cluster Security Hardening
+
+**Outcome**: API tokens carry named scopes that enforce least-privilege access; mTLS node certificates can be rotated across all cluster nodes without restarting skoed or losing quorum, closing the operational gap left by the initial M5.3 mTLS implementation.
+
+**Capabilities:**
+
+Token scoping:
+- Tokens have a `scope` field: `read` (all `GET` endpoints), `write` (all mutating API calls except cluster and upgrade admin ops), `admin` (everything, including `/api/v1/cluster/*` and `/api/v1/upgrade/*`).
+- Existing tokens created before this milestone default to `admin` scope (backward-compatible).
+- `POST /api/v1/tokens` accepts `{name, scope}`. Scope defaults to `write` if omitted.
+- `GET /api/v1/tokens/{id}` returns `{id, name, scope, created_at}`.
+- Endpoints enforce scope: returning 403 with `{error: "insufficient scope", required: "<scope>"}` on mismatch.
+- Token scope is replicated via Raft; scope enforcement is node-local.
+
+Node certificate rotation:
+- `POST /api/v1/cluster/certs/rotate` — triggers a rolling mTLS certificate renewal: generates a new CA + node certs, distributes them to all peers via the existing cluster replication channel, then reloads TLS listeners without dropping existing connections.
+- Certificate rotation is serialized (one node at a time) to maintain quorum throughout.
+- `GET /api/v1/cluster/certs/status` — returns `{ca_expires_at, nodes: [{id, cert_expires_at, rotation_pending}]}`.
+
+**Non-goals:**
+- External CA integration (cert rotation is self-signed only; external CA is a separate security review)
+- Per-endpoint token scoping (coarser read/write/admin buckets are sufficient)
+- Token expiry / TTL (tokens are permanent until explicitly revoked; TTL is a future concern)
+
+**Dependencies:** M7 API tokens (base token infrastructure); M5.3 mTLS mesh (cert infrastructure); M10 Raft replication (used to distribute new certs).
+
+---
+
+### Milestone 21 — Skoed4Phone: DNS-over-VPN
+
+**Outcome**: iOS and Android devices can use skoed as their DNS resolver regardless of network by running a lightweight local VPN tunnel that intercepts all DNS queries; when the device is on a LAN that already has a skoed cluster, the VPN defers to the cluster.
+
+**Capabilities:**
+- Local VPN profile (WireGuard or Android VPNService / iOS NEPacketTunnelProvider) establishes a loopback-like tunnel that captures UDP/53 and TCP/53 packets only — no traffic is rerouted to a remote server.
+- Intercepted DNS queries are forwarded to a configured skoed node (LAN or external) using the DoH3 endpoint (`/dns-query`) with an API token for authentication.
+- LAN detection: if the device connects to a known SSID or resolves a sentinel hostname that matches a configured skoed node, the VPN disables itself and lets the OS use the network's DNS directly.
+- Single-node mode: if no external skoed node is configured, a bundled minimal skoed core (blocklist-only, no cluster) runs on-device; blocklists are downloaded once and cached.
+- Battery / data budget: the on-device core uses a pre-compiled blocklist snapshot (no live Raft); blocklist updates are batched at configurable intervals (default: daily on Wi-Fi only).
+
+**Non-goals:**
+- Full skoed cluster participation on phone (phone is a leaf client, not a Raft peer)
+- Traffic proxying beyond DNS (skoed4phone is DNS-only, not a full VPN)
+- App Store / Play Store distribution from this repository (build pipeline is manual; distribution is out of scope for M21)
+
+**Dependencies:** M7 API tokens (phone authenticates to cluster via read-scoped token); M20 token scoping (read-only token keeps cluster write-surface unexposed to the device); M6 DoH3 (phone uses HTTP3 transport to the cluster).
+
+---
+
+### Milestone 22 — Companion / Remote-Admin App
+
+**Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
+
+**Capabilities:**
+- Progressive Web App (PWA) hosted at `/app` on each skoed node: installable from browser on Android and iOS, works offline for last-fetched data.
+- Query log viewer: paginated list with domain, client, outcome, timestamp; filter by outcome (blocked/forwarded/local) and time range; deep-link to blocklist detail for blocked entries.
+- Cluster-wide aggregate stats card (reuses M19 `/api/v1/query-log/aggregates`): block rate, unique clients, top blocked domains.
+- Profile list: show active schedules, pause status, blocklist count per profile; toggle per-profile pause (requires write-scoped token).
+- Global filtering pause toggle (requires admin-scoped token); countdown chip with "Resume now" action.
+- Authentication: Bearer token (API token from M7/M20); stored in browser credential store or OS keychain. No username/password on the app — token only.
+- Remote access: app works over the internet when the operator exposes the skoed API port (or sets up a reverse proxy); no skoed-side relay or TURN server is added.
+
+**Non-goals:**
+- Full configuration management (blocklist add/delete, local DNS entry management, cluster ops) — those remain in the existing web admin at `/`
+- Push notifications for pause expiry or new device detection
+- Self-hosted relay / zero-config remote access (operator is responsible for port exposure or VPN)
+
+**Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M21 Skoed4Phone (shares PWA infrastructure with the companion app).
+
+---
+
+### Milestone 23 — DNSSEC Validation Mode
+
+**Outcome**: Operators can switch skoed from transparent DNSSEC proxy mode (M1 default: forwards DO bit without validating) to full DNSSEC validation mode: unsigned or BOGUS responses return SERVFAIL instead of the forged answer, giving privacy-conscious users cryptographic assurance that DNS answers have not been tampered with.
+
+**Capabilities:**
+- `dns.dnssec_mode` config field: `"transparent"` (default, current behavior) or `"validate"` (new). Replicated via Raft.
+- In `validate` mode: the resolver performs full DNSSEC chain validation using a built-in DNSKEY root trust anchor (RFC 7958 format, auto-updated from IANA).
+  - BOGUS records (validation fails) → SERVFAIL returned to client.
+  - INSECURE records (no DNSSEC chain) → returned as-is (only signed domains are protected).
+  - NXDOMAIN with NSEC proof → returned as-is.
+- `GET /api/v1/settings` returns `dnssec_mode` in the `dns` section.
+- `PATCH /api/v1/settings` accepts `dns.dnssec_mode`.
+- Dashboard settings panel: DNSSEC mode toggle (Transparent / Validate) with a warning callout: "Validate mode will SERVFAIL for misconfigured signed domains."
+- Query log entries: `dnssec_status` field added (`ok`, `bogus`, `insecure`, `indeterminate`).
+
+**Non-goals:**
+- DNSSEC signing of skoed-served local DNS entries (skoed is a resolver, not an authoritative server)
+- Per-profile DNSSEC policy (one cluster-wide mode only)
+- DNSSEC-aware caching (cache behavior in validate mode is unchanged)
+- Trust anchor auto-rollover via RFC 5011 (manual root trust anchor update only)
+
+**Dependencies:** M1 DNS engine (`miekg/dns` validation support); M10 Raft replication (mode change propagates to all nodes simultaneously).
+
+---
+
+### Milestone 24 — Webhook / Push Alerts
+
+**Outcome**: Operators configure HTTP webhook endpoints to receive push notifications for cluster events (new unknown device detected, blocklist download failure, cluster node down, filtering pause expiry), eliminating the need to poll Prometheus or the API for operational awareness.
+
+**Capabilities:**
+- `webhooks` config section, replicated via Raft: list of webhook endpoints, each with `{url, secret, events: []}`.
+- Supported event types:
+  - `device.new` — first DNS query from an IP not matched by any existing client/lease record.
+  - `blocklist.download_failed` — a scheduled blocklist refresh fails (network error, HTTP 4xx/5xx, parse error).
+  - `cluster.node_down` — a peer node becomes unreachable (Raft heartbeat timeout).
+  - `cluster.node_rejoined` — a previously-down node rejoins the cluster.
+  - `filter.pause_started` and `filter.pause_expired` — global or per-profile pause state changes.
+- Webhook payload: JSON `{event, timestamp, node_id, data: {...}}` where `data` contains event-specific fields.
+- HMAC-SHA256 signature header (`X-Skoed-Signature`) for payload verification using the configured secret.
+- Delivery: at-least-once, best-effort. Failed deliveries are retried 3 times with exponential backoff (1 s, 4 s, 16 s). Failures are logged in the audit log; they never block cluster operation.
+- `POST /api/v1/webhooks` — create a webhook endpoint.
+- `GET /api/v1/webhooks` — list configured webhooks.
+- `DELETE /api/v1/webhooks/{id}` — remove a webhook.
+- `POST /api/v1/webhooks/{id}/test` — send a test event to verify connectivity.
+- Dashboard: Webhooks page with endpoint list, last-delivery status per endpoint, and test-fire button.
+
+**Non-goals:**
+- Email or SMS delivery (webhook only; operators connect their own email-via-webhook service like Mailgun or ntfy.sh)
+- Per-client device alerts beyond `device.new`
+- Webhook delivery guarantees / durable queue (best-effort with 3 retries)
+- Fan-out deduplication across cluster nodes (each node fires independently; operators should expect duplicate events during leader re-elections)
+
+**Dependencies:** M10 cluster health heartbeat (used to detect `cluster.node_down`); M5.2 audit log (webhook delivery failures are recorded there); M7 API tokens (webhook management API requires admin token); M22 Companion App (can subscribe to webhooks for push notification delivery to the app).
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.
