@@ -236,9 +236,9 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 ### M17 completion
 - [x] M17 — refactoring phase (implementation was already minimal and clean; no changes needed) — 2026-06-16
 - [x] M17 — demo note: `demos/m17/DEMO_NOTE.md` — 2026-06-16
-- [ ] M17 — real-condition test on Proxmox 3-node cluster (deploy latest binary, exercise bindings API + config.yaml shadow)
-- [ ] M17 — screenshots / captured proof of feature working in cluster
-- [ ] M17 — HTML test report: `demos/m17/test-report.html`
+- [x] M17 — real-condition test on Proxmox 3-node cluster: 7/7 tests pass (CT 200/201/202, Raft term 5, commit index 26) — 2026-06-16
+- [x] M17 — proof captured: all 7 tests pass with actual API responses in test-report.html — 2026-06-16
+- [x] M17 — HTML test report: `demos/m17/test-report.html` — 2026-06-16
 - [ ] M17 — UoR demo validation
 - [ ] M17 — merge to master
 
