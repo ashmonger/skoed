@@ -17,7 +17,7 @@
 #   ./proxmox-cluster.sh [--admin-password <pass>] [--destroy]
 #
 # Optional flags:
-#   --version       0.1.1           (skoed release to install; default: embedded)
+#   --version       0.1.2           (skoed release to install; default: embedded)
 #   --node1-id      200             (default: 200)
 #   --node2-id      201             (default: 201)
 #   --node3-id      202             (default: 202)
@@ -39,7 +39,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Release version — updated automatically when bundled with a release ───
-SKOED_VERSION="0.1.1"
+SKOED_VERSION="0.1.2"
 
 NODE1_ID=200
 NODE2_ID=201

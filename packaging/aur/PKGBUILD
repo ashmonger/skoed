@@ -1,6 +1,6 @@
 # Maintainer: skoed maintainers <maintainers@skoed.io>
 pkgname=skoed
-pkgver=0.1.0
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Self-hosted DNS filtering with multi-node sync (Pi-Hole / AdGuard Home replacement)"
 arch=('x86_64' 'aarch64')

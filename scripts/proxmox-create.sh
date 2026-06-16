@@ -16,7 +16,7 @@
 #   --cores     1           (default 1)
 #   --disk      4           (GB, default 4)
 #   --template  debian-12-standard_12.12-1_amd64.tar.zst
-#   --version   0.1.1       (skoed release version; default: embedded below)
+#   --version   0.1.2       (skoed release version; default: embedded below)
 #   --ip        10.0.0.100/24  (static IP with prefix length, required)
 #   --gw        10.0.0.1       (default gateway, required)
 #   --leader-api <ip>:8080  (leader API address for cluster join)
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 # ─── Release version — updated automatically when bundled with a release ───
-SKOED_VERSION="0.1.1"
+SKOED_VERSION="0.1.2"
 GH_REPO="ashmonger/skoed"
 
 CT_ID=""
