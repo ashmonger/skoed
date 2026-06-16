@@ -136,8 +136,9 @@ None.
 - [x] M15 — refactoring phase — no refactoring needed (changes are minimal) — 2026-06-16
 - [x] M15 — demo note: `demos/m15/DEMO_NOTE.md` updated with real-env keepalived results — 2026-06-16
 - [x] M15 — test report: `demos/m15/test-report.html` + `docs/src/releases/m15-test-report.html` — 2026-06-16
-- [ ] M15 — UoR demo validation
-- [ ] M15 — merge to master
+- [x] M15 — UoR demo validation — 2026-06-16
+- [x] M15 — merge to master — 2026-06-16 (merged at 299b341)
+- [x] M15 — tag v0.1.3 pushed — GitHub Release pending (gh CLI unavailable, create via web UI)
 
 ## Backlog
 
