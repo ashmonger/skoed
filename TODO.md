@@ -12,19 +12,50 @@ Build skoed: a self-hosted DNS filtering and parental control solution with mult
 - [x] ROADMAP.md validated by UoR
 - [ ] IMPLEMENTATION_PLAN.md created
 
-## Active features
+## Milestone index
 
-**M19 — Schedule Bindings + Config Export** — branch `feature/m19-schedule-bindings`
+Legend: ✅ shipped · 🔄 active · ⬜ planned
 
-## Completed milestones
-- [x] M1–M9 merged to master — 2026-06-09
-- [x] M10 — Active-Active Cluster — merged to master — 2026-06-09
-- [x] M11 — Distribution & Documentation — merged to master — 2026-06-10
-- [x] M12 — Cluster Join via Web UI + Config Backup/Restore — merged to master — 2026-06-12
-- [x] M13 — Temporary Filtering Pause — merged to master — 2026-06-15
-- [x] M14 — Block Dynamic-Lease Clients — merged to master — 2026-06-16
-- [x] M15 — Test Suite Cleanup + keepalived Reference — merged to master — v0.1.3 — 2026-06-16
-- [x] M16 — In-place Upgrade Binary Swap — merged to master — v0.1.4 — 2026-06-16
+| ID | Title | Status | Tag | Demo | Spec(s) | Tests |
+|----|-------|--------|-----|------|---------|-------|
+| M1 | Single Node Foundation | ✅ | — | [note](demos/m1/DEMO_NOTE.md) | [dns-fwd](specs/functional/dns-query-forwarding.feature) · [block](specs/functional/domain-blocking.feature) · [allowlist](specs/functional/allowlist-management.feature) · [local-dns](specs/functional/local-dns-entry-management.feature) · [qlog](specs/functional/query-log.feature) · [config](specs/functional/config-import-export.feature) · [auth](specs/functional/web-ui-authentication.feature) · [dnssec](specs/functional/dnssec-transparent-proxy.feature) · [dual-stack](specs/functional/dual-stack-dns.feature) · [root-dns](specs/functional/root-dns-resolution.feature) | [dns](tests/acceptance/dns_engine_test.go) · [filter](tests/acceptance/filtering_test.go) · [local](tests/acceptance/local_dns_test.go) · [qlog](tests/acceptance/query_log_test.go) · [config](tests/acceptance/config_test.go) · [auth](tests/acceptance/auth_test.go) |
+| M2 | Multi-Node Cluster (Raft) | ✅ | — | [note](demos/m2/DEMO_NOTE.md) | [enroll](specs/functional/node-enrollment.feature) · [sync](specs/functional/cluster-config-sync.feature) · [failover](specs/functional/leader-failover.feature) · [status](specs/functional/cluster-status.feature) | [enroll](tests/acceptance/enrollment_test.go) · [sync](tests/acceptance/sync_test.go) · [failover](tests/acceptance/failover_test.go) · [status](tests/acceptance/cluster_status_test.go) |
+| M2.5 | Helm Chart | ✅ | — | [note](demos/m2.5/DEMO_NOTE.md) | [helm](specs/functional/helm-chart-deployment.feature) | [helm](tests/acceptance/helm_test.go) |
+| M2.6 | Web UI | ✅ | — | [note](demos/m2.6/DEMO_NOTE.md) | [ui](specs/functional/web-ui.feature) · [ui-m3](specs/functional/web-ui-m3.feature) | _(screenshot tests in web/)_ |
+| M3 | Parental Control + DoH/DoT Detection | ✅ | — | [themes](demos/m3/themes-cluster.md) · [ui](demos/m3/web-ui.md) | [profiles](specs/functional/per-client-profiles.feature) · [categories](specs/functional/category-blocking.feature) · [schedules](specs/functional/schedule-rules.feature) · [safesearch](specs/functional/safesearch.feature) · [doh-detect](specs/functional/doh-detection.feature) | [profiles](tests/acceptance/profiles_test.go) · [categories](tests/acceptance/categories_test.go) · [safesearch](tests/acceptance/safesearch_test.go) |
+| M3.5 | Per-Client DoH Surfacing + Firewall Recipes | ✅ | — | [note](demos/m3.5/DEMO_NOTE.md) | [doh-status](specs/functional/per-client-doh-status.feature) · [fw-gen](specs/functional/firewall-rule-generator.feature) · [fw-ui](specs/functional/firewall-rules-web-ui.feature) · [resolver-db](specs/functional/doh-resolver-ip-database.feature) | [doh-status](tests/acceptance/client_doh_status_test.go) · [fw-gen](tests/acceptance/firewall_rule_generator_test.go) · [fw-ui](tests/acceptance/firewall_rules_web_ui_test.go) · [resolver-db](tests/acceptance/doh_resolver_database_test.go) |
+| M3.6 | DHCP Integration + Anti-Spoof Detection | ✅ | — | [note](demos/m3.6/DEMO_NOTE.md) | [connectors](specs/functional/dhcp-connectors.feature) · [identity](specs/functional/dhcp-client-identity.feature) · [spoof](specs/functional/dhcp-spoof-detection.feature) | [connectors](tests/acceptance/dhcp_connectors_test.go) · [identity](tests/acceptance/dhcp_client_identity_test.go) · [spoof](tests/acceptance/dhcp_spoof_detection_test.go) |
+| M4 | DoH/DoT Server + ACME | ✅ | — | [note](demos/m4/DEMO_NOTE.md) · [acme](demos/m4/acme.md) | [doh-dot](specs/functional/doh-dot-server.feature) · [acme](specs/functional/acme-tls.feature) | [doh](tests/acceptance/doh_server_test.go) · [acme](tests/acceptance/acme_tls_test.go) |
+| M4.5 | API Documentation Browser | ✅ | — | _(in M5)_ | [api-docs](specs/functional/api-docs-browser.feature) | [api-docs](tests/acceptance/api_docs_test.go) |
+| M4.6 | HTTPS Management API | ✅ | — | _(in M5)_ | [mgmt-https](specs/functional/management-api-https.feature) | [mgmt-https](tests/acceptance/management_api_https_test.go) |
+| M4.7 | DNS Cache Controls | ✅ | — | _(in M5)_ | [cache](specs/functional/dns-cache-controls.feature) | [cache](tests/acceptance/dns_cache_controls_test.go) |
+| M5.1 | Prometheus `/metrics` | ✅ | — | [note](demos/m5/m5.1.md) | [prom](specs/functional/prometheus-metrics.feature) | [prom](tests/acceptance/prometheus_metrics_test.go) |
+| M5.2 | Audit Log | ✅ | — | [note](demos/m5/m5.2.md) | [audit](specs/functional/audit-log.feature) | [audit](tests/acceptance/audit_log_test.go) |
+| M5.3 | Encrypted Cluster Mesh (mTLS) | ✅ | — | [note](demos/m5/m5.3.md) | [mesh](specs/functional/encrypted-cluster-mesh.feature) | [mesh](tests/acceptance/encrypted_mesh_test.go) |
+| M5.4 | Automated Blocklist Refresh | ✅ | — | [note](demos/m5/m5.4.md) | [refresh](specs/functional/automated-blocklist-refresh.feature) | [refresh](tests/acceptance/blocklist_refresh_test.go) |
+| M5.5 | Native Packaging (.deb + Proxmox) | ✅ | — | [note](demos/m5/m5.5.md) | [pkg](specs/functional/native-packaging.feature) | [pkg](tests/acceptance/packaging_test.go) |
+| M5.6 | In-place Upgrade (check + banner) | ✅ | — | [note](demos/m5/m5.6.md) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
+| M5.7 | Multi-architecture Release Builds | ✅ | — | [note](demos/m5/m5.7.md) | [multi-arch](specs/functional/multi-arch-builds.feature) | [pkg](tests/acceptance/packaging_test.go) |
+| M5.8 | Documentation Site | ✅ | — | [note](demos/m5/m5.8.md) | [docs](specs/functional/documentation-site.feature) | _(CI docs build)_ |
+| M5.9.1 | CLI + TUI (charm-stack) | ✅ | — | [note](demos/m5/m5.9.1.md) | [cli](specs/functional/dblock-cli.feature) | [cli](tests/acceptance/cli_test.go) |
+| M5.9.2 | `make dev` SPA hot-reload | ✅ | — | [note](demos/m5/m5.9.2.md) | [make-dev](specs/functional/make-dev.feature) | _(build target)_ |
+| M5.9.3 | Docker test cache (go-mod volume) | ✅ | — | [note](demos/m5/m5.9.3.md) | [docker-cache](specs/functional/docker-test-cache.feature) | _(run-in-docker.sh)_ |
+| M5.9.4 | Getting Started card + docs page | ✅ | — | [note](demos/m5/m5.9.4.md) | [onboard](specs/functional/getting-started.feature) | _(UI test)_ |
+| M5.9.5 | URL tester (CLI + landing page) | ✅ | — | [note](demos/m5/m5.9.5.md) | [url-test](specs/functional/url-tester.feature) | [url](tests/acceptance/url_tester_test.go) |
+| M5.9.7 | "Would this domain be blocked?" tester | ✅ | — | [note](demos/m5/m5.9.7.md) | [domain-test](specs/functional/domain-tester.feature) | [domain](tests/acceptance/test_domain_test.go) |
+| M6 | Closing the DoH Gap (firewall rules) | ✅ | — | _(in M3.5)_ | [fw-gen](specs/functional/firewall-rule-generator.feature) · [fw-ui](specs/functional/firewall-rules-web-ui.feature) · [resolver-db](specs/functional/doh-resolver-ip-database.feature) | [fw-gen](tests/acceptance/firewall_rule_generator_test.go) · [fw-ui](tests/acceptance/firewall_rules_web_ui_test.go) · [doh-db](tests/acceptance/doh_resolver_database_test.go) |
+| M6.5 | DHCP Layer-3 Anti-Spoof + Replicated Leases | ✅ | — | [note](demos/m6.5/DEMO_NOTE.md) · [demo](demos/m6.5/demo.sh) | [arp](specs/functional/dhcp-arp-cross-check.feature) · [lease-rep](specs/functional/dhcp-lease-replication.feature) · [dhcpv6](specs/functional/dhcpv6-lease-parsing.feature) · [origin](specs/functional/lease-origin-tagging.feature) | [arp](tests/acceptance/dhcp_arp_cross_check_test.go) · [lease-rep](tests/acceptance/dhcp_lease_replication_test.go) · [dhcpv6](tests/acceptance/dhcpv6_lease_parsing_test.go) · [origin](tests/acceptance/lease_origin_tagging_test.go) |
+| M7 | API Token Authentication | ✅ | — | [note](demos/m7/DEMO_NOTE.md) | [tokens](specs/functional/api-token-authentication.feature) | [tokens](tests/acceptance/api_token_test.go) |
+| M8 | Encrypted DNS Expansion (DoH3 + DNSCrypt) | ✅ | — | [note](demos/m8/DEMO_NOTE.md) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) |
+| M9 | Kubernetes Operator | ✅ | — | [note](demos/m9/DEMO_NOTE.md) | [k8s-op](specs/functional/kubernetes-operator.feature) | [k8s-op](tests/acceptance/kubernetes_operator_test.go) |
+| M10 | Active-Active Cluster (any-node writes) | ✅ | — | [note](demos/m10/DEMO_NOTE.md) · [demo](demos/m10/demo.sh) | [active-active](specs/functional/active-active-cluster.feature) | [active-active](tests/acceptance/active_active_cluster_test.go) |
+| M11 | Distribution & Documentation | ✅ | — | [note](demos/m11/DEMO_NOTE.md) | [pkg-dist](specs/functional/packaging-and-distribution.feature) | [pkg](tests/acceptance/packaging_test.go) |
+| M12 | Cluster Join via Web UI + Config Backup | ✅ | — | [note](demos/m12/DEMO_NOTE.md) | [join-ui](specs/functional/cluster-join-webui.feature) · [backup-ui](specs/functional/config-backup-webui.feature) | [join-ui](tests/acceptance/cluster_join_webui_test.go) · [config](tests/acceptance/config_test.go) |
+| M13 | Temporary Filtering Pause (break-glass) | ✅ | — | [note](demos/m13/DEMO_NOTE.md) | [pause](specs/functional/filtering-pause.feature) | [pause](tests/acceptance/filtering_pause_test.go) |
+| M14 | Block Dynamic-Lease Clients | ✅ | — | [note](demos/m14/DEMO_NOTE.md) · [report](demos/m14/test-report.html) | [block-dyn](specs/functional/profile-block-dynamic-clients.feature) | [block-dyn](tests/acceptance/profile_block_dynamic_test.go) |
+| M15 | Test Suite Cleanup + keepalived Reference | ✅ | v0.1.3 | [note](demos/m15/DEMO_NOTE.md) · [report](demos/m15/test-report.html) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) · [refresh](tests/acceptance/blocklist_refresh_test.go) |
+| M16 | In-place Upgrade Binary Swap | ✅ | v0.1.4 | [note](demos/m16/DEMO_NOTE.md) · [report](demos/m16/test-report.html) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
+| M19 | Schedule Bindings + Config Export | 🔄 | — | — | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
 
 ## M12 tasks
 
