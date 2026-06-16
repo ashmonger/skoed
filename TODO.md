@@ -140,6 +140,66 @@ None.
 - [x] M15 — merge to master — 2026-06-16 (merged at 299b341)
 - [x] M15 — tag v0.1.3 pushed — GitHub Release pending (gh CLI unavailable, create via web UI)
 
+## M16 tasks — In-place Upgrade Binary Swap (branch: `feature/m16-upgrade-binary-swap`)
+
+**Scope (UoR-approved 2026-06-16):** Make `POST /api/v1/upgrade/start` actually download
+and swap the binary. No cosign (`require_signature: false`). No rolling cluster-aware
+upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoed`).
+
+### M16 specs
+- [x] M16 — functional spec: add `FS-UpgradeBinarySwap` scenario to `specs/functional/in-place-upgrade.feature` — 2026-06-16
+- [x] M16 — UoR validates functional spec — 2026-06-16
+- [x] M16 — technical spec: update `specs/technical/in-place-upgrade.md` with swap flow + feed assets field + GitHub Releases URLs — 2026-06-16
+- [x] M16 — UoR validates technical spec — 2026-06-16
+
+### M16 tests
+- [x] M16 — acceptance test: `TestUpgradeBinarySwap` added, all pending skips removed — 2026-06-16
+- [x] M16 — UoR validates acceptance tests — 2026-06-16
+
+### M16 implementation
+- [x] M16 — add `Assets map[string]string` to `Feed` + `CheckResult` in `internal/upgrade/checker.go` — 2026-06-16
+- [x] M16 — implement `internal/upgrade/swapper.go`: download tar.gz → extract binary → rename over exe — 2026-06-16
+- [x] M16 — update `UpgradeStart` handler: full swap + `os.Exit(0)` (skipped in test mode) — 2026-06-16
+- [x] M16 — all acceptance tests green (409/409 full suite) — 2026-06-16
+
+### M16 completion
+- [x] M16 — refactoring phase: updated package comment in checker.go, simplified zero-value CheckResult — 2026-06-16
+- [x] M16 — demo note: `demos/m16/DEMO_NOTE.md` — 2026-06-16
+- [x] M16 — test report: `demos/m16/test-report.html` — 2026-06-16
+- [x] M16 — UoR demo validation — 2026-06-16
+- [ ] M16 — merge to master + tag v0.1.4
+
+---
+
+## M19 tasks — Schedule Bindings + Config Export (branch: `feature/m19-schedule-bindings`)
+
+**Scope (UoR-approved 2026-06-16):**
+- `GET /api/v1/schedules/{id}/bindings` — list profiles/clients currently bound to a schedule
+- Write schedules to `config.yaml` via `ShadowWriter` (currently schedules are bbolt-only)
+
+### M19 specs
+- [ ] M19 — functional spec: `FS-ScheduleBindingsList`, `FS-ScheduleConfigYaml` in `specs/functional/schedules.feature`
+- [ ] M19 — UoR validates functional spec
+- [ ] M19 — technical spec: add bindings endpoint + config.yaml schedule schema to `specs/technical/schedules.md`
+- [ ] M19 — UoR validates technical spec
+
+### M19 tests
+- [ ] M19 — acceptance test: `TestScheduleBindingsList`, `TestScheduleWrittenToConfigYaml` in `tests/acceptance/schedules_test.go`
+- [ ] M19 — UoR validates acceptance tests
+
+### M19 implementation
+- [ ] M19 — implement `GET /api/v1/schedules/{id}/bindings` handler
+- [ ] M19 — extend `ShadowWriter` to serialise schedules section
+- [ ] M19 — all acceptance tests green
+
+### M19 completion
+- [ ] M19 — refactoring phase
+- [ ] M19 — demo note: `demos/m19/DEMO_NOTE.md`
+- [ ] M19 — UoR demo validation
+- [ ] M19 — merge to master
+
+---
+
 ## Backlog
 
 ### Packaging + deployment (both shipped in M11 — strike)
