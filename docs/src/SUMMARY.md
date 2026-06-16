@@ -44,3 +44,7 @@
 - [config.yaml schema](reference/yaml-schema.md)
 - [Management API](reference/api-openapi.md)
 - [CLI](reference/cli.md)
+
+# Releases
+
+- [Test reports](releases/index.md)
