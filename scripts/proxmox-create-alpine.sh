@@ -16,7 +16,7 @@
 #   --cores     1           (default 1)
 #   --disk      2           (GB, default 2)
 #   --template  alpine-3.22-default_20250617_amd64.tar.xz
-#   --version   0.1.2       (skoed release version; default: embedded below)
+#   --version   0.1.4       (skoed release version; default: embedded below)
 #   --ip        10.0.0.101/24   (static IP with prefix, required)
 #   --gw        10.0.0.1        (default gateway, required)
 #   --leader-api <ip>:8080  (leader API address for cluster join)
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 # ─── Release version — updated automatically when bundled with a release ───
-SKOED_VERSION="0.1.2"
+SKOED_VERSION="0.1.4"
 GH_REPO="ashmonger/skoed"
 
 CT_ID=""
