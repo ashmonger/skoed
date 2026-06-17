@@ -484,6 +484,54 @@ components:
               error:
                 type: string
 
+    Schedule:
+      type: object
+      required: [id, name, mode]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [block_only_inside, allow_only_inside]
+          description: >
+            block_only_inside — filtering is applied only while inside the windows;
+            allow_only_inside — filtering is applied only while outside the windows.
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+
+    TimeWindow:
+      type: object
+      required: [days, start, end]
+      properties:
+        days:
+          type: array
+          items:
+            type: string
+            enum: [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+        start:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          description: "HH:MM in 24-hour local time"
+        end:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          description: "HH:MM in 24-hour local time; values < start wrap past midnight"
+
+    ScheduleBinding:
+      type: object
+      required: [schedule_id, profile_id, blocklist_id]
+      properties:
+        schedule_id:
+          type: string
+        profile_id:
+          type: string
+        blocklist_id:
+          type: string
+
 paths:
 
   # ── Blocklists ────────────────────────────────────────────────────────────
@@ -1517,6 +1565,236 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Schedules ────────────────────────────────────────────────────────────────
+
+  /api/v1/schedules:
+    get:
+      summary: List all schedules
+      operationId: listSchedules
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      responses:
+        "200":
+          description: Array of schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Schedule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Create a schedule
+      operationId: createSchedule
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Schedule"
+      responses:
+        "201":
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/schedules/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      summary: Get a schedule by ID
+      operationId: getSchedule
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      responses:
+        "200":
+          description: Schedule details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      summary: Update a schedule
+      operationId: updateSchedule
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                mode:
+                  type: string
+                  enum: [block_only_inside, allow_only_inside]
+                windows:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TimeWindow"
+      responses:
+        "200":
+          description: Updated schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      summary: Delete a schedule
+      operationId: deleteSchedule
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      responses:
+        "204":
+          description: Schedule deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/schedules/{id}/bindings:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Schedule ID
+
+    get:
+      summary: List all bindings for a schedule
+      operationId: listScheduleBindings
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingsListBySchedule]
+      description: >
+        Returns all (profile_id, blocklist_id) pairs attached to this schedule.
+        Added in M17 — this was the enumeration gap noted in M3.1.
+      responses:
+        "200":
+          description: Array of schedule bindings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleBinding"
+        "404":
+          description: Schedule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Add a binding to a schedule
+      operationId: addScheduleBinding
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingAdded]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profile_id, blocklist_id]
+              properties:
+                profile_id:
+                  type: string
+                blocklist_id:
+                  type: string
+      responses:
+        "201":
+          description: Binding created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleBinding"
+        "400":
+          description: profile_id or blocklist_id missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/schedules/{id}/bindings/{profile}/{blocklist}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Schedule ID
+      - name: profile
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Profile ID
+      - name: blocklist
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Blocklist ID
+
+    delete:
+      summary: Remove a binding from a schedule
+      operationId: deleteScheduleBinding
+      x-tsid: TS-ScheduleBindings
+      x-fsid-links: [FS-ScheduleBindingRemoved]
+      responses:
+        "204":
+          description: Binding removed
         "401":
           $ref: "#/components/responses/Unauthorized"
 

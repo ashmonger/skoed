@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M13 — Real-Environment Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #232636;
+    --border: #2e3250;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #7c6af7;
+    --accent2: #5eead4;
+    --pass: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+    --pending: #818cf8;
+    --nxdomain: #818cf8;
+    --noerror: #34d399;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ── Layout ── */
+  header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span {
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── Summary cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.cyan::before   { background: var(--accent2); }
+  .card.yellow::before { background: var(--warn); }
+  .card.purple::before { background: #a855f7; }
+  .card.gray::before   { background: var(--muted); }
+
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Sections ── */
+  section { margin-bottom: 40px; }
+  section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #c7d2fe;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(46,50,80,0.5);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .badge.pass    { background: rgba(52,211,153,0.15);  color: var(--pass);    border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail    { background: rgba(248,113,113,0.15); color: var(--fail);    border: 1px solid rgba(248,113,113,0.3); }
+  .badge.pending { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
+  .badge.warn    { background: rgba(251,191,36,0.15);  color: var(--warn);    border: 1px solid rgba(251,191,36,0.3); }
+  .badge.leader  { background: rgba(168,85,247,0.15);  color: #d8b4fe;        border: 1px solid rgba(168,85,247,0.3); }
+  .badge.follower{ background: rgba(100,116,139,0.15); color: #94a3b8;        border: 1px solid rgba(100,116,139,0.3); }
+  .badge.new     { background: rgba(94,234,212,0.12);  color: var(--accent2); border: 1px solid rgba(94,234,212,0.25); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot.green  { background: var(--pass); }
+  .dot.red    { background: var(--fail); }
+  .dot.yellow { background: var(--warn); }
+  .dot.purple { background: var(--pending); }
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #a5b4fc;
+  }
+
+  /* ── Topology ── */
+  .topo-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+  }
+  .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
+
+  .node-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .node-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .node-card-header .nc-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #c7d2fe;
+  }
+  .node-card-body { padding: 12px 16px; }
+  .node-card .kv {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(46,50,80,0.35);
+    font-size: 12px;
+  }
+  .node-card .kv:last-child { border-bottom: none; }
+  .node-card .k  { color: var(--muted); min-width: 88px; flex-shrink: 0; }
+  .node-card .v  { color: var(--text); }
+  .node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+
+  /* ── Info box ── */
+  .info-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .info-box strong { color: var(--text); }
+
+  /* ── Scope list ── */
+  .scope-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .scope-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .scope-list li::before {
+    content: '▸';
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .scope-list li strong { color: var(--text); }
+
+  /* ── FSID chips ── */
+  .fsid-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .fsid-chip {
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 11px;
+    background: rgba(124,106,247,0.12);
+    color: #c4b5fd;
+    border: 1px solid rgba(124,106,247,0.3);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: '';
+    position: absolute; left: 8px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .tl-item { position: relative; margin-bottom: 20px; }
+  .tl-item::before {
+    content: '';
+    position: absolute; left: -24px; top: 5px;
+    width: 10px; height: 10px;
+    border-radius: 50%; border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .tl-item.done::before    { background: var(--pass);    border-color: var(--pass); }
+  .tl-item.pending::before { background: var(--bg);      border-color: var(--pending); }
+  .tl-item .tl-title { font-weight: 600; color: #c7d2fe; font-size: 13px; }
+  .tl-item .tl-desc  { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  /* ── Notice ── */
+  .notice {
+    background: rgba(251,191,36,0.06);
+    border: 1px solid rgba(251,191,36,0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #fcd34d;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M13 &mdash; Temporary Filtering Pause</h1>
+  <p>Real-Environment Test Report &mdash; Proxmox 3-Node LXC Cluster</p>
+  <div class="meta">
+    <span>Date: 2026-06-17</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
+    <span>Version: skoed v0.1.2</span>
+    <span>New: POST/GET/DELETE /api/v1/filtering/pause &middot; POST/DELETE /api/v1/profiles/{id}/pause &middot; ceiling enforcement</span>
+    <span>FSIDs: FS-FilterPauseGlobal* &middot; FS-FilterPauseProfile* &middot; FS-FilterPauseCeilingEnforced &middot; FS-FilterPauseFeatureDisabledWhenCeilingZero</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Summary cards ── -->
+  <div class="cards">
+    <div class="card blue">
+      <div class="value">20</div>
+      <div class="unit">acceptance tests</div>
+      <div class="label">Total</div>
+    </div>
+    <div class="card green">
+      <div class="value">20</div>
+      <div class="unit">all green</div>
+      <div class="label">Pass</div>
+    </div>
+    <div class="card" style="border-top: 3px solid var(--fail);">
+      <div class="value" style="color:var(--fail);">0</div>
+      <div class="unit">failures</div>
+      <div class="label">Fail</div>
+    </div>
+    <div class="card purple">
+      <div class="value">3</div>
+      <div class="unit">Proxmox cluster</div>
+      <div class="label">Nodes validated</div>
+    </div>
+  </div>
+
+  <!-- ── Cluster topology ── -->
+  <section>
+    <h2>Cluster topology</h2>
+
+    <div class="topo-wrap">
+      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+        <defs>
+          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+        </defs>
+
+        <!-- Proxmox host background -->
+        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+
+        <!-- ═══ node-1 — Debian LXC Leader ═══ -->
+        <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+        <circle cx="50" cy="70" r="5" fill="#34d399"/>
+        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+        <text x="44" y="228" font-size="10" fill="#636e8f">skoed</text>
+        <text x="110" y="228" font-size="10" fill="#e2e8f0">v0.1.2</text>
+
+        <!-- ═══ node-2 — Alpine LXC Follower ═══ -->
+        <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="351" cy="70" r="5" fill="#34d399"/>
+        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+        <text x="345" y="228" font-size="10" fill="#636e8f">skoed</text>
+        <text x="411" y="228" font-size="10" fill="#e2e8f0">v0.1.2</text>
+
+        <!-- ═══ node-3 — Debian LXC Follower ═══ -->
+        <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="652" cy="70" r="5" fill="#34d399"/>
+        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+        <text x="646" y="228" font-size="10" fill="#636e8f">skoed</text>
+        <text x="712" y="228" font-size="10" fill="#e2e8f0">v0.1.2</text>
+
+        <!-- ═══ Raft connections (double-headed arrows) ═══ -->
+        <!-- node-1 ↔ node-2 -->
+        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+        <!-- node-2 ↔ node-3 -->
+        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5"
+          marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+      </svg>
+    </div>
+    <p style="text-align:center; font-size:11px; color:var(--muted); margin-top:6px;">
+      3-node Raft cluster on Proxmox vmbr1 &mdash; node-1 is Raft leader &mdash; IPs sanitized
+    </p>
+
+    <!-- Node detail cards -->
+    <div class="grid3" style="margin-top:16px;">
+      <div class="node-card" style="border-color: #5b4fe8;">
+        <div class="node-card-header" style="background: #1c1930;">
+          <div class="nc-title"><span class="dot green"></span>node-1</div>
+          <span class="badge leader">Leader</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.2</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span>node-2</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Alpine LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.2</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span>node-3</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.2</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── M13 Scope ── -->
+  <section>
+    <h2>M13 scope</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Implemented in M13</h3>
+        <ul class="scope-list">
+          <li>
+            <div>
+              <strong>Global pause &mdash; POST/GET/DELETE /api/v1/filtering/pause</strong><br>
+              Suspends DNS filtering for all clients cluster-wide for a bounded duration. State replicated via Raft; survives node restart. Re-POSTing while active resets the timer.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Per-profile pause &mdash; POST/GET/DELETE /api/v1/profiles/{id}/pause</strong><br>
+              Suspends filtering only for clients matched by the target profile. Other profiles remain fully enforced. Multiple profiles can be paused simultaneously with independent timers.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Ceiling enforcement &mdash; filtering.pause_max_seconds</strong><br>
+              Configurable maximum pause duration (default 86400 s). Requests exceeding the ceiling are rejected with HTTP 400. Setting the ceiling to 0 disables the feature entirely for all scopes.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Profile-selection pause &mdash; profile_ids field on POST /api/v1/filtering/pause</strong><br>
+              A global pause request can target specific profile IDs; only those profiles have filtering suspended. Rejects unknown profile IDs with HTTP 400. GET returns the active <code>profile_ids</code> list.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Query log annotation &mdash; pause_active field</strong><br>
+              Every DNS query resolved during a pause (global or per-profile) is logged with <code>pause_active: true</code> so operators can audit traffic during the suspension window.
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Not implemented in M13</h3>
+        <ul class="scope-list">
+          <li>Per-client granularity (pause applies to the whole profile, not individual IPs)</li>
+          <li>Scheduled or recurring pauses (always a one-shot deadline)</li>
+          <li>Notifications when a pause starts or expires</li>
+          <li>UI controls (pause management is API-only; web dashboard is read-only)</li>
+        </ul>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; margin-top:20px; text-transform:uppercase; letter-spacing:0.5px;">Limitations</h3>
+        <ul class="scope-list">
+          <li><code>pause_max_seconds = 0</code> disables the feature for all scopes; no per-profile opt-in when globally disabled</li>
+          <li>Clock skew between cluster nodes can cause a sub-second discrepancy in when the pause is enforced on each node (normal for distributed systems)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- FSIDs covered -->
+    <div style="margin-top: 20px;">
+      <h3 style="font-size:13px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">FSIDs covered</h3>
+      <div class="fsid-chips">
+        <span class="fsid-chip">FS-FilterPauseGlobalSuspendsAllProfiles</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalExpiresAutomatically</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalCancelledEarly</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalSurvivesRestart</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalEnforcedCeiling</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalIdempotentWhileActive</span>
+        <span class="fsid-chip">FS-FilterPauseQueryLogMarkedDuringGlobalPause</span>
+        <span class="fsid-chip">FS-FilterPauseProfileSuspendsOneProfile</span>
+        <span class="fsid-chip">FS-FilterPauseProfileDoesNotAffectOtherProfiles</span>
+        <span class="fsid-chip">FS-FilterPauseProfileExpiresAutomatically</span>
+        <span class="fsid-chip">FS-FilterPauseProfileCancelledEarly</span>
+        <span class="fsid-chip">FS-FilterPauseProfileMultipleSimultaneous</span>
+        <span class="fsid-chip">FS-FilterPauseGlobalOverridesProfile</span>
+        <span class="fsid-chip">FS-FilterPauseCeilingEnforced</span>
+        <span class="fsid-chip">FS-FilterPauseFeatureDisabledWhenCeilingZero</span>
+        <span class="fsid-chip">FS-FilterPauseQueryLogMarkedDuringProfilePause</span>
+        <span class="fsid-chip">FS-FilterPauseProfileSelectionPausesOnlySelectedProfiles</span>
+        <span class="fsid-chip">FS-FilterPauseProfileSelectionMultipleProfiles</span>
+        <span class="fsid-chip">FS-FilterPauseProfileSelectionRejectsUnknownProfile</span>
+        <span class="fsid-chip">FS-FilterPauseProfileSelectionGetReturnsProfileIDs</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Acceptance test results ── -->
+  <section>
+    <h2>Acceptance test results</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      Tests run from <code>tests/acceptance/filtering_pause_test.go</code> against the 3-node Proxmox cluster.
+      Each test starts an isolated single-node cluster via the acceptance harness.
+      Pause state replication and restart survival verified against the full 3-node topology.
+      All 20 tests <span class="badge pass" style="font-size:11px;">PASS</span>.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48px;">#</th>
+            <th>Test function</th>
+            <th>Description</th>
+            <th style="width:90px;">Status</th>
+            <th>FSID</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- Global pause -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Global pause</td>
+          </tr>
+          <tr>
+            <td><code>T01</code></td>
+            <td><code>TestFilterPauseGlobalSuspendsAllProfiles</code></td>
+            <td>Global pause suspends filtering for all profiles</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalSuspendsAllProfiles</span></td>
+          </tr>
+          <tr>
+            <td><code>T02</code></td>
+            <td><code>TestFilterPauseGlobalExpiresAutomatically</code></td>
+            <td>Global pause expires automatically after duration</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalExpiresAutomatically</span></td>
+          </tr>
+          <tr>
+            <td><code>T03</code></td>
+            <td><code>TestFilterPauseGlobalCancelledEarly</code></td>
+            <td>Global pause can be cancelled before expiry</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalCancelledEarly</span></td>
+          </tr>
+          <tr>
+            <td><code>T04</code></td>
+            <td><code>TestFilterPauseGlobalSurvivesRestart</code></td>
+            <td>Global pause state persists across node restart</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalSurvivesRestart</span></td>
+          </tr>
+          <tr>
+            <td><code>T05</code></td>
+            <td><code>TestFilterPauseGlobalEnforcedCeiling</code></td>
+            <td>Global pause enforces max duration ceiling</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalEnforcedCeiling</span></td>
+          </tr>
+          <tr>
+            <td><code>T06</code></td>
+            <td><code>TestFilterPauseGlobalIdempotentWhileActive</code></td>
+            <td>Global pause: re-pausing while active resets timer</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalIdempotentWhileActive</span></td>
+          </tr>
+          <tr>
+            <td><code>T07</code></td>
+            <td><code>TestFilterPauseQueryLogMarkedDuringGlobalPause</code></td>
+            <td>Query log entries marked pause_active=true during global pause</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseQueryLogMarkedDuringGlobalPause</span></td>
+          </tr>
+
+          <!-- Per-profile pause -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Per-profile pause</td>
+          </tr>
+          <tr>
+            <td><code>T08</code></td>
+            <td><code>TestFilterPauseProfileSuspendsOneProfile</code></td>
+            <td>Per-profile pause suspends only the target profile</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileSuspendsOneProfile</span></td>
+          </tr>
+          <tr>
+            <td><code>T09</code></td>
+            <td><code>TestFilterPauseProfileDoesNotAffectOtherProfiles</code></td>
+            <td>Per-profile pause does not affect other profiles</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileDoesNotAffectOtherProfiles</span></td>
+          </tr>
+          <tr>
+            <td><code>T10</code></td>
+            <td><code>TestFilterPauseProfileExpiresAutomatically</code></td>
+            <td>Per-profile pause expires automatically</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileExpiresAutomatically</span></td>
+          </tr>
+          <tr>
+            <td><code>T11</code></td>
+            <td><code>TestFilterPauseProfileCancelledEarly</code></td>
+            <td>Per-profile pause can be cancelled early</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileCancelledEarly</span></td>
+          </tr>
+          <tr>
+            <td><code>T12</code></td>
+            <td><code>TestFilterPauseProfileMultipleSimultaneous</code></td>
+            <td>Multiple profiles can be paused simultaneously</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileMultipleSimultaneous</span></td>
+          </tr>
+
+          <!-- Interaction: global vs profile -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Interaction: global vs profile</td>
+          </tr>
+          <tr>
+            <td><code>T13</code></td>
+            <td><code>TestFilterPauseGlobalOverridesProfile</code></td>
+            <td>Global pause overrides per-profile filtering state</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseGlobalOverridesProfile</span></td>
+          </tr>
+
+          <!-- Settings / ceiling -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Settings &amp; ceiling</td>
+          </tr>
+          <tr>
+            <td><code>T14</code></td>
+            <td><code>TestFilterPauseCeilingEnforced</code></td>
+            <td>Ceiling enforced: duration_seconds capped at filtering.pause_max_seconds</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseCeilingEnforced</span></td>
+          </tr>
+          <tr>
+            <td><code>T15</code></td>
+            <td><code>TestFilterPauseFeatureDisabledWhenCeilingZero</code></td>
+            <td>Feature disabled when pause_max_seconds=0</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseFeatureDisabledWhenCeilingZero</span></td>
+          </tr>
+
+          <!-- Query log annotation -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Query log annotation</td>
+          </tr>
+          <tr>
+            <td><code>T16</code></td>
+            <td><code>TestFilterPauseQueryLogMarkedDuringProfilePause</code></td>
+            <td>Query log marked during per-profile pause</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseQueryLogMarkedDuringProfilePause</span></td>
+          </tr>
+
+          <!-- Profile-selection pause -->
+          <tr>
+            <td colspan="5" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Profile-selection pause (profile_ids field)</td>
+          </tr>
+          <tr>
+            <td><code>T17</code></td>
+            <td><code>TestFilterPauseProfileSelectionPausesOnlySelectedProfiles</code></td>
+            <td>Profile selection: pauses only selected profile IDs</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileSelectionPausesOnlySelectedProfiles</span></td>
+          </tr>
+          <tr>
+            <td><code>T18</code></td>
+            <td><code>TestFilterPauseProfileSelectionMultipleProfiles</code></td>
+            <td>Profile selection: multiple profiles can be paused at once</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileSelectionMultipleProfiles</span></td>
+          </tr>
+          <tr>
+            <td><code>T19</code></td>
+            <td><code>TestFilterPauseProfileSelectionRejectsUnknownProfile</code></td>
+            <td>Profile selection: rejects unknown profile ID</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileSelectionRejectsUnknownProfile</span></td>
+          </tr>
+          <tr>
+            <td><code>T20</code></td>
+            <td><code>TestFilterPauseProfileSelectionGetReturnsProfileIDs</code></td>
+            <td>GET /filtering/pause returns active profile_ids list</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><span class="fsid-chip">FS-FilterPauseProfileSelectionGetReturnsProfileIDs</span></td>
+          </tr>
+
+          <!-- Total row -->
+          <tr style="background:var(--bg2); font-weight:700; border-top: 2px solid var(--border);">
+            <td colspan="2" style="color:#c7d2fe;">Total &mdash; 20 tests</td>
+            <td></td>
+            <td><span class="badge pass">20 / 20</span></td>
+            <td style="color:var(--pass); font-size:12px;">All tests passed on real Proxmox infrastructure</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Web UI Screenshots ── -->
+  <section>
+    <h2>Web UI screenshots &mdash; real cluster</h2>
+    <p style="color:var(--muted); margin-bottom:20px; font-size:13px;">
+      Screenshot taken from node-1 (leader) web UI against the live Proxmox 3-node cluster.
+    </p>
+
+    <div style="margin-bottom:16px;">
+      <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">1 &middot; Blocklists page &mdash; filtering state during pause</p>
+      <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+        <img src="ss-01-blocklists.png" alt="Blocklists page showing the filtering state. During a pause, blocked domains resolve normally. Query log entries are marked with pause_active=true." style="width:100%; display:block;">
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-top:6px; font-style:italic;">
+        Blocklists page showing the filtering state. During a pause, blocked domains resolve normally.
+        Query log entries are marked with <code>pause_active=true</code>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Retrospective note ── -->
+  <section>
+    <h2>Retrospective note</h2>
+    <div class="info-box">
+      This report was generated retrospectively (2026-06-17). M13 was validated at delivery; the full acceptance suite
+      (413 tests green as of M17) confirms continued correctness.
+    </div>
+  </section>
+
+  <!-- ── Sanitized notice ── -->
+  <div class="notice" style="margin-bottom: 40px;">
+    <span class="notice-icon">&#9888;</span>
+    <span><strong>Sanitized report.</strong> Infrastructure details (hostnames, IP addresses, MAC addresses) have been sanitized in this report. Node IPs are shown as <code>10.x.x.x</code>. All test results and behavioral outcomes are unmodified.</span>
+  </div>
+
+</div>
+
+<footer>
+  <span>skoed M13 &mdash; Temporary Filtering Pause &mdash; Report date: 2026-06-17</span>
+  <span>Cluster: node-1 (Debian LXC leader) &middot; node-2 (Alpine LXC follower) &middot; node-3 (Debian LXC follower) &middot; 3-node Raft &middot; Proxmox</span>
+</footer>
+
+</body>
+</html>

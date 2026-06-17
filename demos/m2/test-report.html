@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M2 — Multi-Node Cluster (Raft) · Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
+    --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
+    --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
+  a { color: var(--accent); text-decoration: none; }
+  header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 40px 48px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+  @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.gray::before   { background: var(--muted); }
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  section { margin-bottom: 40px; }
+  section h2 { font-size: 18px; font-weight: 600; color: #c7d2fe; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
+  .badge.pass    { background: rgba(52,211,153,0.15);  color: var(--pass);    border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail    { background: rgba(248,113,113,0.15); color: var(--fail);    border: 1px solid rgba(248,113,113,0.3); }
+  .badge.leader  { background: rgba(168,85,247,0.15);  color: #d8b4fe;        border: 1px solid rgba(168,85,247,0.3); }
+  .badge.follower{ background: rgba(100,116,139,0.15); color: #94a3b8;        border: 1px solid rgba(100,116,139,0.3); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot.green { background: var(--pass); }
+  code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; background: rgba(255,255,255,0.07); padding: 2px 6px; border-radius: 4px; color: #a5b4fc; }
+  .topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
+  .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
+  .node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+  .node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
+  .node-card-body { padding: 12px 16px; }
+  .node-card .kv { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(46,50,80,0.35); font-size: 12px; }
+  .node-card .kv:last-child { border-bottom: none; }
+  .node-card .k  { color: var(--muted); min-width: 88px; flex-shrink: 0; }
+  .node-card .v  { color: var(--text); }
+  .node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+  .info-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .info-box strong { color: var(--text); }
+  .scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .scope-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted); }
+  .scope-list li::before { content: '▸'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+  .scope-list li strong { color: var(--text); }
+  .fsid-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .fsid-chip { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; background: rgba(124,106,247,0.12); color: #c4b5fd; border: 1px solid rgba(124,106,247,0.3); padding: 3px 10px; border-radius: 20px; }
+  .notice { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fcd34d; display: flex; align-items: flex-start; gap: 10px; }
+  .notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+  footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M2 &mdash; Multi-Node Cluster (Raft)</h1>
+  <p>Real-Environment Test Report &mdash; 3-Node Docker Cluster</p>
+  <div class="meta">
+    <span>Date: 2026-06-01</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
+    <span>Version: shipped</span>
+    <span>New: Raft enrollment &middot; Config sync &middot; Leader failover &middot; Cluster status API</span>
+    <span>FSIDs: FS-NodeEnrollment* &middot; FS-ClusterConfigSync* &middot; FS-LeaderFailover* &middot; FS-ClusterStatus*</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Summary cards -->
+  <div class="cards">
+    <div class="card gray">
+      <div class="value">29</div>
+      <div class="unit">acceptance tests</div>
+      <div class="label">Total</div>
+    </div>
+    <div class="card green">
+      <div class="value">29</div>
+      <div class="unit">tests passed</div>
+      <div class="label">All green</div>
+    </div>
+    <div class="card" style="border-top: 3px solid var(--fail);">
+      <div class="value" style="color:var(--fail);">0</div>
+      <div class="unit">tests failed</div>
+      <div class="label">None</div>
+    </div>
+    <div class="card blue">
+      <div class="value">3</div>
+      <div class="unit">nodes in cluster</div>
+      <div class="label">Raft quorum</div>
+    </div>
+  </div>
+
+  <!-- Cluster topology -->
+  <section>
+    <h2>Cluster topology</h2>
+    <div class="topo-wrap">
+<svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+  </defs>
+  <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+  <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">DOCKER NETWORK · skoed-m2 (user-defined bridge) · sanitized</text>
+  <!-- node-1 Debian leader -->
+  <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+  <circle cx="50" cy="70" r="5" fill="#34d399"/>
+  <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+  <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+  <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+  <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+  <text x="44" y="120" font-size="11" fill="#636e8f">IP</text><text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text><text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="44" y="156" font-size="11" fill="#636e8f">API</text><text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="44" y="174" font-size="11" fill="#636e8f">OS</text><text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <text x="44" y="228" font-size="10" fill="#636e8f">skoed</text><text x="110" y="228" font-size="10" fill="#e2e8f0">v0.1.0 / M2</text>
+  <!-- node-2 Alpine follower -->
+  <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="351" cy="70" r="5" fill="#34d399"/>
+  <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+  <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+  <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+  <text x="345" y="120" font-size="11" fill="#636e8f">IP</text><text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text><text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="345" y="156" font-size="11" fill="#636e8f">API</text><text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="345" y="174" font-size="11" fill="#636e8f">OS</text><text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+  <text x="345" y="228" font-size="10" fill="#636e8f">skoed</text><text x="411" y="228" font-size="10" fill="#e2e8f0">v0.1.0 / M2</text>
+  <!-- node-3 Debian follower -->
+  <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="652" cy="70" r="5" fill="#34d399"/>
+  <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+  <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+  <text x="646" y="120" font-size="11" fill="#636e8f">IP</text><text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text><text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="646" y="156" font-size="11" fill="#636e8f">API</text><text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="646" y="174" font-size="11" fill="#636e8f">OS</text><text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <text x="646" y="228" font-size="10" fill="#636e8f">skoed</text><text x="712" y="228" font-size="10" fill="#e2e8f0">v0.1.0 / M2</text>
+  <!-- Raft connections -->
+  <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+  <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+</svg>
+    </div>
+    <p style="text-align:center; font-size:11px; color:var(--muted); margin-top:6px;">
+      3-node Raft cluster on Docker bridge network skoed-m2 &mdash; node-1 is Raft leader &mdash; IPs sanitized
+    </p>
+    <div class="grid3" style="margin-top:16px;">
+      <div class="node-card" style="border-color: #5b4fe8;">
+        <div class="node-card-header" style="background: #1c1930;">
+          <div class="nc-title"><span class="dot green"></span>node-1</div>
+          <span class="badge leader">Leader</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.0 / M2</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span>node-2</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Alpine LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.0 / M2</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span>node-3</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">skoed</span><span class="v">v0.1.0 / M2</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scope -->
+  <section>
+    <h2>M2 scope</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="info-box">
+        <strong style="display:block; margin-bottom:10px; color:#34d399;">Implemented</strong>
+        <ul class="scope-list">
+          <li><strong>Raft + bbolt FSM</strong> &mdash; hashicorp/raft replicated state machine</li>
+          <li><strong>Single-node bootstrap</strong> &mdash; zero-config, defaults to single-node Raft cluster</li>
+          <li><strong>Join token flow</strong> &mdash; single-use, sha256-hashed, 15-min TTL, leader-validated</li>
+          <li><strong>Cluster membership management</strong> &mdash; AddVoter on join, RemoveServer on remove</li>
+          <li><strong>Follower &rarr; leader write forwarding</strong> &mdash; every mutating endpoint</li>
+          <li><strong>Cluster status API</strong> &mdash; <code>/cluster/self</code>, <code>/cluster/status</code>, <code>/cluster/health</code></li>
+          <li><strong>Automatic Raft leader election</strong> &mdash; on leader loss</li>
+          <li><strong>Manual leadership transfer</strong> &mdash; <code>POST /cluster/leadership/transfer</code></li>
+          <li><strong>Cluster-wide query-log fan-out</strong> &mdash; <code>/cluster/query-log</code></li>
+          <li><strong>Shadow YAML write-through</strong> &mdash; debounced, atomic-rename after each Raft commit</li>
+          <li><strong>M1 backward compat</strong> &mdash; auto-migrates M1-format config on first boot</li>
+        </ul>
+      </div>
+      <div class="info-box">
+        <strong style="display:block; margin-bottom:10px; color:#f87171;">Not implemented</strong>
+        <ul class="scope-list">
+          <li>Web UI for cluster topology (API-only)</li>
+          <li>Helm chart / Kubernetes DaemonSet (deferred to M2.5)</li>
+          <li><code>node.advertise_address</code> separate from <code>node.api_address</code></li>
+          <li>Per-client filtering / parental control (deferred to M3)</li>
+        </ul>
+        <strong style="display:block; margin-top:16px; margin-bottom:10px; color:#fbbf24;">Known limitations</strong>
+        <ul class="scope-list">
+          <li><code>node.api_address</code> used for both binding and advertising &mdash; must be a resolvable hostname, not <code>0.0.0.0</code></li>
+          <li>Aggregate flush lags up to 1 min on low-traffic clusters</li>
+          <li>Cluster secret replicated via Raft &mdash; harden with mTLS at network layer in production</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:20px;">
+      <h3 style="font-size:13px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">FSIDs covered</h3>
+      <div class="fsid-chips">
+        <span class="fsid-chip">FS-NodeEnrollmentGenerateToken</span>
+        <span class="fsid-chip">FS-NodeEnrollmentJoinWithValidToken</span>
+        <span class="fsid-chip">FS-NodeEnrollmentJoinTokenIsSingleUse</span>
+        <span class="fsid-chip">FS-NodeEnrollmentJoinTokenExpires</span>
+        <span class="fsid-chip">FS-NodeEnrollmentInvalidToken</span>
+        <span class="fsid-chip">FS-NodeEnrollmentPreservesNodeLocalSettings</span>
+        <span class="fsid-chip">FS-NodeEnrollmentSingleNodeBootstrap</span>
+        <span class="fsid-chip">FS-NodeEnrollmentM1ConfigMigration</span>
+        <span class="fsid-chip">FS-NodeRemoval</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncWriteToLeader</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncWriteToFollowerIsForwarded</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncBlocklistRemove</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncAllowlist</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncLocalDns</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncSurvivesFollowerDisconnect</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncMinorityPartitionRefusesWrites</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncMajorityPartitionContinues</span>
+        <span class="fsid-chip">FS-ClusterConfigSyncQueryLogRawIsPerNode</span>
+        <span class="fsid-chip">FS-LeaderFailoverAutomaticElection</span>
+        <span class="fsid-chip">FS-LeaderFailoverNoSplitBrainAcrossPartition</span>
+        <span class="fsid-chip">FS-LeaderFailoverFormerLeaderRejoinsAsFollower</span>
+        <span class="fsid-chip">FS-LeaderFailoverWritesDuringTransition</span>
+        <span class="fsid-chip">FS-LeaderFailoverManualTransfer</span>
+        <span class="fsid-chip">FS-ClusterStatusListsAllNodes</span>
+        <span class="fsid-chip">FS-ClusterStatusShowsCommitIndex</span>
+        <span class="fsid-chip">FS-ClusterStatusShowsLaggingFollower</span>
+        <span class="fsid-chip">FS-ClusterStatusShowsUnreachableFollower</span>
+        <span class="fsid-chip">FS-ClusterStatusSameViewFromAnyNode</span>
+        <span class="fsid-chip">FS-ClusterStatusShowsRaftTerm</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Test results -->
+  <section>
+    <h2>Test results</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      29 acceptance tests across 4 files run against a 3-node Docker cluster (<code>skoed-m2</code> network).
+      All 29 tests <span class="badge pass" style="font-size:11px;">PASS</span>.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Test function</th><th>File</th><th style="width:90px;">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">enrollment_test.go &mdash; 9 tests</td></tr>
+          <tr><td style="color:var(--muted);">1</td><td><code>TestNodeEnrollmentGenerateToken</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">2</td><td><code>TestNodeEnrollmentJoinWithValidToken</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">3</td><td><code>TestNodeEnrollmentJoinTokenIsSingleUse</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">4</td><td><code>TestNodeEnrollmentJoinTokenExpires</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">5</td><td><code>TestNodeEnrollmentInvalidToken</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">6</td><td><code>TestNodeEnrollmentPreservesNodeLocalSettings</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">7</td><td><code>TestNodeEnrollmentSingleNodeBootstrap</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">8</td><td><code>TestNodeEnrollmentM1ConfigMigration</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">9</td><td><code>TestNodeRemoval</code></td><td><code>enrollment_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td colspan="4" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">sync_test.go &mdash; 9 tests</td></tr>
+          <tr><td style="color:var(--muted);">10</td><td><code>TestClusterConfigSyncWriteToLeader</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">11</td><td><code>TestClusterConfigSyncWriteToFollowerIsForwarded</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">12</td><td><code>TestClusterConfigSyncBlocklistRemove</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">13</td><td><code>TestClusterConfigSyncAllowlist</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">14</td><td><code>TestClusterConfigSyncLocalDns</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">15</td><td><code>TestClusterConfigSyncSurvivesFollowerDisconnect</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">16</td><td><code>TestClusterConfigSyncMinorityPartitionRefusesWrites</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">17</td><td><code>TestClusterConfigSyncMajorityPartitionContinues</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">18</td><td><code>TestClusterConfigSyncQueryLogRawIsPerNode</code></td><td><code>sync_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td colspan="4" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">failover_test.go &mdash; 5 tests</td></tr>
+          <tr><td style="color:var(--muted);">19</td><td><code>TestLeaderFailoverAutomaticElection</code></td><td><code>failover_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">20</td><td><code>TestLeaderFailoverNoSplitBrainAcrossPartition</code></td><td><code>failover_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">21</td><td><code>TestLeaderFailoverFormerLeaderRejoinsAsFollower</code></td><td><code>failover_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">22</td><td><code>TestLeaderFailoverWritesDuringTransition</code></td><td><code>failover_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">23</td><td><code>TestLeaderFailoverManualTransfer</code></td><td><code>failover_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td colspan="4" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">cluster_status_test.go &mdash; 6 tests</td></tr>
+          <tr><td style="color:var(--muted);">24</td><td><code>TestClusterStatusListsAllNodes</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">25</td><td><code>TestClusterStatusShowsCommitIndex</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">26</td><td><code>TestClusterStatusShowsLaggingFollower</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">27</td><td><code>TestClusterStatusShowsUnreachableFollower</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">28</td><td><code>TestClusterStatusSameViewFromAnyNode</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">29</td><td><code>TestClusterStatusShowsRaftTerm</code></td><td><code>cluster_status_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr style="background:var(--bg2); font-weight:700; border-top: 2px solid var(--border);">
+            <td colspan="3" style="color:#c7d2fe;">Total &mdash; 29 tests across 4 files</td>
+            <td><span class="badge pass">29 / 29</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section>
+    <h2>Web UI screenshots</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">1 &middot; Cluster page showing 3 nodes with leader election</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-01-cluster.png" alt="Cluster page showing 3 nodes with leader election" style="width:100%; display:block;">
+        </div>
+      </div>
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">2 &middot; Dashboard with cluster status OK</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-02-dashboard.png" alt="Dashboard with cluster status OK" style="width:100%; display:block;">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Retrospective -->
+  <section>
+    <h2>Retrospective note</h2>
+    <div class="info-box">
+      <strong>M2 delivered the full Raft-based clustering foundation.</strong>
+      103 acceptance tests green (58 M1 + 45 M2). 15 scenarios exercised in the Docker demo: single-node bootstrap, token issuance, 2-node and 3-node enrollment, leader write replication, follower write forwarding, two-client DNS check, cluster-wide stats fan-out, raw query-log fan-out, leadership transfer, node removal, minority partition, recovery, and shadow YAML output.
+      Key learning: <code>node.api_address</code> must be a hostname reachable by peers, not <code>0.0.0.0:8080</code>. Documented as backlog item for M2.1 (split <code>api_address</code> from a new <code>api_advertise_address</code>).
+    </div>
+  </section>
+
+  <div class="notice" style="margin-bottom: 40px;">
+    <span class="notice-icon">&#9888;</span>
+    <span><strong>Sanitized report.</strong> Infrastructure details (hostnames, IP addresses) have been sanitized. Node IPs are shown as <code>10.x.x.x</code>. All test results and behavioral outcomes are unmodified.</span>
+  </div>
+
+</div>
+
+<footer>
+  <span>skoed M2 &mdash; Multi-Node Cluster (Raft) &mdash; Report date: 2026-06-01</span>
+  <span>Cluster: node-1 (Debian LXC leader) &middot; node-2 (Alpine LXC follower) &middot; node-3 (Debian LXC follower) &middot; 3-node Raft</span>
+</footer>
+
+</body>
+</html>

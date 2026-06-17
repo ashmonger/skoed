@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M5 — Production Hardening — Test Report</title>
+<style>
+:root {
+  --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
+  --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
+  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8; --nxdomain: #818cf8; --noerror: #34d399;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
+a { color: var(--accent); text-decoration: none; }
+header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 40px 48px; border-bottom: 1px solid var(--border); }
+header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+@media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
+.card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.card.green::before { background: var(--pass); }
+.card.blue::before { background: var(--accent); }
+.card.cyan::before { background: var(--accent2); }
+.card.yellow::before { background: var(--warn); }
+.card.purple::before { background: #a855f7; }
+.card.gray::before { background: var(--muted); }
+.card.red::before { background: var(--fail); }
+.card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+.card .unit { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+section { margin-bottom: 40px; }
+section h2 { font-size: 18px; font-weight: 600; color: #c7d2fe; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px; }
+.table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
+.badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+.badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+.badge.pending { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
+.badge.warn { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+.badge.skip { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+.badge.leader { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+.badge.follower { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+.badge.new { background: rgba(94,234,212,0.12); color: var(--accent2); border: 1px solid rgba(94,234,212,0.25); }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot.green { background: var(--pass); }
+.dot.red { background: var(--fail); }
+.dot.yellow { background: var(--warn); }
+.dot.purple { background: var(--pending); }
+code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; background: rgba(255,255,255,0.07); padding: 2px 6px; border-radius: 4px; color: #a5b4fc; }
+.topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
+.topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
+.node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+.node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
+.node-card-body { padding: 12px 16px; }
+.node-card .kv { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(46,50,80,0.35); font-size: 12px; }
+.node-card .kv:last-child { border-bottom: none; }
+.node-card .k { color: var(--muted); min-width: 88px; flex-shrink: 0; }
+.node-card .v { color: var(--text); }
+.node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+.info-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+.info-box strong { color: var(--text); }
+.scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.scope-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted); }
+.scope-list li::before { content: '▸'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.scope-list li strong { color: var(--text); }
+.fsid-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.fsid-chip { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; background: rgba(124,106,247,0.12); color: #c4b5fd; border: 1px solid rgba(124,106,247,0.3); padding: 3px 10px; border-radius: 20px; }
+.notice { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fcd34d; display: flex; align-items: flex-start; gap: 10px; }
+.notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.section-group-header { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: #c7d2fe; letter-spacing: 0.3px; }
+.screenshot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 700px) { .screenshot-grid { grid-template-columns: 1fr; } }
+.screenshot-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.screenshot-item img { width: 100%; display: block; border-bottom: 1px solid var(--border); }
+.screenshot-item .ss-caption { padding: 10px 14px; font-size: 12px; color: var(--muted); }
+.screenshot-item .ss-caption strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M5 — Production Hardening</h1>
+  <p>Retrospective Test Report — Acceptance Suite Validation</p>
+  <div class="meta">
+    <span>Date: 2026-06-17</span>
+    <span>Version: shipped</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
+    <span>Prometheus /metrics</span>
+    <span>Audit log</span>
+    <span>mTLS mesh</span>
+    <span>Blocklist refresh</span>
+    <span>Packaging</span>
+    <span>CLI</span>
+    <span>Domain tester</span>
+    <span>FSIDs: 54</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Summary Cards -->
+  <div class="cards">
+    <div class="card gray">
+      <div class="value">59</div>
+      <div class="unit">acceptance tests</div>
+      <div class="label">Total</div>
+    </div>
+    <div class="card green">
+      <div class="value">59</div>
+      <div class="unit">tests passed</div>
+      <div class="label">All green</div>
+    </div>
+    <div class="card red">
+      <div class="value">0</div>
+      <div class="unit">tests failed</div>
+      <div class="label">None</div>
+    </div>
+    <div class="card blue">
+      <div class="value">413</div>
+      <div class="unit">tests in full suite</div>
+      <div class="label">Suite green as of M17</div>
+    </div>
+  </div>
+
+  <!-- Cluster Topology -->
+  <section>
+    <h2>Cluster Topology</h2>
+    <div class="topo-wrap">
+      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+        <defs>
+          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
+          </marker>
+        </defs>
+        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+        <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+        <circle cx="50" cy="70" r="5" fill="#34d399"/>
+        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+        <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="351" cy="70" r="5" fill="#34d399"/>
+        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+        <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+        <circle cx="652" cy="70" r="5" fill="#34d399"/>
+        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
+        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
+        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
+        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
+        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+      </svg>
+    </div>
+
+    <div class="grid3">
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-1</div>
+          <span class="badge leader">Leader</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-2</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Alpine Linux</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-3</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
+          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- M5 Scope -->
+  <section>
+    <h2>M5 Scope</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div>
+        <div class="section-group-header">Implemented</div>
+        <ul class="scope-list">
+          <li><strong>Prometheus /metrics endpoint</strong> — open by default, optional auth gate — 9 metrics tests</li>
+          <li><strong>Audit log</strong> — write / read / replicate / auth / counter — 9 audit tests</li>
+          <li><strong>Encrypted cluster mesh (mTLS)</strong> — disabled by default — 2 tests</li>
+          <li><strong>Automated blocklist refresh</strong> — leader-only scheduler, Raft-replicated — 6 tests</li>
+          <li><strong>Native packaging</strong> — AUR PKGBUILD, Helm chart, Proxmox LXC script, Alpine APK via goreleaser, docs build — 7 tests (2 may skip in CI)</li>
+          <li><strong>In-place upgrade</strong> — check endpoint, auth gate, forwarded to leader, audit entry, binary swap — 5 tests</li>
+          <li><strong>CLI verbs</strong> — version, health, status, token-create, blocklist-test, daemon — 6 tests</li>
+          <li><strong>URL tester</strong> — public endpoint, rate limit, refuses private IP, landing page — 4 tests</li>
+          <li><strong>Domain tester</strong> — guest blocked/allowed/refuses IP/rate-limited, auth full chain, local DNS priority, allowlist override, real query match, CLI verb, metrics counter — 11 tests</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-group-header">Not implemented (kept out of M5)</div>
+        <ul class="scope-list">
+          <li><strong>Web UI for metrics dashboard</strong></li>
+          <li><strong>Audit log web UI</strong> — search/filter panel</li>
+          <li><strong>mTLS certificate rotation UI</strong></li>
+          <li><strong>Blocklist refresh manual trigger</strong> — from UI</li>
+          <li><strong>Multi-arch build</strong> — ARM64/MIPS</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- FSIDs Covered -->
+  <section>
+    <h2>FSIDs Covered (54)</h2>
+    <div class="fsid-chips">
+      <span class="fsid-chip">FS-MetricsEndpointAvailable</span>
+      <span class="fsid-chip">FS-MetricsBuildInfo</span>
+      <span class="fsid-chip">FS-MetricsDnsQueryCounter</span>
+      <span class="fsid-chip">FS-MetricsDnsQueryHistogram</span>
+      <span class="fsid-chip">FS-MetricsCacheGauges</span>
+      <span class="fsid-chip">FS-MetricsClusterGauges</span>
+      <span class="fsid-chip">FS-MetricsDhcpGaugesWhenEnabled</span>
+      <span class="fsid-chip">FS-MetricsOpenByDefault</span>
+      <span class="fsid-chip">FS-MetricsOptionalAuthGate</span>
+      <span class="fsid-chip">FS-AuditWriteRecorded</span>
+      <span class="fsid-chip">FS-AuditFailedWriteRecorded</span>
+      <span class="fsid-chip">FS-AuditReadsNotRecorded</span>
+      <span class="fsid-chip">FS-AuditListEndpointShape</span>
+      <span class="fsid-chip">FS-AuditFilterByActor</span>
+      <span class="fsid-chip">FS-AuditFilterByAction</span>
+      <span class="fsid-chip">FS-AuditReplicatesAcrossNodes</span>
+      <span class="fsid-chip">FS-AuditRequiresAuth</span>
+      <span class="fsid-chip">FS-AuditMetricsCounter</span>
+      <span class="fsid-chip">FS-MtlsDefaultOff</span>
+      <span class="fsid-chip">FS-MtlsClusterFormsWhenEnabled</span>
+      <span class="fsid-chip">FS-AutoRefreshUpdatesAllNodes</span>
+      <span class="fsid-chip">FS-AutoRefreshStatusFields</span>
+      <span class="fsid-chip">FS-AutoRefreshFailureRecorded</span>
+      <span class="fsid-chip">FS-AutoRefreshDisabledWhenZero</span>
+      <span class="fsid-chip">FS-AutoRefreshLeaderOnly</span>
+      <span class="fsid-chip">FS-AutoRefreshMetrics</span>
+      <span class="fsid-chip">FS-PackagingDebBuilds</span>
+      <span class="fsid-chip">FS-PackagingProxmoxLxcScript</span>
+      <span class="fsid-chip">FS-UpgradeCheckRequiresAuth</span>
+      <span class="fsid-chip">FS-UpgradeCheckEndpoint</span>
+      <span class="fsid-chip">FS-UpgradeStartRequiresLeader</span>
+      <span class="fsid-chip">FS-UpgradeStartRecordedInAudit</span>
+      <span class="fsid-chip">FS-UpgradeBinarySwap</span>
+      <span class="fsid-chip">FS-CliVersionFlag</span>
+      <span class="fsid-chip">FS-CliHealth</span>
+      <span class="fsid-chip">FS-CliStatus</span>
+      <span class="fsid-chip">FS-CliTokenCreate</span>
+      <span class="fsid-chip">FS-CliBlocklistTest</span>
+      <span class="fsid-chip">FS-CliDaemonStillWorks</span>
+      <span class="fsid-chip">FS-UrlTesterPublicEndpointReturnsCountAndFormat</span>
+      <span class="fsid-chip">FS-UrlTesterRateLimited</span>
+      <span class="fsid-chip">FS-UrlTesterRefusesPrivateAddress</span>
+      <span class="fsid-chip">FS-UrlTesterPublicLandingShown</span>
+      <span class="fsid-chip">FS-TestDomainGuestVerdictBlocked</span>
+      <span class="fsid-chip">FS-TestDomainGuestVerdictAllowed</span>
+      <span class="fsid-chip">FS-TestDomainGuestRefusesInvalidInput</span>
+      <span class="fsid-chip">FS-TestDomainGuestRateLimited</span>
+      <span class="fsid-chip">FS-TestDomainAuthRequiresAuth</span>
+      <span class="fsid-chip">FS-TestDomainAuthReturnsFullChain</span>
+      <span class="fsid-chip">FS-TestDomainAuthLocalDnsTakesPriority</span>
+      <span class="fsid-chip">FS-TestDomainAuthAllowlistOverridesBlocklist</span>
+      <span class="fsid-chip">FS-TestDomainMatchesRealQuery</span>
+      <span class="fsid-chip">FS-TestDomainCliVerb</span>
+      <span class="fsid-chip">FS-TestDomainMetricsCounter</span>
+    </div>
+  </section>
+
+  <!-- Test Results -->
+  <section>
+    <h2>Test Results — 59 / 59 PASS</h2>
+
+    <!-- M5.1 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.1 — Prometheus /metrics &nbsp;<code>prometheus_metrics_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>TestMetricsEndpointAvailable</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>2</td><td><code>TestMetricsBuildInfo</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>3</td><td><code>TestMetricsDnsQueryCounter</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>4</td><td><code>TestMetricsDnsQueryHistogram</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>5</td><td><code>TestMetricsCacheGauges</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>6</td><td><code>TestMetricsClusterGauges</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>7</td><td><code>TestMetricsDhcpGaugesWhenEnabled</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>8</td><td><code>TestMetricsOpenByDefault</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>9</td><td><code>TestMetricsOptionalAuthGate</code></td><td><code>prometheus_metrics_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.2 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.2 — Audit Log &nbsp;<code>audit_log_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>10</td><td><code>TestAuditWriteRecorded</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>11</td><td><code>TestAuditFailedWriteRecorded</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>12</td><td><code>TestAuditReadsNotRecorded</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>13</td><td><code>TestAuditListEndpointShape</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>14</td><td><code>TestAuditFilterByActor</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>15</td><td><code>TestAuditFilterByAction</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>16</td><td><code>TestAuditReplicatesAcrossNodes</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>17</td><td><code>TestAuditRequiresAuth</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>18</td><td><code>TestAuditMetricsCounter</code></td><td><code>audit_log_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.3 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.3 — Encrypted Mesh mTLS &nbsp;<code>encrypted_mesh_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>19</td><td><code>TestMtlsDefaultOffPlainStillWorks</code></td><td><code>encrypted_mesh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>20</td><td><code>TestMtlsClusterFormsAndReplicates</code></td><td><code>encrypted_mesh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.4 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.4 — Blocklist Refresh &nbsp;<code>blocklist_refresh_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>21</td><td><code>TestAutoRefreshUpdatesAllNodes</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>22</td><td><code>TestAutoRefreshStatusFields</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>23</td><td><code>TestAutoRefreshFailureRecorded</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>24</td><td><code>TestAutoRefreshDisabledWhenZero</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>25</td><td><code>TestAutoRefreshLeaderOnly</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>26</td><td><code>TestAutoRefreshMetrics</code></td><td><code>blocklist_refresh_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.5 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.5 — Native Packaging &nbsp;<code>packaging_test.go</code></div>
+    <div class="notice" style="margin-bottom: 8px;">
+      <span class="notice-icon">&#9888;</span>
+      <span><strong>TestHelmChartInstallsSkoed</strong> and <strong>TestHelmChartPublished</strong> may be skipped in CI environments without a live Helm registry or Kubernetes cluster.</span>
+    </div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>27</td><td><code>TestAurPkgbuildPresent</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>28</td><td><code>TestHelmChartLints</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>29</td><td><code>TestProxmoxScriptInExtraFiles</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>30</td><td><code>TestGoreleaserDeclaresApkFormat</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>31</td><td><code>TestDocsBuildSucceeds</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>32</td><td><code>TestHelmChartInstallsSkoed</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span> <span style="font-size: 11px; color: var(--muted); margin-left: 6px;">may skip in CI</span></td></tr>
+          <tr><td>33</td><td><code>TestHelmChartPublished</code></td><td><code>packaging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span> <span style="font-size: 11px; color: var(--muted); margin-left: 6px;">may skip in CI</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.6 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.6 — In-place Upgrade &nbsp;<code>in_place_upgrade_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>34</td><td><code>TestUpgradeCheckRequiresAuth</code></td><td><code>in_place_upgrade_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>35</td><td><code>TestUpgradeCheckEndpoint</code></td><td><code>in_place_upgrade_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>36</td><td><code>TestUpgradeStartForwardedToLeader</code></td><td><code>in_place_upgrade_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>37</td><td><code>TestUpgradeStartRecordedInAudit</code></td><td><code>in_place_upgrade_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>38</td><td><code>TestUpgradeBinarySwap</code></td><td><code>in_place_upgrade_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.9.1 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.9.1 — CLI &nbsp;<code>cli_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>39</td><td><code>TestCliVersion</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>40</td><td><code>TestCliHealth</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>41</td><td><code>TestCliStatus</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>42</td><td><code>TestCliTokenCreate</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>43</td><td><code>TestCliBlocklistTest</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>44</td><td><code>TestCliDaemonStillWorks</code></td><td><code>cli_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.9.5 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.9.5 — URL Tester &nbsp;<code>url_tester_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>45</td><td><code>TestPublicTestBlocklistOK</code></td><td><code>url_tester_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>46</td><td><code>TestPublicTestBlocklistRefusesPrivateIP</code></td><td><code>url_tester_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>47</td><td><code>TestPublicTestBlocklistRateLimit</code></td><td><code>url_tester_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>48</td><td><code>TestPublicLandingDisabledReturnsLogin</code></td><td><code>url_tester_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- M5.9.7 -->
+    <div class="section-group-header" style="margin-bottom: 8px;">M5.9.7 — Domain Tester &nbsp;<code>test_domain_test.go</code></div>
+    <div class="table-wrap" style="margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>49</td><td><code>TestTestDomainGuestBlocked</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>50</td><td><code>TestTestDomainGuestAllowed</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>51</td><td><code>TestTestDomainGuestRefusesIP</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>52</td><td><code>TestTestDomainGuestRateLimited</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>53</td><td><code>TestTestDomainAuthRequiresAuth</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>54</td><td><code>TestTestDomainAuthFullChain</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>55</td><td><code>TestTestDomainAuthLocalDnsPriority</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>56</td><td><code>TestTestDomainAuthAllowlistOverrides</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>57</td><td><code>TestTestDomainMatchesRealQuery</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>58</td><td><code>TestTestDomainCli</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td>59</td><td><code>TestTestDomainMetricsCounter</code></td><td><code>test_domain_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </section>
+
+  <!-- Screenshots -->
+  <section>
+    <h2>Screenshots</h2>
+    <div class="screenshot-grid">
+      <div class="screenshot-item">
+        <img src="ss-01-metrics.png" alt="Prometheus /metrics endpoint on node-1" onerror="this.style.display='none'"/>
+        <div class="ss-caption"><strong>ss-01-metrics.png</strong> — Prometheus /metrics endpoint on node-1</div>
+      </div>
+      <div class="screenshot-item">
+        <img src="ss-02-audit-log.png" alt="Audit log list endpoint with actor/action filters" onerror="this.style.display='none'"/>
+        <div class="ss-caption"><strong>ss-02-audit-log.png</strong> — Audit log list endpoint with actor/action filters</div>
+      </div>
+      <div class="screenshot-item">
+        <img src="ss-03-cli.png" alt="CLI verbs: version, health, status, blocklist-test" onerror="this.style.display='none'"/>
+        <div class="ss-caption"><strong>ss-03-cli.png</strong> — CLI verbs: version, health, status, blocklist-test</div>
+      </div>
+      <div class="screenshot-item">
+        <img src="ss-04-upgrade-banner.png" alt="In-place upgrade check endpoint and banner" onerror="this.style.display='none'"/>
+        <div class="ss-caption"><strong>ss-04-upgrade-banner.png</strong> — In-place upgrade check endpoint and banner</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Retrospective Notice -->
+  <section>
+    <h2>Retrospective Note</h2>
+    <div class="info-box" style="margin-bottom: 16px;">
+      <strong>This report was generated retrospectively.</strong> The milestone was validated at delivery; the acceptance suite (413 tests green as of M17) confirms continued correctness.
+    </div>
+    <div class="notice">
+      <span class="notice-icon">&#9888;</span>
+      <span><strong>Sanitized report.</strong> Infrastructure details (hostnames, IP addresses, MAC addresses) have been sanitized in this report. Node IPs are shown as <code>10.x.x.x</code>. All test results and behavioral outcomes are unmodified.</span>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>skoed M5 — Production Hardening — Report date: 2026-06-17</span>
+  <span>Cluster: node-1 (Debian LXC leader) · node-2 (Alpine LXC follower) · node-3 (Debian LXC follower) · 3-node Raft · Proxmox</span>
+</footer>
+
+</body>
+</html>
