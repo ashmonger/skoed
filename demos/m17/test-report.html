@@ -746,6 +746,58 @@
     </div>
   </section>
 
+  <!-- ── Web UI Screenshots ── -->
+  <section>
+    <h2>Web UI screenshots — real cluster</h2>
+    <p style="color:var(--muted); margin-bottom:20px; font-size:13px;">
+      Screenshots taken from node-1 (leader) web UI via Playwright against the live Proxmox 3-node cluster.
+      All screenshots are full-resolution; node labels (skoed-1/2/3) and private LAN addresses are as shown by the application.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">1 · Dashboard — cluster 3/3, all in sync</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-01-dashboard.png" alt="Dashboard showing 3/3 nodes, all in sync at commit 26" style="width:100%; display:block;">
+        </div>
+      </div>
+
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">2 · Schedules list — &quot;school&quot; schedule live on cluster</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-02-schedules-list.png" alt="Schedules page showing school schedule" style="width:100%; display:block;">
+        </div>
+      </div>
+
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">3 · Schedule detail — binding panel (M17 gap this fills)</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-03-schedule-detail-binding-panel.png" alt="Schedule detail showing binding panel with note about missing GET endpoint" style="width:100%; display:block;">
+        </div>
+        <p style="font-size:11px; color:var(--muted); margin-top:6px; font-style:italic;">
+          The UI panel notes <em>"no server-side enumeration endpoint yet — known M3.1 gap"</em>.
+          M17 ships <code>GET /api/v1/schedules/{id}/bindings</code> to close exactly this gap.
+          The UI will consume the endpoint in a future milestone.
+        </p>
+      </div>
+
+      <div>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">4 · Cluster status — 3 nodes, leader + 2 followers</p>
+        <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+          <img src="ss-04-cluster-status.png" alt="Cluster page: skoed-1 leader in sync, skoed-2 follower in sync, skoed-3 follower in sync" style="width:100%; display:block;">
+        </div>
+      </div>
+
+    </div>
+
+    <div class="info-box" style="margin-top:4px;">
+      <strong>Note — OpenAPI spec gap:</strong> <code>GET /api/v1/schedules/{id}/bindings</code> is not yet registered in
+      <code>specs/technical/management-api.openapi.yaml</code>, so it does not appear in the Swagger UI at <code>/api/docs</code>.
+      The endpoint is fully implemented and tested (T3 above); the OpenAPI spec update is a post-demo follow-up task.
+    </div>
+  </section>
+
   <!-- ── Sanitized notice ── -->
   <div class="notice" style="margin-bottom: 40px;">
     <span class="notice-icon">&#9888;</span>

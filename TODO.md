@@ -239,6 +239,7 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 - [x] M17 — real-condition test on Proxmox 3-node cluster: 7/7 tests pass (CT 200/201/202, Raft term 5, commit index 26) — 2026-06-16
 - [x] M17 — proof captured: all 7 tests pass with actual API responses in test-report.html — 2026-06-16
 - [x] M17 — HTML test report: `demos/m17/test-report.html` — 2026-06-16
+- [ ] M17 — add GET /api/v1/schedules/{id}/bindings to management-api.openapi.yaml (gap found during web UI screenshot: endpoint not in Swagger spec)
 - [ ] M17 — UoR demo validation
 - [ ] M17 — merge to master
 
