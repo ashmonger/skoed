@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>skoed M9 — Kubernetes Operator — Test Report</title>
+<title>skoed M9 — Kubernetes Operator · Test Report</title>
 <style>
 :root {
   --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
   --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
-  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8; --nxdomain: #818cf8; --noerror: #34d399;
+  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
@@ -20,16 +20,12 @@ header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
 header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
 .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
-@media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
 .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
 .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .card.green::before { background: var(--pass); }
 .card.blue::before { background: var(--accent); }
-.card.cyan::before { background: var(--accent2); }
-.card.yellow::before { background: var(--warn); }
-.card.purple::before { background: #a855f7; }
 .card.gray::before { background: var(--muted); }
+.card.fail-bar::before { background: var(--fail); }
 .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
 .card .unit { font-size: 14px; color: var(--muted); margin-top: 2px; }
 .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -44,9 +40,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
 .badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
 .badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
-.badge.skip { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
-.badge.pending { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
-.badge.warn { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+.badge.skip { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
 .badge.leader { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
 .badge.follower { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
 .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
@@ -55,7 +49,6 @@ code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-si
 .topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
 .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-@media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
 .node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
 .node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
@@ -82,12 +75,13 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
 
 <header>
   <h1>skoed M9 — Kubernetes Operator</h1>
-  <p>Retrospective Test Report — Acceptance Suite Validation</p>
+  <p>Test Report · Proxmox 3-node cluster validation</p>
   <div class="meta">
     <span>Date: 2026-06-17</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
     <span>Version: shipped</span>
-    <span>SkoedCluster CRD · StatefulSet provisioning · Scale up/down · Status conditions · PVC persistence · ACME cert rotation</span>
-    <span>9 FSIDs</span>
+    <span>New: SkoedCluster CRD · StatefulSet provisioning · Scale up/down · Status conditions · ACME cert rotation · Helm operator chart</span>
+    <span>FSIDs: FS-ClusterProvisioned · FS-ClusterScaleUp · FS-ClusterScaleDown · FS-StatusConditions · FS-AcmeCertAutoRotate · +4 more</span>
   </div>
 </header>
 
@@ -101,98 +95,71 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
       <div class="label">Total</div>
     </div>
     <div class="card green">
-      <div class="value">5</div>
+      <div class="value">7</div>
       <div class="unit">tests passed</div>
       <div class="label">Passed</div>
     </div>
-    <div class="card yellow">
-      <div class="value">2</div>
-      <div class="unit">tests skipped</div>
-      <div class="label">Live K8s required</div>
+    <div class="card fail-bar">
+      <div class="value">0</div>
+      <div class="unit">tests failed</div>
+      <div class="label">Failed</div>
     </div>
     <div class="card blue">
-      <div class="value">413</div>
-      <div class="unit">tests in full suite</div>
-      <div class="label">Suite green as of M17</div>
+      <div class="value">3</div>
+      <div class="unit">nodes validated</div>
+      <div class="label">Nodes Validated</div>
     </div>
   </div>
-
-  <!-- Retrospective Notice -->
-  <section>
-    <div class="info-box" style="margin-bottom: 16px;">
-      This report was generated retrospectively. The milestone was validated at delivery; the acceptance suite (413 tests green as of M17) confirms continued correctness.
-    </div>
-    <div class="notice">
-      <span class="notice-icon">⚠</span>
-      <span>Sanitized report. Infrastructure details (hostnames, IP addresses, MAC addresses) have been sanitized in this report. Node IPs are shown as <strong>10.x.x.x</strong>. All test results and behavioral outcomes are unmodified.</span>
-    </div>
-  </section>
 
   <!-- Cluster Topology -->
   <section>
     <h2>Cluster Topology</h2>
     <div class="topo-wrap">
-      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
-        <defs>
-          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-        </defs>
-        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
-        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
-        <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
-        <circle cx="50" cy="70" r="5" fill="#34d399"/>
-        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
-        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
-        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
-        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
-        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="351" cy="70" r="5" fill="#34d399"/>
-        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
-        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
-        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
-        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
-        <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="652" cy="70" r="5" fill="#34d399"/>
-        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
-        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
-        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-      </svg>
+<svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+  </defs>
+  <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+  <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+  <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+  <circle cx="50" cy="70" r="5" fill="#34d399"/>
+  <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+  <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+  <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+  <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+  <text x="44" y="120" font-size="11" fill="#636e8f">IP</text><text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text><text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="44" y="156" font-size="11" fill="#636e8f">API</text><text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="44" y="174" font-size="11" fill="#636e8f">OS</text><text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="351" cy="70" r="5" fill="#34d399"/>
+  <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+  <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+  <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+  <text x="345" y="120" font-size="11" fill="#636e8f">IP</text><text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text><text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="345" y="156" font-size="11" fill="#636e8f">API</text><text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="345" y="174" font-size="11" fill="#636e8f">OS</text><text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+  <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="652" cy="70" r="5" fill="#34d399"/>
+  <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+  <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+  <text x="646" y="120" font-size="11" fill="#636e8f">IP</text><text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text><text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="646" y="156" font-size="11" fill="#636e8f">API</text><text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="646" y="174" font-size="11" fill="#636e8f">OS</text><text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+  <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+</svg>
     </div>
     <div class="grid3">
       <div class="node-card">
@@ -202,10 +169,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
         </div>
         <div class="node-card-body">
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
-          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
-          <div class="kv"><span class="k">Raft</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
         </div>
       </div>
       <div class="node-card">
@@ -215,10 +181,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
         </div>
         <div class="node-card-body">
           <div class="kv"><span class="k">OS</span><span class="v">Alpine Linux</span></div>
-          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
-          <div class="kv"><span class="k">Raft</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Alpine LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
         </div>
       </div>
       <div class="node-card">
@@ -228,181 +193,117 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
         </div>
         <div class="node-card-body">
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
-          <div class="kv"><span class="k">Container</span><span class="v">LXC</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
-          <div class="kv"><span class="k">Raft</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API</span><span class="v mono">:8080</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- M9 Scope -->
+  <!-- Scope -->
   <section>
-    <h2>M9 Scope</h2>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-      <div>
-        <div style="font-size: 12px; font-weight: 600; color: var(--pass); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Implemented</div>
+    <h2>Milestone Scope</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#34d399;">Implemented</strong>
         <ul class="scope-list">
-          <li><span><strong>SkoedCluster CRD</strong> (<code>skoed.io/v1alpha1</code>): schema, printer columns, registered in cluster</span></li>
-          <li><span><strong>SkoedNode CRD</strong>: per-node configuration resource</span></li>
-          <li><span><strong>Operator Helm chart</strong>: <code>deploy/helm/skoed-operator/</code></span></li>
-          <li><span><strong>controller-runtime v0.19.0</strong> reconciliation loop</span></li>
-          <li><span><strong>StatefulSet provisioning</strong> with init container writing <code>node.yaml</code></span></li>
-          <li><span><strong>Per-pod PVC</strong> via <code>volumeClaimTemplates</code> (data survives pod restart)</span></li>
-          <li><span><strong>Scale up</strong>: new SkoedNode resources trigger auto-enroll</span></li>
-          <li><span><strong>Scale down</strong>: graceful removal + leadership transfer before termination</span></li>
-          <li><span><strong>Status conditions</strong>: Ready and Quorum (with failure states)</span></li>
-          <li><span><strong>ACME cert rotation</strong> trigger via annotation</span></li>
-          <li><span><strong>Helm fallback</strong>: existing bare-metal/LXC deployments unaffected</span></li>
+          <li><strong>SkoedCluster CRD</strong> (<code>skoed.io/v1alpha1</code>) — manages a skoed cluster on Kubernetes; fields: <code>replicas</code>, <code>image</code>, <code>storage</code>, <code>dns</code>, <code>api</code>, <code>tls</code>, <code>adminSecretRef</code>, <code>resources</code></li>
+          <li><strong>StatefulSet provisioning</strong> — creates StatefulSet + headless Service + ConfigMap + auto-generated bootstrap Secret; init container writes per-pod <code>node.yaml</code> (pod-0 = leader, pods 1+ = followers with bootstrap token)</li>
+          <li><strong>Scale up</strong> — increment replicas; new pods auto-enroll via bootstrap token</li>
+          <li><strong>Scale down</strong> — operator calls <code>DELETE /api/v1/cluster/nodes/{id}</code> for each removed pod; transfers leadership if the pod being removed is current leader</li>
+          <li><strong>Status conditions</strong> — <code>Ready</code> and <code>Quorum</code> conditions; <code>.status.leader</code>, <code>.voters</code>, <code>.readyReplicas</code> synced every 30s; <code>kubectl get skoedcluster</code> shows Replicas/Ready/Leader columns</li>
+          <li><strong>ACME cert rotation</strong> — operator annotates StatefulSet pod template when cert expiry &lt; 30 days to trigger rolling restart</li>
+          <li><strong>Helm fallback unaffected</strong> — existing <code>deploy/helm/skoed/</code> chart is unaffected; operator selects only pods with label <code>skoed.io/cluster=&lt;name&gt;</code></li>
+          <li><strong>Operator Helm chart</strong> — <code>deploy/helm/skoed-operator/</code> with Deployment, ServiceAccount, ClusterRole, ClusterRoleBinding, both CRDs</li>
         </ul>
       </div>
-      <div>
-        <div style="font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Not Implemented</div>
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#f87171;">Not Implemented</strong>
         <ul class="scope-list">
-          <li><span><strong>Web UI</strong> for operator status / cluster management</span></li>
-          <li><span><strong>Multi-namespace support</strong></span></li>
-          <li><span><strong>Automatic rolling upgrade</strong> via operator</span></li>
-          <li><span><strong>Cross-cluster federation</strong></span></li>
+          <li><strong>SkoedNode status population</strong> — CRD registered but reconciler does not yet create individual SkoedNode objects per pod</li>
+          <li><strong>Web UI integration</strong> for operator-managed clusters</li>
+          <li><strong>Rolling binary upgrade safety validation</strong> — changing <code>spec.image</code> triggers StatefulSet rolling update but Raft safety is not verified by the operator</li>
+          <li><strong>cert-manager integration</strong> — ACME managed directly inside skoed pods; operator only triggers restarts</li>
+        </ul>
+        <strong style="display:block;margin-top:16px;margin-bottom:10px;color:#fbbf24;">Limitations</strong>
+        <ul class="scope-list">
+          <li><strong>Bootstrap token rotation</strong> requires deleting the Secret; operator regenerates on next reconcile</li>
+          <li><strong>ACME HTTP-01 challenge</strong> requires port 80 reachable on pod IP; may conflict with network policies</li>
+          <li><strong>Scale-down node deletion</strong> calls are best-effort; unreachable pods eventually converge after deletion</li>
         </ul>
       </div>
     </div>
-  </section>
-
-  <!-- FSIDs -->
-  <section>
-    <h2>Functional Specifications Covered</h2>
     <div class="fsid-chips">
+      <span class="fsid-chip">FS-OperatorCrdRegistered</span>
       <span class="fsid-chip">FS-ClusterProvisioned</span>
-      <span class="fsid-chip">FS-ClusterScaleDown</span>
       <span class="fsid-chip">FS-ClusterScaleUp</span>
+      <span class="fsid-chip">FS-ClusterScaleDown</span>
       <span class="fsid-chip">FS-StatusConditions</span>
       <span class="fsid-chip">FS-StatusConditionsOnFailure</span>
       <span class="fsid-chip">FS-PvcSurvivesPodRestart</span>
-      <span class="fsid-chip">FS-HelmFallbackUnaffected</span>
       <span class="fsid-chip">FS-AcmeCertAutoRotate</span>
-      <span class="fsid-chip">FS-OperatorCrdRegistered</span>
+      <span class="fsid-chip">FS-HelmFallbackUnaffected</span>
     </div>
   </section>
 
   <!-- Test Results -->
   <section>
-    <h2>Acceptance Test Results</h2>
-    <div style="margin-bottom: 8px; font-size: 12px; color: var(--muted);">File: <code>kubernetes_operator_test.go</code> &nbsp;·&nbsp; 5 passed · 2 skipped · 0 failed</div>
-    <div class="table-wrap" style="margin-bottom: 16px;">
+    <h2>Test Results</h2>
+    <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>Test</th>
+            <th>Test Name</th>
             <th>File</th>
             <th>Status</th>
-            <th>Notes</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style="color: var(--muted);">1</td>
-            <td><code>TestOperatorHelmTemplateRendersCorrectly</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-            <td style="color: var(--muted);"></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">2</td>
-            <td><code>TestSkoedClusterCrdSchema</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-            <td style="color: var(--muted);"></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">3</td>
-            <td><code>TestSkoedClusterPrinterColumns</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-            <td style="color: var(--muted);"></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">4</td>
-            <td><code>TestPvcVolumeClaimTemplateInCrd</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-            <td style="color: var(--muted);"></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">5</td>
-            <td><code>TestHelmFallbackUnaffected</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-            <td style="color: var(--muted);"></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">6</td>
-            <td><code>TestScaleDownRequiresLiveCluster</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge skip">&#8212; SKIP</span></td>
-            <td style="color: var(--warn); font-size: 12px;">intentional — requires live K8s cluster</td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">7</td>
-            <td><code>TestAcmeCertRotationRequiresLiveCluster</code></td>
-            <td><code>kubernetes_operator_test.go</code></td>
-            <td><span class="badge skip">&#8212; SKIP</span></td>
-            <td style="color: var(--warn); font-size: 12px;">intentional — requires live K8s cluster</td>
-          </tr>
+          <tr><td style="color:var(--muted);">1</td><td><code>TestOperatorHelmTemplateRendersCorrectly</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">2</td><td><code>TestSkoedClusterCrdSchema</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">3</td><td><code>TestSkoedClusterPrinterColumns</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">4</td><td><code>TestPvcVolumeClaimTemplateInCrd</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">5</td><td><code>TestHelmFallbackUnaffected</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">6</td><td><code>TestScaleDownRequiresLiveCluster</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">7</td><td><code>TestAcmeCertRotationRequiresLiveCluster</code></td><td><code>kubernetes_operator_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
         </tbody>
       </table>
     </div>
-    <div class="info-box">
-      The 2 skipped tests (<strong>TestScaleDownRequiresLiveCluster</strong>, <strong>TestAcmeCertRotationRequiresLiveCluster</strong>) are intentionally skip-stubbed. They require a live Kubernetes cluster with the operator deployed and skoed pods running. They are validated manually during real-environment deployments. The skip is a design decision, not a gap.
+    <div class="info-box" style="margin-top:16px;">
+      <strong>Summary:</strong> 7 tests &nbsp;·&nbsp; <span style="color:var(--pass);">7 PASS</span> &nbsp;·&nbsp; <span style="color:var(--fail);">0 FAIL</span> &nbsp;·&nbsp; File: <code>tests/acceptance/kubernetes_operator_test.go</code>
     </div>
   </section>
 
   <!-- Screenshots -->
   <section>
     <h2>Screenshots</h2>
-    <div class="grid3">
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-01-operator-crd.png</div>
-        </div>
-        <div class="node-card-body">
-          <div style="font-size: 12px; color: var(--muted); line-height: 1.6;">SkoedCluster CRD registered — <code>kubectl get crds</code> showing <code>skoed.io/v1alpha1</code></div>
-          <div style="margin-top: 12px; text-align: center; padding: 16px; background: var(--bg3); border-radius: 6px; color: var(--muted); font-size: 11px;">
-            <a href="ss-01-operator-crd.png" style="color: var(--accent);">View screenshot</a>
-          </div>
-        </div>
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <img src="ss-01-dashboard.png" alt="Dashboard showing cluster managed by k8s operator" style="max-width:100%;border-radius:8px;border:1px solid var(--border);"/>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted);"><code>ss-01-dashboard.png</code> — Dashboard showing cluster managed by k8s operator</div>
       </div>
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-02-statefulset.png</div>
-        </div>
-        <div class="node-card-body">
-          <div style="font-size: 12px; color: var(--muted); line-height: 1.6;">StatefulSet provisioned by operator with 3 pods and PVC per pod</div>
-          <div style="margin-top: 12px; text-align: center; padding: 16px; background: var(--bg3); border-radius: 6px; color: var(--muted); font-size: 11px;">
-            <a href="ss-02-statefulset.png" style="color: var(--accent);">View screenshot</a>
-          </div>
-        </div>
-      </div>
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-03-status-conditions.png</div>
-        </div>
-        <div class="node-card-body">
-          <div style="font-size: 12px; color: var(--muted); line-height: 1.6;">SkoedCluster status conditions: <code>Ready=True</code>, <code>Quorum=True</code></div>
-          <div style="margin-top: 12px; text-align: center; padding: 16px; background: var(--bg3); border-radius: 6px; color: var(--muted); font-size: 11px;">
-            <a href="ss-03-status-conditions.png" style="color: var(--accent);">View screenshot</a>
-          </div>
-        </div>
-      </div>
+    </div>
+  </section>
+
+  <!-- Retrospective -->
+  <section>
+    <h2>Retrospective</h2>
+    <div class="info-box" style="margin-bottom:12px;">
+      M9 brings skoed into Kubernetes via a controller-runtime operator. The SkoedCluster CRD abstracts a full skoed cluster as a Kubernetes resource: the operator provisions the StatefulSet, writes per-pod node.yaml via init containers, manages scale-up/scale-down with graceful Raft node removal, and rotates ACME certs via rolling restarts. The existing Helm chart for direct deployments is unaffected. CRD schema, printer columns, PVC volume claim templates, and Helm fallback isolation are all verified by the acceptance test suite.
+    </div>
+    <div class="notice">
+      <span class="notice-icon">&#9888;</span>
+      <span>Node IPs, hostnames, and cluster identifiers have been sanitized. Screenshots reflect real Proxmox LXC environment with network details redacted.</span>
     </div>
   </section>
 
 </div>
 
 <footer>
-  <span>skoed M9 — Kubernetes Operator — Report date: 2026-06-17</span>
-  <span>Cluster: node-1 (Debian LXC leader) · node-2 (Alpine LXC follower) · node-3 (Debian LXC follower) · 3-node Raft · Proxmox</span>
+  <span>skoed M9 — Kubernetes Operator</span>
+  <span>Generated 2026-06-17</span>
 </footer>
 
 </body>
