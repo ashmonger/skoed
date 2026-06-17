@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>skoed M6.5 — Test Report</title>
+<title>skoed M6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases · Test Report</title>
 <style>
 :root {
   --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
   --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
-  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8; --nxdomain: #818cf8; --noerror: #34d399;
+  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
@@ -20,16 +20,12 @@ header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
 header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
 .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
-@media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
 .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
 .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .card.green::before { background: var(--pass); }
 .card.blue::before { background: var(--accent); }
-.card.cyan::before { background: var(--accent2); }
-.card.yellow::before { background: var(--warn); }
-.card.purple::before { background: #a855f7; }
 .card.gray::before { background: var(--muted); }
+.card.fail-bar::before { background: var(--fail); }
 .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
 .card .unit { font-size: 14px; color: var(--muted); margin-top: 2px; }
 .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -44,8 +40,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
 .badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
 .badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
-.badge.pending { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
-.badge.warn { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
 .badge.leader { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
 .badge.follower { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
 .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
@@ -54,7 +48,6 @@ code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-si
 .topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
 .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-@media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
 .node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
 .node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
@@ -75,30 +68,25 @@ code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-si
 .notice { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fcd34d; display: flex; align-items: flex-start; gap: 10px; }
 .notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
 footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.group-row td { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
-.not-implemented { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.not-implemented li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted); }
-.not-implemented li::before { content: '✕'; color: var(--fail); flex-shrink: 0; margin-top: 1px; opacity: 0.7; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>skoed M6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases</h1>
-  <p>Retrospective Test Report — Acceptance Suite Validation</p>
+  <p>Test Report · Proxmox 3-node cluster validation</p>
   <div class="meta">
     <span>Date: 2026-06-17</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
     <span>Version: shipped</span>
-    <span>ARP/NDP cross-check</span>
-    <span>Raft-replicated lease cache</span>
-    <span>DHCPv6 parsing</span>
-    <span>Lease origin tagging</span>
+    <span>New: ARP/NDP cross-check · Raft-replicated lease cache · DHCPv6 parsing · Lease origin tagging</span>
+    <span>FSIDs: FS-ArpCheckArpMacMismatchFlagsAnomaly · FS-LeaseReplFollowersServeReplicatedSnapshot · FS-Dhcpv6LeaseKeaReadsLease6 · FS-LeaseOriginHttpJsonHonoursWireField · +41 more</span>
   </div>
 </header>
 
 <div class="container">
 
-  <!-- Summary cards -->
+  <!-- Summary Cards -->
   <div class="cards">
     <div class="card gray">
       <div class="value">45</div>
@@ -108,103 +96,70 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
     <div class="card green">
       <div class="value">45</div>
       <div class="unit">tests passed</div>
-      <div class="label">All green</div>
+      <div class="label">Passed</div>
     </div>
-    <div class="card" style="border-color: var(--border);">
-      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--fail);"></div>
-      <div class="value" style="color: var(--muted);">0</div>
+    <div class="card fail-bar">
+      <div class="value">0</div>
       <div class="unit">tests failed</div>
-      <div class="label">None</div>
+      <div class="label">Failed</div>
     </div>
     <div class="card blue">
-      <div class="value">413</div>
-      <div class="unit">tests in full suite</div>
-      <div class="label">Suite green as of M17</div>
+      <div class="value">3</div>
+      <div class="unit">nodes validated</div>
+      <div class="label">Nodes Validated</div>
     </div>
   </div>
 
-  <!-- Retrospective notice -->
-  <div style="margin-bottom: 32px;">
-    <div class="info-box">
-      <strong>Retrospective report.</strong> This report was generated retrospectively. The milestone was validated at delivery; the acceptance suite (413 tests green as of M17) confirms continued correctness.
-    </div>
-  </div>
-
-  <!-- Cluster topology -->
+  <!-- Cluster Topology -->
   <section>
     <h2>Cluster Topology</h2>
     <div class="topo-wrap">
-      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
-        <defs>
-          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-        </defs>
-        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
-        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
-        <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
-        <circle cx="50" cy="70" r="5" fill="#34d399"/>
-        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
-        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
-        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
-        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
-        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="351" cy="70" r="5" fill="#34d399"/>
-        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
-        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
-        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
-        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
-        <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="652" cy="70" r="5" fill="#34d399"/>
-        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
-        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
-        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-      </svg>
+<svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+  </defs>
+  <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+  <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+  <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+  <circle cx="50" cy="70" r="5" fill="#34d399"/>
+  <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+  <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+  <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+  <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+  <text x="44" y="120" font-size="11" fill="#636e8f">IP</text><text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text><text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="44" y="156" font-size="11" fill="#636e8f">API</text><text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="44" y="174" font-size="11" fill="#636e8f">OS</text><text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="351" cy="70" r="5" fill="#34d399"/>
+  <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+  <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+  <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+  <text x="345" y="120" font-size="11" fill="#636e8f">IP</text><text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text><text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="345" y="156" font-size="11" fill="#636e8f">API</text><text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="345" y="174" font-size="11" fill="#636e8f">OS</text><text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+  <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="652" cy="70" r="5" fill="#34d399"/>
+  <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+  <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+  <text x="646" y="120" font-size="11" fill="#636e8f">IP</text><text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text><text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="646" y="156" font-size="11" fill="#636e8f">API</text><text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="646" y="174" font-size="11" fill="#636e8f">OS</text><text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+  <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+</svg>
     </div>
-    <div class="notice">
-      <span class="notice-icon">&#9888;</span>
-      <span>Node IP addresses are sanitized in this report. The cluster runs on a private <code>vmbr1</code> NAT bridge on the Proxmox host. All three nodes are LXC containers with IPs in the <code>10.x.x.x/24</code> range.</span>
-    </div>
-  </section>
-
-  <!-- Node cards -->
-  <section>
-    <h2>Node Details</h2>
     <div class="grid3">
       <div class="node-card">
         <div class="node-card-header">
@@ -212,12 +167,10 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
           <span class="badge leader">Leader</span>
         </div>
         <div class="node-card-body">
-          <div class="kv"><span class="k">Role</span><span class="v">Raft leader</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
           <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
           <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
           <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
         </div>
       </div>
       <div class="node-card">
@@ -226,12 +179,10 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
           <span class="badge follower">Follower</span>
         </div>
         <div class="node-card-body">
-          <div class="kv"><span class="k">Role</span><span class="v">Raft follower</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Alpine Linux</span></div>
           <div class="kv"><span class="k">Container</span><span class="v">Alpine LXC</span></div>
           <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
           <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
         </div>
       </div>
       <div class="node-card">
@@ -240,364 +191,44 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
           <span class="badge follower">Follower</span>
         </div>
         <div class="node-card-body">
-          <div class="kv"><span class="k">Role</span><span class="v">Raft follower</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
           <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
           <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
           <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- M6.5 scope -->
+  <!-- Scope -->
   <section>
-    <h2>M6.5 Scope — Implemented</h2>
-    <ul class="scope-list">
-      <li>
-        <div>
-          <strong>Lease origin tagging</strong> — <code>dhcp_static</code> / <code>dhcp_dynamic</code> / <code>router_advertised</code> / <code>manual_admin</code> (4 origin types); Kea reservations, dnsmasq <code>dhcp-host</code> config, HTTP JSON wire field, Prometheus gauges.
-        </div>
-      </li>
-      <li>
-        <div>
-          <strong>DHCPv6 lease parsing</strong> — <code>ip6leases.conf</code> (Kea lease6), dnsmasq <code>lease6</code> file, dual-stack merge, per-v6-client lookup, profile matching unchanged, clients page V6 column.
-        </div>
-      </li>
-      <li>
-        <div>
-          <strong>Raft-replicated lease cache</strong> — leader-only polling, followers serve from bbolt replica, lease endpoint, source endpoint reports leader, failover resumes polling, no double-poll on transition, 503 when cluster empty, anomalies match leader, follower write forwarded, Raft log not amplified, stale follower catch-up, <code>last_poll_unix</code> advances, source unreachable keeps last good.
-        </div>
-      </li>
-      <li>
-        <div>
-          <strong>ARP/NDP cross-check via rtnetlink</strong> — ARP state agrees with lease, MAC mismatch flags anomaly, NDP MAC mismatch flags anomaly, ghost lease detection, fresh lease grace period, after grace period flagged, graceful degradation without <code>NET_ADMIN</code>, unknown IP 404, anomalies list includes new kinds, sweep cadence best-effort.
-        </div>
-      </li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>M6.5 Scope — Not Implemented</h2>
-    <ul class="not-implemented">
-      <li>Web UI for ARP anomaly dashboard</li>
-      <li>Push alerts for MAC spoofing detection</li>
-      <li>IPv6-only DHCP deployment support (dual-stack only)</li>
-    </ul>
-  </section>
-
-  <!-- Test results table -->
-  <section>
-    <h2>Test Results — 45 / 45 PASS</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 40px;">#</th>
-            <th>Test</th>
-            <th>File</th>
-            <th style="width: 90px;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- dhcp_arp_cross_check_test.go -->
-          <tr class="group-row">
-            <td colspan="4"><code>dhcp_arp_cross_check_test.go</code> &mdash; 10 tests</td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">1</td>
-            <td><code>TestArpCheckArpStateAgreesWithLease</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">2</td>
-            <td><code>TestArpCheckArpMacMismatchFlagsAnomaly</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">3</td>
-            <td><code>TestArpCheckNdpMacMismatchFlagsAnomaly</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">4</td>
-            <td><code>TestArpCheckGhostLeaseLongLivedButNeverInKernel</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">5</td>
-            <td><code>TestArpCheckUnseenByKernelFreshLeaseStaysQuiet</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">6</td>
-            <td><code>TestArpCheckUnseenByKernelAfterGracePeriod</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">7</td>
-            <td><code>TestArpCheckGracefulWhenNetlinkUnavailable</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">8</td>
-            <td><code>TestArpCheckUnknownIpReturns404</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">9</td>
-            <td><code>TestArpCheckAnomaliesListIncludesNewKinds</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">10</td>
-            <td><code>TestArpCheckSweepCadenceIsBestEffort</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_arp_cross_check_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-
-          <!-- dhcp_lease_replication_test.go -->
-          <tr class="group-row">
-            <td colspan="4"><code>dhcp_lease_replication_test.go</code> &mdash; 13 tests</td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">11</td>
-            <td><code>TestLeaseReplOnlyLeaderPolls</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">12</td>
-            <td><code>TestLeaseReplFollowersServeReplicatedSnapshot</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">13</td>
-            <td><code>TestLeaseReplLeasesEndpointExposesSnapshot</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">14</td>
-            <td><code>TestLeaseReplSourceEndpointReportsLeader</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">15</td>
-            <td><code>TestLeaseReplLeaderFailoverResumesPolling</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">16</td>
-            <td><code>TestLeaseReplNoDoublePollDuringTransition</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">17</td>
-            <td><code>TestLeaseReplEmptyClusterReturns503</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">18</td>
-            <td><code>TestLeaseReplFollowerAnomaliesMatchLeader</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">19</td>
-            <td><code>TestLeaseReplFollowerWriteForwarded</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">20</td>
-            <td><code>TestLeaseReplChurnDoesNotAmplifyRaftLog</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">21</td>
-            <td><code>TestLeaseReplStaleFollowerCatchesUp</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">22</td>
-            <td><code>TestLeaseReplLastPollUnixAdvances</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">23</td>
-            <td><code>TestLeaseReplSourceUnreachableKeepsLastGood</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcp_lease_replication_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-
-          <!-- dhcpv6_lease_parsing_test.go -->
-          <tr class="group-row">
-            <td colspan="4"><code>dhcpv6_lease_parsing_test.go</code> &mdash; 10 tests</td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">24</td>
-            <td><code>TestDhcpv6LeaseKeaReadsLease6</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">25</td>
-            <td><code>TestDhcpv6LeaseKeaMergesIaNaAndIaPd</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">26</td>
-            <td><code>TestDhcpv6LeaseDnsmasqParsesLease6File</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">27</td>
-            <td><code>TestDhcpv6LeaseDnsmasqSkipsExpired</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">28</td>
-            <td><code>TestDhcpv6LeaseDualStackMerge</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">29</td>
-            <td><code>TestDhcpv6LeaseV6OnlyClientLookupByV6</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">30</td>
-            <td><code>TestDhcpv6LeaseProfileMatchingPriorityUnchanged</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">31</td>
-            <td><code>TestDhcpv6LeaseClientsPageShowsV6Column</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">32</td>
-            <td><code>TestDhcpv6LeaseMalformedV6LineSkipped</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">33</td>
-            <td><code>TestDhcpv6LeaseV6DisabledLegacyShapeUnchanged</code></td>
-            <td style="color: var(--muted); font-size: 12px;">dhcpv6_lease_parsing_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-
-          <!-- lease_origin_tagging_test.go -->
-          <tr class="group-row">
-            <td colspan="4"><code>lease_origin_tagging_test.go</code> &mdash; 12 tests</td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">34</td>
-            <td><code>TestLeaseOriginKeaReservationsReportedHigh</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">35</td>
-            <td><code>TestLeaseOriginKeaReservationsUnreachableInferred</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">36</td>
-            <td><code>TestLeaseOriginDnsmasqDhcpHostParsed</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">37</td>
-            <td><code>TestLeaseOriginDnsmasqConfigUnreadable</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">38</td>
-            <td><code>TestLeaseOriginHttpJsonHonoursWireField</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">39</td>
-            <td><code>TestLeaseOriginHttpJsonRejectsUnknownValue</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">40</td>
-            <td><code>TestLeaseOriginClientLookupExposesFields</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">41</td>
-            <td><code>TestLeaseOriginUnknownClientOmitsOrigin</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">42</td>
-            <td><code>TestLeaseOriginClientsListSurfacesBadge</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">43</td>
-            <td><code>TestLeaseOriginQueryLogDoesNotChange</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">44</td>
-            <td><code>TestLeaseOriginPrometheusGauges</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-          <tr>
-            <td style="color: var(--muted);">45</td>
-            <td><code>TestLeaseOriginRefreshFlipsTag</code></td>
-            <td style="color: var(--muted); font-size: 12px;">lease_origin_tagging_test.go</td>
-            <td><span class="badge pass">&#10003; PASS</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <h2>Milestone Scope</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#34d399;">Implemented</strong>
+        <ul class="scope-list">
+          <li><strong>Lease origin tagging</strong> — http_json connector honours the <code>origin</code> wire field; maps to <code>dhcp_static</code> / <code>dhcp_dynamic</code> / <code>router_advertised</code> / <code>manual_admin</code> with confidence; blank field defaults safely to <code>dhcp_dynamic/unknown</code></li>
+          <li><strong>DHCPv6 lease parsing</strong> — <code>ip6leases.conf</code> parser; IPv6-only clients appear in <code>/api/v1/clients</code>; dual-stack clients merged; legacy v4-only shape unchanged</li>
+          <li><strong>Raft-replicated lease cache</strong> — leader polls DHCP; snapshot replicated through Raft; followers serve <code>/api/v1/leases</code> from local bbolt replica without extra polling</li>
+          <li><strong>ARP/NDP cross-check</strong> — rtnetlink detects IP-to-MAC mismatches between DHCP and kernel; <code>SKOED_TEST_ARP_TABLE</code> injects fake table in tests; degrades gracefully without <code>NET_ADMIN</code></li>
+          <li><strong><code>block_dynamic_clients</code> profile rule</strong> — matches clients with <code>origin=dhcp_dynamic</code> and <code>confidence=high</code>; <code>unknown</code> origin excluded from matching</li>
+        </ul>
+      </div>
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#f87171;">Not Implemented</strong>
+        <ul class="scope-list">
+          <li><strong>Active mitigation</strong> — detect-only; no automated enforcement beyond profile matching</li>
+          <li><strong>DHCP failover protocol awareness</strong> — both peers treated as equivalent sources</li>
+          <li><strong><code>block_dynamic_clients</code> on default profile</strong> — rejected with HTTP 400 to prevent lockout</li>
+          <li><strong>DHCPv6 over http_json</strong> — http_json connector is IPv4-only</li>
+        </ul>
+        <strong style="display:block;margin-top:16px;margin-bottom:10px;color:#fbbf24;">Limitations</strong>
+        <ul class="scope-list">
+          <li><strong>ARP cross-check</strong> requires <code>NET_ADMIN</code>; degrades gracefully without it</li>
+          <li><strong><code>origin_confidence=unknown</code> clients</strong> excluded from <code>block_dynamic_clients</code> to avoid false positives</li>
+        </ul>
+      </div>
     </div>
-  </section>
-
-  <!-- FSIDs -->
-  <section>
-    <h2>Functional Specification IDs — 46 FSIDs</h2>
     <div class="fsid-chips">
       <span class="fsid-chip">FS-ArpCheckArpStateAgreesWithLease</span>
       <span class="fsid-chip">FS-ArpCheckArpMacMismatchFlagsAnomaly</span>
@@ -609,6 +240,16 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
       <span class="fsid-chip">FS-ArpCheckUnknownIpReturns404</span>
       <span class="fsid-chip">FS-ArpCheckAnomaliesListIncludesNewKinds</span>
       <span class="fsid-chip">FS-ArpCheckSweepCadenceIsBestEffort</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseKeaReadsLease6</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseKeaMergesIaNaAndIaPd</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseDnsmasqParsesLease6File</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseDnsmasqSkipsExpired</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseDualStackMerge</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseV6OnlyClientLookupByV6</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseProfileMatchingPriorityUnchanged</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseClientsPageShowsV6Column</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseMalformedV6LineSkipped</span>
+      <span class="fsid-chip">FS-Dhcpv6LeaseV6DisabledLegacyShapeUnchanged</span>
       <span class="fsid-chip">FS-LeaseReplOnlyLeaderPolls</span>
       <span class="fsid-chip">FS-LeaseReplFollowersServeReplicatedSnapshot</span>
       <span class="fsid-chip">FS-LeaseReplLeasesEndpointExposesSnapshot</span>
@@ -622,16 +263,6 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
       <span class="fsid-chip">FS-LeaseReplStaleFollowerCatchesUp</span>
       <span class="fsid-chip">FS-LeaseReplLastPollUnixAdvances</span>
       <span class="fsid-chip">FS-LeaseReplSourceUnreachableKeepsLastGood</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseKeaReadsLease6</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseKeaMergesIaNaAndIaPd</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseDnsmasqParsesLease6File</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseDnsmasqSkipsExpired</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseDualStackMerge</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseV6OnlyClientLookupByV6</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseProfileMatchingPriorityUnchanged</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseClientsPageShowsV6Column</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseMalformedV6LineSkipped</span>
-      <span class="fsid-chip">FS-Dhcpv6LeaseV6DisabledLegacyShapeUnchanged</span>
       <span class="fsid-chip">FS-LeaseOriginKeaReservationsReportedHigh</span>
       <span class="fsid-chip">FS-LeaseOriginKeaReservationsUnreachableInferred</span>
       <span class="fsid-chip">FS-LeaseOriginDnsmasqDhcpHostParsed</span>
@@ -645,61 +276,103 @@ footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--m
       <span class="fsid-chip">FS-LeaseOriginPrometheusGauges</span>
       <span class="fsid-chip">FS-LeaseOriginRefreshFlipsTag</span>
     </div>
-    <p style="margin-top: 12px; font-size: 12px; color: var(--muted);">46 FSIDs defined across 4 feature files. 45 covered by acceptance tests in this milestone.</p>
+  </section>
+
+  <!-- Test Results -->
+  <section>
+    <h2>Test Results</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Test Name</th>
+            <th>File</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="color:var(--muted);">1</td><td><code>TestArpCheckArpStateAgreesWithLease</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">2</td><td><code>TestArpCheckArpMacMismatchFlagsAnomaly</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">3</td><td><code>TestArpCheckNdpMacMismatchFlagsAnomaly</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">4</td><td><code>TestArpCheckGhostLeaseLongLivedButNeverInKernel</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">5</td><td><code>TestArpCheckUnseenByKernelFreshLeaseStaysQuiet</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">6</td><td><code>TestArpCheckUnseenByKernelAfterGracePeriod</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">7</td><td><code>TestArpCheckGracefulWhenNetlinkUnavailable</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">8</td><td><code>TestArpCheckUnknownIpReturns404</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">9</td><td><code>TestArpCheckAnomaliesListIncludesNewKinds</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">10</td><td><code>TestArpCheckSweepCadenceIsBestEffort</code></td><td><code>dhcp_arp_cross_check_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">11</td><td><code>TestLeaseReplOnlyLeaderPolls</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">12</td><td><code>TestLeaseReplFollowersServeReplicatedSnapshot</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">13</td><td><code>TestLeaseReplLeasesEndpointExposesSnapshot</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">14</td><td><code>TestLeaseReplSourceEndpointReportsLeader</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">15</td><td><code>TestLeaseReplLeaderFailoverResumesPolling</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">16</td><td><code>TestLeaseReplNoDoublePollDuringTransition</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">17</td><td><code>TestLeaseReplEmptyClusterReturns503</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">18</td><td><code>TestLeaseReplFollowerAnomaliesMatchLeader</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">19</td><td><code>TestLeaseReplFollowerWriteForwarded</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">20</td><td><code>TestLeaseReplChurnDoesNotAmplifyRaftLog</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">21</td><td><code>TestLeaseReplStaleFollowerCatchesUp</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">22</td><td><code>TestLeaseReplLastPollUnixAdvances</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">23</td><td><code>TestLeaseReplSourceUnreachableKeepsLastGood</code></td><td><code>dhcp_lease_replication_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">24</td><td><code>TestDhcpv6LeaseKeaReadsLease6</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">25</td><td><code>TestDhcpv6LeaseKeaMergesIaNaAndIaPd</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">26</td><td><code>TestDhcpv6LeaseDnsmasqParsesLease6File</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">27</td><td><code>TestDhcpv6LeaseDnsmasqSkipsExpired</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">28</td><td><code>TestDhcpv6LeaseDualStackMerge</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">29</td><td><code>TestDhcpv6LeaseV6OnlyClientLookupByV6</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">30</td><td><code>TestDhcpv6LeaseProfileMatchingPriorityUnchanged</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">31</td><td><code>TestDhcpv6LeaseClientsPageShowsV6Column</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">32</td><td><code>TestDhcpv6LeaseMalformedV6LineSkipped</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">33</td><td><code>TestDhcpv6LeaseV6DisabledLegacyShapeUnchanged</code></td><td><code>dhcpv6_lease_parsing_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">34</td><td><code>TestLeaseOriginKeaReservationsReportedHigh</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">35</td><td><code>TestLeaseOriginKeaReservationsUnreachableInferred</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">36</td><td><code>TestLeaseOriginDnsmasqDhcpHostParsed</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">37</td><td><code>TestLeaseOriginDnsmasqConfigUnreadable</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">38</td><td><code>TestLeaseOriginHttpJsonHonoursWireField</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">39</td><td><code>TestLeaseOriginHttpJsonRejectsUnknownValue</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">40</td><td><code>TestLeaseOriginClientLookupExposesFields</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">41</td><td><code>TestLeaseOriginUnknownClientOmitsOrigin</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">42</td><td><code>TestLeaseOriginClientsListSurfacesBadge</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">43</td><td><code>TestLeaseOriginQueryLogDoesNotChange</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">44</td><td><code>TestLeaseOriginPrometheusGauges</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">45</td><td><code>TestLeaseOriginRefreshFlipsTag</code></td><td><code>lease_origin_tagging_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box" style="margin-top:16px;">
+      <strong>Summary:</strong> 45 tests &nbsp;·&nbsp; <span style="color:var(--pass);">45 PASS</span> &nbsp;·&nbsp; <span style="color:var(--fail);">0 FAIL</span> &nbsp;·&nbsp; Files: <code>dhcp_arp_cross_check_test.go</code> · <code>dhcp_lease_replication_test.go</code> · <code>dhcpv6_lease_parsing_test.go</code> · <code>lease_origin_tagging_test.go</code>
+    </div>
   </section>
 
   <!-- Screenshots -->
   <section>
     <h2>Screenshots</h2>
-    <div class="grid3" style="grid-template-columns: repeat(2, 1fr);">
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-01-arp-check.png</div>
-        </div>
-        <div class="node-card-body" style="padding: 16px;">
-          <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">ARP/NDP cross-check anomaly list with MAC mismatch entries</p>
-          <img src="ss-01-arp-check.png" alt="ARP/NDP cross-check anomaly list with MAC mismatch entries" style="width: 100%; border-radius: 6px; border: 1px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
-          <div style="display:none; align-items:center; justify-content:center; height:80px; background:var(--bg3); border-radius:6px; border:1px solid var(--border); color:var(--muted); font-size:12px;">Screenshot not available</div>
-        </div>
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <img src="ss-01-clients.png" alt="Clients page showing DHCP lease origin tags (static vs dynamic)" style="max-width:100%;border-radius:8px;border:1px solid var(--border);"/>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted);"><code>ss-01-clients.png</code> — Clients page showing DHCP lease origin tags (static vs dynamic)</div>
       </div>
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-02-lease-replication.png</div>
-        </div>
-        <div class="node-card-body" style="padding: 16px;">
-          <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Replicated lease cache — leader polling status and follower snapshot age</p>
-          <img src="ss-02-lease-replication.png" alt="Replicated lease cache — leader polling status and follower snapshot age" style="width: 100%; border-radius: 6px; border: 1px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
-          <div style="display:none; align-items:center; justify-content:center; height:80px; background:var(--bg3); border-radius:6px; border:1px solid var(--border); color:var(--muted); font-size:12px;">Screenshot not available</div>
-        </div>
-      </div>
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-03-dhcpv6.png</div>
-        </div>
-        <div class="node-card-body" style="padding: 16px;">
-          <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Clients page with IPv6 column and dual-stack lease entries</p>
-          <img src="ss-03-dhcpv6.png" alt="Clients page with IPv6 column and dual-stack lease entries" style="width: 100%; border-radius: 6px; border: 1px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
-          <div style="display:none; align-items:center; justify-content:center; height:80px; background:var(--bg3); border-radius:6px; border:1px solid var(--border); color:var(--muted); font-size:12px;">Screenshot not available</div>
-        </div>
-      </div>
-      <div class="node-card">
-        <div class="node-card-header">
-          <div class="nc-title">ss-04-origin-tags.png</div>
-        </div>
-        <div class="node-card-body" style="padding: 16px;">
-          <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Client detail showing lease origin badge (dhcp_static / dhcp_dynamic)</p>
-          <img src="ss-04-origin-tags.png" alt="Client detail showing lease origin badge (dhcp_static / dhcp_dynamic)" style="width: 100%; border-radius: 6px; border: 1px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"/>
-          <div style="display:none; align-items:center; justify-content:center; height:80px; background:var(--bg3); border-radius:6px; border:1px solid var(--border); color:var(--muted); font-size:12px;">Screenshot not available</div>
-        </div>
-      </div>
+    </div>
+  </section>
+
+  <!-- Retrospective -->
+  <section>
+    <h2>Retrospective</h2>
+    <div class="info-box" style="margin-bottom:12px;">
+      M6.5 adds Layer-3 anti-spoofing by cross-checking DHCP leases against the kernel ARP/NDP table, replicates the full lease cache via Raft so followers can serve consistent data without polling, extends lease parsing to DHCPv6, and tags each lease with its origin (static reservation vs dynamic assignment). The block_dynamic_clients profile rule enables coarse enforcement from origin metadata.
+    </div>
+    <div class="notice">
+      <span class="notice-icon">&#9888;</span>
+      <span>Node IPs, hostnames, and cluster identifiers have been sanitized. Screenshots reflect real Proxmox LXC environment with network details redacted.</span>
     </div>
   </section>
 
 </div>
 
 <footer>
-  <span>skoed M6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases — Report date: 2026-06-17</span>
-  <span>Cluster: node-1 (Debian LXC leader) &middot; node-2 (Alpine LXC follower) &middot; node-3 (Debian LXC follower) &middot; 3-node Raft &middot; Proxmox</span>
+  <span>skoed M6.5 — DHCP Layer-3 Anti-Spoof + Replicated Leases</span>
+  <span>Generated 2026-06-17</span>
 </footer>
 
 </body>

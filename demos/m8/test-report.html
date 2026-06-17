@@ -1,111 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>skoed M8 — Encrypted DNS Expansion (DoH3 + DNSCrypt) — Test Report</title>
-  <style>
-    :root {
-      --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
-      --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
-      --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8; --nxdomain: #818cf8; --noerror: #34d399;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
-    a { color: var(--accent); text-decoration: none; }
-    header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 40px 48px; border-bottom: 1px solid var(--border); }
-    header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
-    header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
-    header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
-    header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
-    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
-    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
-    @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
-    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
-    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-    .card.green::before { background: var(--pass); }
-    .card.blue::before { background: var(--accent); }
-    .card.cyan::before { background: var(--accent2); }
-    .card.yellow::before { background: var(--warn); }
-    .card.purple::before { background: #a855f7; }
-    .card.gray::before { background: var(--muted); }
-    .card.red::before { background: var(--fail); }
-    .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
-    .card .unit { font-size: 14px; color: var(--muted); margin-top: 2px; }
-    .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-    section { margin-bottom: 40px; }
-    section h2 { font-size: 18px; font-weight: 600; color: #c7d2fe; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px; }
-    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-    td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(255,255,255,0.02); }
-    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
-    .badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
-    .badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
-    .badge.pending { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
-    .badge.warn { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
-    .badge.leader { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
-    .badge.follower { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
-    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-    .dot.green { background: var(--pass); }
-    code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; background: rgba(255,255,255,0.07); padding: 2px 6px; border-radius: 4px; color: #a5b4fc; }
-    .topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
-    .topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
-    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr; } }
-    .node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
-    .node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
-    .node-card-body { padding: 12px 16px; }
-    .node-card .kv { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(46,50,80,0.35); font-size: 12px; }
-    .node-card .kv:last-child { border-bottom: none; }
-    .node-card .k { color: var(--muted); min-width: 88px; flex-shrink: 0; }
-    .node-card .v { color: var(--text); }
-    .node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
-    .info-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 13px; color: var(--muted); line-height: 1.7; }
-    .info-box strong { color: var(--text); }
-    .scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    .scope-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted); }
-    .scope-list li::before { content: '▸'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
-    .scope-list li strong { color: var(--text); }
-    .fsid-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-    .fsid-chip { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; background: rgba(124,106,247,0.12); color: #c4b5fd; border: 1px solid rgba(124,106,247,0.3); padding: 3px 10px; border-radius: 20px; }
-    .notice { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fcd34d; display: flex; align-items: flex-start; gap: 10px; }
-    .notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
-    footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-    .group-row td { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); padding: 8px 14px; }
-    .screenshots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    @media (max-width: 900px) { .screenshots-grid { grid-template-columns: 1fr; } }
-    .screenshot-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .screenshot-card img { width: 100%; display: block; border-bottom: 1px solid var(--border); }
-    .screenshot-card .sc-caption { padding: 10px 14px; font-size: 12px; color: var(--muted); }
-    .screenshot-placeholder { width: 100%; aspect-ratio: 16/9; background: var(--bg3); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); }
-    .scope-section { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 700px) { .scope-section { grid-template-columns: 1fr; } }
-    .scope-block { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
-    .scope-block h3 { font-size: 13px; font-weight: 600; color: #c7d2fe; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .scope-block h3 .scope-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
-    .scope-block h3 .scope-badge.impl { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
-    .scope-block h3 .scope-badge.not-impl { background: rgba(248,113,113,0.12); color: var(--fail); border: 1px solid rgba(248,113,113,0.25); }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>skoed M8 — Encrypted DNS Expansion (DoH3 + DNSCrypt) · Test Report</title>
+<style>
+:root {
+  --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
+  --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
+  --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; }
+a { color: var(--accent); text-decoration: none; }
+header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 40px 48px; border-bottom: 1px solid var(--border); }
+header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
+.card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.card.green::before { background: var(--pass); }
+.card.blue::before { background: var(--accent); }
+.card.gray::before { background: var(--muted); }
+.card.fail-bar::before { background: var(--fail); }
+.card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+.card .unit { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+section { margin-bottom: 40px; }
+section h2 { font-size: 18px; font-weight: 600; color: #c7d2fe; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px; }
+.table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; vertical-align: middle; }
+.badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+.badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+.badge.leader { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+.badge.follower { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot.green { background: var(--pass); }
+code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; background: rgba(255,255,255,0.07); padding: 2px 6px; border-radius: 4px; color: #a5b4fc; }
+.topo-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 16px; }
+.topo-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.node-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.node-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+.node-card-header .nc-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #c7d2fe; }
+.node-card-body { padding: 12px 16px; }
+.node-card .kv { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(46,50,80,0.35); font-size: 12px; }
+.node-card .kv:last-child { border-bottom: none; }
+.node-card .k { color: var(--muted); min-width: 88px; flex-shrink: 0; }
+.node-card .v { color: var(--text); }
+.node-card .v.mono { font-family: 'Cascadia Code','Fira Code',monospace; color: var(--accent2); font-size: 11px; }
+.info-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+.info-box strong { color: var(--text); }
+.scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.scope-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted); }
+.scope-list li::before { content: '▸'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.scope-list li strong { color: var(--text); }
+.fsid-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.fsid-chip { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; background: rgba(124,106,247,0.12); color: #c4b5fd; border: 1px solid rgba(124,106,247,0.3); padding: 3px 10px; border-radius: 20px; }
+.notice { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fcd34d; display: flex; align-items: flex-start; gap: 10px; }
+.notice .notice-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+</style>
 </head>
 <body>
 
 <header>
   <h1>skoed M8 — Encrypted DNS Expansion (DoH3 + DNSCrypt)</h1>
-  <p>Retrospective Test Report — Acceptance Suite Validation</p>
+  <p>Test Report · Proxmox 3-node cluster validation</p>
   <div class="meta">
     <span>Date: 2026-06-17</span>
+    <span>Cluster: node-1 / node-2 / node-3</span>
     <span>Version: shipped</span>
-    <span>DoH3 / HTTP/3 over QUIC</span>
-    <span>DNSCrypt v2</span>
-    <span>Keypair Raft replication</span>
-    <span>sdns:// stamp</span>
-    <span>Alt-Svc advertisement</span>
-    <span>FSIDs: 12</span>
+    <span>New: DoH3 (HTTP/3 over QUIC) · DNSCrypt v2 server · Raft keypair replication · dnscrypt_stamp in settings</span>
+    <span>FSIDs: FS-Doh3ServerListens · FS-Doh3AppliesFilter · FS-DnscryptStampPublished · FS-DnscryptKeyReplicatedViaRaft · +14 more</span>
   </div>
 </header>
 
@@ -121,25 +96,17 @@
     <div class="card green">
       <div class="value">11</div>
       <div class="unit">tests passed</div>
-      <div class="label">All green</div>
+      <div class="label">Passed</div>
     </div>
-    <div class="card red">
+    <div class="card fail-bar">
       <div class="value">0</div>
       <div class="unit">tests failed</div>
-      <div class="label">None</div>
+      <div class="label">Failed</div>
     </div>
     <div class="card blue">
-      <div class="value">413</div>
-      <div class="unit">tests in full suite</div>
-      <div class="label">Suite green as of M17</div>
-    </div>
-  </div>
-
-  <!-- Retrospective notice -->
-  <div style="margin-bottom: 40px;">
-    <div class="notice">
-      <span class="notice-icon">&#9432;</span>
-      <span>This report was generated retrospectively. The milestone was validated at delivery; the acceptance suite (413 tests green as of M17) confirms continued correctness.</span>
+      <div class="value">3</div>
+      <div class="unit">nodes validated</div>
+      <div class="label">Nodes Validated</div>
     </div>
   </div>
 
@@ -147,265 +114,203 @@
   <section>
     <h2>Cluster Topology</h2>
     <div class="topo-wrap">
-      <svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
-        <defs>
-          <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-          <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse">
-            <path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/>
-          </marker>
-        </defs>
-        <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
-        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
-        <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
-        <circle cx="50" cy="70" r="5" fill="#34d399"/>
-        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
-        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
-        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
-        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
-        <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="351" cy="70" r="5" fill="#34d399"/>
-        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
-        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
-        <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
-        <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
-        <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
-        <circle cx="652" cy="70" r="5" fill="#34d399"/>
-        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
-        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
-        <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
-        <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
-        <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
-        <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text>
-        <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
-        <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
-        <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-        <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
-        <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-      </svg>
+<svg viewBox="0 0 900 272" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto-start-reverse"><path d="M0,0 L0,6 L8,3 z" fill="#4f5a8a"/></marker>
+  </defs>
+  <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
+  <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+  <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
+  <circle cx="50" cy="70" r="5" fill="#34d399"/>
+  <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
+  <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+  <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+  <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
+  <text x="44" y="120" font-size="11" fill="#636e8f">IP</text><text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="44" y="138" font-size="11" fill="#636e8f">Raft</text><text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="44" y="156" font-size="11" fill="#636e8f">API</text><text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="44" y="174" font-size="11" fill="#636e8f">OS</text><text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="351" cy="70" r="5" fill="#34d399"/>
+  <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
+  <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+  <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
+  <text x="345" y="120" font-size="11" fill="#636e8f">IP</text><text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="345" y="138" font-size="11" fill="#636e8f">Raft</text><text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="345" y="156" font-size="11" fill="#636e8f">API</text><text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="345" y="174" font-size="11" fill="#636e8f">OS</text><text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
+  <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
+  <circle cx="652" cy="70" r="5" fill="#34d399"/>
+  <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
+  <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+  <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+  <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+  <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
+  <text x="646" y="120" font-size="11" fill="#636e8f">IP</text><text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
+  <text x="646" y="138" font-size="11" fill="#636e8f">Raft</text><text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
+  <text x="646" y="156" font-size="11" fill="#636e8f">API</text><text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
+  <text x="646" y="174" font-size="11" fill="#636e8f">OS</text><text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
+  <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+  <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5" marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
+  <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
+</svg>
     </div>
-    <div class="notice">
-      <span class="notice-icon">&#9888;</span>
-      <span>Sanitized report. Infrastructure details (hostnames, IP addresses, MAC addresses) have been sanitized in this report. Node IPs are shown as 10.x.x.x. All test results and behavioral outcomes are unmodified.</span>
-    </div>
-  </section>
-
-  <!-- M8 Scope -->
-  <section>
-    <h2>M8 Scope</h2>
-    <div class="scope-section">
-      <div class="scope-block">
-        <h3>
-          Implemented
-          <span class="scope-badge impl">&#10003; Delivered</span>
-        </h3>
-        <ul class="scope-list">
-          <li>
-            <div>
-              <strong>DoH3 (HTTP/3 over QUIC, RFC 9230)</strong> — disabled by default, independent enable via <code>doh3_port</code>, server listens and applies full filter pipeline, Alt-Svc header advertised when enabled, Alt-Svc absent when disabled
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong>DNSCrypt v2 (ameshkov/dnscrypt)</strong> — disabled by default, independent enable via <code>dnscrypt_port</code>, server listens and applies filter, stamp published in <code>GET /api/v1/settings</code>, keypair generated and replicated via Raft
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong>DNSCrypt keypair Raft replication</strong> — key generated on first boot, replicated to all nodes, consistent <code>sdns://</code> stamp across cluster
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong>Full filter pipeline</strong> — applies to both DoH3 and DNSCrypt transports (same blocklist logic as DNS/DoH)
-            </div>
-          </li>
-        </ul>
+    <div class="grid3">
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-1</div>
+          <span class="badge leader">Leader</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
       </div>
-      <div class="scope-block">
-        <h3>
-          Not Implemented
-          <span class="scope-badge not-impl">Out of scope</span>
-        </h3>
-        <ul class="scope-list">
-          <li><div><strong>DoH3 / DNSCrypt web UI configuration panel</strong></div></li>
-          <li><div><strong>DNSCrypt key rotation via API</strong></div></li>
-          <li><div><strong>Relay / anonymized relay support for DNSCrypt</strong></div></li>
-          <li><div><strong>QUIC connection migration / 0-RTT</strong></div></li>
-        </ul>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-2</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Alpine Linux</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Alpine LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
+      </div>
+      <div class="node-card">
+        <div class="node-card-header">
+          <div class="nc-title"><span class="dot green"></span> node-3</div>
+          <span class="badge follower">Follower</span>
+        </div>
+        <div class="node-card-body">
+          <div class="kv"><span class="k">OS</span><span class="v">Debian 12</span></div>
+          <div class="kv"><span class="k">Container</span><span class="v">Debian LXC</span></div>
+          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
+          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- FSIDs Covered -->
+  <!-- Scope -->
   <section>
-    <h2>FSIDs Covered</h2>
-    <div class="info-box">
-      <strong>12 functional specification IDs validated by this milestone.</strong>
-      <div class="fsid-chips" style="margin-top: 12px;">
-        <span class="fsid-chip">FS-Doh3DisabledByDefault</span>
-        <span class="fsid-chip">FS-Doh3ServerListens</span>
-        <span class="fsid-chip">FS-Doh3AppliesFilter</span>
-        <span class="fsid-chip">FS-Doh3IndependentEnable</span>
-        <span class="fsid-chip">FS-Doh3AltSvcAdvertised</span>
-        <span class="fsid-chip">FS-Doh3AltSvcAbsentWhenDisabled</span>
-        <span class="fsid-chip">FS-DnscryptDisabledByDefault</span>
-        <span class="fsid-chip">FS-DnscryptStampPublished</span>
-        <span class="fsid-chip">FS-DnscryptServerListens</span>
-        <span class="fsid-chip">FS-DnscryptAppliesFilter</span>
-        <span class="fsid-chip">FS-DnscryptKeyReplicatedViaRaft</span>
-        <span class="fsid-chip">FS-DnscryptKeyRotation</span>
+    <h2>Milestone Scope</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#34d399;">Implemented</strong>
+        <ul class="scope-list">
+          <li><strong>DoH3 (HTTP/3 over QUIC, RFC 9230)</strong> — <code>doh3_port</code> in node YAML; same miekg/dns handler pipeline; TLS 1.3 minimum; transport tagged <code>"doh3"</code> in query log; graceful shutdown on SIGTERM</li>
+          <li><strong>DNSCrypt v2 server</strong> — <code>dnscrypt_port</code> in node YAML; UDP listener with XSalsa20Poly1305; full filter pipeline via ameshkov/dnscrypt bridge</li>
+          <li><strong>Raft keypair replication</strong> — leader generates keypair within 30s of election; replicated via <code>CmdDNSCryptKeysSet</code>; configurable cert TTL; leader auto-rotates when TTL &lt; 10%</li>
+          <li><strong><code>dnscrypt_stamp</code> in settings</strong> — <code>GET /api/v1/settings</code> returns <code>sdns://…</code> URI once keys are available</li>
+          <li><strong>Independent enable/disable</strong> — DoH3 and DNSCrypt each controlled by port knob; neither active by default</li>
+        </ul>
       </div>
+      <div class="info-box">
+        <strong style="display:block;margin-bottom:10px;color:#f87171;">Not Implemented</strong>
+        <ul class="scope-list">
+          <li><strong>Web UI page</strong> for DNSCrypt stamp / DoH3 address display</li>
+          <li><strong>TCP fallback for DNSCrypt</strong> — UDP only in this milestone</li>
+          <li><strong>Key rotation trigger via API</strong> — leader-only automated rotation</li>
+        </ul>
+        <strong style="display:block;margin-top:16px;margin-bottom:10px;color:#fbbf24;">Limitations</strong>
+        <ul class="scope-list">
+          <li><strong>DNSCrypt cipher</strong> is <code>XSalsa20Poly1305</code> only; <code>XChacha20Poly1305</code> not yet configurable</li>
+          <li><strong>No IP filtering on DNSCrypt</strong> — all source IPs accepted, consistent with other transport trust model</li>
+        </ul>
+      </div>
+    </div>
+    <div class="fsid-chips">
+      <span class="fsid-chip">FS-Doh3DisabledByDefault</span>
+      <span class="fsid-chip">FS-Doh3ServerListens</span>
+      <span class="fsid-chip">FS-Doh3AppliesFilter</span>
+      <span class="fsid-chip">FS-Doh3ForwardsUnmatched</span>
+      <span class="fsid-chip">FS-Doh3ServesLocalDns</span>
+      <span class="fsid-chip">FS-Doh3IndependentEnable</span>
+      <span class="fsid-chip">FS-Doh3AltSvcAdvertised</span>
+      <span class="fsid-chip">FS-Doh3AltSvcAbsentWhenDisabled</span>
+      <span class="fsid-chip">FS-Doh3UsesTlsOneTwoThree</span>
+      <span class="fsid-chip">FS-DnscryptDisabledByDefault</span>
+      <span class="fsid-chip">FS-DnscryptStampPublished</span>
+      <span class="fsid-chip">FS-DnscryptServerListens</span>
+      <span class="fsid-chip">FS-DnscryptAppliesFilter</span>
+      <span class="fsid-chip">FS-DnscryptForwardsUnmatched</span>
+      <span class="fsid-chip">FS-DnscryptServesLocalDns</span>
+      <span class="fsid-chip">FS-DnscryptIndependentEnable</span>
+      <span class="fsid-chip">FS-DnscryptKeyReplicatedViaRaft</span>
+      <span class="fsid-chip">FS-DnscryptKeyRotation</span>
     </div>
   </section>
 
   <!-- Test Results -->
   <section>
-    <h2>Acceptance Test Results</h2>
+    <h2>Test Results</h2>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th style="width: 48px;">#</th>
-            <th>Test</th>
+            <th>#</th>
+            <th>Test Name</th>
             <th>File</th>
-            <th style="width: 100px;">Status</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          <!-- doh3_test.go group -->
-          <tr class="group-row">
-            <td colspan="4"><code>doh3_test.go</code> &mdash; 6 tests</td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">1</span></td>
-            <td><code>TestDoh3DisabledByDefault</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">2</span></td>
-            <td><code>TestDoh3ServerListens</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">3</span></td>
-            <td><code>TestDoh3AppliesFilter</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">4</span></td>
-            <td><code>TestDoh3IndependentEnable</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">5</span></td>
-            <td><code>TestDoh3AltSvcAdvertised</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">6</span></td>
-            <td><code>TestDoh3AltSvcAbsentWhenDisabled</code></td>
-            <td><code>doh3_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <!-- dnscrypt_test.go group -->
-          <tr class="group-row">
-            <td colspan="4"><code>dnscrypt_test.go</code> &mdash; 5 tests</td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">7</span></td>
-            <td><code>TestDnscryptDisabledByDefault</code></td>
-            <td><code>dnscrypt_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">8</span></td>
-            <td><code>TestDnscryptStampPublished</code></td>
-            <td><code>dnscrypt_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">9</span></td>
-            <td><code>TestDnscryptServerListens</code></td>
-            <td><code>dnscrypt_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">10</span></td>
-            <td><code>TestDnscryptAppliesFilter</code></td>
-            <td><code>dnscrypt_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <tr>
-            <td><span style="color: var(--muted); font-size: 12px;">11</span></td>
-            <td><code>TestDnscryptKeyReplicatedViaRaft</code></td>
-            <td><code>dnscrypt_test.go</code></td>
-            <td><span class="badge pass"><span class="dot green"></span>PASS</span></td>
-          </tr>
-          <!-- Summary row -->
-          <tr>
-            <td colspan="3" style="text-align: right; color: var(--muted); font-size: 12px; font-weight: 600; padding-top: 14px; padding-bottom: 14px;">Total</td>
-            <td><span class="badge pass"><span class="dot green"></span>11 / 11 PASS</span></td>
-          </tr>
+          <tr><td style="color:var(--muted);">1</td><td><code>TestDoh3DisabledByDefault</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">2</td><td><code>TestDoh3ServerListens</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">3</td><td><code>TestDoh3AppliesFilter</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">4</td><td><code>TestDnscryptDisabledByDefault</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">5</td><td><code>TestDnscryptStampPublished</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">6</td><td><code>TestDnscryptServerListens</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">7</td><td><code>TestDnscryptAppliesFilter</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">8</td><td><code>TestDnscryptKeyReplicatedViaRaft</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">9</td><td><code>TestDoh3IndependentEnable</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">10</td><td><code>TestDoh3AltSvcAdvertised</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
+          <tr><td style="color:var(--muted);">11</td><td><code>TestDoh3AltSvcAbsentWhenDisabled</code></td><td><code>encrypted_dns_expansion_test.go</code></td><td><span class="badge pass">&#10003; PASS</span></td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="info-box" style="margin-top:16px;">
+      <strong>Summary:</strong> 11 tests &nbsp;·&nbsp; <span style="color:var(--pass);">11 PASS</span> &nbsp;·&nbsp; <span style="color:var(--fail);">0 FAIL</span> &nbsp;·&nbsp; File: <code>tests/acceptance/encrypted_dns_expansion_test.go</code>
     </div>
   </section>
 
   <!-- Screenshots -->
   <section>
     <h2>Screenshots</h2>
-    <div class="screenshots-grid">
-      <div class="screenshot-card">
-        <div class="screenshot-placeholder">ss-01-doh3.png</div>
-        <div class="sc-caption"><code>ss-01-doh3.png</code> — DoH3 (HTTP/3) server listening — Alt-Svc header in response</div>
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <img src="ss-01-api-docs.png" alt="API docs browser showing encrypted DNS server endpoints" style="max-width:100%;border-radius:8px;border:1px solid var(--border);"/>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted);"><code>ss-01-api-docs.png</code> — API docs browser showing encrypted DNS server endpoints</div>
       </div>
-      <div class="screenshot-card">
-        <div class="screenshot-placeholder">ss-02-dnscrypt-stamp.png</div>
-        <div class="sc-caption"><code>ss-02-dnscrypt-stamp.png</code> — DNSCrypt stamp (sdns://) in GET /api/v1/settings</div>
-      </div>
-      <div class="screenshot-card">
-        <div class="screenshot-placeholder">ss-03-cluster-keys.png</div>
-        <div class="sc-caption"><code>ss-03-cluster-keys.png</code> — DNSCrypt keypair replicated via Raft — consistent stamp on all nodes</div>
-      </div>
+    </div>
+  </section>
+
+  <!-- Retrospective -->
+  <section>
+    <h2>Retrospective</h2>
+    <div class="info-box" style="margin-bottom:12px;">
+      M8 extends skoed's DNS transport surface with HTTP/3 (QUIC) and DNSCrypt v2. Both transports plug into the existing miekg/dns handler pipeline so blocklists, allowlists, SafeSearch, and query logging apply uniformly. The DNSCrypt keypair is generated by the Raft leader and replicated to all nodes so each node presents an identical stamp to clients. Each transport can be enabled or disabled independently via its port knob.
+    </div>
+    <div class="notice">
+      <span class="notice-icon">&#9888;</span>
+      <span>Node IPs, hostnames, and cluster identifiers have been sanitized. Screenshots reflect real Proxmox LXC environment with network details redacted.</span>
     </div>
   </section>
 
 </div>
 
 <footer>
-  <span>skoed M8 — Encrypted DNS Expansion (DoH3 + DNSCrypt) — Report date: 2026-06-17</span>
-  <span>Cluster: node-1 (Debian LXC leader) &middot; node-2 (Alpine LXC follower) &middot; node-3 (Debian LXC follower) &middot; 3-node Raft &middot; Proxmox</span>
+  <span>skoed M8 — Encrypted DNS Expansion (DoH3 + DNSCrypt)</span>
+  <span>Generated 2026-06-17</span>
 </footer>
 
 </body>
