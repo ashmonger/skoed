@@ -97,6 +97,20 @@ export function removeAllowlist(domain: string): Promise<void> {
   return deleteRequest(`/api/v1/allowlist/${encodeURIComponent(domain)}`)
 }
 
+// Per-profile allowlist
+
+export function listProfileAllowlist(profileId: string): Promise<string[]> {
+  return getJSON(`/api/v1/profiles/${encodeURIComponent(profileId)}/allowlist`)
+}
+
+export function addProfileAllowlist(profileId: string, domain: string): Promise<void> {
+  return postJSON(`/api/v1/profiles/${encodeURIComponent(profileId)}/allowlist`, { domain })
+}
+
+export function removeProfileAllowlist(profileId: string, domain: string): Promise<void> {
+  return deleteRequest(`/api/v1/profiles/${encodeURIComponent(profileId)}/allowlist/${encodeURIComponent(domain)}`)
+}
+
 // ─── Local DNS ───────────────────────────────────────────────────────────
 
 export function listLocalDNS(): Promise<LocalDNSEntry[]> {

@@ -313,33 +313,56 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+
+  .verdict-banner {
+    background: rgba(52,211,153,0.08);
+    border: 2px solid rgba(52,211,153,0.4);
+    border-radius: 12px;
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .verdict-icon { font-size: 48px; line-height: 1; }
+  .verdict-text h3 { font-size: 22px; font-weight: 700; color: var(--pass); }
+  .verdict-text p { color: var(--muted); font-size: 13px; margin-top: 4px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>skoed M17 — Schedule Bindings + Config Shadow Export</h1>
+  <h1>skoed M17 — Schedule Bindings + Config Export/Import</h1>
   <p>Real-Environment Test Report &mdash; Proxmox 3-Node LXC Cluster</p>
   <div class="meta">
-    <span>Date: 2026-06-16</span>
-    <span>Cluster: node-1 / node-2 / node-3</span>
-    <span>Version: skoed dev / go1.26.1</span>
-    <span>New: GET /api/v1/schedules/{id}/bindings · Shadow YAML export</span>
-    <span>FSIDs: FS-ScheduleBindingsList · FS-ScheduleBindingsListEmpty · FS-ScheduleBindingsListNotFound · FS-ScheduleConfigYaml</span>
+    <span>Date: 2026-06-17</span>
+    <span>Cluster: skoed-1 / skoed-2 / skoed-3</span>
+    <span>Raft term: 8 &middot; Commit index: 67</span>
+    <span>New: GET /schedules/{id}/bindings &middot; GET /config/export &middot; POST /config/import</span>
+    <span>FSIDs: FS-ScheduleBindingsList &middot; FS-ScheduleBindingsListEmpty &middot; FS-ScheduleBindingsListNotFound &middot; FS-ConfigExport &middot; FS-ConfigImport &middot; FS-ScheduleConfigYaml</span>
   </div>
 </header>
 
 <div class="container">
 
+  <!-- ── Verdict banner ── -->
+  <div class="verdict-banner">
+    <div class="verdict-icon">&#10003;</div>
+    <div class="verdict-text">
+      <h3>PASS &mdash; All 18 tests green</h3>
+      <p>M17 features (schedule bindings API, config export/import, shadow YAML) fully verified on real 3-node Proxmox cluster. Regression clean. DNS blocking confirmed at 249 QPS. Config export returns valid tar.gz, import restores state.</p>
+    </div>
+  </div>
+
   <!-- ── Summary cards ── -->
   <div class="cards">
     <div class="card gray">
-      <div class="value" style="font-size:30px;">7</div>
+      <div class="value" style="font-size:30px;">18</div>
       <div class="unit">real-env tests</div>
       <div class="label">Total</div>
     </div>
     <div class="card green">
-      <div class="value">7</div>
+      <div class="value">18</div>
       <div class="unit">tests passed</div>
       <div class="label">All green</div>
     </div>
@@ -351,7 +374,31 @@
     <div class="card blue">
       <div class="value">3</div>
       <div class="unit">nodes in sync</div>
-      <div class="label">Raft term 5 · commit 26</div>
+      <div class="label">Raft term 8 &middot; commit 67</div>
+    </div>
+  </div>
+
+  <!-- ── Performance cards ── -->
+  <div class="cards" style="margin-bottom:40px;">
+    <div class="card cyan">
+      <div class="value">249</div>
+      <div class="unit">queries/sec</div>
+      <div class="label">DNS QPS node-1</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">&lt;1</div>
+      <div class="unit">ms avg latency</div>
+      <div class="label">Blocked DNS (NXDOMAIN)</div>
+    </div>
+    <div class="card purple">
+      <div class="value">318</div>
+      <div class="unit">log entries</div>
+      <div class="label">Query log total</div>
+    </div>
+    <div class="card green">
+      <div class="value">1.1</div>
+      <div class="unit">KB export</div>
+      <div class="label">Config tar.gz size</div>
     </div>
   </div>
 
@@ -372,15 +419,15 @@
 
         <!-- Proxmox host background -->
         <rect x="10" y="10" width="880" height="252" rx="14" fill="#1a1d27" stroke="#2e3250" stroke-width="1.5"/>
-        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST · vmbr1 (NAT) · sanitized</text>
+        <text x="30" y="34" font-size="11" fill="#4a5380" font-weight="600" letter-spacing="0.4">PROXMOX HOST &middot; vmbr1 (NAT) &middot; IPs sanitized</text>
 
-        <!-- ═══ node-1 — Debian LXC Leader ═══ -->
+        <!-- node-1 Leader -->
         <rect x="28" y="46" width="242" height="198" rx="10" fill="#1c1930" stroke="#5b4fe8" stroke-width="2"/>
         <circle cx="50" cy="70" r="5" fill="#34d399"/>
-        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-1</text>
-        <rect x="184" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
-        <text x="218" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
-        <text x="63" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <text x="63" y="75" font-size="14" fill="#c7d2fe" font-weight="700">skoed-1</text>
+        <rect x="178" y="58" width="68" height="20" rx="10" fill="rgba(168,85,247,0.2)" stroke="rgba(168,85,247,0.5)"/>
+        <text x="212" y="72" font-size="10" fill="#d8b4fe" text-anchor="middle" font-weight="600">Leader</text>
+        <text x="63" y="90" font-size="11" fill="#636e8f">Debian 12 LXC &middot; CT 200</text>
         <line x1="28" y1="100" x2="270" y2="100" stroke="#2e3250"/>
         <text x="44" y="120" font-size="11" fill="#636e8f">IP</text>
         <text x="110" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
@@ -388,18 +435,18 @@
         <text x="110" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
         <text x="44" y="156" font-size="11" fill="#636e8f">API</text>
         <text x="110" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="44" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="110" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <text x="44" y="228" font-size="10" fill="#636e8f">skoed</text>
-        <text x="110" y="228" font-size="10" fill="#e2e8f0">vPENDING</text>
+        <text x="44" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="110" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">:53 (UDP)</text>
+        <text x="44" y="210" font-size="10" fill="#636e8f">commit</text>
+        <text x="110" y="210" font-size="10" fill="#34d399">67 in_sync</text>
 
-        <!-- ═══ node-2 — Alpine LXC Follower ═══ -->
+        <!-- node-2 Follower -->
         <rect x="329" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
         <circle cx="351" cy="70" r="5" fill="#34d399"/>
-        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-2</text>
-        <rect x="485" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="519" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC</text>
+        <text x="364" y="75" font-size="14" fill="#c7d2fe" font-weight="700">skoed-2</text>
+        <rect x="479" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="513" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="364" y="90" font-size="11" fill="#636e8f">Alpine LXC &middot; CT 201</text>
         <line x1="329" y1="100" x2="571" y2="100" stroke="#3d3670"/>
         <text x="345" y="120" font-size="11" fill="#636e8f">IP</text>
         <text x="411" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
@@ -407,18 +454,18 @@
         <text x="411" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
         <text x="345" y="156" font-size="11" fill="#636e8f">API</text>
         <text x="411" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="345" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="411" y="174" font-size="11" fill="#e2e8f0">Alpine Linux</text>
-        <text x="345" y="228" font-size="10" fill="#636e8f">skoed</text>
-        <text x="411" y="228" font-size="10" fill="#e2e8f0">vPENDING</text>
+        <text x="345" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="411" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">port 0 (off)</text>
+        <text x="345" y="210" font-size="10" fill="#636e8f">commit</text>
+        <text x="411" y="210" font-size="10" fill="#34d399">67 in_sync</text>
 
-        <!-- ═══ node-3 — Debian LXC Follower ═══ -->
+        <!-- node-3 Follower -->
         <rect x="630" y="46" width="242" height="198" rx="10" fill="#232636" stroke="#3d4570" stroke-width="1.5"/>
         <circle cx="652" cy="70" r="5" fill="#34d399"/>
-        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">node-3</text>
-        <rect x="786" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
-        <text x="820" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
-        <text x="665" y="90" font-size="11" fill="#636e8f">Debian LXC</text>
+        <text x="665" y="75" font-size="14" fill="#c7d2fe" font-weight="700">skoed-3</text>
+        <rect x="780" y="58" width="68" height="20" rx="10" fill="rgba(100,116,139,0.2)" stroke="rgba(100,116,139,0.4)"/>
+        <text x="814" y="72" font-size="10" fill="#94a3b8" text-anchor="middle" font-weight="600">Follower</text>
+        <text x="665" y="90" font-size="11" fill="#636e8f">Debian 12 LXC &middot; CT 202</text>
         <line x1="630" y1="100" x2="872" y2="100" stroke="#2e3250"/>
         <text x="646" y="120" font-size="11" fill="#636e8f">IP</text>
         <text x="712" y="120" font-size="11" fill="#5eead4" font-family="monospace">10.x.x.x</text>
@@ -426,65 +473,65 @@
         <text x="712" y="138" font-size="11" fill="#a5b4fc" font-family="monospace">:7000</text>
         <text x="646" y="156" font-size="11" fill="#636e8f">API</text>
         <text x="712" y="156" font-size="11" fill="#a5b4fc" font-family="monospace">:8080</text>
-        <text x="646" y="174" font-size="11" fill="#636e8f">OS</text>
-        <text x="712" y="174" font-size="11" fill="#e2e8f0">Debian 12</text>
-        <text x="646" y="228" font-size="10" fill="#636e8f">skoed</text>
-        <text x="712" y="228" font-size="10" fill="#e2e8f0">vPENDING</text>
+        <text x="646" y="174" font-size="11" fill="#636e8f">DNS</text>
+        <text x="712" y="174" font-size="11" fill="#a5b4fc" font-family="monospace">port 0 (off)</text>
+        <text x="646" y="210" font-size="10" fill="#636e8f">commit</text>
+        <text x="712" y="210" font-size="10" fill="#34d399">67 in_sync</text>
 
-        <!-- ═══ Raft connections (double-headed arrows) ═══ -->
-        <!-- node-1 ↔ node-2 -->
+        <!-- Raft connections -->
         <line x1="274" y1="145" x2="325" y2="145" stroke="#4f5a8a" stroke-width="1.5"
           marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
         <text x="299" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
-        <!-- node-2 ↔ node-3 -->
         <line x1="575" y1="145" x2="626" y2="145" stroke="#4f5a8a" stroke-width="1.5"
           marker-start="url(#ah-l)" marker-end="url(#ah-r)"/>
         <text x="600" y="138" font-size="9" fill="#6b7db3" text-anchor="middle" font-weight="600">Raft</text>
       </svg>
     </div>
     <p style="text-align:center; font-size:11px; color:var(--muted); margin-top:6px;">
-      3-node Raft cluster on Proxmox vmbr1 &mdash; node-1 is Raft leader (term 5, commit index 26) &mdash; IPs sanitized
+      3-node Raft cluster on Proxmox vmbr1 &mdash; skoed-1 is Raft leader (term 8, commit index 67) &mdash; IPs sanitized
     </p>
 
-    <!-- Node detail cards -->
     <div class="grid3" style="margin-top:16px;">
       <div class="node-card" style="border-color: #5b4fe8;">
         <div class="node-card-header" style="background: #1c1930;">
-          <div class="nc-title"><span class="dot green"></span>node-1</div>
+          <div class="nc-title"><span class="dot green"></span>skoed-1</div>
           <span class="badge leader">Leader</span>
         </div>
         <div class="node-card-body">
+          <div class="kv"><span class="k">CT</span><span class="v">200</span></div>
           <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
-          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">skoed</span><span class="v">dev / go1.26.1</span></div>
+          <div class="kv"><span class="k">DNS</span><span class="v mono">:53 UDP active</span></div>
+          <div class="kv"><span class="k">Commit</span><span class="v mono">67 in_sync</span></div>
+          <div class="kv"><span class="k">Init</span><span class="v">systemd</span></div>
         </div>
       </div>
       <div class="node-card">
         <div class="node-card-header">
-          <div class="nc-title"><span class="dot green"></span>node-2</div>
+          <div class="nc-title"><span class="dot green"></span>skoed-2</div>
           <span class="badge follower">Follower</span>
         </div>
         <div class="node-card-body">
+          <div class="kv"><span class="k">CT</span><span class="v">201</span></div>
           <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Alpine LXC</span></div>
-          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">skoed</span><span class="v">dev / go1.26.1</span></div>
+          <div class="kv"><span class="k">DNS</span><span class="v mono">port 0 (off)</span></div>
+          <div class="kv"><span class="k">Commit</span><span class="v mono">67 in_sync</span></div>
+          <div class="kv"><span class="k">Init</span><span class="v">OpenRC</span></div>
         </div>
       </div>
       <div class="node-card">
         <div class="node-card-header">
-          <div class="nc-title"><span class="dot green"></span>node-3</div>
+          <div class="nc-title"><span class="dot green"></span>skoed-3</div>
           <span class="badge follower">Follower</span>
         </div>
         <div class="node-card-body">
+          <div class="kv"><span class="k">CT</span><span class="v">202</span></div>
           <div class="kv"><span class="k">IP</span><span class="v mono">10.x.x.x</span></div>
           <div class="kv"><span class="k">OS</span><span class="v">Debian 12 LXC</span></div>
-          <div class="kv"><span class="k">Raft port</span><span class="v mono">:7000</span></div>
-          <div class="kv"><span class="k">API port</span><span class="v mono">:8080</span></div>
-          <div class="kv"><span class="k">skoed</span><span class="v">dev / go1.26.1</span></div>
+          <div class="kv"><span class="k">DNS</span><span class="v mono">port 0 (off)</span></div>
+          <div class="kv"><span class="k">Commit</span><span class="v mono">67 in_sync</span></div>
+          <div class="kv"><span class="k">Init</span><span class="v">systemd</span></div>
         </div>
       </div>
     </div>
@@ -500,40 +547,85 @@
           <li>
             <div>
               <strong>GET /api/v1/schedules/{id}/bindings</strong><br>
-              List bindings for a schedule — returns an array of <code>{schedule_id, profile_id, blocklist_id}</code> objects. Returns 404 when the schedule does not exist.
+              List bindings for a schedule &mdash; returns an array of <code>{schedule_id, profile_id, blocklist_id}</code> objects. Returns 404 with <code>{"error":"schedule not found"}</code> when schedule does not exist.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>GET /api/v1/config/export</strong><br>
+              Downloads a tar.gz archive (<code>Content-Disposition: attachment; filename="skoed-config.tar.gz"</code>) containing the full <code>config.yaml</code> of the cluster. Returns HTTP 200 with valid gzip. Requires Bearer token.
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>POST /api/v1/config/import</strong><br>
+              Accepts a <code>multipart/form-data</code> POST with field name <code>archive</code> containing the tar.gz. Returns HTTP 200 <code>{"status":"imported"}</code> on success. Restores config and replicates via Raft.
             </div>
           </li>
           <li>
             <div>
               <strong>Shadow YAML includes schedules + schedule_bindings</strong><br>
-              After any schedule or binding mutation, the ShadowWriter writes <code>&lt;data_dir&gt;/config.yaml</code> with <code>schedules:</code> and <code>schedule_bindings:</code> sections. Replicated via Raft — all followers converge within ~1 s.
+              After any schedule or binding mutation, <code>&lt;data_dir&gt;/config.yaml</code> is written with <code>schedules:</code> and <code>schedule_bindings:</code> sections. Replicated via Raft &mdash; followers converge within ~1s.
             </div>
           </li>
         </ul>
       </div>
       <div>
-        <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Not implemented in M17</h3>
+        <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Not in M17 scope</h3>
         <ul class="scope-list">
-          <li>UI for schedule binding management (schedule builder handles windows only)</li>
+          <li>UI for schedule binding management (API only in M17)</li>
           <li>Bulk-binding multiple (profile, blocklist) pairs in a single request</li>
           <li>Binding overlap / conflict validation</li>
+          <li>Config import via raw body (requires multipart/form-data with field <code>archive</code>)</li>
         </ul>
         <h3 style="font-size:13px; color:var(--muted); margin-bottom:12px; margin-top:20px; text-transform:uppercase; letter-spacing:0.5px;">Limitations</h3>
         <ul class="scope-list">
-          <li><code>GET /api/v1/schedules/{id}/bindings</code> is served from local node state — sub-second staleness window on followers immediately after a mutation (normal Raft eventual consistency)</li>
+          <li><code>GET /api/v1/schedules/{id}/bindings</code> is served from local node state &mdash; sub-second staleness window on followers immediately after a mutation (normal Raft eventual consistency)</li>
           <li><code>schedule_bindings:</code> is omitted from the shadow YAML when the list is empty (uses <code>omitempty</code>)</li>
+          <li>DNS listening only active on nodes explicitly configured with <code>dns.listen.port != 0</code> (node-1 in this cluster)</li>
         </ul>
       </div>
     </div>
 
-    <!-- FSIDs covered -->
     <div style="margin-top: 20px;">
       <h3 style="font-size:13px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">FSIDs covered</h3>
       <div class="fsid-chips">
         <span class="fsid-chip">FS-ScheduleBindingsList</span>
         <span class="fsid-chip">FS-ScheduleBindingsListEmpty</span>
         <span class="fsid-chip">FS-ScheduleBindingsListNotFound</span>
+        <span class="fsid-chip">FS-ConfigExport</span>
+        <span class="fsid-chip">FS-ConfigImport</span>
         <span class="fsid-chip">FS-ScheduleConfigYaml</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Complex config setup ── -->
+  <section>
+    <h2>Complex configuration setup</h2>
+    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
+      A multi-profile, multi-blocklist, multi-schedule configuration was created on the live cluster to exercise all M17 features and validate M1&ndash;M16 regression paths.
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;">
+      <div class="info-box">
+        <strong>3 Blocklists created</strong><br>
+        <code>bl-ads</code> &mdash; Ads/Tracking (ads.example.com, doubleclick.net &hellip;)<br>
+        <code>bl-adult</code> &mdash; Adult Content (adult.example.com &hellip;)<br>
+        <code>bl-iot</code> &mdash; IoT Safety (telemetry.example.com &hellip;)<br>
+        <code>cat:doh</code> &mdash; DoH/DoT resolvers (bundled, 40 domains)
+      </div>
+      <div class="info-box">
+        <strong>3 Profiles created</strong><br>
+        <code>kids</code> &mdash; blocklists: bl-ads, bl-adult<br>
+        <code>adults</code> &mdash; blocklists: bl-ads<br>
+        <code>iot</code> &mdash; blocklists: bl-iot<br>
+        <code>default</code> &mdash; blocklists: cat:doh (pre-existing)
+      </div>
+      <div class="info-box">
+        <strong>3 Schedules + 4 Bindings</strong><br>
+        <code>school-hours</code>: Mon&ndash;Fri 08:00&ndash;16:00 &rarr; kids+bl-adult, kids+bl-ads<br>
+        <code>bedtime</code>: daily 21:00&ndash;23:59 &rarr; adults+bl-ads<br>
+        <code>weekend</code>: Sat&ndash;Sun 00:00&ndash;23:59 &rarr; iot+bl-iot
       </div>
     </div>
   </section>
@@ -542,9 +634,9 @@
   <section>
     <h2>Real-environment test results</h2>
     <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
-      Tests run directly against the 3-node Proxmox cluster (LXC 200/201/202) using <code>curl</code> and <code>pct exec</code> via SSH tunnel.
-      Schedule and binding creation performed on node-1 (Raft leader); shadow YAML and replication verified on followers.
-      All 7 tests <span class="badge pass" style="font-size:11px;">PASS</span>.
+      All tests executed against the live 3-node Proxmox cluster (LXC 200/201/202) via SSH tunnel using <code>wget</code>, <code>python3</code>, and <code>dig</code>.
+      Configuration mutations performed on skoed-1 (Raft leader); replication verified on both followers.
+      All 18 tests <span class="badge pass" style="font-size:11px;">PASS</span>.
     </p>
     <div class="table-wrap">
       <table>
@@ -559,83 +651,186 @@
           </tr>
         </thead>
         <tbody>
-          <!-- Schedule + Binding API -->
+          <!-- Config setup -->
           <tr>
-            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Schedule + Binding API — node-1 (leader)</td>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Configuration setup &mdash; skoed-1 (leader)</td>
           </tr>
           <tr>
             <td><code>T1</code></td>
-            <td>Create schedule</td>
-            <td><code>POST /api/v1/schedules</code></td>
-            <td>HTTP 201</td>
+            <td>Create 3 blocklists</td>
+            <td><code>POST /api/v1/blocklists</code> &times;3</td>
+            <td>HTTP 201 each</td>
             <td><span class="badge pass">PASS</span></td>
-            <td><code>{"id":"school","name":"School Hours","mode":"active","windows":[]}</code></td>
+            <td><code>bl-ads</code>, <code>bl-adult</code>, <code>bl-iot</code> created. 4 blocklists total (incl. bundled cat:doh)</td>
           </tr>
           <tr>
             <td><code>T2</code></td>
-            <td>Add binding</td>
-            <td><code>POST /api/v1/schedules/school/bindings</code></td>
-            <td>HTTP 201</td>
+            <td>Create 3 profiles</td>
+            <td><code>POST /api/v1/profiles</code> &times;3</td>
+            <td>HTTP 201 each</td>
             <td><span class="badge pass">PASS</span></td>
-            <td><code>{"schedule_id":"school","profile_id":"default","blocklist_id":"test-list"}</code></td>
+            <td><code>kids</code> (bl-ads, bl-adult), <code>adults</code> (bl-ads), <code>iot</code> (bl-iot). 4 profiles total.</td>
           </tr>
           <tr>
             <td><code>T3</code></td>
-            <td>List bindings</td>
-            <td><code>GET /api/v1/schedules/school/bindings</code></td>
-            <td>HTTP 200 · binding array</td>
+            <td>Create 3 schedules</td>
+            <td><code>POST /api/v1/schedules</code> &times;3</td>
+            <td>HTTP 201 each</td>
             <td><span class="badge pass">PASS</span></td>
-            <td><code>[{"schedule_id":"school","profile_id":"default","blocklist_id":"test-list"}]</code></td>
+            <td><code>school-hours</code> (Mon-Fri 08:00-16:00), <code>bedtime</code> (daily 21:00-23:59), <code>weekend</code> (Sat-Sun 00:00-23:59)</td>
+          </tr>
+
+          <!-- M17: Schedule Bindings API -->
+          <tr>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;"><span class="badge new" style="margin-right:8px;">M17</span>Schedule Bindings API &mdash; skoed-1 (leader)</td>
           </tr>
           <tr>
             <td><code>T4</code></td>
-            <td>List bindings (not found)</td>
-            <td><code>GET /api/v1/schedules/nonexistent/bindings</code></td>
-            <td>HTTP 404</td>
+            <td>Create 4 schedule bindings</td>
+            <td><code>POST /api/v1/schedules/{id}/bindings</code> &times;4</td>
+            <td>HTTP 201 each, binding object returned</td>
             <td><span class="badge pass">PASS</span></td>
-            <td><code>{"error":"schedule not found"}</code></td>
-          </tr>
-
-          <!-- Shadow YAML export -->
-          <tr>
-            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Shadow config.yaml export — ShadowWriter</td>
+            <td>school-hours&rarr;kids+bl-adult, school-hours&rarr;kids+bl-ads, bedtime&rarr;adults+bl-ads, weekend&rarr;iot+bl-iot</td>
           </tr>
           <tr>
             <td><code>T5</code></td>
-            <td>config.yaml on leader includes schedules</td>
-            <td>Verify shadow write on node-1</td>
-            <td><code>schedules:</code> section present</td>
+            <td>List bindings: school-hours (2 bindings)</td>
+            <td><code>GET /api/v1/schedules/school-hours/bindings</code></td>
+            <td>HTTP 200, array with 2 entries</td>
             <td><span class="badge pass">PASS</span></td>
-            <td><code>schedules: [{id: school, name: School Hours, mode: active, windows: []}] schedule_bindings: [{schedule_id: school, profile_id: default, blocklist_id: test-list}]</code></td>
+            <td><code>[{schedule_id:school-hours, profile_id:kids, blocklist_id:bl-ads}, {…bl-adult}]</code></td>
           </tr>
           <tr>
             <td><code>T6</code></td>
-            <td>config.yaml on follower replicated</td>
-            <td>Verify Raft replication on node-2</td>
-            <td>Identical <code>schedules:</code> section</td>
+            <td>List bindings: bedtime (1 binding)</td>
+            <td><code>GET /api/v1/schedules/bedtime/bindings</code></td>
+            <td>HTTP 200, array with 1 entry</td>
             <td><span class="badge pass">PASS</span></td>
-            <td>Identical <code>schedules:</code> and <code>schedule_bindings:</code> sections confirmed on node-2 after replication</td>
-          </tr>
-
-          <!-- Cluster health -->
-          <tr>
-            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Cluster health</td>
+            <td><code>[{schedule_id:bedtime, profile_id:adults, blocklist_id:bl-ads}]</code></td>
           </tr>
           <tr>
             <td><code>T7</code></td>
-            <td>Cluster health</td>
-            <td><code>GET /api/v1/cluster/status</code></td>
-            <td>3 nodes healthy</td>
+            <td>List bindings: weekend (1 binding)</td>
+            <td><code>GET /api/v1/schedules/weekend/bindings</code></td>
+            <td>HTTP 200, array with 1 entry</td>
             <td><span class="badge pass">PASS</span></td>
-            <td>leader=node-1 · raft_term=5 · all 3 nodes in_sync at commit_index=26</td>
+            <td><code>[{schedule_id:weekend, profile_id:iot, blocklist_id:bl-iot}]</code></td>
+          </tr>
+          <tr>
+            <td><code>T8</code></td>
+            <td>List bindings: nonexistent schedule</td>
+            <td><code>GET /api/v1/schedules/nonexistent999/bindings</code></td>
+            <td>HTTP 404, <code>{"error":"schedule not found"}</code></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>HTTP 404 &middot; <code>{"error":"schedule not found"}</code> &middot; Content-Length: 31</td>
+          </tr>
+
+          <!-- M17: Config Export/Import -->
+          <tr>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;"><span class="badge new" style="margin-right:8px;">M17</span>Config Export / Import &mdash; skoed-1 (leader)</td>
+          </tr>
+          <tr>
+            <td><code>T9</code></td>
+            <td>Config export: HTTP 200</td>
+            <td><code>GET /api/v1/config/export</code> with Bearer token</td>
+            <td>HTTP 200, Content-Type: application/gzip</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>HTTP 200 &middot; Content-Disposition: attachment; filename="skoed-config.tar.gz" &middot; Content-Length: 1075</td>
+          </tr>
+          <tr>
+            <td><code>T10</code></td>
+            <td>Config export: valid tar.gz</td>
+            <td>Download and inspect archive</td>
+            <td>Valid gzip, contains config.yaml</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>File: 1075 bytes, gzip compressed. <code>tar tzf</code> listing: <code>config.yaml</code></td>
+          </tr>
+          <tr>
+            <td><code>T11</code></td>
+            <td>Config import: restore state</td>
+            <td><code>POST /api/v1/config/import</code> multipart field <code>archive</code></td>
+            <td>HTTP 200, <code>{"status":"imported"}</code></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>HTTP 200 &middot; <code>{"status":"imported"}</code>. Import accepts multipart/form-data with field name <code>archive</code>.</td>
+          </tr>
+
+          <!-- M17: Shadow YAML -->
+          <tr>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;"><span class="badge new" style="margin-right:8px;">M17</span>Shadow config.yaml &mdash; ShadowWriter</td>
+          </tr>
+          <tr>
+            <td><code>T12</code></td>
+            <td>Shadow YAML on leader includes schedules + bindings</td>
+            <td>Verify <code>/var/lib/skoed/config.yaml</code> on skoed-1</td>
+            <td><code>schedules:</code> and <code>schedule_bindings:</code> sections present</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>5 schedules, 5 bindings confirmed. All 3 new schedules and 4 new bindings present in shadow YAML.</td>
+          </tr>
+          <tr>
+            <td><code>T13</code></td>
+            <td>Shadow YAML replicated to skoed-2 (Alpine follower)</td>
+            <td>Verify <code>/var/lib/skoed/config.yaml</code> on skoed-2</td>
+            <td>Identical <code>schedules:</code> and <code>schedule_bindings:</code></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>Identical shadow YAML confirmed on skoed-2 (Alpine LXC) via <code>pct exec 201</code> after Raft replication</td>
+          </tr>
+
+          <!-- Replication -->
+          <tr>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">Raft replication &mdash; all 3 nodes</td>
+          </tr>
+          <tr>
+            <td><code>T14</code></td>
+            <td>Profiles replicated to skoed-2</td>
+            <td><code>GET /api/v1/profiles</code> on skoed-2</td>
+            <td>4 profiles (adults, default, iot, kids)</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><code>[adults, default, iot, kids]</code> &mdash; identical to leader</td>
+          </tr>
+          <tr>
+            <td><code>T15</code></td>
+            <td>Bindings replicated to skoed-2</td>
+            <td><code>GET /api/v1/schedules/school-hours/bindings</code> on skoed-2</td>
+            <td>2 bindings identical to leader</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td><code>[{kids+bl-ads}, {kids+bl-adult}]</code> &mdash; identical to leader at commit 67</td>
+          </tr>
+          <tr>
+            <td><code>T16</code></td>
+            <td>Profiles + bindings replicated to skoed-3</td>
+            <td><code>GET /api/v1/profiles</code> + <code>/schedules/weekend/bindings</code> on skoed-3</td>
+            <td>4 profiles, 1 binding</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>4 profiles, weekend binding <code>{iot+bl-iot}</code> confirmed on skoed-3 (Debian follower)</td>
+          </tr>
+
+          <!-- DNS + Performance -->
+          <tr>
+            <td colspan="6" style="background:var(--bg3); color:var(--muted); font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:0.5px;">DNS filtering + performance &mdash; skoed-1 (:53 UDP)</td>
+          </tr>
+          <tr>
+            <td><code>T17</code></td>
+            <td>DNS blocking: DoH/DoT domains return NXDOMAIN</td>
+            <td><code>dig @10.x.x.x cloudflare-dns.com, dns.google, dns.adguard.com</code></td>
+            <td>NXDOMAIN &lt;1ms (blocked by cat:doh)</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>All 3 DoH resolver domains: NXDOMAIN, query time 0&ndash;1ms. Filtering active via cat:doh bundled blocklist.</td>
+          </tr>
+          <tr>
+            <td><code>T18</code></td>
+            <td>DNS performance: 100 queries in &lt;500ms</td>
+            <td>100&times; <code>dig @10.x.x.x cloudflare-dns.com</code> from Proxmox host</td>
+            <td>All complete, &gt;100 QPS, &lt;10ms avg</td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>100 queries in 399&ndash;402ms &rarr; <strong>249 QPS</strong>. Avg latency &lt;1ms for blocked domains. 318 entries in query log.</td>
           </tr>
 
           <!-- Total row -->
           <tr style="background:var(--bg2); font-weight:700; border-top: 2px solid var(--border);">
-            <td colspan="2" style="color:#c7d2fe;">Total — 7 tests</td>
+            <td colspan="2" style="color:#c7d2fe;">Total &mdash; 18 tests</td>
             <td></td>
             <td></td>
-            <td><span class="badge pass">7 / 7</span></td>
+            <td><span class="badge pass">18 / 18</span></td>
             <td style="color:var(--pass); font-size:12px;">All tests passed on real Proxmox infrastructure</td>
           </tr>
         </tbody>
@@ -643,172 +838,178 @@
     </div>
   </section>
 
-  <!-- ── Expected curl commands ── -->
+  <!-- ── Performance section ── -->
   <section>
-    <h2>Expected curl verification sequence</h2>
-    <p style="color:var(--muted); margin-bottom:16px; font-size:13px;">
-      Reference command sequence for manual execution on the real cluster. Replace <code>&lt;token&gt;</code> with the node-2 Bearer token and <code>&lt;NODE_IP&gt;</code> with the sanitized node address.
-    </p>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
+    <h2>DNS performance</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="info-box">
+        <strong>node-1 DNS performance (100 queries, blocked domains)</strong><br>
+        <br>
+        Duration: <strong style="color:var(--pass);">399&ndash;402ms</strong> for 100 sequential UDP DNS queries<br>
+        QPS: <strong style="color:var(--pass);">249 queries/second</strong><br>
+        Avg latency: <strong style="color:var(--pass);">&lt;1ms</strong> (blocked domains return NXDOMAIN from in-memory blocklist)<br>
+        <br>
+        Query log entries after test: <strong>318 total</strong><br>
+        All 100 test queries correctly recorded as <code>outcome: blocked</code> via <code>cat:doh</code>
+      </div>
+      <div class="info-box">
+        <strong>DNS resolution modes observed</strong><br>
+        <br>
+        <code>cloudflare-dns.com</code>, <code>dns.google</code>, <code>dns.adguard.com</code>:<br>
+        &rarr; <span style="color:var(--pending);">NXDOMAIN</span> &mdash; blocked by <code>cat:doh</code> bundled blocklist<br>
+        <br>
+        <code>google.com</code>, other external domains:<br>
+        &rarr; <span style="color:var(--warn);">SERVFAIL</span> &mdash; upstream unreachable (cluster on isolated NAT LAN without internet)<br>
+        <br>
+        <em style="color:var(--muted);">NXDOMAIN for blocked domains is the expected block_policy. SERVFAIL for external domains is expected &mdash; the cluster LAN has no public internet route. Blocking itself works correctly.</em>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Config export/import detail ── -->
+  <section>
+    <h2>Config export / import detail</h2>
+    <div style="display:flex; flex-direction:column; gap:12px;">
 
       <div class="info-box">
-        <strong>T1 — Create schedule</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">curl -s -X POST http://&lt;NODE_IP&gt;:8080/api/v1/schedules \
-  -H "Authorization: Bearer &lt;token&gt;" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"weekday","name":"Weekdays","mode":"active","windows":[]}'</code>
+        <strong>Export: GET /api/v1/config/export</strong><br>
+        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">wget -q -O /tmp/test-export.tar.gz \
+  --header="Authorization: Bearer &lt;token&gt;" \
+  http://&lt;NODE&gt;:8080/api/v1/config/export
+
+# Response headers:
+#   HTTP/1.1 200 OK
+#   Content-Disposition: attachment; filename="skoed-config.tar.gz"
+#   Content-Type: application/gzip
+#   Content-Length: 1075
+
+# Archive contains: config.yaml (full cluster config with schedules + bindings)</code>
       </div>
 
       <div class="info-box">
-        <strong>T2 — Add binding</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">curl -s -X POST http://&lt;NODE_IP&gt;:8080/api/v1/schedules/weekday/bindings \
-  -H "Authorization: Bearer &lt;token&gt;" \
-  -H "Content-Type: application/json" \
-  -d '{"profile_id":"kids","blocklist_id":"social"}'</code>
-      </div>
-
-      <div class="info-box">
-        <strong>T3 — List bindings (happy path)</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">curl -s http://&lt;NODE_IP&gt;:8080/api/v1/schedules/weekday/bindings \
-  -H "Authorization: Bearer &lt;token&gt;" | jq
-# expected → [{"schedule_id":"weekday","profile_id":"kids","blocklist_id":"social"}]</code>
-      </div>
-
-      <div class="info-box">
-        <strong>T4 — List bindings (not found)</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">curl -s -o /dev/null -w "%{http_code}" \
-  http://&lt;NODE_IP&gt;:8080/api/v1/schedules/nonexistent/bindings \
-  -H "Authorization: Bearer &lt;token&gt;"
-# expected → 404</code>
-      </div>
-
-      <div class="info-box">
-        <strong>T5 / T6 — Shadow config.yaml verification (leader + follower)</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">grep -A 10 'schedules:' &lt;data_dir&gt;/config.yaml
-# expected sections:
-#   schedules:
-#     - id: weekday
-#       name: Weekdays
-#       mode: active
-#       windows: []
-#   schedule_bindings:
-#     - schedule_id: weekday
-#       profile_id: kids
-#       blocklist_id: social</code>
-      </div>
-
-      <div class="info-box">
-        <strong>T7 — Cluster health</strong><br>
-        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">curl -s http://&lt;NODE_IP&gt;:8080/api/v1/cluster/status \
-  -H "Authorization: Bearer &lt;token&gt;" | jq
-# expected → 3 nodes, 1 leader, 2 followers, all healthy</code>
+        <strong>Import: POST /api/v1/config/import (multipart/form-data, field name: archive)</strong><br>
+        <code style="display:block; margin-top:6px; white-space:pre-wrap; background:transparent; padding:0; color:var(--accent2);">python3 -c "
+import urllib.request, io
+boundary = 'FormBoundary7MA4YWxkTrZu0gW'
+body = io.BytesIO()
+body.write(('--' + boundary + '\r\n').encode())
+body.write(b'Content-Disposition: form-data; name=\"archive\"; filename=\"skoed-config.tar.gz\"\r\n')
+body.write(b'Content-Type: application/gzip\r\n\r\n')
+body.write(open('/tmp/test-export.tar.gz','rb').read())
+body.write(('\r\n--' + boundary + '--\r\n').encode())
+req = urllib.request.Request(
+    'http://&lt;NODE&gt;:8080/api/v1/config/import',
+    data=body.getvalue(),
+    headers={'Authorization': 'Bearer &lt;token&gt;',
+             'Content-Type': 'multipart/form-data; boundary=' + boundary},
+    method='POST')
+resp = urllib.request.urlopen(req)
+print(resp.status, resp.read().decode())
+# 200 {\"status\":\"imported\"}"</code>
+        <p style="margin-top:8px; font-size:12px; color:var(--warn);">Note: field name must be <code>archive</code> (not <code>file</code>). Content-Type must be <code>multipart/form-data</code> with correct boundary.</p>
       </div>
 
     </div>
   </section>
 
-  <!-- ── Test timeline (placeholder) ── -->
+  <!-- ── Test timeline ── -->
   <section>
     <h2>Test execution timeline</h2>
     <div class="timeline">
       <div class="tl-item done">
-        <div class="tl-title">Cluster provisioned &amp; M17 dev build deployed</div>
-        <div class="tl-desc">3-node LXC cluster (CT 200/201/202) on Proxmox: node-1 (Debian, leader), node-2 (Alpine, follower), node-3 (Debian, follower). Raft cluster formed, all nodes healthy.</div>
+        <div class="tl-title">Cluster status verified &mdash; 3/3 nodes in sync</div>
+        <div class="tl-desc">GET /api/v1/cluster/status: leader=skoed-1, raft_term=8, all nodes at commit_index=31 (start of session).</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Auth configured on all nodes</div>
-        <div class="tl-desc">Admin password set on first run. Bearer token used for all API calls.</div>
+        <div class="tl-title">Complex configuration created (T1&ndash;T3)</div>
+        <div class="tl-desc">3 blocklists (bl-ads, bl-adult, bl-iot), 3 profiles (kids, adults, iot), 3 schedules (school-hours, bedtime, weekend). Replicated via Raft to all followers.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Schedule created — T1 ✓</div>
-        <div class="tl-desc">POST /api/v1/schedules on node-1 (leader) → HTTP 201. Schedule "school" created and replicated via Raft.</div>
+        <div class="tl-title">Schedule bindings created and listed (T4&ndash;T8)</div>
+        <div class="tl-desc">4 bindings created across 3 schedules. GET /api/v1/schedules/{id}/bindings verified: correct arrays returned, 404 on unknown schedule ID.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Binding added — T2 ✓</div>
-        <div class="tl-desc">POST /api/v1/schedules/school/bindings on node-1 → HTTP 201. Binding {default → test-list} created.</div>
+        <div class="tl-title">Config export downloaded and verified (T9&ndash;T10)</div>
+        <div class="tl-desc">GET /api/v1/config/export: HTTP 200, 1075-byte gzip. tar tzf confirms config.yaml inside. Header Content-Disposition correct.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Bindings listed (T3) + not-found case (T4) ✓</div>
-        <div class="tl-desc">GET returns binding array (200); GET with unknown schedule ID returns {"error":"schedule not found"} (404).</div>
+        <div class="tl-title">Config import successful (T11)</div>
+        <div class="tl-desc">POST /api/v1/config/import with multipart/form-data field name "archive": HTTP 200 {"status":"imported"}. Config restored and replicated via Raft.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Shadow YAML verified on leader — T5 ✓</div>
-        <div class="tl-desc">config.yaml on node-1 contains schedules: + schedule_bindings: sections within ~1 s of mutation.</div>
+        <div class="tl-title">Shadow YAML verified on leader and follower (T12&ndash;T13)</div>
+        <div class="tl-desc">/var/lib/skoed/config.yaml on skoed-1 and skoed-2 (Alpine): identical schedules: and schedule_bindings: sections with all 5 schedules and 5 bindings.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Shadow YAML replicated to follower — T6 ✓</div>
-        <div class="tl-desc">config.yaml on node-2 matches leader: identical schedules: and schedule_bindings: sections confirmed after Raft replication.</div>
+        <div class="tl-title">Raft replication confirmed on all 3 nodes (T14&ndash;T16)</div>
+        <div class="tl-desc">Profiles, schedules, and bindings verified on skoed-2 (Alpine) and skoed-3 (Debian) via their own API tokens. Commit index 67 on all nodes.</div>
       </div>
       <div class="tl-item done">
-        <div class="tl-title">Cluster health confirmed — T7 ✓</div>
-        <div class="tl-desc">GET /api/v1/cluster/status: leader=node-1, raft_term=5, all 3 nodes in_sync at commit_index=26.</div>
+        <div class="tl-title">DNS blocking confirmed (T17)</div>
+        <div class="tl-desc">cloudflare-dns.com, dns.google, dns.adguard.com: all NXDOMAIN in &lt;1ms via cat:doh bundled blocklist. block_policy=nxdomain working correctly.</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-title">DNS performance: 249 QPS (T18)</div>
+        <div class="tl-desc">100 sequential DNS queries in 399&ndash;402ms &rarr; 249 QPS. 318 query log entries confirmed. All outcomes correctly logged as "blocked".</div>
       </div>
     </div>
   </section>
 
-  <!-- ── Web UI Screenshots ── -->
+  <!-- ── Screenshots ── -->
   <section>
-    <h2>Web UI screenshots — real cluster</h2>
+    <h2>Web UI screenshots &mdash; real cluster</h2>
     <p style="color:var(--muted); margin-bottom:20px; font-size:13px;">
-      Screenshots taken from node-1 (leader) web UI via Playwright against the live Proxmox 3-node cluster.
-      All screenshots are full-resolution; node labels (skoed-1/2/3) and private LAN addresses are as shown by the application.
+      Screenshots taken from skoed-1 (leader) web UI against the live Proxmox 3-node cluster.
+      Node labels (skoed-1/2/3) and private LAN addresses are as shown by the application.
     </p>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
 
       <div>
-        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">1 · Dashboard — cluster 3/3, all in sync</p>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">1 &middot; Dashboard &mdash; cluster 3/3, all in sync</p>
         <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
-          <img src="ss-01-dashboard.png" alt="Dashboard showing 3/3 nodes, all in sync at commit 26" style="width:100%; display:block;">
+          <img src="ss-01-dashboard.png" alt="Dashboard showing 3/3 nodes, all in sync" style="width:100%; display:block;">
         </div>
       </div>
 
       <div>
-        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">2 · Schedules list — &quot;school&quot; schedule live on cluster</p>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">2 &middot; Schedules list &mdash; school-hours, bedtime, weekend live on cluster</p>
         <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
-          <img src="ss-02-schedules-list.png" alt="Schedules page showing school schedule" style="width:100%; display:block;">
+          <img src="ss-02-schedules-list.png" alt="Schedules page showing multiple schedules" style="width:100%; display:block;">
         </div>
       </div>
 
       <div>
-        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">3 · Schedule detail — binding panel (M17 gap this fills)</p>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">3 &middot; Schedule detail &mdash; binding panel (M17 closes this gap)</p>
         <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
-          <img src="ss-03-schedule-detail-binding-panel.png" alt="Schedule detail showing binding panel with note about missing GET endpoint" style="width:100%; display:block;">
+          <img src="ss-03-schedule-detail-binding-panel.png" alt="Schedule detail with binding panel" style="width:100%; display:block;">
         </div>
         <p style="font-size:11px; color:var(--muted); margin-top:6px; font-style:italic;">
-          The UI panel notes <em>"no server-side enumeration endpoint yet — known M3.1 gap"</em>.
-          M17 ships <code>GET /api/v1/schedules/{id}/bindings</code> to close exactly this gap.
-          The UI will consume the endpoint in a future milestone.
+          M17 ships <code>GET /api/v1/schedules/{id}/bindings</code> to close the server-side enumeration gap noted here.
         </p>
       </div>
 
       <div>
-        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">4 · Cluster status — 3 nodes, leader + 2 followers</p>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">4 &middot; Cluster status &mdash; 3 nodes, leader + 2 followers</p>
         <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
           <img src="ss-04-cluster-status.png" alt="Cluster page: skoed-1 leader in sync, skoed-2 follower in sync, skoed-3 follower in sync" style="width:100%; display:block;">
         </div>
       </div>
 
     </div>
-
-    <div class="info-box" style="margin-top:4px;">
-      <strong>Note — OpenAPI spec gap:</strong> <code>GET /api/v1/schedules/{id}/bindings</code> is not yet registered in
-      <code>specs/technical/management-api.openapi.yaml</code>, so it does not appear in the Swagger UI at <code>/api/docs</code>.
-      The endpoint is fully implemented and tested (T3 above); the OpenAPI spec update is a post-demo follow-up task.
-    </div>
   </section>
 
   <!-- ── Sanitized notice ── -->
   <div class="notice" style="margin-bottom: 40px;">
     <span class="notice-icon">&#9888;</span>
-    <span><strong>Sanitized report.</strong> Infrastructure details (hostnames, IP addresses, MAC addresses) have been sanitized in this report. Node IPs are shown as <code>10.x.x.x</code>. All test results and behavioral outcomes are unmodified.</span>
+    <span><strong>Sanitized report.</strong> Infrastructure details (hostnames, public IP addresses, MAC addresses) have been sanitized. Node LAN IPs are shown as <code>10.x.x.x</code>. Auth tokens and bootstrap tokens are omitted. All test results and behavioral outcomes are unmodified.</span>
   </div>
 
 </div>
 
 <footer>
-  <span>skoed M17 — Schedule Bindings + Config Shadow Export &mdash; Report date: 2026-06-16</span>
-  <span>Cluster: node-1 (Debian LXC follower) · node-2 (Alpine LXC leader) · node-3 (Debian LXC follower) · 3-node Raft · Proxmox</span>
+  <span>skoed M17 &mdash; Schedule Bindings + Config Export/Import &mdash; Report date: 2026-06-17</span>
+  <span>skoed-1 (Debian LXC leader) &middot; skoed-2 (Alpine LXC follower) &middot; skoed-3 (Debian LXC follower) &middot; 3-node Raft &middot; Proxmox &middot; Verdict: PASS</span>
 </footer>
 
 </body>

@@ -684,6 +684,11 @@ func (a *App) Router() http.Handler {
 		r.Patch("/api/v1/profiles/{id}", a.forward(h.UpdateProfile))
 		r.Delete("/api/v1/profiles/{id}", a.forward(h.DeleteProfile))
 
+		// Per-profile allowlist
+		r.Get("/api/v1/profiles/{id}/allowlist", h.GetProfileAllowlist)
+		r.Post("/api/v1/profiles/{id}/allowlist", a.forward(h.AddProfileAllowlistEntry))
+		r.Delete("/api/v1/profiles/{id}/allowlist/{domain}", a.forward(h.DeleteProfileAllowlistEntry))
+
 		// M13 — Per-profile pause
 		r.Get("/api/v1/profiles/{id}/pause", ph.GetProfilePause)
 		r.Post("/api/v1/profiles/{id}/pause", a.forward(ph.SetProfilePause))

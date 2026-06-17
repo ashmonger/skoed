@@ -8,12 +8,32 @@
     </p>
 
     <!-- Header -->
-    <div>
-      <h1 class="text-lg font-semibold text-fg-strong">Allowlist</h1>
-      <p class="text-sm text-fg-muted">
-        Domains here are never blocked, even if a blocklist matches.
-      </p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-semibold text-fg-strong">Allowlist</h1>
+        <p class="text-sm text-fg-muted">
+          Domains here are never blocked, even if a blocklist matches.
+        </p>
+      </div>
+
+      <!-- Scope selector -->
+      <div class="flex items-center gap-2">
+        <label class="text-sm text-fg-muted whitespace-nowrap" for="al-scope">Scope:</label>
+        <select id="al-scope"
+                v-model="scope"
+                class="input !py-1.5 text-sm min-w-[160px]"
+                @change="onScopeChange">
+          <option value="">Global (all clients)</option>
+          <option v-for="p in profiles" :key="p.id" :value="p.id">
+            {{ p.name || p.id }}
+          </option>
+        </select>
+      </div>
     </div>
+
+    <p v-if="scope" class="text-xs text-fg-muted bg-accent/10 border border-accent/20 rounded px-3 py-2">
+      Showing allowlist for profile <strong>{{ profileLabel }}</strong>. Entries here override blocklists only for clients in this profile.
+    </p>
 
     <!-- Add form -->
     <div class="card p-4 space-y-3">
@@ -31,7 +51,7 @@
         <button type="submit" class="btn-primary mt-6" :disabled="adding">
           <PlusIcon class="h-4 w-4" /> {{ adding ? 'Adding…' : 'Add' }}
         </button>
-        <button type="button"
+        <button v-if="!scope" type="button"
                 class="btn-secondary mt-6"
                 :disabled="adding || bulkBusy"
                 @click="bulkOpen = !bulkOpen">
@@ -39,8 +59,8 @@
         </button>
       </form>
 
-      <!-- Bulk add expander -->
-      <div v-if="bulkOpen" class="border-t border-border pt-3 space-y-2">
+      <!-- Bulk add expander (global only) -->
+      <div v-if="bulkOpen && !scope" class="border-t border-border pt-3 space-y-2">
         <label class="label" for="al-bulk">Bulk add <span class="text-fg-subtle font-normal">(one per line)</span></label>
         <textarea id="al-bulk"
                   v-model="bulkText"
@@ -87,8 +107,10 @@
     <div v-else-if="!entries.length" class="card p-8 text-center space-y-2">
       <p class="text-sm font-medium text-fg-strong">No allowlisted domains yet.</p>
       <p class="text-sm text-fg-muted">
-        Add a domain above to exempt it from every blocklist. Wildcards like
-        <code class="font-mono text-xs text-fg">*.example.com</code> are supported.
+        Add a domain above to exempt it from
+        <span v-if="scope">blocklists for this profile.</span>
+        <span v-else>every blocklist. Wildcards like
+          <code class="font-mono text-xs text-fg">*.example.com</code> are supported.</span>
       </p>
     </div>
 
@@ -139,8 +161,11 @@
         <h2 class="text-base font-semibold text-fg-strong">Remove from allowlist?</h2>
         <p class="text-sm text-fg">
           Remove <span class="font-mono font-semibold">{{ pendingRemove }}</span> from allowlist?
+          <span v-if="scope" class="block text-xs text-fg-muted mt-1">
+            Only affects clients in profile <strong>{{ profileLabel }}</strong>.
+          </span>
         </p>
-        <p class="text-xs text-fg-muted">
+        <p v-if="!scope" class="text-xs text-fg-muted">
           Blocklist matches for this domain will resume taking effect.
         </p>
         <div class="flex justify-end gap-2">
@@ -155,11 +180,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   MagnifyingGlassIcon, PlusIcon, QueueListIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
-import { addAllowlist, listAllowlist, removeAllowlist } from '@/api/endpoints'
+import {
+  addAllowlist, addProfileAllowlist,
+  listAllowlist, listProfileAllowlist, listProfiles,
+  removeAllowlist, removeProfileAllowlist,
+} from '@/api/endpoints'
+import type { Profile } from '@/api/types'
 
 // ─── State ───────────────────────────────────────────────────────────────
 
@@ -185,9 +215,16 @@ const bulkFailures = ref<{ domain: string; message: string }[]>([])
 const pendingRemove = ref<string | null>(null)
 const removing = ref(false)
 
-// Domain or wildcard validation: labels of letters/digits/hyphens separated
-// by dots, optional leading `*.`. Not a full RFC check — just guards against
-// obvious garbage like spaces, slashes or empty strings.
+// Profile scope
+const profiles = ref<Profile[]>([])
+const scope = ref<string>('')
+
+const profileLabel = computed(() => {
+  if (!scope.value) return ''
+  const p = profiles.value.find(p => p.id === scope.value)
+  return p ? (p.name || p.id) : scope.value
+})
+
 const DOMAIN_RE = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
 
 // ─── Computed ────────────────────────────────────────────────────────────
@@ -202,8 +239,13 @@ const filtered = computed(() => {
 // ─── Data loading ────────────────────────────────────────────────────────
 
 async function refresh() {
+  loading.value = true
   try {
-    entries.value = await listAllowlist()
+    if (scope.value) {
+      entries.value = await listProfileAllowlist(scope.value)
+    } else {
+      entries.value = await listAllowlist()
+    }
     lastError.value = ''
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load allowlist')
@@ -211,6 +253,16 @@ async function refresh() {
     loading.value = false
   }
 }
+
+function onScopeChange() {
+  filter.value = ''
+  entries.value = []
+  refresh()
+}
+
+watch(scope, () => {
+  bulkOpen.value = false
+})
 
 // ─── Add ─────────────────────────────────────────────────────────────────
 
@@ -233,7 +285,11 @@ async function submitAdd() {
   adding.value = true
   addError.value = ''
   try {
-    await addAllowlist(domain)
+    if (scope.value) {
+      await addProfileAllowlist(scope.value, domain)
+    } else {
+      await addAllowlist(domain)
+    }
     entries.value = [...entries.value, domain]
     addInput.value = ''
   } catch (e) {
@@ -243,7 +299,7 @@ async function submitAdd() {
   }
 }
 
-// ─── Bulk add ────────────────────────────────────────────────────────────
+// ─── Bulk add (global only) ───────────────────────────────────────────────
 
 function closeBulk() {
   if (bulkBusy.value) return
@@ -256,7 +312,6 @@ function closeBulk() {
 }
 
 async function submitBulk() {
-  // Split on any whitespace; dedup while preserving order; skip existing.
   const seen = new Set<string>()
   const candidates: string[] = []
   for (const tok of bulkText.value.split(/\s+/)) {
@@ -327,7 +382,11 @@ async function confirmRemove() {
   removing.value = true
   busyRows[domain] = true
   try {
-    await removeAllowlist(domain)
+    if (scope.value) {
+      await removeProfileAllowlist(scope.value, domain)
+    } else {
+      await removeAllowlist(domain)
+    }
     entries.value = entries.value.filter(d => d !== domain)
     pendingRemove.value = null
   } catch (e) {
@@ -353,7 +412,10 @@ function onKey(e: KeyboardEvent) {
   if (bulkOpen.value && !bulkBusy.value) { closeBulk() }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    profiles.value = await listProfiles()
+  } catch { /* profiles list is best-effort */ }
   refresh()
   window.addEventListener('keydown', onKey)
 })

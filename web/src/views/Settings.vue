@@ -258,10 +258,11 @@
 
         <!-- Download -->
         <div class="flex flex-wrap items-center gap-3 pt-1">
-          <a :href="exportHref" download="skoed-config.tar.gz" class="btn-secondary">
-            Download backup
-          </a>
-          <span class="text-xs text-fg-muted">
+          <button class="btn-secondary" :disabled="exporting" @click="downloadBackup">
+            {{ exporting ? 'Preparing…' : 'Download backup' }}
+          </button>
+          <span v-if="exportError" class="text-xs text-danger">{{ exportError }}</span>
+          <span v-else class="text-xs text-fg-muted">
             Downloads <code class="font-mono">skoed-config.tar.gz</code>
           </span>
         </div>
@@ -323,7 +324,7 @@ import {
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
 } from '@/api/endpoints'
-import { getToken } from '@/api/client'
+import { api, getToken } from '@/api/client'
 import type { DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -514,7 +515,29 @@ async function saveQueryLog() {
 
 // ─── Configuration backup ──────────────────────────────────────────────────
 
-const exportHref = '/api/v1/config/export'
+const exporting = ref(false)
+const exportError = ref('')
+
+async function downloadBackup() {
+  exporting.value = true
+  exportError.value = ''
+  try {
+    const res = await api.get('/api/v1/config/export', { responseType: 'blob' })
+    const blob = new Blob([res.data as BlobPart], { type: 'application/gzip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.style.cssText = 'position:fixed;top:-100px;left:-100px'
+    a.href = url
+    a.download = 'skoed-config.tar.gz'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 1000)
+  } catch (err) {
+    exportError.value = errMsg(err, 'Export failed — check your session and try again.')
+  } finally {
+    exporting.value = false
+  }
+}
 
 const selectedFile = ref<File | null>(null)
 const restoring = ref(false)
