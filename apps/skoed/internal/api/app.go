@@ -624,6 +624,11 @@ func (a *App) Router() http.Handler {
 	// X-Cluster-Secret header — peers do not have admin credentials.
 	r.Post("/api/v1/cluster/_internal/aggregates", h.ClusterInternalAggregates)
 
+	// M18 — cluster-internal per-node upgrade trigger. Used by the rolling
+	// upgrade goroutine to self-upgrade each peer without WriteForwardMiddleware
+	// redirecting the call back to the leader. Authenticated by X-Cluster-Secret.
+	r.Post("/api/v1/upgrade/node-start", h.NodeUpgradeStart)
+
 	r.Group(func(r chi.Router) {
 		r.Use(a.Auth)
 		// M5.2 — audit every authenticated mutating call. Read verbs
@@ -721,6 +726,10 @@ func (a *App) Router() http.Handler {
 		// M5.6 — in-place upgrade: check is local; start forwards to leader.
 		r.Get("/api/v1/upgrade/check", h.UpgradeCheck)
 		r.Post("/api/v1/upgrade/start", a.forward(h.UpgradeStart))
+
+		// M18 — rolling cluster upgrade orchestration.
+		r.Post("/api/v1/cluster/upgrade/apply", a.forward(h.ClusterUpgradeApply))
+		r.Get("/api/v1/cluster/upgrade/status", h.ClusterUpgradeStatus)
 
 		// M5.9.7 — authenticated "would this domain be blocked?" tester.
 		// Read-only; doesn't forward to leader (every node has the same

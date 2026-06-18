@@ -114,3 +114,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	}
 	return true
 }
+
+// decodeJSONOptional decodes the request body silently; errors are ignored.
+// Use when the body is optional (caller checks zero values afterward).
+func decodeJSONOptional(r *http.Request, v any) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}

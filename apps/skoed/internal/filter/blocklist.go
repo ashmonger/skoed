@@ -43,7 +43,7 @@ func parseByFormat(r io.Reader, format string) ([]string, error) {
 	switch format {
 	case "hosts":
 		return parsers.ParseHosts(r)
-	case "askoed":
+	case "askoed", "adblock":
 		return parsers.ParseAskoed(r)
 	default:
 		return parsers.ParseDomainList(r)

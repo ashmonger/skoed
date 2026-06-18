@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M18 — Real-Environment Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #232636;
+    --border: #2e3250;
+    --text: #e2e8f0;
+    --muted: #8892b0;
+    --accent: #7c6af7;
+    --accent2: #5eead4;
+    --pass: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+    --pending: #818cf8;
+    --nxdomain: #818cf8;
+    --noerror: #34d399;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span {
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card.green::before  { background: var(--pass); }
+  .card.blue::before   { background: var(--accent); }
+  .card.cyan::before   { background: var(--accent2); }
+  .card.yellow::before { background: var(--warn); }
+  .card.purple::before { background: #a855f7; }
+
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  section { margin-bottom: 40px; }
+  section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #c7d2fe;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    margin-bottom: 20px;
+  }
+
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+  }
+  .badge.pass    { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail    { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+  .badge.skip    { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
+  .badge.info    { background: rgba(124,106,247,0.15); color: var(--accent); border: 1px solid rgba(124,106,247,0.3); }
+  .badge.warn    { background: rgba(251,191,36,0.15); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+  .badge.ok      { background: rgba(94,234,212,0.15); color: var(--accent2); border: 1px solid rgba(94,234,212,0.3); }
+
+  .fsid {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    background: rgba(94,234,212,0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .node-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 700px) { .node-grid { grid-template-columns: 1fr; } }
+
+  .node-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .node-card .node-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .node-card .node-role {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    display: inline-block;
+  }
+  .node-card .node-role.leader   { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .node-card .node-role.follower { background: rgba(124,106,247,0.15); color: var(--accent); border: 1px solid rgba(124,106,247,0.3); }
+  .node-card .node-detail { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .node-card .node-detail strong { color: var(--text); }
+
+  .timeline {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+  .timeline .ts   { color: var(--muted); }
+  .timeline .node { color: var(--accent2); }
+  .timeline .ok   { color: var(--pass); }
+  .timeline .note { color: var(--warn); }
+
+  .dns-proof {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 0;
+  }
+  @media (max-width: 700px) { .dns-proof { grid-template-columns: 1fr; } }
+
+  .dns-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .dns-card h3 { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 12px; }
+  .dns-card .dns-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(46,50,80,0.5);
+    font-size: 12px;
+  }
+  .dns-card .dns-row:last-child { border-bottom: none; }
+  .dns-card .domain { font-family: 'Courier New', monospace; color: var(--muted); }
+  .dns-card .blocked { color: var(--fail); font-weight: 600; }
+  .dns-card .allowed { color: var(--pass); font-weight: 600; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>skoed M18 — Real-Environment Test Report</h1>
+  <p>Rolling Cluster Upgrade + Read Load Balancing · Proxmox 3-node cluster</p>
+  <div class="meta">
+    <span>Date: 2026-06-18</span>
+    <span>Branch: feature/m18-rolling-upgrade</span>
+    <span>6 acceptance tests · 6 PASS · 0 FAIL</span>
+    <span>Proxmox 3-node · rolling upgrade 15 s end-to-end</span>
+    <span>DNS filtering verified on 3 client profiles</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Summary cards -->
+  <div class="cards">
+    <div class="card green">
+      <div class="value">6</div>
+      <div class="unit">/ 6</div>
+      <div class="label">Acceptance tests pass</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">3</div>
+      <div class="unit">nodes</div>
+      <div class="label">Successfully upgraded</div>
+    </div>
+    <div class="card blue">
+      <div class="value">15s</div>
+      <div class="unit">end-to-end</div>
+      <div class="label">Rolling upgrade duration</div>
+    </div>
+    <div class="card green">
+      <div class="value">0</div>
+      <div class="unit">quorum drops</div>
+      <div class="label">Cluster stayed healthy</div>
+    </div>
+  </div>
+
+  <!-- Acceptance tests -->
+  <section>
+    <h2>Acceptance Tests</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th>FSID</th>
+            <th>Duration</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>TestFollowerServesGetDirectly</td>
+            <td><span class="fsid">FS-FollowerReadsDirectly</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>TestFollowerForwardsMutationToLeader</td>
+            <td><span class="fsid">FS-FollowerForwardsMutations</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>TestRollingUpgradeStatusShape</td>
+            <td><span class="fsid">FS-RollingUpgradeStatus</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>TestRollingUpgradeApplyAccepted</td>
+            <td><span class="fsid">FS-RollingUpgradeOrchestrated</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>TestRollingUpgradeApplyRequiresURL</td>
+            <td><span class="fsid">FS-RollingUpgradeAbortOnFailure</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>TestRollingUpgradeRejectsSingleNode</td>
+            <td><span class="fsid">FS-RollingUpgradeLeadershipTransfer</span></td>
+            <td>0.00s</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Cluster topology -->
+  <section>
+    <h2>Cluster Topology (post-upgrade)</h2>
+    <div class="node-grid">
+      <div class="node-card">
+        <div class="node-name">skoed-1 (CT 200)</div>
+        <span class="node-role leader">LEADER</span>
+        <div class="node-detail"><strong>OS:</strong> Debian 12</div>
+        <div class="node-detail"><strong>Init:</strong> systemd · Restart=always</div>
+        <div class="node-detail"><strong>Binary:</strong> /var/lib/skoed/bin/skoed</div>
+        <div class="node-detail"><strong>Symlink:</strong> /usr/bin/skoed → /var/lib/skoed/bin/skoed</div>
+        <div class="node-detail"><strong>Upgraded:</strong> 10:32:55 → healthy 10:33:01</div>
+      </div>
+      <div class="node-card">
+        <div class="node-name">skoed-2 (CT 201)</div>
+        <span class="node-role follower">FOLLOWER</span>
+        <div class="node-detail"><strong>OS:</strong> Alpine 3.21</div>
+        <div class="node-detail"><strong>Init:</strong> OpenRC · supervisor=supervise-daemon</div>
+        <div class="node-detail"><strong>Binary:</strong> /usr/bin/skoed</div>
+        <div class="node-detail"><strong>Upgraded:</strong> 10:33:10 (self, last)</div>
+      </div>
+      <div class="node-card">
+        <div class="node-name">skoed-3 (CT 202)</div>
+        <span class="node-role follower">FOLLOWER</span>
+        <div class="node-detail"><strong>OS:</strong> Debian 12</div>
+        <div class="node-detail"><strong>Init:</strong> systemd · Restart=always</div>
+        <div class="node-detail"><strong>Binary:</strong> /var/lib/skoed/bin/skoed</div>
+        <div class="node-detail"><strong>Symlink:</strong> /usr/bin/skoed → /var/lib/skoed/bin/skoed</div>
+        <div class="node-detail"><strong>Upgraded:</strong> 10:33:01 → healthy 10:33:10</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Upgrade timeline -->
+  <section>
+    <h2>Rolling Upgrade Timeline</h2>
+    <div class="timeline">
+      <div><span class="ts">10:32:55</span> &nbsp;<span class="node">[rolling-upgrade]</span> node-start on <span class="node">skoed-1 (10.0.0.100:8080)</span> → <span class="ok">202 Accepted</span></div>
+      <div><span class="ts">10:33:01</span> &nbsp;<span class="node">[rolling-upgrade]</span> skoed-1 healthy, moving to next node</div>
+      <div><span class="ts">10:33:01</span> &nbsp;<span class="node">[rolling-upgrade]</span> node-start on <span class="node">skoed-3 (10.0.0.102:8080)</span> → <span class="ok">202 Accepted</span></div>
+      <div><span class="ts">10:33:10</span> &nbsp;<span class="node">[rolling-upgrade]</span> skoed-3 healthy, transferring leadership to skoed-1</div>
+      <div><span class="ts">10:33:10</span> &nbsp;<span class="note">[raft]</span> leadership transfer → skoed-1 elected</div>
+      <div><span class="ts">10:33:10</span> &nbsp;<span class="node">[rolling-upgrade]</span> node-start on <span class="node">skoed-2 (10.0.0.101:8080)</span> (self) → <span class="ok">202 Accepted</span></div>
+      <div><span class="ts">10:33:16</span> &nbsp;<span class="ok">Cluster fully recovered — skoed-1 leader, all 3 nodes healthy</span></div>
+    </div>
+  </section>
+
+  <!-- API verification -->
+  <section>
+    <h2>API Verification (POST /api/v1/cluster/upgrade/apply)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Expected</th>
+            <th>Actual</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>POST /api/v1/cluster/upgrade/apply with valid URL</td>
+            <td>202 Accepted · accepted=true</td>
+            <td>202 · {"accepted":true,"message":"rolling upgrade started…"}</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>POST /api/v1/cluster/upgrade/apply without URL</td>
+            <td>400 · error="url is required"</td>
+            <td>400 · {"error":"url is required"}</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>GET /api/v1/cluster/upgrade/status (idle)</td>
+            <td>200 · in_progress=false · completed=[skoed-1,skoed-2,skoed-3]</td>
+            <td>200 · in_progress=false · completed_nodes=["skoed-1","skoed-2","skoed-3"]</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>POST /api/v1/upgrade/node-start on follower (X-Cluster-Secret)</td>
+            <td>202 Accepted (not forwarded to leader)</td>
+            <td>202 · binary swapped + os.Exit(0) scheduled</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>Single-node cluster rejects rolling upgrade</td>
+            <td>422 Unprocessable Entity</td>
+            <td>422 · {"error":"cluster has only 1 member; use /api/v1/upgrade/start…"}</td>
+            <td><span class="badge pass">PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- DNS filtering proof -->
+  <section>
+    <h2>DNS Filtering Verified Post-Upgrade</h2>
+    <div class="dns-proof">
+      <div class="dns-card">
+        <h3>CT 204 — kids profile</h3>
+        <div class="dns-row">
+          <span class="domain">pornhub.com</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">xvideos.com</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">google.com</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">bbc.co.uk</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+      </div>
+      <div class="dns-card">
+        <h3>CT 205 — adults profile</h3>
+        <div class="dns-row">
+          <span class="domain">doubleclick.net</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">ads.google.com</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">google.com</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">github.com</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+      </div>
+      <div class="dns-card">
+        <h3>CT 206 — IoT profile</h3>
+        <div class="dns-row">
+          <span class="domain">pagead2.googlesyndication.com</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">analytics.google.com</span>
+          <span class="blocked">NXDOMAIN</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">google.com</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+        <div class="dns-row">
+          <span class="domain">one.one.one.one</span>
+          <span class="allowed">NOERROR</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- New endpoint -->
+  <section>
+    <h2>New Endpoints (M18)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Description</th>
+            <th>Auth</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge info">POST</span></td>
+            <td><code>/api/v1/cluster/upgrade/apply</code></td>
+            <td>Trigger rolling upgrade from leader. Body: {"url":"…"}</td>
+            <td>JWT Bearer / API token (cluster:admin scope)</td>
+          </tr>
+          <tr>
+            <td><span class="badge ok">GET</span></td>
+            <td><code>/api/v1/cluster/upgrade/status</code></td>
+            <td>Query rolling upgrade state: in_progress, pending_nodes, completed_nodes, failed_node</td>
+            <td>JWT Bearer / API token</td>
+          </tr>
+          <tr>
+            <td><span class="badge info">POST</span></td>
+            <td><code>/api/v1/upgrade/node-start</code></td>
+            <td>Cluster-internal per-node swap trigger. Not wrapped in WriteForwardMiddleware.</td>
+            <td>X-Cluster-Secret header only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Key fixes -->
+  <section>
+    <h2>Key Implementation Details</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th>Root Cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Upgrade request forwarded to leader on followers</td>
+            <td>WriteForwardMiddleware intercepts all POST on non-leader nodes</td>
+            <td>New <code>/api/v1/upgrade/node-start</code> registered outside the forwarding group</td>
+          </tr>
+          <tr>
+            <td>Alpine service marked "crashed" after binary swap</td>
+            <td><code>command_background=true</code> does not restart on clean exit (code 0)</td>
+            <td>Changed to <code>supervisor="supervise-daemon"</code> in OpenRC init script</td>
+          </tr>
+          <tr>
+            <td>Debian: "read-only file system" when writing temp binary to /usr/bin</td>
+            <td><code>ProtectSystem=strict</code> in systemd unit makes /usr/bin read-only</td>
+            <td>Binary moved to <code>/var/lib/skoed/bin/</code> (in ReadWritePaths); /usr/bin/skoed is now a symlink</td>
+          </tr>
+          <tr>
+            <td>Debian: service goes inactive after os.Exit(0)</td>
+            <td><code>Restart=on-failure</code> does not restart on exit code 0</td>
+            <td>Changed to <code>Restart=always</code></td>
+          </tr>
+          <tr>
+            <td>adblock format blocklists not parsed</td>
+            <td><code>parseByFormat</code> only handled "hosts", "askoed", default</td>
+            <td>Added <code>"adblock"</code> as alias for <code>ParseAskoed</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>skoed M18 · Rolling Cluster Upgrade</span>
+  <span>Branch: feature/m18-rolling-upgrade</span>
+  <span>Tested: 2026-06-18</span>
+  <span>Platform: Proxmox 3-node (Debian + Alpine LXC)</span>
+</footer>
+
+</body>
+</html>

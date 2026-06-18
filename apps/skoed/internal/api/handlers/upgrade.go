@@ -8,6 +8,59 @@ import (
 	"github.com/skoed/skoed/internal/upgrade"
 )
 
+// NodeUpgradeStart handles POST /api/v1/upgrade/node-start.
+// Cluster-internal only: authenticated by X-Cluster-Secret, NOT wrapped in
+// WriteForwardMiddleware. Used by the rolling upgrade goroutine to trigger
+// a local binary swap on each peer node without forwarding to the leader.
+func (h *Handler) NodeUpgradeStart(w http.ResponseWriter, r *http.Request) {
+	cl := h.app.GetCluster()
+	if cl == nil {
+		writeError(w, http.StatusServiceUnavailable, "cluster not available")
+		return
+	}
+	if !cl.ValidateClusterSecret(r.Header.Get("X-Cluster-Secret")) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var body struct {
+		URL string `json:"url"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if body.URL == "" {
+		writeError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "resolve exe: "+err.Error())
+		return
+	}
+	if dest := os.Getenv("SKOED_TEST_SWAP_DEST"); dest != "" {
+		exePath = dest
+	}
+
+	if err := upgrade.Swap(body.URL, exePath); err != nil {
+		writeError(w, http.StatusInternalServerError, "swap failed: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"accepted": true,
+		"message":  "binary swap initiated; process will restart",
+	})
+
+	if os.Getenv("SKOED_TEST_MODE") != "1" {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			os.Exit(0)
+		}()
+	}
+}
+
 // UpgradeChecker is the subset of *upgrade.Checker that handlers need.
 // Held by the App; nil when no FeedURL was configured.
 type UpgradeChecker interface {
@@ -30,23 +83,37 @@ func (h *Handler) UpgradeCheck(w http.ResponseWriter, r *http.Request) {
 // running executable, responds 202, then schedules os.Exit(0) so the
 // supervisor (systemd / OpenRC) restarts the process with the new binary.
 // In SKOED_TEST_MODE=1 the exit is skipped so the test process survives.
+//
+// When the request body contains {"url": "..."}, that URL is used directly
+// (rolling-upgrade path, M18 TS-RollingUpgrade). Otherwise the configured
+// upgrade feed is consulted (M5.6 path).
 func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
-	chk := h.app.GetUpgradeChecker()
-	if chk == nil {
-		writeError(w, http.StatusServiceUnavailable, "upgrade feed is not configured")
-		return
+	var body struct {
+		URL string `json:"url"`
 	}
-	res := chk.Latest()
-	if !res.UpgradeAvailable {
-		writeError(w, http.StatusConflict, "no upgrade available (running latest)")
-		return
-	}
+	_ = decodeJSONOptional(r, &body)
 
-	assetKey := upgrade.AssetKey()
-	assetURL := res.Assets[assetKey]
-	if assetURL == "" {
-		writeError(w, http.StatusUnprocessableEntity, "no asset for "+assetKey+" in feed")
-		return
+	var assetURL string
+	if body.URL != "" {
+		// Direct URL supplied (M18 rolling-upgrade path). Skip feed check.
+		assetURL = body.URL
+	} else {
+		chk := h.app.GetUpgradeChecker()
+		if chk == nil {
+			writeError(w, http.StatusServiceUnavailable, "upgrade feed is not configured")
+			return
+		}
+		res := chk.Latest()
+		if !res.UpgradeAvailable {
+			writeError(w, http.StatusConflict, "no upgrade available (running latest)")
+			return
+		}
+		assetKey := upgrade.AssetKey()
+		assetURL = res.Assets[assetKey]
+		if assetURL == "" {
+			writeError(w, http.StatusUnprocessableEntity, "no asset for "+assetKey+" in feed")
+			return
+		}
 	}
 
 	exePath, err := os.Executable()
@@ -66,9 +133,8 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted":       true,
-		"target_version": res.AvailableVersion,
-		"message":        "binary swap initiated; process will restart",
+		"accepted": true,
+		"message":  "binary swap initiated; process will restart",
 	})
 
 	// Give the response time to flush, then exit so the supervisor

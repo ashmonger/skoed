@@ -55,8 +55,8 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M14 | Block Dynamic-Lease Clients | ✅ | — | [note](demos/m14/DEMO_NOTE.md) · [report](demos/m14/test-report.html) | [block-dyn](specs/functional/profile-block-dynamic-clients.feature) | [block-dyn](tests/acceptance/profile_block_dynamic_test.go) |
 | M15 | Test Suite Cleanup + keepalived Reference | ✅ | v0.1.3 | [note](demos/m15/DEMO_NOTE.md) · [report](demos/m15/test-report.html) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) · [refresh](tests/acceptance/blocklist_refresh_test.go) |
 | M16 | In-place Upgrade Binary Swap | ✅ | v0.1.4 | [note](demos/m16/DEMO_NOTE.md) · [report](demos/m16/test-report.html) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
-| M17 | Schedule Bindings + Config Export | 🔄 | — | [note](demos/m17/DEMO_NOTE.md) | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
-| M18 | Active-Active Cluster Phase 2 (rolling upgrade + leader load-balancing) | ⬜ | — | — | — | — |
+| M17 | Schedule Bindings + Config Export | ✅ | — | [note](demos/m17/DEMO_NOTE.md) | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
+| M18 | Rolling Cluster Upgrade | 🔄 | — | [note](demos/m18/DEMO_NOTE.md) · [report](demos/m18/test-report.html) | [rolling-upgrade](specs/functional/rolling-upgrade.feature) | [rolling-upgrade](tests/acceptance/rolling_upgrade_test.go) |
 | M19 | Query Log Aggregates + DoH3 test expansion | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
 | M20 | Cluster Security Hardening (token scoping + node cert rotation) | ⬜ | — | — | — | — |
 | M21 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
@@ -240,8 +240,48 @@ upgrade (non-goal for M16). Feed asset URLs use GitHub Releases (`ashmonger/skoe
 - [x] M17 — proof captured: all 7 tests pass with actual API responses in test-report.html — 2026-06-16
 - [x] M17 — HTML test report: `demos/m17/test-report.html` — 2026-06-16
 - [x] M17 — add GET/POST/DELETE /api/v1/schedules/{id}/bindings + Schedule/TimeWindow/ScheduleBinding schemas to management-api.openapi.yaml — 2026-06-17
-- [ ] M17 — UoR demo validation
-- [ ] M17 — merge to master
+- [x] M17 — UoR demo validation — 2026-06-17 (18/18 Proxmox tests pass, config export fixed)
+- [x] M17 — merge to master — 2026-06-17 (commit 24127e1, CI #31 green)
+
+---
+
+## M18 tasks — Rolling Cluster Upgrade (branch: `feature/m18-rolling-upgrade`)
+
+**Scope (UoR-approved):** Zero-downtime rolling upgrade for multi-node clusters via single API call.
+Sequential node upgrade preserving Raft quorum. Adblock format fix.
+
+### M18 specs
+- [x] M18 — functional spec: `specs/functional/rolling-upgrade.feature` (6 FSIDs) — 2026-06-18
+- [x] M18 — UoR validates functional spec — 2026-06-18
+- [x] M18 — technical spec: upgrade endpoints in `specs/technical/rolling-upgrade.md` (TS-RollingUpgrade) — 2026-06-18
+- [x] M18 — UoR validates technical spec — 2026-06-18
+
+### M18 tests
+- [x] M18 — acceptance tests: `tests/acceptance/rolling_upgrade_test.go` (6 tests) — 2026-06-18
+- [x] M18 — UoR validates acceptance tests — 2026-06-18
+
+### M18 implementation
+- [x] M18 — `POST /api/v1/upgrade/node-start` handler (`handlers/upgrade.go`) — cluster-internal, bypasses WriteForwardMiddleware — 2026-06-18
+- [x] M18 — `POST /api/v1/cluster/upgrade/apply` handler (`handlers/cluster_upgrade.go`) — rolling goroutine — 2026-06-18
+- [x] M18 — `GET /api/v1/cluster/upgrade/status` handler — in_progress, pending_nodes, completed_nodes, failed_node — 2026-06-18
+- [x] M18 — routes wired in `api/app.go` — 2026-06-18
+- [x] M18 — adblock format fix: `filter/blocklist.go` parseByFormat maps "adblock" → ParseAskoed — 2026-06-18
+- [x] M18 — OpenAPI: upgrade endpoints in `specs/technical/management-api.openapi.yaml` — 2026-06-18
+- [x] M18 — 6/6 acceptance tests green — 2026-06-18
+
+### M18 real-environment validation (Proxmox 3-node cluster)
+- [x] M18 — Proxmox: Alpine CT 201 init script updated to supervisor="supervise-daemon" — 2026-06-18
+- [x] M18 — Proxmox: Debian CT 200/202 binary moved to /var/lib/skoed/bin/ with symlink, Restart=always — 2026-06-18
+- [x] M18 — Proxmox: rolling upgrade completed (15s, skoed-1→skoed-3→skoed-2) — 2026-06-18
+- [x] M18 — Proxmox: DNS filtering verified on kids/adults/IoT profiles post-upgrade — 2026-06-18
+
+### M18 completion
+- [x] M18 — refactoring phase: removed debug log.Printf statements from cluster_upgrade.go — 2026-06-18
+- [x] M18 — demo note: `demos/m18/DEMO_NOTE.md` — 2026-06-18
+- [x] M18 — test report: `demos/m18/test-report.html` — 2026-06-18
+- [x] M18 — 7 screenshots in `demos/m18/` — 2026-06-18
+- [ ] M18 — UoR demo validation
+- [ ] M18 — merge to master
 
 ---
 

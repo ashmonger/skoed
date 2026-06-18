@@ -1,0 +1,211 @@
+package handlers
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"sort"
+	"sync"
+	"time"
+)
+
+// upgradeState tracks a rolling upgrade in progress. Process-local; resets on restart.
+var (
+	upgradeMu    sync.Mutex
+	upgradeState rollingUpgradeState
+)
+
+type rollingUpgradeState struct {
+	InProgress     bool     `json:"in_progress"`
+	PendingNodes   []string `json:"pending_nodes"`
+	CompletedNodes []string `json:"completed_nodes"`
+	FailedNode     *string  `json:"failed_node"`
+}
+
+// ClusterUpgradeStatus handles GET /api/v1/cluster/upgrade/status.
+func (h *Handler) ClusterUpgradeStatus(w http.ResponseWriter, r *http.Request) {
+	upgradeMu.Lock()
+	snap := upgradeState
+	// Ensure non-nil slices for clean JSON output.
+	if snap.PendingNodes == nil {
+		snap.PendingNodes = []string{}
+	}
+	if snap.CompletedNodes == nil {
+		snap.CompletedNodes = []string{}
+	}
+	upgradeMu.Unlock()
+	writeJSON(w, http.StatusOK, snap)
+}
+
+// clusterUpgradeApplyRequest is the body for POST /api/v1/cluster/upgrade/apply.
+type clusterUpgradeApplyRequest struct {
+	URL string `json:"url"`
+}
+
+// ClusterUpgradeApply handles POST /api/v1/cluster/upgrade/apply.
+// Must be called on the leader (forwarded by WriteForwardMiddleware).
+func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
+	var req clusterUpgradeApplyRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.URL == "" {
+		writeError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+
+	cl := h.app.GetCluster()
+	if cl == nil {
+		writeError(w, http.StatusServiceUnavailable, "cluster not available")
+		return
+	}
+
+	members, err := cl.Store().Members()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "get members: "+err.Error())
+		return
+	}
+	if len(members) < 2 {
+		writeError(w, http.StatusUnprocessableEntity,
+			"cluster has only 1 member; use /api/v1/upgrade/start for single-node upgrade")
+		return
+	}
+
+	upgradeMu.Lock()
+	if upgradeState.InProgress {
+		upgradeMu.Unlock()
+		writeError(w, http.StatusConflict, "a rolling upgrade is already in progress")
+		return
+	}
+	selfID := cl.NodeID()
+	// Build peer list: all members except self, sorted for determinism.
+	peers := make([]struct{ id, apiAddr string }, 0, len(members)-1)
+	for _, m := range members {
+		if m.NodeID == selfID {
+			continue
+		}
+		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, m.APIAddress})
+	}
+	sort.Slice(peers, func(i, j int) bool { return peers[i].id < peers[j].id })
+
+	pending := make([]string, len(peers))
+	for i, p := range peers {
+		pending[i] = p.id
+	}
+	upgradeState = rollingUpgradeState{
+		InProgress:     true,
+		PendingNodes:   pending,
+		CompletedNodes: []string{},
+	}
+	upgradeMu.Unlock()
+
+	clusterSecret := cl.ClusterSecret()
+	selfAPIAddr := cl.Node().Node.APIAddress
+
+	go func() {
+		completedFirst := ""
+		for _, peer := range peers {
+			if err := upgradeNode(peer.apiAddr, req.URL, clusterSecret); err != nil {
+				log.Printf("[rolling-upgrade] upgradeNode(%s) failed: %v", peer.id, err)
+				node := peer.id
+				upgradeMu.Lock()
+				upgradeState.InProgress = false
+				upgradeState.FailedNode = &node
+				upgradeState.PendingNodes = removePeer(upgradeState.PendingNodes, node)
+				upgradeMu.Unlock()
+				return
+			}
+			if completedFirst == "" {
+				completedFirst = peer.id
+			}
+			upgradeMu.Lock()
+			upgradeState.PendingNodes = removePeer(upgradeState.PendingNodes, peer.id)
+			upgradeState.CompletedNodes = append(upgradeState.CompletedNodes, peer.id)
+			upgradeMu.Unlock()
+		}
+
+		// Transfer leadership so this node (about to upgrade itself) steps down gracefully.
+		if completedFirst != "" {
+			_ = cl.TransferLeadership(completedFirst)
+			// Wait briefly for election to stabilise before self-upgrading.
+			time.Sleep(2 * time.Second)
+		}
+
+		// Upgrade self last: post to own API endpoint. In test mode UpgradeStart
+		// suppresses os.Exit so the goroutine completes normally.
+		_ = upgradeNode(selfAPIAddr, req.URL, clusterSecret)
+
+		upgradeMu.Lock()
+		upgradeState.InProgress = false
+		upgradeState.CompletedNodes = append(upgradeState.CompletedNodes, selfID)
+		upgradeMu.Unlock()
+	}()
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"accepted": true,
+		"message":  "rolling upgrade started; check /api/v1/cluster/upgrade/status",
+	})
+}
+
+// upgradeNode posts to /api/v1/upgrade/start on the target node, waits for it
+// to return 200 and become healthy again (up to upgradeNodeTimeout).
+func upgradeNode(apiAddr, tarURL, clusterSecret string) error {
+	const upgradeNodeTimeout = 120 * time.Second
+	const pollInterval = 3 * time.Second
+
+	baseURL := "http://" + apiAddr
+	body, _ := json.Marshal(map[string]string{"url": tarURL})
+
+	req, err := http.NewRequestWithContext(context.Background(),
+		http.MethodPost, baseURL+"/api/v1/upgrade/node-start", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Secret", clusterSecret)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("call upgrade/node-start on %s: %w", apiAddr, err)
+	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("upgrade/node-start on %s returned %d: %s", apiAddr, resp.StatusCode, string(bodyBytes))
+	}
+
+	// Wait for node to come back healthy.
+	deadline := time.Now().Add(upgradeNodeTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(pollInterval)
+		hreq, _ := http.NewRequestWithContext(context.Background(),
+			http.MethodGet, baseURL+"/api/v1/health", nil)
+		hresp, herr := client.Do(hreq)
+		if herr == nil && hresp.StatusCode == http.StatusOK {
+			io.Copy(io.Discard, hresp.Body) //nolint:errcheck
+			hresp.Body.Close()
+			return nil
+		}
+		if hresp != nil {
+			io.Copy(io.Discard, hresp.Body) //nolint:errcheck
+			hresp.Body.Close()
+		}
+	}
+	return fmt.Errorf("node %s did not become healthy within %s", apiAddr, upgradeNodeTimeout)
+}
+
+func removePeer(list []string, id string) []string {
+	out := list[:0]
+	for _, v := range list {
+		if v != id {
+			out = append(out, v)
+		}
+	}
+	return out
+}
