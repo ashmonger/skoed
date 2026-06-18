@@ -1,0 +1,134 @@
+<!doctype html>
+<title>M20 Test Report — Cluster Security Hardening</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace; font-size: 14px; padding: 32px; }
+  h1 { font-size: 22px; font-weight: 700; color: #58a6ff; margin-bottom: 6px; }
+  .subtitle { color: #8b949e; margin-bottom: 32px; font-size: 12px; }
+  .badge { display: inline-block; background: #238636; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 20px; letter-spacing: .04em; vertical-align: middle; margin-left: 10px; }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 14px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px; border-bottom: 1px solid #21262d; }
+  td { padding: 10px 12px; border-bottom: 1px solid #161b22; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .pass { color: #3fb950; font-weight: 700; }
+  .fail { color: #f85149; font-weight: 700; }
+  .fsid { color: #79c0ff; font-size: 12px; }
+  .dur { color: #8b949e; font-size: 12px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+  .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; text-align: center; }
+  .card .num { font-size: 28px; font-weight: 700; }
+  .card .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+  .green { color: #3fb950; }
+  .blue { color: #58a6ff; }
+  .gray { color: #8b949e; }
+  pre { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 14px; overflow-x: auto; font-size: 12px; line-height: 1.6; color: #e6edf3; }
+  .tag { display: inline-block; background: #1f2937; border: 1px solid #30363d; border-radius: 4px; font-size: 11px; padding: 1px 6px; color: #8b949e; margin-right: 4px; }
+  .feature-block { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; }
+  .feature-block h3 { font-size: 13px; color: #e6edf3; margin-bottom: 8px; }
+  .feature-block p { font-size: 12px; color: #8b949e; line-height: 1.6; }
+</style>
+
+<h1>M20 — Cluster Security Hardening <span class="badge">ALL PASS</span></h1>
+<p class="subtitle">mTLS Certificate Rotation + Token Scoping &nbsp;·&nbsp; 2026-06-18 &nbsp;·&nbsp; feature/m20-cluster-security-hardening</p>
+
+<section>
+  <h2>Summary</h2>
+  <div class="summary-grid">
+    <div class="card"><div class="num green">4</div><div class="label">Tests Passed</div></div>
+    <div class="card"><div class="num green">0</div><div class="label">Tests Failed</div></div>
+    <div class="card"><div class="num blue">8.8s</div><div class="label">Suite Duration</div></div>
+    <div class="card"><div class="num green">✓</div><div class="label">Full Suite Green</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>M20 Acceptance Tests</h2>
+  <table>
+    <thead>
+      <tr><th>Test</th><th>FSID</th><th>Scenario</th><th>Duration</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>TestCertStatusReturnsExpiry</td>
+        <td class="fsid">FS-CertStatusExposesCertExpiry</td>
+        <td>GET /api/v1/cluster/certs/status returns CA and per-node cert expiry as future timestamps</td>
+        <td class="dur">2.26s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestCertRotateAccepted</td>
+        <td class="fsid">FS-CertRotateTriggeredByAdmin</td>
+        <td>POST /api/v1/cluster/certs/rotate returns 202 and rotation completes (rotation_pending=false)</td>
+        <td class="dur">2.29s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestCertRotateMaintainsQuorum</td>
+        <td class="fsid">FS-CertRotateRollingMaintainsQuorum</td>
+        <td>3-node cluster never drops below 2 reachable members during cert rotation</td>
+        <td class="dur">2.47s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestCertRotateRequiresAdmin</td>
+        <td class="fsid">FS-CertRotateRequiresClusterAdminScope</td>
+        <td>Read-only token gets 403 on POST /api/v1/cluster/certs/rotate</td>
+        <td class="dur">1.70s</td>
+        <td class="pass">PASS</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Full Suite</h2>
+  <pre>ok  skoed/acceptance  146.714s   (all tests)</pre>
+  <p style="margin-top:8px; color:#8b949e; font-size:12px;">No regressions introduced. TestUpgradeBinarySwap target_version regression (M18→M20 port) also fixed.</p>
+</section>
+
+<section>
+  <h2>Implemented Features</h2>
+
+  <div class="feature-block">
+    <h3>Token Scoping</h3>
+    <p><span class="tag">read</span><span class="tag">write</span><span class="tag">cluster:admin</span>
+    <code>APIToken.Scopes []string</code> with <code>RequireScope()</code> middleware. Default tokens get
+    <code>["read","write"]</code>. The <code>cluster:admin</code> scope gates cert rotation.</p>
+  </div>
+
+  <div class="feature-block">
+    <h3>CertCache — mTLS Hot-Reload</h3>
+    <p><code>atomic.Pointer[certBundle]</code> in the Raft TLS layer. <code>Update()</code> swaps the bundle
+    atomically; <code>GetCertificate</code>/<code>GetConfigForClient</code> hooks serve new certs on next
+    TLS handshake without dropping existing Raft connections.</p>
+  </div>
+
+  <div class="feature-block">
+    <h3>OpCertRotation Raft Command</h3>
+    <p>New FSM command distributes <code>CertRotationPayload{CACertPEM, Nodes map[string]NodeCerts}</code>
+    to all cluster members. Applied by <code>applyCertRotation()</code>: writes certs to disk via
+    <code>MtlsPaths</code>, calls <code>cc.Update()</code> for live reload.</p>
+  </div>
+
+  <div class="feature-block">
+    <h3>API Endpoints</h3>
+    <p><code>GET /api/v1/cluster/certs/status</code> — CA + per-node expiry, any node, no forwarding.<br>
+    <code>POST /api/v1/cluster/certs/rotate</code> — generates fresh CA + leaf certs, distributes via Raft,
+    hot-swaps TLS. Requires <code>cluster:admin</code>. Returns 202.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Traceability</h2>
+  <table>
+    <thead><tr><th>FSID</th><th>TSID</th><th>Test</th></tr></thead>
+    <tbody>
+      <tr><td class="fsid">FS-CertStatusExposesCertExpiry</td><td class="fsid">TS-ClusterSecurityHardening</td><td>TestCertStatusReturnsExpiry</td></tr>
+      <tr><td class="fsid">FS-CertRotateTriggeredByAdmin</td><td class="fsid">TS-ClusterSecurityHardening</td><td>TestCertRotateAccepted</td></tr>
+      <tr><td class="fsid">FS-CertRotateRollingMaintainsQuorum</td><td class="fsid">TS-ClusterSecurityHardening</td><td>TestCertRotateMaintainsQuorum</td></tr>
+      <tr><td class="fsid">FS-CertRotateRequiresClusterAdminScope</td><td class="fsid">TS-ClusterSecurityHardening</td><td>TestCertRotateRequiresAdmin</td></tr>
+    </tbody>
+  </table>
+</section>

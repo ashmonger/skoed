@@ -93,7 +93,7 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = decodeJSONOptional(r, &body)
 
-	var assetURL string
+	var assetURL, targetVersion string
 	if body.URL != "" {
 		// Direct URL supplied (M18 rolling-upgrade path). Skip feed check.
 		assetURL = body.URL
@@ -114,6 +114,7 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "no asset for "+assetKey+" in feed")
 			return
 		}
+		targetVersion = res.AvailableVersion
 	}
 
 	exePath, err := os.Executable()
@@ -133,8 +134,9 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted": true,
-		"message":  "binary swap initiated; process will restart",
+		"accepted":       true,
+		"target_version": targetVersion,
+		"message":        "binary swap initiated; process will restart",
 	})
 
 	// Give the response time to flush, then exit so the supervisor

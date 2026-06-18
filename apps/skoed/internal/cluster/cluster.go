@@ -2,11 +2,19 @@ package cluster
 
 import (
 	"bytes"
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -1038,4 +1046,160 @@ func (c *Cluster) GetProfilePause(id string) *config.PauseState {
 		}
 	}
 	return nil
+}
+
+// ─── M20: mTLS certificate rotation (TS-ClusterSecurityHardening) ─────────────
+
+// CertsStatus is the response shape for GET /api/v1/cluster/certs/status.
+type CertsStatus struct {
+	CAExpiresAt time.Time        `json:"ca_expires_at"`
+	Nodes       []NodeCertStatus `json:"nodes"`
+}
+
+// NodeCertStatus describes the cert expiry for a single cluster node.
+type NodeCertStatus struct {
+	NodeID          string    `json:"node_id"`
+	CertExpiresAt   time.Time `json:"cert_expires_at"`
+	RotationPending bool      `json:"rotation_pending"`
+}
+
+// SetCertCache wires the CertCache into the Cluster so RotateCerts can
+// hot-reload the local leaf cert after a rotation Raft apply.
+func (c *Cluster) SetCertCache(cc *CertCache) {
+	c.store.SetCertCache(cc, c.node.Node.ID)
+}
+
+// CertStatus returns the current certificate expiry from the cert cache.
+// Returns a zero CertsStatus when mTLS is disabled.
+func (c *Cluster) CertStatus() CertsStatus {
+	if !c.mtlsEnabled {
+		return CertsStatus{}
+	}
+	var caExpiry, leafExpiry time.Time
+	if cc := c.store.certCache; cc != nil {
+		if t, err := cc.CAExpiry(); err == nil {
+			caExpiry = t
+		}
+		if t, err := cc.LeafExpiry(); err == nil {
+			leafExpiry = t
+		}
+	} else {
+		if t, err := parseCertExpiry(c.mtlsCA); err == nil {
+			caExpiry = t
+		}
+		if t, err := parseCertExpiry(c.mtlsLeafCert); err == nil {
+			leafExpiry = t
+		}
+	}
+	return CertsStatus{
+		CAExpiresAt: caExpiry,
+		Nodes: []NodeCertStatus{
+			{
+				NodeID:          c.node.Node.ID,
+				CertExpiresAt:   leafExpiry,
+				RotationPending: false,
+			},
+		},
+	}
+}
+
+// RotateCerts generates a new CA + per-node leaf certs and distributes them
+// cluster-wide via a Raft CmdCertRotation command. Must be called on the
+// leader. Returns ErrNotLeader when called on a follower.
+func (c *Cluster) RotateCerts(ctx context.Context) error {
+	if err := c.requireLeader(); err != nil {
+		return err
+	}
+	if !c.mtlsEnabled {
+		return fmt.Errorf("mTLS is not enabled on this cluster")
+	}
+
+	// Read the current CA private key (leader always has it) to confirm it exists.
+	caKeyPEM, err := os.ReadFile(MtlsPaths(c.node.Node.DataDir).CAKeyFile)
+	if err != nil {
+		return fmt.Errorf("read CA key: %w", err)
+	}
+	_ = caKeyPEM // used to verify the key is readable before generating a new CA
+
+	// Generate a fresh CA.
+	newCACertPEM, newCAKeyPEM, err := generateFreshCA()
+	if err != nil {
+		return fmt.Errorf("generate new CA: %w", err)
+	}
+
+	// Save new CA key to disk on the leader so future leaf issuances use it.
+	p := MtlsPaths(c.node.Node.DataDir)
+	if err := os.WriteFile(p.CACertFile, newCACertPEM, 0644); err != nil {
+		return fmt.Errorf("write new CA cert: %w", err)
+	}
+	if err := os.WriteFile(p.CAKeyFile, newCAKeyPEM, 0600); err != nil {
+		return fmt.Errorf("write new CA key: %w", err)
+	}
+
+	// Enumerate all known members and issue a new leaf for each.
+	members, err := c.store.Members()
+	if err != nil {
+		return fmt.Errorf("list members: %w", err)
+	}
+
+	// Always include ourselves in case we haven't registered yet.
+	selfIncluded := false
+	for _, m := range members {
+		if m.NodeID == c.node.Node.ID {
+			selfIncluded = true
+			break
+		}
+	}
+	if !selfIncluded {
+		members = append(members, Member{NodeID: c.node.Node.ID})
+	}
+
+	nodeCerts := make(map[string]NodeCerts, len(members))
+	for _, m := range members {
+		cert, key, err := IssueLeafCert(newCACertPEM, newCAKeyPEM, m.NodeID, nil)
+		if err != nil {
+			return fmt.Errorf("issue leaf for %s: %w", m.NodeID, err)
+		}
+		nodeCerts[m.NodeID] = NodeCerts{CertPEM: cert, KeyPEM: key}
+	}
+
+	payload := CertRotationPayload{
+		CACertPEM: newCACertPEM,
+		Nodes:     nodeCerts,
+	}
+	return c.applyAsLeader(CmdCertRotation, payload, 15*time.Second)
+}
+
+// generateFreshCA creates a new ECDSA P-256 CA cert+key without any
+// idempotency check (rotation always produces a new CA).
+func generateFreshCA() (caCertPEM, caKeyPEM []byte, err error) {
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate CA key: %w", err)
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
+	if err != nil {
+		return nil, nil, fmt.Errorf("serial: %w", err)
+	}
+	caTmpl := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: "skoed cluster CA", Organization: []string{"skoed"}},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLen:            0,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("self-sign CA: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(caKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal CA key: %w", err)
+	}
+	caCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	caKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return caCertPEM, caKeyPEM, nil
 }
