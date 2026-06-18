@@ -1021,49 +1021,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 21 — Skoed4Phone: DNS-over-VPN
-
-**Outcome**: iOS and Android devices can use skoed as their DNS resolver regardless of network by running a lightweight local VPN tunnel that intercepts all DNS queries; when the device is on a LAN that already has a skoed cluster, the VPN defers to the cluster.
-
-**Capabilities:**
-- Local VPN profile (WireGuard or Android VPNService / iOS NEPacketTunnelProvider) establishes a loopback-like tunnel that captures UDP/53 and TCP/53 packets only — no traffic is rerouted to a remote server.
-- Intercepted DNS queries are forwarded to a configured skoed node (LAN or external) using the DoH3 endpoint (`/dns-query`) with an API token for authentication.
-- LAN detection: if the device connects to a known SSID or resolves a sentinel hostname that matches a configured skoed node, the VPN disables itself and lets the OS use the network's DNS directly.
-- Single-node mode: if no external skoed node is configured, a bundled minimal skoed core (blocklist-only, no cluster) runs on-device; blocklists are downloaded once and cached.
-- Battery / data budget: the on-device core uses a pre-compiled blocklist snapshot (no live Raft); blocklist updates are batched at configurable intervals (default: daily on Wi-Fi only).
-
-**Non-goals:**
-- Full skoed cluster participation on phone (phone is a leaf client, not a Raft peer)
-- Traffic proxying beyond DNS (skoed4phone is DNS-only, not a full VPN)
-- App Store / Play Store distribution from this repository (build pipeline is manual; distribution is out of scope for M21)
-
-**Dependencies:** M7 API tokens (phone authenticates to cluster via read-scoped token); M20 token scoping (read-only token keeps cluster write-surface unexposed to the device); M6 DoH3 (phone uses HTTP3 transport to the cluster).
-
----
-
-### Milestone 22 — Companion / Remote-Admin App
-
-**Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
-
-**Capabilities:**
-- Progressive Web App (PWA) hosted at `/app` on each skoed node: installable from browser on Android and iOS, works offline for last-fetched data.
-- Query log viewer: paginated list with domain, client, outcome, timestamp; filter by outcome (blocked/forwarded/local) and time range; deep-link to blocklist detail for blocked entries.
-- Cluster-wide aggregate stats card (reuses M19 `/api/v1/query-log/aggregates`): block rate, unique clients, top blocked domains.
-- Profile list: show active schedules, pause status, blocklist count per profile; toggle per-profile pause (requires write-scoped token).
-- Global filtering pause toggle (requires admin-scoped token); countdown chip with "Resume now" action.
-- Authentication: Bearer token (API token from M7/M20); stored in browser credential store or OS keychain. No username/password on the app — token only.
-- Remote access: app works over the internet when the operator exposes the skoed API port (or sets up a reverse proxy); no skoed-side relay or TURN server is added.
-
-**Non-goals:**
-- Full configuration management (blocklist add/delete, local DNS entry management, cluster ops) — those remain in the existing web admin at `/`
-- Push notifications for pause expiry or new device detection
-- Self-hosted relay / zero-config remote access (operator is responsible for port exposure or VPN)
-
-**Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M21 Skoed4Phone (shares PWA infrastructure with the companion app).
-
----
-
-### Milestone 23 — DNSSEC Validation Mode
+### Milestone 21 — DNSSEC Validation Mode
 
 **Outcome**: Operators can switch skoed from transparent DNSSEC proxy mode (M1 default: forwards DO bit without validating) to full DNSSEC validation mode: unsigned or BOGUS responses return SERVFAIL instead of the forged answer, giving privacy-conscious users cryptographic assurance that DNS answers have not been tampered with.
 
@@ -1088,7 +1046,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 24 — Webhook / Push Alerts
+### Milestone 22 — Webhook / Push Alerts
 
 **Outcome**: Operators configure HTTP webhook endpoints to receive push notifications for cluster events (new unknown device detected, blocklist download failure, cluster node down, filtering pause expiry), eliminating the need to poll Prometheus or the API for operational awareness.
 
@@ -1115,7 +1073,49 @@ Node certificate rotation:
 - Webhook delivery guarantees / durable queue (best-effort with 3 retries)
 - Fan-out deduplication across cluster nodes (each node fires independently; operators should expect duplicate events during leader re-elections)
 
-**Dependencies:** M10 cluster health heartbeat (used to detect `cluster.node_down`); M5.2 audit log (webhook delivery failures are recorded there); M7 API tokens (webhook management API requires admin token); M22 Companion App (can subscribe to webhooks for push notification delivery to the app).
+**Dependencies:** M10 cluster health heartbeat (used to detect `cluster.node_down`); M5.2 audit log (webhook delivery failures are recorded there); M7 API tokens (webhook management API requires admin token); M24 Companion App (can subscribe to webhooks for push notification delivery to the app).
+
+---
+
+### Milestone 23 — Skoed4Phone: DNS-over-VPN
+
+**Outcome**: iOS and Android devices can use skoed as their DNS resolver regardless of network by running a lightweight local VPN tunnel that intercepts all DNS queries; when the device is on a LAN that already has a skoed cluster, the VPN defers to the cluster.
+
+**Capabilities:**
+- Local VPN profile (WireGuard or Android VPNService / iOS NEPacketTunnelProvider) establishes a loopback-like tunnel that captures UDP/53 and TCP/53 packets only — no traffic is rerouted to a remote server.
+- Intercepted DNS queries are forwarded to a configured skoed node (LAN or external) using the DoH3 endpoint (`/dns-query`) with an API token for authentication.
+- LAN detection: if the device connects to a known SSID or resolves a sentinel hostname that matches a configured skoed node, the VPN disables itself and lets the OS use the network's DNS directly.
+- Single-node mode: if no external skoed node is configured, a bundled minimal skoed core (blocklist-only, no cluster) runs on-device; blocklists are downloaded once and cached.
+- Battery / data budget: the on-device core uses a pre-compiled blocklist snapshot (no live Raft); blocklist updates are batched at configurable intervals (default: daily on Wi-Fi only).
+
+**Non-goals:**
+- Full skoed cluster participation on phone (phone is a leaf client, not a Raft peer)
+- Traffic proxying beyond DNS (skoed4phone is DNS-only, not a full VPN)
+- App Store / Play Store distribution from this repository (build pipeline is manual; distribution is out of scope for M23)
+
+**Dependencies:** M7 API tokens (phone authenticates to cluster via read-scoped token); M20 token scoping (read-only token keeps cluster write-surface unexposed to the device); M6 DoH3 (phone uses HTTP3 transport to the cluster).
+
+---
+
+### Milestone 24 — Companion / Remote-Admin App
+
+**Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
+
+**Capabilities:**
+- Progressive Web App (PWA) hosted at `/app` on each skoed node: installable from browser on Android and iOS, works offline for last-fetched data.
+- Query log viewer: paginated list with domain, client, outcome, timestamp; filter by outcome (blocked/forwarded/local) and time range; deep-link to blocklist detail for blocked entries.
+- Cluster-wide aggregate stats card (reuses M19 `/api/v1/query-log/aggregates`): block rate, unique clients, top blocked domains.
+- Profile list: show active schedules, pause status, blocklist count per profile; toggle per-profile pause (requires write-scoped token).
+- Global filtering pause toggle (requires admin-scoped token); countdown chip with "Resume now" action.
+- Authentication: Bearer token (API token from M7/M20); stored in browser credential store or OS keychain. No username/password on the app — token only.
+- Remote access: app works over the internet when the operator exposes the skoed API port (or sets up a reverse proxy); no skoed-side relay or TURN server is added.
+
+**Non-goals:**
+- Full configuration management (blocklist add/delete, local DNS entry management, cluster ops) — those remain in the existing web admin at `/`
+- Push notifications for pause expiry or new device detection
+- Self-hosted relay / zero-config remote access (operator is responsible for port exposure or VPN)
+
+**Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M23 Skoed4Phone (shares PWA infrastructure with the companion app).
 
 ---
 

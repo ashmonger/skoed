@@ -59,10 +59,10 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M18 | Rolling Cluster Upgrade | ✅ | v0.1.5 | [note](demos/m18/DEMO_NOTE.md) · [report](demos/m18/test-report.html) | [rolling-upgrade](specs/functional/rolling-upgrade.feature) | [rolling-upgrade](tests/acceptance/rolling_upgrade_test.go) |
 | M19 | Query Log Aggregates + DoH3 test expansion | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
 | M20 | Cluster Security Hardening (token scoping + node cert rotation) | ⬜ | — | — | — | — |
-| M21 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
-| M22 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
-| M23 | DNSSEC Validation Mode | ⬜ | — | — | — | — |
-| M24 | Webhook / Push Alerts | ⬜ | — | — | — | — |
+| M21 | DNSSEC Validation Mode | ⬜ | — | — | — | — |
+| M22 | Webhook / Push Alerts | ⬜ | — | — | — | — |
+| M23 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
+| M24 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
