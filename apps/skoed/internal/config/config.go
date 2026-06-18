@@ -35,6 +35,7 @@ type Config struct {
 	Schedules []Schedule          `yaml:"schedules,omitempty" json:"schedules,omitempty"`
 	Bindings  []ScheduleBinding   `yaml:"schedule_bindings,omitempty" json:"schedule_bindings,omitempty"`
 	Categories []CategoryOverride `yaml:"category_overrides,omitempty" json:"category_overrides,omitempty"`
+	Webhooks  []WebhookEndpoint   `yaml:"webhooks,omitempty" json:"webhooks,omitempty"`
 }
 
 // Profile binds blocklists, allowlist entries, SafeSearch providers, and
@@ -92,6 +93,15 @@ type CategoryOverride struct {
 	Name   string `yaml:"name"           json:"name"`
 	URL    string `yaml:"url,omitempty"   json:"url,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+}
+
+// WebhookEndpoint describes a single outbound webhook receiver.
+type WebhookEndpoint struct {
+	ID      string   `yaml:"id"      json:"id"`
+	URL     string   `yaml:"url"     json:"url"`
+	Secret  string   `yaml:"secret"  json:"secret"`
+	Events  []string `yaml:"events"  json:"events"`
+	Enabled bool     `yaml:"enabled" json:"enabled"`
 }
 
 type DNSConfig struct {

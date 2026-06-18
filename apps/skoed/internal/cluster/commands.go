@@ -61,6 +61,8 @@ const (
 	CmdProfilePauseClear CommandKind = "filter.profile_pause.clear"
 	// M20 — mTLS certificate rotation (TS-ClusterSecurityHardening).
 	CmdCertRotation CommandKind = "cert_rotation"
+	// M22 — replicated webhook endpoint list.
+	CmdWebhooksUpdate CommandKind = "webhooks.update"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -337,4 +339,9 @@ type NodeCerts struct {
 type CertRotationPayload struct {
 	CACertPEM []byte               `json:"ca_cert_pem"`
 	Nodes     map[string]NodeCerts `json:"nodes"`
+}
+
+// WebhooksUpdatePayload replaces the full webhook endpoint list atomically.
+type WebhooksUpdatePayload struct {
+	Webhooks []config.WebhookEndpoint `json:"webhooks"`
 }

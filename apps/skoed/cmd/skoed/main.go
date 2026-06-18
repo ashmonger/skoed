@@ -29,6 +29,7 @@ import (
 	"github.com/skoed/skoed/internal/metrics"
 	"github.com/skoed/skoed/internal/refresh"
 	"github.com/skoed/skoed/internal/upgrade"
+	"github.com/skoed/skoed/internal/webhook"
 )
 
 // Build metadata. Override at link time with:
@@ -49,7 +50,7 @@ var (
 //
 // M5.1: when m is non-nil, every query exit observes outcome+duration
 // via m.ObserveQuery so /metrics counters reflect live traffic.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics) *dnsengine.Handler {
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics, onDeviceNew func(string)) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -85,6 +86,7 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		QueryLog:      queryLog,
 		DhcpLookup:    dhcpLookup,
 		ObserveQuery:  observe,
+		OnDeviceNew:   onDeviceNew,
 	})
 }
 
@@ -221,6 +223,10 @@ func runDaemon(cfgPath string) {
 	// Declared up here so the metrics collector can read its counters.
 	var dohSched *dohresolvers.Scheduler
 
+	// M22 — webhook push-alert dispatcher. Declared early so rebuildDNS
+	// and the refresh scheduler can reference it via closures.
+	var webhookDisp *webhook.Dispatcher
+
 	// M5.1 — Prometheus exporter. Built before the App so we can pass it
 	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
 	// callbacks because all three pointers may be reallocated after
@@ -331,7 +337,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp))
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -410,7 +416,7 @@ func runDaemon(cfgPath string) {
 	}
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -480,6 +486,24 @@ func runDaemon(cfgPath string) {
 	upgradeChk.Start()
 	defer upgradeChk.Stop()
 	app.SetUpgradeChecker(upgradeChk)
+
+	// M22 — webhook push-alert dispatcher. Uses app.GetWebhooks() so the
+	// live endpoint list is always current without needing a restart.
+	webhookDisp = webhook.New(func() []config.WebhookEndpoint {
+		return app.GetWebhooks()
+	})
+	app.SetWebhookDispatcher(webhookDisp)
+	webhookDisp.Start()
+	defer webhookDisp.Stop()
+	// Wire the blocklist download-failure hook so the scheduler fires the
+	// blocklist.download_failed event through the dispatcher.
+	refreshSched.OnDownloadFailed = func(id, name, errStr string) {
+		webhookDisp.Fire(webhook.EventBlocklistDownFailed, map[string]string{
+			"blocklist_id":   id,
+			"blocklist_name": name,
+			"error":          errStr,
+		})
+	}
 
 	// M4.6 — optional HTTPS for the management API. When disabled (the
 	// default), behaviour is identical to M1-M3: plain HTTP on api_address.
@@ -567,7 +591,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -606,7 +630,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)
@@ -893,4 +917,15 @@ func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
 		return
 	}
 	log.Printf("DNSCrypt keypair rotated (expires %s)", newKeys.ExpiresAt.Format(time.RFC3339))
+}
+
+// deviceNewHook returns a function suitable for HandlerConfig.OnDeviceNew that
+// forwards to the dispatcher's deduplication path. When disp is nil (e.g. in
+// unit tests that don't wire the dispatcher) the returned value is nil, which
+// the DNS handler treats as "no hook".
+func deviceNewHook(disp *webhook.Dispatcher) func(string) {
+	if disp == nil {
+		return nil
+	}
+	return disp.NotifyDeviceNew
 }

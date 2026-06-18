@@ -34,6 +34,11 @@ type Scheduler struct {
 	// non-OK refresh; never reset.
 	failuresMu sync.RWMutex
 	failures   map[string]uint64
+
+	// OnDownloadFailed is an optional hook called after a blocklist download
+	// fails. Receives the blocklist ID, its human-readable name, and the
+	// short error string. Nil disables the hook. Set before calling Start.
+	OnDownloadFailed func(id, name, errStr string)
 }
 
 // Options bundles configuration knobs.
@@ -205,6 +210,9 @@ func (s *Scheduler) refreshOne(prior config.Blocklist) {
 		updated.LastRefreshStatus = "error"
 		updated.LastRefreshError = trimError(err)
 		s.bumpFailure(prior.ID)
+		if s.OnDownloadFailed != nil {
+			s.OnDownloadFailed(prior.ID, prior.Name, trimError(err))
+		}
 	} else if domainsEqual(prior.Domains, domains) {
 		updated.LastRefreshStatus = "unchanged"
 		updated.LastRefreshError = ""

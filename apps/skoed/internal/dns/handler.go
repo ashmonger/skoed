@@ -32,33 +32,39 @@ type HandlerConfig struct {
 	// "-doh"/"-dot" transport suffix) and wall-clock elapsed time. nil
 	// disables metrics observation cleanly — useful for unit tests.
 	ObserveQuery func(outcome string, elapsed time.Duration)
+	// M22: optional device-new notification hook. When non-nil, called for
+	// every query whose client IP is not recognised by the DHCP lookup.
+	// The dispatcher deduplicates within a 10-minute window.
+	OnDeviceNew func(clientIP string)
 }
 
 // Handler implements dns.Handler and processes all incoming DNS queries.
 type Handler struct {
-	cfg     config.DNSConfig
-	fe      func() *filter.Engine
-	lr      *LocalResolver
-	fwd     *Forwarder
-	rec     *Recursor
-	ch      *Cache
-	ql      *dlog.QueryLog
-	dhcpFn  func(ip string) (hostname, mac, clientID string, ok bool)
-	observe func(outcome string, elapsed time.Duration)
+	cfg         config.DNSConfig
+	fe          func() *filter.Engine
+	lr          *LocalResolver
+	fwd         *Forwarder
+	rec         *Recursor
+	ch          *Cache
+	ql          *dlog.QueryLog
+	dhcpFn      func(ip string) (hostname, mac, clientID string, ok bool)
+	observe     func(outcome string, elapsed time.Duration)
+	onDeviceNew func(clientIP string)
 }
 
 // NewHandler constructs a Handler from the provided configuration.
 func NewHandler(cfg HandlerConfig) *Handler {
 	return &Handler{
-		cfg:     cfg.DNSCfg,
-		fe:      cfg.FilterEngine,
-		lr:      cfg.LocalResolver,
-		fwd:     cfg.Forwarder,
-		rec:     cfg.Recursor,
-		ch:      cfg.Cache,
-		ql:      cfg.QueryLog,
-		dhcpFn:  cfg.DhcpLookup,
-		observe: cfg.ObserveQuery,
+		cfg:         cfg.DNSCfg,
+		fe:          cfg.FilterEngine,
+		lr:          cfg.LocalResolver,
+		fwd:         cfg.Forwarder,
+		rec:         cfg.Recursor,
+		ch:          cfg.Cache,
+		ql:          cfg.QueryLog,
+		dhcpFn:      cfg.DhcpLookup,
+		observe:     cfg.ObserveQuery,
+		onDeviceNew: cfg.OnDeviceNew,
 	}
 }
 
@@ -66,6 +72,11 @@ func NewHandler(cfg HandlerConfig) *Handler {
 func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	start := time.Now()
 	clientIPStr, clientIP := h.resolveClient(w, r)
+
+	// M22: fire on every query; dispatcher deduplicates within 10 minutes.
+	if h.onDeviceNew != nil {
+		go h.onDeviceNew(clientIPStr)
+	}
 
 	// M4: when a query comes in over DoH/DoT, suffix every query-log
 	// outcome with -doh / -dot so analytics can split by transport.

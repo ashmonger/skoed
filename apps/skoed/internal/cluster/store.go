@@ -37,6 +37,8 @@ var (
 	bucketAPITokens = []byte("api_tokens")
 	// M8: DNSCrypt v2 keypair. Single key "keys".
 	bucketDNSCryptKeys = []byte("dnscrypt_keys")
+	// M22: replicated webhook endpoint list. Single key "list".
+	bucketWebhooks = []byte("webhooks")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -87,6 +89,7 @@ func (s *Store) init() error {
 			bucketAudit,
 			bucketAPITokens,
 			bucketDNSCryptKeys,
+			bucketWebhooks,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -559,6 +562,17 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return s.applyCertRotation(p)
+
+	case CmdWebhooksUpdate:
+		var p WebhooksUpdatePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Webhooks)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketWebhooks).Put([]byte("list"), v)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -953,6 +967,13 @@ func (s *Store) Snapshot() (*config.Config, error) {
 		}
 		sort.Slice(out.Categories, func(i, j int) bool { return out.Categories[i].Name < out.Categories[j].Name })
 
+		// Webhooks.
+		if v := tx.Bucket(bucketWebhooks).Get([]byte("list")); v != nil {
+			if err := json.Unmarshal(v, &out.Webhooks); err != nil {
+				return err
+			}
+		}
+
 		out.Version = config.SchemaVersion
 		return nil
 	})
@@ -1180,4 +1201,21 @@ func pathDir(p string) string {
 		}
 	}
 	return "."
+}
+
+// WebhookEndpoints returns the current replicated webhook endpoint list.
+// Returns an empty slice (never nil) when no webhooks have been configured.
+func (s *Store) WebhookEndpoints() ([]config.WebhookEndpoint, error) {
+	var out []config.WebhookEndpoint
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketWebhooks).Get([]byte("list"))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &out)
+	})
+	if out == nil {
+		out = []config.WebhookEndpoint{}
+	}
+	return out, err
 }

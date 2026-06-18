@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>M19 Query Log Aggregates — Test Report</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; background: #f8f9fa; }
+  h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: .5rem; }
+  h2 { color: #34495e; margin-top: 2rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
+  .stat { background: white; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .stat .value { font-size: 2rem; font-weight: 700; }
+  .stat .label { font-size: .85rem; color: #666; }
+  .pass .value { color: #27ae60; }
+  .skip .value { color: #f39c12; }
+  .fail .value { color: #e74c3c; }
+  .total .value { color: #2980b9; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  th { background: #2c3e50; color: white; padding: .75rem 1rem; text-align: left; font-size: .9rem; }
+  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: .2rem .6rem; border-radius: 12px; font-size: .78rem; font-weight: 600; }
+  .PASS { background: #d5f5e3; color: #1e8449; }
+  .SKIP { background: #fef9e7; color: #b7770d; }
+  .FAIL { background: #fadbd8; color: #922b21; }
+  .meta { color: #555; font-size: .9rem; margin-bottom: 1.5rem; }
+  code { background: #eee; padding: .1rem .3rem; border-radius: 3px; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1>M19 — Query Log Aggregates</h1>
+<p class="meta">Acceptance test run &nbsp;·&nbsp; Branch: <code>master</code> (merged at 714c15f) &nbsp;·&nbsp; Duration: 7 s &nbsp;·&nbsp; Exit: 0</p>
+
+<div class="summary-grid">
+  <div class="stat total"><div class="value">6</div><div class="label">Total</div></div>
+  <div class="stat pass"><div class="value">6</div><div class="label">Passed</div></div>
+  <div class="stat skip"><div class="value">0</div><div class="label">Skipped</div></div>
+  <div class="stat fail"><div class="value">0</div><div class="label">Failed</div></div>
+</div>
+
+<h2>Test Results</h2>
+<table>
+  <thead>
+    <tr><th>Test</th><th>FSID</th><th>Result</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>TestQueryLogAggregatesPerNodePerHour</td>
+      <td><code>FS-QueryLogAggregatesPerNodePerHour</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>Node commits hourly aggregate via Raft; visible on all nodes within 5 s</td>
+    </tr>
+    <tr>
+      <td>TestQueryLogAggregatesClusterStats</td>
+      <td><code>FS-QueryLogAggregatesClusterStats</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>GET /cluster/stats returns same response from any node</td>
+    </tr>
+    <tr>
+      <td>TestQueryLogAggregatesAvailableDuringLeaderLoss</td>
+      <td><code>FS-QueryLogAggregatesAvailableDuringLeaderLoss</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>Follower serves aggregate reads without leader</td>
+    </tr>
+    <tr>
+      <td>TestQueryLogAggregatesFanOutForRawEntries</td>
+      <td><code>FS-QueryLogAggregatesFanOutForRawEntries</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>cluster=true fan-out merges and tags entries with node_id</td>
+    </tr>
+    <tr>
+      <td>TestQueryLogAggregatesFanOutPartialFailure</td>
+      <td><code>FS-QueryLogAggregatesFanOutPartialFailure</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>One unreachable node; remaining entries returned with partial flag</td>
+    </tr>
+    <tr>
+      <td>TestQueryLogAggregatesRetention</td>
+      <td><code>FS-QueryLogAggregatesRetention</code></td>
+      <td><span class="badge PASS">PASS</span></td>
+      <td>Aggregates older than retention window pruned via Raft on next commit</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Covered FSIDs</h2>
+<table>
+  <thead>
+    <tr><th>FSID</th><th>Description</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>FS-QueryLogAggregatesPerNodePerHour</code></td><td>Per-node hourly aggregate committed via Raft</td><td><span class="badge PASS">covered</span></td></tr>
+    <tr><td><code>FS-QueryLogAggregatesClusterStats</code></td><td>Cluster-wide stats endpoint</td><td><span class="badge PASS">covered</span></td></tr>
+    <tr><td><code>FS-QueryLogAggregatesAvailableDuringLeaderLoss</code></td><td>Stats readable on follower after leader loss</td><td><span class="badge PASS">covered</span></td></tr>
+    <tr><td><code>FS-QueryLogAggregatesFanOutForRawEntries</code></td><td>Fan-out raw log search across cluster</td><td><span class="badge PASS">covered</span></td></tr>
+    <tr><td><code>FS-QueryLogAggregatesFanOutPartialFailure</code></td><td>Partial fan-out tolerates unreachable node</td><td><span class="badge PASS">covered</span></td></tr>
+    <tr><td><code>FS-QueryLogAggregatesRetention</code></td><td>Bounded retention with Raft-coordinated pruning</td><td><span class="badge PASS">covered</span></td></tr>
+  </tbody>
+</table>
+</body>
+</html>
