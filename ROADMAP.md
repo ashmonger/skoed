@@ -1077,6 +1077,30 @@ Node certificate rotation:
 
 ---
 
+### Milestone 22.5 — Browser Extension: Push Notification Bridge (Firefox + Chrome)
+
+**Outcome**: Operators install a browser extension on Firefox or Chrome that connects to their skoed cluster and delivers native OS push notifications for cluster events (new device, blocklist failure, node down, filtering pause). No cloud relay — the extension talks directly to the cluster API.
+
+**Capabilities:**
+- **Extension targets**: Firefox (MV2-compatible, AMO-publishable) and Chrome/Edge (MV3 compliant, CWS-publishable). Single shared source tree compiled with a bundler (Vite + WXT or WebExtension Polyfill).
+- **Cluster event stream**: new `GET /api/v1/events` SSE (Server-Sent Events) endpoint on skoed. Authenticated via Bearer token in the `Authorization` header. Delivers the same event types as M22 webhooks in real-time: `device.new`, `blocklist.download_failed`, `cluster.node_down`, `cluster.node_rejoined`, `filter.pause_started`, `filter.pause_expired`. JSON payload: `{event, timestamp, node_id, data}`.
+- **Extension service worker / background script**: maintains persistent SSE connection; auto-reconnects on error with exponential backoff. Shows browser push notification on each event using the Notifications API.
+- **Toolbar icon**: badge counter (unread event count); red dot when cluster is unreachable.
+- **Popup panel**: connection status indicator, skoed cluster URL + token input, list of last 20 events with dismiss-all action, per-event-type toggle switches.
+- **Click-to-navigate**: clicking a notification opens the skoed dashboard at the relevant page (e.g., `/dashboard/cluster` for node events, `/dashboard/profiles` for pause events).
+- **Multiple clusters**: support up to 5 skoed endpoints in the popup config.
+- **Packaging**: `.zip` artifacts for manual sideloading + AMO/CWS submission manifests; bundled in goreleaser artifacts alongside the main binary.
+
+**Non-goals:**
+- Cloud relay or accounts — extension communicates only with the operator's own cluster endpoints.
+- Mobile browser extension (Firefox for Android extension planned but not in scope here; covered by M23 Skoed4Phone).
+- Extension store auto-publication pipeline (packaging artifacts are produced; submission is manual).
+- Safari extension.
+
+**Dependencies:** M22 Webhooks (event types and payload shape); M7 API tokens (extension authenticates with read-scoped token); M20 token scoping (read-only token is sufficient for event subscription).
+
+---
+
 ### Milestone 23 — Skoed4Phone: DNS-over-VPN
 
 **Outcome**: iOS and Android devices can use skoed as their DNS resolver regardless of network by running a lightweight local VPN tunnel that intercepts all DNS queries; when the device is on a LAN that already has a skoed cluster, the VPN defers to the cluster.
