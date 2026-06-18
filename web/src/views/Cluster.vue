@@ -158,6 +158,54 @@
       </div>
     </div>
 
+    <!-- ─── Rolling upgrade (M18, cluster mode only) ────────────────────── -->
+    <div v-if="health?.mode !== 'single-node'" class="card p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-fg-strong">Rolling cluster upgrade</h2>
+        <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">in progress</span>
+      </div>
+      <p class="text-sm text-fg-muted">
+        Upgrades all nodes sequentially — followers first, then the leader — without
+        losing quorum. Paste a <code class="font-mono text-xs">.tar.gz</code> URL
+        containing the new <code class="font-mono text-xs">skoed</code> binary.
+      </p>
+
+      <!-- Status card while in progress or after completion -->
+      <div v-if="upgradeStatusData && (upgradeStatusData.in_progress || upgradeStatusData.completed_nodes.length > 0 || upgradeStatusData.failed_node)"
+           class="rounded bg-bg-hover p-3 text-xs font-mono space-y-1">
+        <div v-if="upgradeStatusData.pending_nodes.length" class="text-fg-muted">
+          pending: {{ upgradeStatusData.pending_nodes.join(', ') }}
+        </div>
+        <div v-if="upgradeStatusData.completed_nodes.length" class="text-success">
+          done: {{ upgradeStatusData.completed_nodes.join(', ') }}
+        </div>
+        <div v-if="upgradeStatusData.failed_node" class="text-danger">
+          failed: {{ upgradeStatusData.failed_node }}
+        </div>
+      </div>
+
+      <p v-if="rollingUpgradeError" class="text-sm text-danger">{{ rollingUpgradeError }}</p>
+      <p v-if="rollingUpgradeMsg" class="text-sm text-success">{{ rollingUpgradeMsg }}</p>
+
+      <div class="flex gap-2">
+        <input
+          v-model="rollingUpgradeURL"
+          type="url"
+          class="input flex-1 text-sm"
+          placeholder="https://github.com/…/skoed_linux_amd64.tar.gz"
+          :disabled="rollingUpgrading || upgradeStatusData?.in_progress" />
+        <button
+          class="btn-primary"
+          :disabled="rollingUpgrading || upgradeStatusData?.in_progress || !rollingUpgradeURL.trim()"
+          @click="startRollingUpgrade">
+          {{ rollingUpgrading ? 'Starting…' : 'Upgrade cluster' }}
+        </button>
+      </div>
+      <p class="text-xs text-fg-muted">
+        Only the leader can start the upgrade — followers forward the request automatically.
+      </p>
+    </div>
+
     <!-- ─── Transfer leadership modal ───────────────────────────────────── -->
     <div v-if="pendingTransfer"
          class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -217,7 +265,9 @@ import {
 import {
   clusterHealth, clusterStatus, createJoinToken,
   nodeSelfJoin, removeNode, transferLeadership,
+  rollingUpgradeApply, rollingUpgradeStatus,
 } from '@/api/endpoints'
+import type { RollingUpgradeStatus } from '@/api/endpoints'
 import type {
   ClusterHealth, ClusterNode, ClusterStatus, JoinTokenResponse,
 } from '@/api/types'
@@ -254,6 +304,14 @@ const joinPayloadInput = ref('')
 const joining = ref(false)
 const joinClusterError = ref('')
 const joinClusterSuccess = ref('')
+
+// ─── Rolling upgrade (M18) ────────────────────────────────────────────────────
+const rollingUpgradeURL = ref('')
+const rollingUpgrading = ref(false)
+const rollingUpgradeError = ref('')
+const rollingUpgradeMsg = ref('')
+const upgradeStatusData = ref<RollingUpgradeStatus | null>(null)
+let upgradeStatusTimer: number | undefined
 
 // ─── Derived ─────────────────────────────────────────────────────────────
 
@@ -421,6 +479,39 @@ async function confirmRemove() {
   }
 }
 
+// ─── Rolling upgrade ─────────────────────────────────────────────────────
+
+async function startRollingUpgrade() {
+  rollingUpgradeError.value = ''
+  rollingUpgradeMsg.value = ''
+  rollingUpgrading.value = true
+  try {
+    const result = await rollingUpgradeApply(rollingUpgradeURL.value.trim())
+    rollingUpgradeMsg.value = result.message
+    rollingUpgradeURL.value = ''
+    pollUpgradeStatus()
+  } catch (err) {
+    rollingUpgradeError.value = errMsg(err, 'Failed to start rolling upgrade')
+  } finally {
+    rollingUpgrading.value = false
+  }
+}
+
+async function pollUpgradeStatus() {
+  if (upgradeStatusTimer) window.clearInterval(upgradeStatusTimer)
+  const tick = async () => {
+    try {
+      upgradeStatusData.value = await rollingUpgradeStatus()
+      if (!upgradeStatusData.value.in_progress) {
+        window.clearInterval(upgradeStatusTimer)
+        upgradeStatusTimer = undefined
+      }
+    } catch { /* ignore polling errors */ }
+  }
+  await tick()
+  upgradeStatusTimer = window.setInterval(tick, 3000)
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function errMsg(err: unknown, fallback: string): string {
@@ -465,9 +556,16 @@ onMounted(async () => {
   await refresh()
   timer = window.setInterval(refresh, 5_000)
   window.addEventListener('keydown', onKey)
+  // Restore upgrade status if a rolling upgrade was running before page load.
+  try {
+    const s = await rollingUpgradeStatus()
+    upgradeStatusData.value = s
+    if (s.in_progress) pollUpgradeStatus()
+  } catch { /* ignore */ }
 })
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  if (upgradeStatusTimer) window.clearInterval(upgradeStatusTimer)
   window.removeEventListener('keydown', onKey)
 })
 </script>

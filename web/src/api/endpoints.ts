@@ -442,3 +442,20 @@ export async function getFirewallRules(
   })
   return r.data
 }
+
+// ─── M18 — Rolling cluster upgrade ──────────────────────────────────────
+
+export interface RollingUpgradeStatus {
+  in_progress: boolean
+  pending_nodes: string[]
+  completed_nodes: string[]
+  failed_node: string | null
+}
+
+export function rollingUpgradeApply(url: string): Promise<{ accepted: boolean; message: string }> {
+  return postJSON('/api/v1/cluster/upgrade/apply', { url })
+}
+
+export function rollingUpgradeStatus(): Promise<RollingUpgradeStatus> {
+  return getJSON('/api/v1/cluster/upgrade/status')
+}
