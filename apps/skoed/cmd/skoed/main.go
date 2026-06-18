@@ -16,6 +16,7 @@ import (
 
 	dnscrypt "github.com/ameshkov/dnscrypt/v2"
 	"github.com/skoed/skoed/internal/api"
+	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/auth"
 	"github.com/skoed/skoed/internal/cli"
 	"github.com/skoed/skoed/internal/cluster"
@@ -492,6 +493,12 @@ func runDaemon(cfgPath string) {
 	webhookDisp = webhook.New(func() []config.WebhookEndpoint {
 		return app.GetWebhooks()
 	})
+
+	// M22.5 — SSE broadcaster: events flow to webhook workers AND SSE clients.
+	sseBroadcaster := apiSSE.NewBroadcaster()
+	app.SetSSEBroadcaster(sseBroadcaster)
+	webhookDisp.SetSSESink(sseBroadcaster.Publish)
+
 	app.SetWebhookDispatcher(webhookDisp)
 	webhookDisp.Start()
 	defer webhookDisp.Stop()

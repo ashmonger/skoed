@@ -1,0 +1,28 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; width: 320px; font-size: 13px; color: #1a1a2e; background: #f8f9fa; }
+header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #2c3e50; color: white; }
+h1 { font-size: 15px; flex: 1; }
+.badge { display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; color: white; }
+.badge.connected    { background: #27ae60; }
+.badge.disconnected { background: #e74c3c; }
+.badge.unconfigured { background: #95a5a6; }
+section { padding: 10px 12px; border-bottom: 1px solid #e0e0e0; }
+.label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.value { font-size: 13px; color: #2c3e50; margin-bottom: 6px; word-break: break-all; }
+#event-list { list-style: none; max-height: 160px; overflow-y: auto; }
+#event-list li { padding: 4px 0; border-bottom: 1px solid #eee; font-size: 12px; }
+#event-list li:last-child { border-bottom: none; }
+#event-list li.empty { color: #aaa; font-style: italic; }
+.event-type { font-weight: 600; color: #2980b9; }
+.event-ts   { color: #aaa; font-size: 11px; margin-left: 4px; }
+details summary { cursor: pointer; font-weight: 600; color: #2c3e50; padding: 2px 0; }
+label { display: block; margin: 8px 0 4px; font-size: 12px; color: #555; }
+input[type=url], input[type=password] {
+  display: block; width: 100%; margin-top: 3px; padding: 5px 8px;
+  border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+#notify-checks label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+button { margin-top: 10px; padding: 6px 14px; background: #2980b9; color: white;
+  border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+button:hover { background: #1a6fa3; }
+#save-msg { margin-top: 6px; font-size: 11px; color: #27ae60; }

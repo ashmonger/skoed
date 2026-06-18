@@ -13,6 +13,7 @@ import (
 	"github.com/skoed/skoed/internal/api/handlers"
 	apimw "github.com/skoed/skoed/internal/api/middleware"
 	"github.com/skoed/skoed/internal/api/static"
+	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/api/swaggerui"
 	"github.com/skoed/skoed/internal/auth"
 	"github.com/skoed/skoed/internal/cluster"
@@ -94,6 +95,11 @@ type App struct {
 	// SetWebhookDispatcher is called (e.g. in unit tests that don't need
 	// webhooks). FireWebhookTest returns an error when nil.
 	webhookDispatcher *webhook.Dispatcher
+
+	// sseBroadcaster is the M22.5 SSE fan-out broadcaster. Nil until
+	// SetSSEBroadcaster is called. When non-nil, webhook events are also
+	// published to all connected SSE clients.
+	sseBroadcaster *apiSSE.Broadcaster
 }
 
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
@@ -595,6 +601,10 @@ func (a *App) PauseMaxSeconds() int {
 // FireWebhookTest.
 func (a *App) SetWebhookDispatcher(d *webhook.Dispatcher) { a.webhookDispatcher = d }
 
+// SetSSEBroadcaster wires the M22.5 SSE fan-out broadcaster. Called by main.go
+// before the server starts so GET /api/v1/events can deliver events.
+func (a *App) SetSSEBroadcaster(b *apiSSE.Broadcaster) { a.sseBroadcaster = b }
+
 // GetWebhooks returns the current webhook endpoint list. Never nil — returns
 // an empty slice when no webhooks are configured.
 func (a *App) GetWebhooks() []config.WebhookEndpoint {
@@ -839,6 +849,10 @@ func (a *App) Router() http.Handler {
 		r.Post("/api/v1/webhooks", a.forward(wh.UpsertWebhook))
 		r.Delete("/api/v1/webhooks/{id}", a.forward(wh.DeleteWebhook))
 		r.Post("/api/v1/webhooks/{id}/test", wh.TestWebhook)
+
+		// M22.5 — SSE event stream for the browser extension (TS-BrowserExtension).
+		evh := handlers.NewEventsHandler(a.sseBroadcaster)
+		r.Get("/api/v1/events", evh.StreamEvents)
 
 		// M7 (TS-ApiToken) — bearer token management. Requires cluster:admin scope.
 		r.Group(func(r chi.Router) {

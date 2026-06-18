@@ -20,6 +20,7 @@ import (
 	"github.com/skoed/skoed/internal/config"
 )
 
+
 // EventType is the string label that identifies what happened.
 type EventType string
 
@@ -67,6 +68,11 @@ type Dispatcher struct {
 	seenMu  sync.Mutex
 	seenIPs map[string]time.Time
 
+	// sseSink is an optional callback invoked for every fired event so that
+	// SSE clients receive events in real time alongside webhook delivery.
+	// Set via SetSSESink; nil disables the SSE fan-out.
+	sseSink func(payload []byte)
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -85,6 +91,10 @@ func New(endpoints func() []config.WebhookEndpoint) *Dispatcher {
 		cancel:     cancel,
 	}
 }
+
+// SetSSESink wires a callback invoked for every event so SSE clients receive
+// events in real time. Call before Start.
+func (d *Dispatcher) SetSSESink(fn func(payload []byte)) { d.sseSink = fn }
 
 // SetAuditSink wires a callback invoked when all delivery retries are
 // exhausted. The callback receives the endpoint ID, the event type, and the
@@ -126,6 +136,15 @@ func (d *Dispatcher) Fire(eventType EventType, payload any) {
 		Timestamp: time.Now(),
 		Data:      payload,
 	}
+
+	// M22.5: publish to SSE clients before queuing webhook deliveries.
+	if d.sseSink != nil {
+		if b, err := json.Marshal(ev); err == nil {
+			frame := formatSSEFrame(string(eventType), b)
+			d.sseSink(frame)
+		}
+	}
+
 	for _, ep := range eps {
 		if !ep.Enabled {
 			continue
@@ -244,4 +263,11 @@ func newEventID() string {
 	b := make([]byte, 8)
 	rand.Read(b) //nolint:errcheck — crypto/rand.Read never returns an error
 	return hex.EncodeToString(b)
+}
+
+// formatSSEFrame returns a complete SSE frame for the given event type and
+// JSON data payload, ready to write to an http.ResponseWriter.
+func formatSSEFrame(eventType string, data []byte) []byte {
+	return []byte(fmt.Sprintf("event: %s\ndata: %s\nid: %s\n\n",
+		eventType, data, newEventID()))
 }

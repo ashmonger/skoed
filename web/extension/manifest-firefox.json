@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "skoed",
+  "version": "1.0.0",
+  "description": "Push notifications from your skoed DNS filter",
+  "permissions": [
+    "notifications",
+    "storage",
+    "tabs",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background/background.js"],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_icon": {
+      "16":  "icons/icon-16.png",
+      "32":  "icons/icon-32.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_popup": "popup/popup.html",
+    "default_title": "skoed"
+  },
+  "icons": {
+    "16":  "icons/icon-16.png",
+    "32":  "icons/icon-32.png",
+    "128": "icons/icon-128.png"
+  }
+}
