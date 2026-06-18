@@ -97,6 +97,7 @@ type CategoryOverride struct {
 type DNSConfig struct {
 	Listen            ListenConfig `yaml:"listen"                      json:"listen"`
 	Mode              string       `yaml:"mode"                        json:"mode"`
+	DNSSECMode        string       `yaml:"dnssec_mode,omitempty"       json:"dnssec_mode,omitempty"` // "transparent" (default) | "validate"
 	UpstreamResolvers []string     `yaml:"upstream_resolvers,omitempty" json:"upstream_resolvers,omitempty"`
 	UpstreamTimeout   int          `yaml:"upstream_timeout_seconds"    json:"upstream_timeout_seconds"`
 	TrustedSubnets    []string     `yaml:"trusted_subnets,omitempty"   json:"trusted_subnets,omitempty"`

@@ -34,6 +34,8 @@ type Entry struct {
 	ClientHostname string `json:",omitempty"`
 	ClientMAC      string `json:",omitempty"`
 	ClientID       string `json:",omitempty"`
+	// M21 — DNSSEC validation status. "ok", "bogus", "insecure", "indeterminate", or "" (transparent mode).
+	DnssecStatus string `json:"dnssec_status,omitempty"`
 }
 
 // newEntryID generates a random 16-byte hex string for use as an entry ID.

@@ -59,7 +59,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M18 | Rolling Cluster Upgrade | ✅ | v0.1.5 | [note](demos/m18/DEMO_NOTE.md) · [report](demos/m18/test-report.html) | [rolling-upgrade](specs/functional/rolling-upgrade.feature) | [rolling-upgrade](tests/acceptance/rolling_upgrade_test.go) |
 | M19 | Query Log Aggregates + DoH3 test expansion | ✅ | — | [note](demos/m19/DEMO_NOTE.md) | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
 | M20 | Cluster Security Hardening (token scoping + node cert rotation) | ✅ | — | [note](demos/m20/DEMO_NOTE.md) · [report](demos/m20/test-report.html) | [sec](specs/functional/cluster-security-hardening.feature) | [sec](tests/acceptance/cluster_security_hardening_test.go) |
-| M21 | DNSSEC Validation Mode | ⬜ | — | — | — | — |
+| M21 | DNSSEC Validation Mode | ✅ | — | [note](demos/m21/DEMO_NOTE.md) · [report](demos/m21/test-report.html) | [dnssec-val](specs/functional/dnssec-validation-mode.feature) | [dnssec-val](tests/acceptance/dnssec_validation_test.go) |
 | M22 | Webhook / Push Alerts | ⬜ | — | — | — | — |
 | M23 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
 | M24 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
