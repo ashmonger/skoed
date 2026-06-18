@@ -1,0 +1,126 @@
+<!doctype html>
+<title>M21 Test Report — DNSSEC Validation Mode</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace; font-size: 14px; padding: 32px; }
+  h1 { font-size: 22px; font-weight: 700; color: #58a6ff; margin-bottom: 6px; }
+  .subtitle { color: #8b949e; margin-bottom: 32px; font-size: 12px; }
+  .badge { display: inline-block; background: #238636; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 20px; letter-spacing: .04em; vertical-align: middle; margin-left: 10px; }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 14px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px; border-bottom: 1px solid #21262d; }
+  td { padding: 10px 12px; border-bottom: 1px solid #161b22; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .pass { color: #3fb950; font-weight: 700; }
+  .fsid { color: #79c0ff; font-size: 12px; }
+  .dur { color: #8b949e; font-size: 12px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+  .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; text-align: center; }
+  .card .num { font-size: 28px; font-weight: 700; }
+  .card .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+  .green { color: #3fb950; }
+  .blue { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 14px; overflow-x: auto; font-size: 12px; line-height: 1.6; color: #e6edf3; }
+  .feature-block { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; }
+  .feature-block h3 { font-size: 13px; color: #e6edf3; margin-bottom: 8px; }
+  .feature-block p { font-size: 12px; color: #8b949e; line-height: 1.6; }
+  .status-table td:first-child { color: #58a6ff; font-weight: 600; }
+  .status-table td:nth-child(2) { color: #8b949e; }
+</style>
+
+<h1>M21 — DNSSEC Validation Mode <span class="badge">ALL PASS</span></h1>
+<p class="subtitle">AD-bit DNSSEC validation + query log status field &nbsp;·&nbsp; 2026-06-18 &nbsp;·&nbsp; feature/m21-dnssec-validation</p>
+
+<section>
+  <h2>Summary</h2>
+  <div class="summary-grid">
+    <div class="card"><div class="num green">4</div><div class="label">M21 Tests Pass</div></div>
+    <div class="card"><div class="num green">3</div><div class="label">Legacy DNSSEC Pass</div></div>
+    <div class="card"><div class="num blue">145s</div><div class="label">Full Suite</div></div>
+    <div class="card"><div class="num green">0</div><div class="label">Regressions</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>M21 Acceptance Tests</h2>
+  <table>
+    <thead>
+      <tr><th>Test</th><th>FSID</th><th>Scenario</th><th>Duration</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>TestDnssecModeConfigurable</td>
+        <td class="fsid">FS-DnssecModeConfigurable</td>
+        <td>PATCH dns.dnssec_mode → validate/transparent; GET reflects change</td>
+        <td class="dur">1.71s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestDnssecValidateBogusReturnsServfail</td>
+        <td class="fsid">FS-DnssecValidateBogusServfail</td>
+        <td>AD=0 + RRSIG in answer → client gets SERVFAIL</td>
+        <td class="dur">2.50s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestDnssecValidateOkPassthrough</td>
+        <td class="fsid">FS-DnssecValidateOkPassthrough</td>
+        <td>AD=1 → NOERROR passthrough, query log shows dnssec_status="ok"</td>
+        <td class="dur">2.20s</td>
+        <td class="pass">PASS</td>
+      </tr>
+      <tr>
+        <td>TestDnssecValidateInsecurePassthrough</td>
+        <td class="fsid">FS-DnssecValidateInsecurePassthrough</td>
+        <td>AD=0, no RRSIG → NOERROR passthrough, dnssec_status="insecure"</td>
+        <td class="dur">1.91s</td>
+        <td class="pass">PASS</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>DNSSEC Status Classification</h2>
+  <table class="status-table">
+    <thead><tr><th>Status</th><th>Condition</th><th>Client Response</th></tr></thead>
+    <tbody>
+      <tr><td>ok</td><td>Upstream AD=1 (chain validated)</td><td>NOERROR (pass through)</td></tr>
+      <tr><td>bogus</td><td>AD=0 + RRSIG in answer, or upstream SERVFAIL</td><td>SERVFAIL</td></tr>
+      <tr><td>insecure</td><td>AD=0, no RRSIG records (unsigned domain)</td><td>NOERROR (pass through)</td></tr>
+      <tr><td>indeterminate</td><td>Ambiguous / malformed response</td><td>Pass through</td></tr>
+      <tr><td>(empty)</td><td>Transparent mode — no validation</td><td>Unchanged</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Implementation</h2>
+
+  <div class="feature-block">
+    <h3>dns.dnssec_mode config field</h3>
+    <p>Added to <code>DNSConfig</code> struct (<code>config/config.go</code>). Default <code>"transparent"</code>.<br>
+    <code>PATCH /api/v1/settings {"dns":{"dnssec_mode":"validate"}}</code> validates and applies immediately.
+    <code>rebuildDNS=true</code> on change — DNS handler rebuilt with new config atomically.</p>
+  </div>
+
+  <div class="feature-block">
+    <h3>classifyDNSSEC() in dns/handler.go</h3>
+    <p>Called after upstream resolution in validate mode. Sets DO bit on outgoing query copy.
+    Inspects <code>resp.AuthenticatedData</code> and RRSIG presence in <code>resp.Answer</code>.
+    Returns <code>(status string, out *dns.Msg)</code> — replaces response with SERVFAIL when bogus.</p>
+  </div>
+
+  <div class="feature-block">
+    <h3>dnssec_status in query log</h3>
+    <p><code>Entry.DnssecStatus string</code> field added to <code>internal/log/query.go</code>.
+    <code>queryLogEntry.DnssecStatus</code> field exposed in <code>GET /api/v1/query-log</code> handler.
+    Omitted from JSON when empty (transparent mode or non-forwarded outcomes).</p>
+  </div>
+</section>
+
+<section>
+  <h2>Full Suite</h2>
+  <pre>ok  skoed/acceptance  144.915s   (all tests)</pre>
+</section>

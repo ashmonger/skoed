@@ -69,10 +69,11 @@ type settingsPatch struct {
 }
 
 type dnsPatch struct {
-	Mode              *string          `json:"mode"`
-	UpstreamResolvers []string         `json:"upstream_resolvers"`
-	UpstreamTimeout   *int             `json:"upstream_timeout_seconds"`
-	TrustedSubnets    []string         `json:"trusted_subnets"`
+	Mode              *string             `json:"mode"`
+	DNSSECMode        *string             `json:"dnssec_mode"`
+	UpstreamResolvers []string            `json:"upstream_resolvers"`
+	UpstreamTimeout   *int                `json:"upstream_timeout_seconds"`
+	TrustedSubnets    []string            `json:"trusted_subnets"`
 	Cache             *config.CacheConfig `json:"cache"`
 }
 
@@ -109,6 +110,13 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 					return &validationError{"dns.mode must be 'forwarding' or 'recursive'"}
 				}
 				cfg.DNS.Mode = *d.Mode
+				rebuildDNS = true
+			}
+			if d.DNSSECMode != nil {
+				if *d.DNSSECMode != "transparent" && *d.DNSSECMode != "validate" {
+					return &validationError{"dns.dnssec_mode must be 'transparent' or 'validate'"}
+				}
+				cfg.DNS.DNSSECMode = *d.DNSSECMode
 				rebuildDNS = true
 			}
 			if d.UpstreamResolvers != nil {

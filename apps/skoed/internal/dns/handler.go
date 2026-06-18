@@ -183,18 +183,31 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
+	// M21: in validate mode, set the DO bit so upstream returns DNSSEC records.
+	req := r
+	if h.cfg.DNSSECMode == "validate" {
+		req = r.Copy()
+		req.SetEdns0(4096, true)
+	}
+
 	// Resolve via forwarder or recursor.
 	var resolved *dns.Msg
 	if h.cfg.Mode == "recursive" && h.rec != nil {
-		resolved = h.rec.Resolve(r, clientIPStr)
+		resolved = h.rec.Resolve(req, clientIPStr)
 	} else if h.fwd != nil {
-		resolved = h.fwd.Forward(r)
+		resolved = h.fwd.Forward(req)
 	} else {
 		resolved = servfail(r)
 	}
 
 	if resolved == nil {
 		resolved = servfail(r)
+	}
+
+	// M21: classify DNSSEC status and replace BOGUS responses with SERVFAIL.
+	dnssecStatus := ""
+	if h.cfg.DNSSECMode == "validate" {
+		dnssecStatus, resolved = classifyDNSSEC(r, resolved)
 	}
 
 	if h.ch != nil && h.cfg.Cache.Enabled {
@@ -206,7 +219,31 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	resolved.SetReply(r)
 	resolved.Rcode = rcode
 	_ = w.WriteMsg(resolved)
-	h.logCategorised(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeForwarded), "", "", "", result.PauseActive)
+	h.logForwarded(clientIPStr, name, qtypeStr, applyT(dlog.OutcomeForwarded), result.PauseActive, dnssecStatus)
+}
+
+// classifyDNSSEC inspects the upstream response and returns a DNSSEC status
+// string and potentially a replacement response (SERVFAIL for bogus).
+//
+// AD=1 → "ok" (upstream validated the chain).
+// AD=0 + RRSIG in answer → "bogus" (signed but not authenticated) → SERVFAIL.
+// AD=0, no RRSIG → "insecure" (unsigned domain) → pass through.
+// Upstream SERVFAIL → "bogus" (treat as validation failure) → pass through.
+func classifyDNSSEC(req, resp *dns.Msg) (status string, out *dns.Msg) {
+	if resp.Rcode == dns.RcodeServerFailure {
+		return "bogus", resp
+	}
+	if resp.AuthenticatedData {
+		return "ok", resp
+	}
+	for _, rr := range resp.Answer {
+		if rr.Header().Rrtype == dns.TypeRRSIG {
+			sf := new(dns.Msg)
+			sf.SetRcode(req, dns.RcodeServerFailure)
+			return "bogus", sf
+		}
+	}
+	return "insecure", resp
 }
 
 // resolveClient returns the client's string IP and parsed net.IP. When
@@ -342,6 +379,30 @@ func (h *Handler) logCategorised(clientIP, domain, qtype string, outcome dlog.Ou
 		Category:    category,
 		ProfileID:   profileID,
 		PauseActive: pauseActive,
+	}
+	if h.dhcpFn != nil {
+		if host, mac, cid, ok := h.dhcpFn(clientIP); ok {
+			e.ClientHostname = host
+			e.ClientMAC = mac
+			e.ClientID = cid
+		}
+	}
+	h.ql.Append(e)
+}
+
+// logForwarded is the M21 forwarded-query logger that also stamps DNSSEC status.
+func (h *Handler) logForwarded(clientIP, domain, qtype string, outcome dlog.Outcome, pauseActive bool, dnssecStatus string) {
+	if h.ql == nil {
+		return
+	}
+	e := dlog.Entry{
+		Client:       clientIP,
+		Domain:       domain,
+		QueryType:    qtype,
+		Timestamp:    time.Now(),
+		Outcome:      outcome,
+		PauseActive:  pauseActive,
+		DnssecStatus: dnssecStatus,
 	}
 	if h.dhcpFn != nil {
 		if host, mac, cid, ok := h.dhcpFn(clientIP); ok {

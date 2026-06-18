@@ -20,6 +20,7 @@ type queryLogEntry struct {
 	ClientMAC      string    `json:"client_mac,omitempty"`
 	ClientID       string    `json:"client_id,omitempty"`
 	PauseActive    bool      `json:"pause_active,omitempty"`
+	DnssecStatus   string    `json:"dnssec_status,omitempty"` // M21: "ok", "bogus", "insecure", "indeterminate"
 }
 
 type queryLogResponse struct {
@@ -66,6 +67,7 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 			ClientMAC:      e.ClientMAC,
 			ClientID:       e.ClientID,
 			PauseActive:    e.PauseActive,
+			DnssecStatus:   e.DnssecStatus,
 		}
 	}
 
