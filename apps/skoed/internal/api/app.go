@@ -24,6 +24,7 @@ import (
 	dlog "github.com/skoed/skoed/internal/log"
 	"github.com/skoed/skoed/internal/metrics"
 	"github.com/skoed/skoed/internal/upgrade"
+	"github.com/skoed/skoed/internal/webhook"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -88,6 +89,11 @@ type App struct {
 	// sessions holds short-lived login session tokens (8 h TTL, node-local).
 	// Issued by POST /api/v1/auth/login; revoked by DELETE /api/v1/auth/session.
 	sessions *sessionStore
+
+	// webhookDispatcher is the M22 push-alert fan-out engine. Nil until
+	// SetWebhookDispatcher is called (e.g. in unit tests that don't need
+	// webhooks). FireWebhookTest returns an error when nil.
+	webhookDispatcher *webhook.Dispatcher
 }
 
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
@@ -582,6 +588,45 @@ func (a *App) PauseMaxSeconds() int {
 	return cfg.Filtering.PauseMaxSeconds
 }
 
+// ─── M22: webhook management ─────────────────────────────────────────────────
+
+// SetWebhookDispatcher wires the M22 push-alert dispatcher. Called by main.go
+// after the dispatcher is constructed so handlers can reach it via
+// FireWebhookTest.
+func (a *App) SetWebhookDispatcher(d *webhook.Dispatcher) { a.webhookDispatcher = d }
+
+// GetWebhooks returns the current webhook endpoint list. Never nil — returns
+// an empty slice when no webhooks are configured.
+func (a *App) GetWebhooks() []config.WebhookEndpoint {
+	cfg := a.GetCfg()
+	if cfg == nil || cfg.Webhooks == nil {
+		return []config.WebhookEndpoint{}
+	}
+	return cfg.Webhooks
+}
+
+// UpdateWebhooks replicates a full webhook endpoint list via Raft (when a
+// cluster is present) or updates the in-memory config directly (single-node).
+func (a *App) UpdateWebhooks(endpoints []config.WebhookEndpoint) error {
+	if a.cluster != nil {
+		return a.cluster.UpdateWebhooks(endpoints)
+	}
+	// Single-node fallback: update config in-memory and persist.
+	return a.WithWriteLock(func(cfg *config.Config) error {
+		cfg.Webhooks = endpoints
+		return nil
+	})
+}
+
+// FireWebhookTest fires a test event directly to the named endpoint.
+// Returns an error when the dispatcher is not wired or the endpoint is not found.
+func (a *App) FireWebhookTest(endpointID string) error {
+	if a.webhookDispatcher == nil {
+		return fmt.Errorf("webhook dispatcher not initialised")
+	}
+	return a.webhookDispatcher.FireTo(endpointID, webhook.EventTest, map[string]string{"endpoint_id": endpointID})
+}
+
 // ============================================================================
 // HTTP routing
 // ============================================================================
@@ -787,6 +832,13 @@ func (a *App) Router() http.Handler {
 		// failovers without a separate /cluster/status round-trip.
 		r.Get("/api/v1/leases", h.GetLeases)
 		r.Get("/api/v1/leases/source", h.GetLeasesSource)
+
+		// M22 — webhook endpoint management (TS-Webhooks).
+		wh := handlers.NewWebhookHandlers(a)
+		r.Get("/api/v1/webhooks", wh.ListWebhooks)
+		r.Post("/api/v1/webhooks", a.forward(wh.UpsertWebhook))
+		r.Delete("/api/v1/webhooks/{id}", a.forward(wh.DeleteWebhook))
+		r.Post("/api/v1/webhooks/{id}/test", wh.TestWebhook)
 
 		// M7 (TS-ApiToken) — bearer token management. Requires cluster:admin scope.
 		r.Group(func(r chi.Router) {

@@ -1203,3 +1203,15 @@ func generateFreshCA() (caCertPEM, caKeyPEM []byte, err error) {
 	caKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	return caCertPEM, caKeyPEM, nil
 }
+
+// ─── M22: webhook management ─────────────────────────────────────────────────
+
+// UpdateWebhooks replaces the full webhook endpoint list via Raft.
+func (c *Cluster) UpdateWebhooks(endpoints []config.WebhookEndpoint) error {
+	return c.applyAsLeader(CmdWebhooksUpdate, WebhooksUpdatePayload{Webhooks: endpoints}, 0)
+}
+
+// WebhookEndpoints returns the current replicated webhook endpoint list.
+func (c *Cluster) WebhookEndpoints() ([]config.WebhookEndpoint, error) {
+	return c.store.WebhookEndpoints()
+}
