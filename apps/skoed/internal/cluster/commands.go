@@ -59,6 +59,8 @@ const (
 	CmdGlobalPauseClear  CommandKind = "filter.global_pause.clear"
 	CmdProfilePauseSet   CommandKind = "filter.profile_pause.set"
 	CmdProfilePauseClear CommandKind = "filter.profile_pause.clear"
+	// M20 — mTLS certificate rotation (TS-ClusterSecurityHardening).
+	CmdCertRotation CommandKind = "cert_rotation"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -320,4 +322,19 @@ type ProfilePauseSetPayload struct {
 
 type ProfilePauseClearPayload struct {
 	ProfileID string `json:"profile_id"`
+}
+
+// ─── M20 payloads (TS-ClusterSecurityHardening) ─────────────────────────────
+
+// NodeCerts holds the new leaf cert+key PEMs for a single node.
+type NodeCerts struct {
+	CertPEM []byte `json:"cert_pem"`
+	KeyPEM  []byte `json:"key_pem"`
+}
+
+// CertRotationPayload carries a new CA and per-node leaf certs for
+// cluster-wide mTLS certificate rotation. Keyed by node ID.
+type CertRotationPayload struct {
+	CACertPEM []byte               `json:"ca_cert_pem"`
+	Nodes     map[string]NodeCerts `json:"nodes"`
 }

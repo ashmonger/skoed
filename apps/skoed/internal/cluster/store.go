@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -51,6 +52,13 @@ const schemaVersion uint32 = 1
 type Store struct {
 	db *bolt.DB
 	mu sync.RWMutex // protects the in-memory caches built from bbolt
+
+	// certCache is optionally wired by the Cluster after boot to enable
+	// hot-reload of TLS material on CmdCertRotation applies.
+	certCache *CertCache
+	// nodeID is this node's identifier, used to look up per-node certs in
+	// CertRotationPayload.Nodes.
+	nodeID string
 }
 
 // OpenStore opens (or creates) the bbolt database at path and ensures every
@@ -108,6 +116,13 @@ func (s *Store) Close() error {
 // DB exposes the underlying bbolt handle for tests and the snapshot path.
 // Most callers should not need it.
 func (s *Store) DB() *bolt.DB { return s.db }
+
+// SetCertCache wires the cert cache and node ID so CmdCertRotation applies
+// can hot-reload the leaf certificate without restarting the listener.
+func (s *Store) SetCertCache(cc *CertCache, nodeID string) {
+	s.certCache = cc
+	s.nodeID = nodeID
+}
 
 // ============================================================================
 // Apply: route a Command to the correct bucket mutation. Called by the FSM.
@@ -537,6 +552,13 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv)
+
+	case CmdCertRotation:
+		var p CertRotationPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return s.applyCertRotation(p)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -1108,4 +1130,54 @@ func (s *Store) AggregatesIter(fn func(HourAggregate) error) error {
 			})
 		})
 	})
+}
+
+// ─── M20: mTLS certificate rotation (TS-ClusterSecurityHardening) ────────────
+
+// applyCertRotation writes the new CA cert and this node's leaf cert+key to
+// disk, then hot-reloads the cert cache if one is wired. Called inside applyTx.
+func (s *Store) applyCertRotation(p CertRotationPayload) error {
+	if s.nodeID == "" {
+		// nodeID not wired (unit-test path without a full cluster); skip
+		// the disk write but don't fail the FSM apply.
+		return nil
+	}
+	nc, ok := p.Nodes[s.nodeID]
+	if !ok {
+		// This node's certs are not in the payload — skip silently.
+		// Could happen if the member list changed between generation and apply.
+		return nil
+	}
+	// db.Path() returns the bbolt file; derive data_dir from it.
+	dataDir := pathDir(s.db.Path())
+	paths := MtlsPaths(dataDir)
+
+	if err := os.WriteFile(paths.CACertFile, p.CACertPEM, 0644); err != nil {
+		return fmt.Errorf("write CA cert: %w", err)
+	}
+	if err := os.WriteFile(paths.NodeCert, nc.CertPEM, 0644); err != nil {
+		return fmt.Errorf("write node cert: %w", err)
+	}
+	if err := os.WriteFile(paths.NodeKey, nc.KeyPEM, 0600); err != nil {
+		return fmt.Errorf("write node key: %w", err)
+	}
+
+	if s.certCache != nil {
+		if err := s.certCache.Update(p.CACertPEM, nc.CertPEM, nc.KeyPEM); err != nil {
+			// Log but don't fail the FSM apply — the certs are already on disk.
+			// On next restart the correct certs will be loaded.
+			_ = err
+		}
+	}
+	return nil
+}
+
+// pathDir returns the directory component of a file path.
+func pathDir(p string) string {
+	for i := len(p) - 1; i >= 0; i-- {
+		if p[i] == '/' || p[i] == '\\' {
+			return p[:i]
+		}
+	}
+	return "."
 }

@@ -5,6 +5,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -67,6 +68,12 @@ type AppState interface {
 	// skoed_test_domain_requests_total{surface,verdict} counter.
 	// No-op when metrics aren't wired.
 	ObserveTestDomain(surface, verdict string)
+
+	// GetCertStatus returns the mTLS certificate expiry status (M20).
+	GetCertStatus() cluster.CertsStatus
+
+	// RotateCerts triggers a cluster-wide mTLS certificate rotation (M20).
+	RotateCerts(ctx context.Context) error
 
 	Dir() string
 }

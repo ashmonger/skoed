@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -513,6 +515,23 @@ func (a *App) GetCluster() *cluster.Cluster { return a.cluster }
 // handlers as a working directory.
 func (a *App) Dir() string { return a.cluster.Node().Node.DataDir }
 
+// GetCertStatus returns the current mTLS certificate expiry from the cluster.
+// Returns a zero CertsStatus when mTLS is not enabled or cluster is nil.
+func (a *App) GetCertStatus() cluster.CertsStatus {
+	if a.cluster == nil {
+		return cluster.CertsStatus{}
+	}
+	return a.cluster.CertStatus()
+}
+
+// RotateCerts triggers a cluster-wide mTLS certificate rotation via Raft.
+func (a *App) RotateCerts(ctx context.Context) error {
+	if a.cluster == nil {
+		return fmt.Errorf("cluster not enabled")
+	}
+	return a.cluster.RotateCerts(ctx)
+}
+
 // UpdateAuthConfig flushes the local auth.Store state through Raft so every
 // node sees the new credentials. Called after first-run setup and password
 // change.
@@ -777,6 +796,13 @@ func (a *App) Router() http.Handler {
 			r.Post("/api/v1/tokens", a.forward(tok.Create))
 			r.Delete("/api/v1/tokens/{id}", a.forward(tok.Delete))
 			r.Patch("/api/v1/tokens/{id}", a.forward(tok.Patch))
+		})
+
+		// M20 (TS-ClusterSecurityHardening) — mTLS certificate status and rotation.
+		r.Group(func(r chi.Router) {
+			r.Use(a.RequireScope("cluster:admin"))
+			r.Get("/api/v1/cluster/certs/status", h.ClusterCertsStatus)
+			r.Post("/api/v1/cluster/certs/rotate", a.forward(h.ClusterCertsRotate))
 		})
 
 		// Cluster endpoints — most write paths forwarded.
