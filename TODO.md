@@ -56,7 +56,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M15 | Test Suite Cleanup + keepalived Reference | ✅ | v0.1.3 | [note](demos/m15/DEMO_NOTE.md) · [report](demos/m15/test-report.html) | [enc-dns](specs/functional/encrypted-dns-expansion.feature) | [enc-dns](tests/acceptance/encrypted_dns_expansion_test.go) · [refresh](tests/acceptance/blocklist_refresh_test.go) |
 | M16 | In-place Upgrade Binary Swap | ✅ | v0.1.4 | [note](demos/m16/DEMO_NOTE.md) · [report](demos/m16/test-report.html) | [upgrade](specs/functional/in-place-upgrade.feature) | [upgrade](tests/acceptance/in_place_upgrade_test.go) |
 | M17 | Schedule Bindings + Config Export | ✅ | — | [note](demos/m17/DEMO_NOTE.md) | [schedules](specs/functional/schedules.feature) · [shadow](specs/functional/config-shadow-yaml.feature) | [schedules](tests/acceptance/schedules_test.go) · [shadow](tests/acceptance/shadow_yaml_test.go) |
-| M18 | Rolling Cluster Upgrade | 🔄 | — | [note](demos/m18/DEMO_NOTE.md) · [report](demos/m18/test-report.html) | [rolling-upgrade](specs/functional/rolling-upgrade.feature) | [rolling-upgrade](tests/acceptance/rolling_upgrade_test.go) |
+| M18 | Rolling Cluster Upgrade | ✅ | v0.1.5 | [note](demos/m18/DEMO_NOTE.md) · [report](demos/m18/test-report.html) | [rolling-upgrade](specs/functional/rolling-upgrade.feature) | [rolling-upgrade](tests/acceptance/rolling_upgrade_test.go) |
 | M19 | Query Log Aggregates + DoH3 test expansion | ⬜ | — | — | [qlog-agg](specs/functional/query-log-aggregates.feature) | [qlog-agg](tests/acceptance/query_log_aggregates_test.go) |
 | M20 | Cluster Security Hardening (token scoping + node cert rotation) | ⬜ | — | — | — | — |
 | M21 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
@@ -280,8 +280,8 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M18 — demo note: `demos/m18/DEMO_NOTE.md` — 2026-06-18
 - [x] M18 — test report: `demos/m18/test-report.html` — 2026-06-18
 - [x] M18 — 7 screenshots in `demos/m18/` — 2026-06-18
-- [ ] M18 — UoR demo validation
-- [ ] M18 — merge to master
+- [x] M18 — UoR demo validation — 2026-06-18
+- [x] M18 — merge to master + tag v0.1.5 — 2026-06-18
 
 ---
 
