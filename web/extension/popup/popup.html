@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=320">
+<title>skoed</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <img src="../icons/icon-32.png" alt="skoed" width="32" height="32">
+  <h1>skoed</h1>
+  <span id="badge" class="badge unconfigured">?</span>
+</header>
+
+<section id="status-section">
+  <p class="label">Node URL</p>
+  <p id="node-url" class="value">—</p>
+  <p class="label">Status</p>
+  <p id="conn-status" class="value">Unconfigured</p>
+</section>
+
+<section id="events-section">
+  <p class="label">Recent events</p>
+  <ul id="event-list"><li class="empty">No events yet</li></ul>
+</section>
+
+<section id="settings-section">
+  <details>
+    <summary>Settings</summary>
+    <label>Node URL<input id="inp-url" type="url" placeholder="https://skoed.home:8443"></label>
+    <label>API token<input id="inp-token" type="password" placeholder="sk_…"></label>
+    <p class="label">Notify on</p>
+    <div id="notify-checks"></div>
+    <button id="save-btn">Save</button>
+    <p id="save-msg"></p>
+  </details>
+</section>
+
+<script src="popup.js"></script>
+</body>
+</html>
