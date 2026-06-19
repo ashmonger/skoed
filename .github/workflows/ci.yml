@@ -51,8 +51,9 @@ jobs:
         # VM so there is no socket-accumulation or kernel-state pollution.
         # Using Docker here would require downloading all Go modules from scratch
         # on every run (no shared cache between ephemeral runners).
-        # -parallel 4: the suite spawns real processes per test; 8 concurrent on
-        # a 2-core runner causes resource contention and flaky timing failures.
+        # -parallel 4: the suite spawns real processes per test; with 3-node
+        # cluster tests, up to 12 skoed processes run concurrently. readyTimeout
+        # in harness_test.go is 120s to cover CI runner disk-I/O contention.
         # -json + tee: structured output written to /tmp/acc.json for the
         # "show failures" step below; the python3 filter prints only FAIL lines.
         env:

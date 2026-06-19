@@ -40,13 +40,13 @@ var portCounter atomic.Int32
 func init() { portCounter.Store(20000) }
 
 const (
-	// readyTimeout was 10s (flaky under sequential load), then 60s.
-	// With t.Parallel() and -parallel 8, up to 24 skoed processes can
-	// start simultaneously (8 tests × 3-node clusters). On a loaded
-	// container the 8th process can take 60-80s to bind its API port.
-	// 90s is the new empirical upper bound with parallel execution;
-	// anything longer would mask a real regression.
-	readyTimeout      = 90 * time.Second
+	// readyTimeout was 10s (flaky under sequential load), then 60s, then 90s.
+	// With t.Parallel() and -parallel 4, up to 12 skoed processes can start
+	// simultaneously (4 tests × 3-node clusters). On a loaded CI runner the
+	// last process can take 90–110s to bind its API port due to disk I/O
+	// contention on BBolt writes. 120s is the safe upper bound; anything longer
+	// would mask a real regression.
+	readyTimeout      = 120 * time.Second
 	readyPollInterval = 100 * time.Millisecond
 	dnsQueryTimeout   = 3 * time.Second
 
