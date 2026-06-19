@@ -171,6 +171,14 @@ func (d *Dispatcher) FireTo(endpointID string, eventType EventType, payload any)
 		Timestamp: time.Now(),
 		Data:      payload,
 	}
+
+	// Also publish to SSE so test-fire events appear in the browser extension.
+	if d.sseSink != nil {
+		if b, err := json.Marshal(ev); err == nil {
+			d.sseSink(formatSSEFrame(string(eventType), b))
+		}
+	}
+
 	for _, ep := range eps {
 		if ep.ID == endpointID {
 			return d.post(ep, ev)

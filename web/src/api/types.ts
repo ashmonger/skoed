@@ -82,6 +82,8 @@ export interface ClusterHealth {
   reachable_members: number
   raft_term: number
   commit_index: number
+  version?: string
+  commit?: string
 }
 
 export interface ClusterSelf {
@@ -284,4 +286,55 @@ export interface PauseState {
   resumes_at?: string
   reason?: string
   profile_ids?: string[]
+}
+
+// ─── M22 — Webhooks ──────────────────────────────────────────────────────
+
+export interface WebhookEndpoint {
+  id: string
+  url: string
+  secret: string
+  events: string[]
+  enabled: boolean
+}
+
+// ─── M22.5 / Tokens — API token management ───────────────────────────────
+
+export interface APIToken {
+  id: string
+  label: string
+  scopes: string[]
+  created_at: string
+  last_used_at?: string | null
+  expires_at?: string | null
+}
+
+export interface APITokenMinted extends APIToken {
+  token: string  // raw value — shown once at creation
+}
+
+// ─── Client detail (GET /api/v1/clients/{ip}) ────────────────────────────
+
+export interface ClientDetail {
+  ip: string
+  mac: string
+  hostname: string
+  client_id: string
+  source: string
+  last_seen?: string | null
+  anomalies?: Anomaly[]
+  origin?: string
+  origin_confidence?: string
+  ipv6_addresses?: string[]
+  duid?: string
+  is_dual_stack?: boolean
+  profile_ids?: string[]
+}
+
+export interface ClientDohStatusDetail {
+  client: string
+  using_doh: boolean
+  doh_probes_1h: number
+  last_doh_query: string | null
+  suspected_provider: string | null
 }

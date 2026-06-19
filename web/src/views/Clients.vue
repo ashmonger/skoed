@@ -132,6 +132,14 @@
                     <ClipboardDocumentListIcon class="h-4 w-4" />
                     <span>Copy DoH-gap rules (this /24)</span>
                   </button>
+                  <button type="button"
+                          role="menuitem"
+                          class="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-fg
+                                 hover:bg-bg-hover rounded text-left"
+                          @click="openDetail(l.ip)">
+                    <InformationCircleIcon class="h-4 w-4" />
+                    <span>View details</span>
+                  </button>
                 </div>
               </div>
             </td>
@@ -148,6 +156,118 @@
       v-if="fwRuleScope"
       :scope="fwRuleScope"
       @close="fwRuleScope = null" />
+
+    <!-- Client detail drawer -->
+    <Transition name="slide-right">
+      <div v-if="detailIP"
+           class="fixed inset-y-0 right-0 w-96 bg-bg border-l border-border shadow-xl z-40 flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <h2 class="font-semibold text-fg-strong">Client details</h2>
+          <button class="btn-ghost p-1" @click="detailIP = null">
+            <XMarkIcon class="h-4 w-4" />
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+          <p v-if="detailLoading" class="text-sm text-fg-muted text-center py-8">Loading…</p>
+          <p v-else-if="detailError" class="text-sm text-danger">{{ detailError }}</p>
+          <template v-else-if="detail">
+            <div class="space-y-1">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">Identity</h3>
+              <div class="card p-3 space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">IP</span>
+                  <span class="font-mono text-xs">{{ detail.ip }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">Hostname</span>
+                  <span>{{ detail.hostname || '—' }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">MAC</span>
+                  <span class="font-mono text-xs">{{ detail.mac || '—' }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">Client-ID</span>
+                  <span class="font-mono text-xs break-all">{{ detail.client_id || '—' }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">Source</span>
+                  <span class="badge bg-accent-subtle text-accent">{{ detail.source }}</span>
+                </div>
+                <div v-if="detail.last_seen" class="flex justify-between">
+                  <span class="text-fg-muted">Last seen</span>
+                  <span class="text-xs">{{ fmtTime(detail.last_seen) }}</span>
+                </div>
+                <div v-if="detail.duid" class="flex justify-between">
+                  <span class="text-fg-muted">DUID</span>
+                  <span class="font-mono text-xs break-all">{{ detail.duid }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="detail.origin" class="space-y-1">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">Device origin</h3>
+              <div class="card p-3 space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">Vendor</span>
+                  <span>{{ detail.origin }}</span>
+                </div>
+                <div v-if="detail.origin_confidence" class="flex justify-between">
+                  <span class="text-fg-muted">Confidence</span>
+                  <span class="badge bg-accent-subtle text-accent">{{ detail.origin_confidence }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="detail.profile_ids && detail.profile_ids.length > 0" class="space-y-1">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">Profiles</h3>
+              <div class="card p-3 flex flex-wrap gap-1">
+                <span v-for="pid in detail.profile_ids" :key="pid"
+                      class="badge bg-accent-subtle text-accent text-xs font-mono">{{ pid }}</span>
+              </div>
+            </div>
+
+            <div v-if="detail.ipv6_addresses && detail.ipv6_addresses.length > 0" class="space-y-1">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">IPv6 addresses</h3>
+              <div class="card p-3 space-y-1">
+                <p v-for="addr in detail.ipv6_addresses" :key="addr"
+                   class="font-mono text-xs text-fg-muted">{{ addr }}</p>
+              </div>
+            </div>
+
+            <div v-if="detailDoh" class="space-y-1">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">DoH status</h3>
+              <div class="card p-3 space-y-2 text-sm">
+                <div class="flex justify-between items-center">
+                  <span class="text-fg-muted">Using DoH</span>
+                  <span v-if="detailDoh.using_doh"
+                        class="badge bg-warning/15 text-warning border border-warning/30">Yes</span>
+                  <span v-else
+                        class="badge bg-success/15 text-success border border-success/30">No</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-fg-muted">Probes (1h)</span>
+                  <span>{{ detailDoh.doh_probes_1h }}</span>
+                </div>
+                <div v-if="detailDoh.last_doh_query" class="flex justify-between">
+                  <span class="text-fg-muted">Last DoH query</span>
+                  <span class="text-xs">{{ fmtTime(detailDoh.last_doh_query) }}</span>
+                </div>
+                <div v-if="detailDoh.suspected_provider" class="flex justify-between">
+                  <span class="text-fg-muted">Suspected provider</span>
+                  <span>{{ detailDoh.suspected_provider }}</span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Backdrop for detail drawer -->
+    <div v-if="detailIP"
+         class="fixed inset-0 z-30 bg-black/20"
+         @click="detailIP = null" />
   </div>
 </template>
 
@@ -155,13 +275,15 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ArrowDownTrayIcon, ArrowPathIcon, ClipboardDocumentListIcon,
-  EllipsisHorizontalIcon, ExclamationTriangleIcon, MagnifyingGlassIcon,
+  EllipsisHorizontalIcon, ExclamationTriangleIcon, InformationCircleIcon,
+  MagnifyingGlassIcon, XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import {
-  acknowledgeAnomaly, exportReservationsURL, listAnomalies, listLeases,
+  acknowledgeAnomaly, exportReservationsURL, getClientDetail,
+  getClientDohStatusDetail, listAnomalies, listLeases,
 } from '@/api/endpoints'
 import type { FwRuleScope } from '@/api/endpoints'
-import type { Anomaly, AnomalyKind, Lease } from '@/api/types'
+import type { Anomaly, AnomalyKind, ClientDetail, ClientDohStatusDetail, Lease } from '@/api/types'
 import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 const leases = ref<Lease[]>([])
@@ -175,12 +297,40 @@ const exportOpen = ref(false)
 const openMenuIP = ref<string | null>(null)
 const fwRuleScope = ref<FwRuleScope | null>(null)
 
+// Client detail drawer
+const detailIP = ref<string | null>(null)
+const detail = ref<ClientDetail | null>(null)
+const detailDoh = ref<ClientDohStatusDetail | null>(null)
+const detailLoading = ref(false)
+const detailError = ref('')
+
 function toggleMenu(ip: string) {
   openMenuIP.value = openMenuIP.value === ip ? null : ip
 }
 function openFwRules(scope: FwRuleScope) {
   fwRuleScope.value = scope
   openMenuIP.value = null
+}
+
+async function openDetail(ip: string) {
+  openMenuIP.value = null
+  detailIP.value = ip
+  detail.value = null
+  detailDoh.value = null
+  detailError.value = ''
+  detailLoading.value = true
+  try {
+    const [d, doh] = await Promise.all([
+      getClientDetail(ip),
+      getClientDohStatusDetail(ip),
+    ])
+    detail.value = d
+    detailDoh.value = doh
+  } catch (e: unknown) {
+    detailError.value = (e as Error).message ?? 'Failed to load client details'
+  } finally {
+    detailLoading.value = false
+  }
 }
 // Derive the /24 CIDR for a v4 IP — pure client-side, sent verbatim to
 // the server which re-validates per FS-FwRuleRejectsInvalidSubnet.
@@ -288,3 +438,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('click', onDocClick)
 })
 </script>
+
+<style scoped>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.2s ease;
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>

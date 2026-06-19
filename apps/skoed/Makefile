@@ -1,6 +1,8 @@
 BIN     := skoed
 CGO_ENABLED := 0
-LDFLAGS := -s -w
+GIT_VERSION := $(shell git describe --tags --always 2>/dev/null || echo dev)
+GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -s -w -X main.version=$(GIT_VERSION) -X main.commit=$(GIT_COMMIT)
 
 # Web UI lives at repo-root web/ and is embedded into the binary via
 # go:embed at internal/api/static/dist/. `make build-ui` copies the freshly

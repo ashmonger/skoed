@@ -381,15 +381,17 @@ func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
 
 // clusterHealthResp is the body of GET /api/v1/cluster/health.
 type clusterHealthResp struct {
-	Status            string `json:"status"`             // ok | degraded
-	NodeID            string `json:"node_id"`
-	Role              string `json:"role"`               // leader | follower
-	Mode              string `json:"mode"`               // single-node | cluster
-	HasLeader         bool   `json:"has_leader"`
-	Members           int    `json:"members"`
-	ReachableMembers  int    `json:"reachable_members"`
-	RaftTerm          uint64 `json:"raft_term"`
-	CommitIndex       uint64 `json:"commit_index"`
+	Status           string `json:"status"`            // ok | degraded
+	NodeID           string `json:"node_id"`
+	Role             string `json:"role"`              // leader | follower
+	Mode             string `json:"mode"`              // single-node | cluster
+	HasLeader        bool   `json:"has_leader"`
+	Members          int    `json:"members"`
+	ReachableMembers int    `json:"reachable_members"`
+	RaftTerm         uint64 `json:"raft_term"`
+	CommitIndex      uint64 `json:"commit_index"`
+	Version          string `json:"version"`
+	Commit           string `json:"commit"`
 }
 
 // ClusterHealth handles GET /api/v1/cluster/health — an authenticated
@@ -406,6 +408,7 @@ func (h *Handler) ClusterHealth(w http.ResponseWriter, r *http.Request) {
 	leaderID := c.LeaderID()
 	localID := c.Node().Node.ID
 
+	version, commit := h.app.GetBuildVersion()
 	resp := clusterHealthResp{
 		NodeID:      localID,
 		Role:        "follower",
@@ -413,6 +416,8 @@ func (h *Handler) ClusterHealth(w http.ResponseWriter, r *http.Request) {
 		Members:     len(servers),
 		RaftTerm:    c.Raft().CurrentTerm(),
 		CommitIndex: c.Raft().CommitIndex(),
+		Version:     version,
+		Commit:      commit,
 	}
 	if localID == leaderID {
 		resp.Role = "leader"

@@ -32,6 +32,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'settings/audit', name: 'audit', component: () => import('./views/Audit.vue') },
       { path: 'tools/test-domain', name: 'test-domain', component: () => import('./views/TestDomain.vue') },
       { path: 'account', name: 'account', component: () => import('./views/Account.vue') },
+      { path: 'webhooks', name: 'webhooks', component: () => import('./views/Webhooks.vue') },
+      { path: 'tokens', name: 'tokens', component: () => import('./views/Tokens.vue') },
     ],
   },
   { path: '/:catchAll(.*)*', redirect: '/' },

@@ -76,6 +76,9 @@ type AppState interface {
 	RotateCerts(ctx context.Context) error
 
 	Dir() string
+
+	// GetBuildVersion returns the (version, commit) injected at link time.
+	GetBuildVersion() (string, string)
 }
 
 // Handler groups all HTTP handlers and holds a reference to the application state.

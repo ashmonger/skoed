@@ -1,8 +1,8 @@
 <template>
-  <div class="min-h-screen flex bg-bg-canvas">
+  <div class="fixed inset-0 flex bg-bg-canvas">
     <!-- Sidebar (Pi-hole-inspired: persistent left nav with grouped sections) -->
     <aside
-      class="w-60 shrink-0 border-r border-border bg-bg-card flex flex-col"
+      class="w-60 shrink-0 border-r border-border bg-bg-card flex flex-col h-full"
       :class="{ '-ml-60 md:ml-0': !sidebarOpen }"
     >
       <div class="px-5 h-12 border-b border-border flex items-center gap-2">
@@ -50,7 +50,7 @@
         </div>
       </nav>
 
-      <div class="px-3 py-3 border-t border-border text-xs text-fg-muted">
+      <div class="px-3 py-3 border-t border-border text-xs text-fg-muted shrink-0">
         <div v-if="health" class="space-y-0.5">
           <div>
             <span class="text-fg-subtle">node</span>
@@ -70,14 +70,18 @@
             <span class="text-fg-subtle ml-2">commit</span>
             <span class="font-mono ml-1">{{ health.commit_index }}</span>
           </div>
+          <div v-if="health.version" class="pt-0.5 border-t border-border mt-0.5">
+            <span class="font-mono text-accent">{{ health.version }}</span>
+            <span v-if="health.commit" class="text-fg-subtle ml-1">({{ health.commit }})</span>
+          </div>
         </div>
       </div>
     </aside>
 
     <!-- Main column -->
-    <div class="flex-1 flex flex-col min-w-0">
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <!-- Header (AdGuard-inspired: thin top bar with theme toggle + account) -->
-      <header class="h-12 border-b border-border bg-bg-card flex items-center px-4 gap-2">
+      <header class="h-12 shrink-0 border-b border-border bg-bg-card flex items-center px-4 gap-2">
         <button
           class="md:hidden btn-ghost p-1.5"
           @click="sidebarOpen = !sidebarOpen"
@@ -133,6 +137,7 @@ import {
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
   DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
+  BellAlertIcon, KeyIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -187,6 +192,13 @@ const nav: Array<{
     ],
   },
   {
+    label: 'Integrations',
+    items: [
+      { name: 'webhooks', label: 'Webhooks',   icon: BellAlertIcon },
+      { name: 'tokens',   label: 'API Tokens', icon: KeyIcon },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { name: 'cluster',  label: 'Cluster',  icon: CpuChipIcon },
@@ -210,6 +222,8 @@ const titles: Record<string, string> = {
   'test-domain': 'Test a domain',
   settings: 'Settings',
   account: 'Account',
+  webhooks: 'Webhooks',
+  tokens: 'API Tokens',
 }
 const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'skoed')
 

@@ -1,10 +1,11 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Anomaly, AuditPage, Blocklist, BlocklistSource, Category, ClientDohStatus, ClientRecord,
+  Anomaly, APIToken, APITokenMinted, AuditPage, Blocklist, BlocklistSource, Category,
+  ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
-  ScheduleBinding, Settings,
+  ScheduleBinding, Settings, WebhookEndpoint,
 } from './types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────
@@ -458,4 +459,54 @@ export function rollingUpgradeApply(url: string): Promise<{ accepted: boolean; m
 
 export function rollingUpgradeStatus(): Promise<RollingUpgradeStatus> {
   return getJSON('/api/v1/cluster/upgrade/status')
+}
+
+// ─── M22 — Webhooks ──────────────────────────────────────────────────────
+
+export function listWebhooks(): Promise<WebhookEndpoint[]> {
+  return getJSON('/api/v1/webhooks')
+}
+
+export function createWebhook(ep: Omit<WebhookEndpoint, 'id'>): Promise<WebhookEndpoint> {
+  return postJSON('/api/v1/webhooks', ep)
+}
+
+export function deleteWebhook(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/webhooks/${encodeURIComponent(id)}`)
+}
+
+export function testWebhook(id: string): Promise<void> {
+  return postJSON(`/api/v1/webhooks/${encodeURIComponent(id)}/test`)
+}
+
+// ─── API Tokens ──────────────────────────────────────────────────────────
+
+export function listTokens(): Promise<APIToken[]> {
+  return getJSON('/api/v1/tokens')
+}
+
+export function createToken(
+  label: string,
+  scopes: string[],
+  expires_at?: string,
+): Promise<APITokenMinted> {
+  return postJSON('/api/v1/tokens', { label, scopes, expires_at: expires_at || undefined })
+}
+
+export function deleteToken(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/tokens/${encodeURIComponent(id)}`)
+}
+
+export function renameToken(id: string, label: string): Promise<APIToken> {
+  return patchJSON(`/api/v1/tokens/${encodeURIComponent(id)}`, { label })
+}
+
+// ─── Client detail ───────────────────────────────────────────────────────
+
+export function getClientDetail(ip: string): Promise<ClientDetail> {
+  return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}`)
+}
+
+export function getClientDohStatusDetail(ip: string): Promise<ClientDohStatusDetail> {
+  return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}/doh-status`)
 }

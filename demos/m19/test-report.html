@@ -1,101 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>M19 Query Log Aggregates — Test Report</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>skoed M19 — Test Report</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; background: #f8f9fa; }
-  h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: .5rem; }
-  h2 { color: #34495e; margin-top: 2rem; }
-  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0; }
-  .stat { background: white; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  .stat .value { font-size: 2rem; font-weight: 700; }
-  .stat .label { font-size: .85rem; color: #666; }
-  .pass .value { color: #27ae60; }
-  .skip .value { color: #f39c12; }
-  .fail .value { color: #e74c3c; }
-  .total .value { color: #2980b9; }
-  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  th { background: #2c3e50; color: white; padding: .75rem 1rem; text-align: left; font-size: .9rem; }
-  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; }
+  :root {
+    --bg: #0f1117; --bg2: #1a1d27; --bg3: #232636; --border: #2e3250;
+    --text: #e2e8f0; --muted: #8892b0; --accent: #7c6af7; --accent2: #5eead4;
+    --pass: #34d399; --fail: #f87171; --warn: #fbbf24; --pending: #818cf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+  header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 40px 48px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+  header p { color: #a5b4fc; margin-top: 8px; font-size: 15px; }
+  header .meta { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  header .meta span { font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+  @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .card.green::before { background: var(--pass); }
+  .card.blue::before  { background: var(--accent); }
+  .card.cyan::before  { background: var(--accent2); }
+  .card.gray::before  { background: var(--muted); }
+  .card .value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .card .unit  { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  section { margin-bottom: 40px; }
+  section h2 { font-size: 18px; font-weight: 600; color: #c7d2fe; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 20px; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--bg3); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: .2rem .6rem; border-radius: 12px; font-size: .78rem; font-weight: 600; }
-  .PASS { background: #d5f5e3; color: #1e8449; }
-  .SKIP { background: #fef9e7; color: #b7770d; }
-  .FAIL { background: #fadbd8; color: #922b21; }
-  .meta { color: #555; font-size: .9rem; margin-bottom: 1.5rem; }
-  code { background: #eee; padding: .1rem .3rem; border-radius: 3px; font-size: .85rem; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+  .badge.pass { background: rgba(52,211,153,0.15); color: var(--pass); border: 1px solid rgba(52,211,153,0.3); }
+  .badge.fail { background: rgba(248,113,113,0.15); color: var(--fail); border: 1px solid rgba(248,113,113,0.3); }
+  .badge.skip { background: rgba(129,140,248,0.15); color: var(--pending); border: 1px solid rgba(129,140,248,0.3); }
+  .fsid { font-family: 'Courier New', monospace; font-size: 11px; color: var(--accent2); background: rgba(94,234,212,0.08); padding: 1px 6px; border-radius: 4px; }
+  footer { border-top: 1px solid var(--border); padding: 24px 48px; color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>M19 — Query Log Aggregates</h1>
-<p class="meta">Acceptance test run &nbsp;·&nbsp; Branch: <code>master</code> (merged at 714c15f) &nbsp;·&nbsp; Duration: 7 s &nbsp;·&nbsp; Exit: 0</p>
 
-<div class="summary-grid">
-  <div class="stat total"><div class="value">6</div><div class="label">Total</div></div>
-  <div class="stat pass"><div class="value">6</div><div class="label">Passed</div></div>
-  <div class="stat skip"><div class="value">0</div><div class="label">Skipped</div></div>
-  <div class="stat fail"><div class="value">0</div><div class="label">Failed</div></div>
+<header>
+  <h1>skoed M19 — Test Report</h1>
+  <p>Query Log Aggregates + Cluster Fan-Out</p>
+  <div class="meta">
+    <span>Date: 2026-06-18</span>
+    <span>Branch: feature/m19-query-log-aggregates → master</span>
+    <span>6 tests · 6 PASS · 0 FAIL</span>
+    <span>Suite: 7 s · exit 0</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="cards">
+    <div class="card green">
+      <div class="value">6</div>
+      <div class="label">Tests passed</div>
+    </div>
+    <div class="card gray">
+      <div class="value">0</div>
+      <div class="label">Skipped</div>
+    </div>
+    <div class="card blue">
+      <div class="value">6</div>
+      <div class="label">FSIDs covered</div>
+    </div>
+    <div class="card cyan">
+      <div class="value">7s</div>
+      <div class="label">Suite duration</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Test Results</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Test</th><th>FSID</th><th>Result</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>TestQueryLogAggregatesPerNodePerHour</td>
+            <td><span class="fsid">FS-QueryLogAggregatesPerNodePerHour</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>Node commits hourly aggregate via Raft; visible on all nodes within 5 s</td>
+          </tr>
+          <tr>
+            <td>TestQueryLogAggregatesClusterStats</td>
+            <td><span class="fsid">FS-QueryLogAggregatesClusterStats</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>GET /cluster/stats returns identical response from any node</td>
+          </tr>
+          <tr>
+            <td>TestQueryLogAggregatesAvailableDuringLeaderLoss</td>
+            <td><span class="fsid">FS-QueryLogAggregatesAvailableDuringLeaderLoss</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>Follower serves aggregate reads without leader</td>
+          </tr>
+          <tr>
+            <td>TestQueryLogAggregatesFanOutForRawEntries</td>
+            <td><span class="fsid">FS-QueryLogAggregatesFanOutForRawEntries</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>cluster=true fan-out merges entries tagged with node_id</td>
+          </tr>
+          <tr>
+            <td>TestQueryLogAggregatesFanOutPartialFailure</td>
+            <td><span class="fsid">FS-QueryLogAggregatesFanOutPartialFailure</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>One unreachable node; remaining entries returned with partial flag</td>
+          </tr>
+          <tr>
+            <td>TestQueryLogAggregatesRetention</td>
+            <td><span class="fsid">FS-QueryLogAggregatesRetention</span></td>
+            <td><span class="badge pass">PASS</span></td>
+            <td>Aggregates older than retention window pruned via Raft on next commit</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
 </div>
 
-<h2>Test Results</h2>
-<table>
-  <thead>
-    <tr><th>Test</th><th>FSID</th><th>Result</th><th>Notes</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>TestQueryLogAggregatesPerNodePerHour</td>
-      <td><code>FS-QueryLogAggregatesPerNodePerHour</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>Node commits hourly aggregate via Raft; visible on all nodes within 5 s</td>
-    </tr>
-    <tr>
-      <td>TestQueryLogAggregatesClusterStats</td>
-      <td><code>FS-QueryLogAggregatesClusterStats</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>GET /cluster/stats returns same response from any node</td>
-    </tr>
-    <tr>
-      <td>TestQueryLogAggregatesAvailableDuringLeaderLoss</td>
-      <td><code>FS-QueryLogAggregatesAvailableDuringLeaderLoss</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>Follower serves aggregate reads without leader</td>
-    </tr>
-    <tr>
-      <td>TestQueryLogAggregatesFanOutForRawEntries</td>
-      <td><code>FS-QueryLogAggregatesFanOutForRawEntries</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>cluster=true fan-out merges and tags entries with node_id</td>
-    </tr>
-    <tr>
-      <td>TestQueryLogAggregatesFanOutPartialFailure</td>
-      <td><code>FS-QueryLogAggregatesFanOutPartialFailure</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>One unreachable node; remaining entries returned with partial flag</td>
-    </tr>
-    <tr>
-      <td>TestQueryLogAggregatesRetention</td>
-      <td><code>FS-QueryLogAggregatesRetention</code></td>
-      <td><span class="badge PASS">PASS</span></td>
-      <td>Aggregates older than retention window pruned via Raft on next commit</td>
-    </tr>
-  </tbody>
-</table>
-
-<h2>Covered FSIDs</h2>
-<table>
-  <thead>
-    <tr><th>FSID</th><th>Description</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    <tr><td><code>FS-QueryLogAggregatesPerNodePerHour</code></td><td>Per-node hourly aggregate committed via Raft</td><td><span class="badge PASS">covered</span></td></tr>
-    <tr><td><code>FS-QueryLogAggregatesClusterStats</code></td><td>Cluster-wide stats endpoint</td><td><span class="badge PASS">covered</span></td></tr>
-    <tr><td><code>FS-QueryLogAggregatesAvailableDuringLeaderLoss</code></td><td>Stats readable on follower after leader loss</td><td><span class="badge PASS">covered</span></td></tr>
-    <tr><td><code>FS-QueryLogAggregatesFanOutForRawEntries</code></td><td>Fan-out raw log search across cluster</td><td><span class="badge PASS">covered</span></td></tr>
-    <tr><td><code>FS-QueryLogAggregatesFanOutPartialFailure</code></td><td>Partial fan-out tolerates unreachable node</td><td><span class="badge PASS">covered</span></td></tr>
-    <tr><td><code>FS-QueryLogAggregatesRetention</code></td><td>Bounded retention with Raft-coordinated pruning</td><td><span class="badge PASS">covered</span></td></tr>
-  </tbody>
-</table>
+<footer>skoed M19 · Query Log Aggregates · merged master 2226f7b</footer>
 </body>
 </html>

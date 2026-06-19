@@ -4,12 +4,13 @@
 SKOED_VERSION ?= 0.5.0
 SKOED_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-.PHONY: help build build-ui openapi-sync dev test acceptance acceptance-clean deb deb-arm64 apk apk-arm64 test-deb helm-lint clean
+.PHONY: help build build-ui build-extension openapi-sync dev test acceptance acceptance-clean deb deb-arm64 apk apk-arm64 test-deb helm-lint clean
 
 help:
 	@echo "Top-level targets:"
 	@echo "  build             - build the skoed binary (cd apps/skoed && make build)"
 	@echo "  build-ui          - rebuild the SPA + stage it under apps/skoed/internal/api/static"
+	@echo "  build-extension   - build browser extension zips (dist/skoed-firefox.zip + dist/skoed-chrome.zip)"
 	@echo "  openapi-sync      - stage the OpenAPI spec for the binary's embedded swagger-ui"
 	@echo "  dev               - M5.9.2 SPA hot-reload loop: skoed daemon + vite dev with HMR"
 	@echo "  test              - run unit + acceptance tests in Docker"
@@ -28,6 +29,9 @@ build:
 
 build-ui:
 	$(MAKE) -C apps/skoed build-ui
+
+build-extension:
+	bash web/extension/build.sh
 
 openapi-sync:
 	$(MAKE) -C apps/skoed openapi-sync

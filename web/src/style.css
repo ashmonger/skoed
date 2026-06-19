@@ -22,7 +22,8 @@
  * palette = appending another block.
  */
 @layer base {
-  html { background-color: #FDF6E3; color-scheme: light; }
+  html { background-color: #FDF6E3; color-scheme: light; height: 100%; overflow: hidden; }
+  body { height: 100%; overflow: hidden; margin: 0; }
 }
 
 @layer components {

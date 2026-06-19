@@ -70,6 +70,11 @@ type App struct {
 	// (operators set it under node.doh_resolver_db.stale_after_seconds).
 	dohResolverStaleAfter time.Duration
 
+	// buildVersion and buildCommit are set via SetBuildInfo and exposed
+	// through the cluster/health endpoint so the web UI can display them.
+	buildVersion string
+	buildCommit  string
+
 	// rebuildDNS is invoked after every committed FSM apply that may have
 	// changed DNS-affecting state (settings, local DNS entries). Set by main.go.
 	rebuildDNS func(*config.Config) error
@@ -367,6 +372,18 @@ func NewApp(
 	// Prime the token cache from whatever is already in bbolt.
 	a.rebuildTokenCache()
 	return a
+}
+
+// SetBuildInfo stores the linker-injected version and commit hash so they
+// can be surfaced via the cluster/health endpoint.
+func (a *App) SetBuildInfo(version, commit string) {
+	a.buildVersion = version
+	a.buildCommit = commit
+}
+
+// GetBuildVersion returns the version and commit injected at build time.
+func (a *App) GetBuildVersion() (string, string) {
+	return a.buildVersion, a.buildCommit
 }
 
 // onApply runs after every committed FSM apply on this node. It refreshes

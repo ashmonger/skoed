@@ -379,6 +379,7 @@ func runDaemon(cfgPath string) {
 	}
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
+	app.SetBuildInfo(version, commit)
 	app.SetDNSCache(dnsCache)
 	app.SetMetrics(prom)
 	app.SetMetricsRequireAuth(node.Node.API.Metrics.RequireAuth)
