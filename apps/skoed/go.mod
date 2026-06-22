@@ -1,6 +1,6 @@
 module github.com/skoed/skoed
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/ameshkov/dnscrypt/v2 v2.4.0

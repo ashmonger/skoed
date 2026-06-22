@@ -1,6 +1,6 @@
 module skoed/acceptance
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/ameshkov/dnsstamps v1.0.3
