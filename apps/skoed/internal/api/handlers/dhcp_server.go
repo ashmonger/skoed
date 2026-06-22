@@ -39,8 +39,18 @@ func (h *Handler) DhcpServerStatus(w http.ResponseWriter, r *http.Request) {
 	poolTotal := poolSize(cfg.PoolStart, cfg.PoolEnd)
 
 	leasesActive := 0
-	if srv != nil {
-		leasesActive = len(srv.ActiveLeases())
+	if cl.IsLeader() {
+		if srv != nil {
+			leasesActive = len(srv.ActiveLeases())
+		}
+	} else {
+		// Follower: fetch lease count from the leader so the UI shows accurate utilisation.
+		if _, body, _, err := cl.ForwardWrite(r.Context(), http.MethodGet, "/api/v1/dhcp/leases", nil, r.Header); err == nil {
+			var ls []json.RawMessage
+			if json.Unmarshal(body, &ls) == nil {
+				leasesActive = len(ls)
+			}
+		}
 	}
 
 	dnsServer := cfg.DNSServer
@@ -168,6 +178,21 @@ func (h *Handler) PutDhcpSettings(w http.ResponseWriter, r *http.Request) {
 // ─── GET /api/v1/dhcp/leases ─────────────────────────────────────────────────
 
 func (h *Handler) DhcpLeases(w http.ResponseWriter, r *http.Request) {
+	cl := h.app.GetCluster()
+
+	// DHCP in-memory pool lives only on the leader. Followers proxy the request
+	// so every node returns complete lease data regardless of current role.
+	if cl != nil && !cl.IsLeader() {
+		status, body, _, err := cl.ForwardWrite(r.Context(), http.MethodGet, r.URL.Path, nil, r.Header)
+		if err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			w.Write(body) //nolint:errcheck
+			return
+		}
+		// Leader unreachable — fall through and return empty list.
+	}
+
 	srv := h.app.GetDhcpServer()
 	var leases []dhcp.Lease4
 	if srv != nil {

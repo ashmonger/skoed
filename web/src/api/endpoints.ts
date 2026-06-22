@@ -4,6 +4,7 @@ import type {
   Anomaly, APIToken, APITokenMinted, AuditPage, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
+  DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
   ScheduleBinding, Settings, WebhookEndpoint,
 } from './types'
@@ -509,4 +510,42 @@ export function getClientDetail(ip: string): Promise<ClientDetail> {
 
 export function getClientDohStatusDetail(ip: string): Promise<ClientDohStatusDetail> {
   return getJSON(`/api/v1/clients/${encodeURIComponent(ip)}/doh-status`)
+}
+
+// ─── M23.5/M23.6 — Built-in DHCP server ─────────────────────────────────
+
+export function getDhcpServerStatus(): Promise<DhcpServerStatus> {
+  return getJSON('/api/v1/dhcp/server/status')
+}
+
+export interface DhcpSettingsPatch {
+  enabled?: boolean
+  pool_start?: string
+  pool_end?: string
+  gateway?: string
+  lease_time_seconds?: number
+  domain?: string
+  dns_server?: string
+}
+
+export function putDhcpServerSettings(patch: DhcpSettingsPatch): Promise<DhcpServerStatus> {
+  return putJSON('/api/v1/settings/dhcp', patch)
+}
+
+export function listDhcpStaticAssignments(): Promise<DhcpStaticAssignment[]> {
+  return getJSON('/api/v1/dhcp/static-assignments')
+}
+
+export function createDhcpStaticAssignment(a: DhcpStaticAssignment): Promise<DhcpStaticAssignment> {
+  return postJSON('/api/v1/dhcp/static-assignments', a)
+}
+
+export function deleteDhcpStaticAssignment(mac: string): Promise<void> {
+  // colons in MAC addresses must not be percent-encoded — chi's router
+  // does not decode %3A in path segments, so pass the MAC as-is.
+  return deleteRequest(`/api/v1/dhcp/static-assignments/${mac}`)
+}
+
+export function listDhcpLeases(): Promise<DhcpLease[]> {
+  return getJSON('/api/v1/dhcp/leases')
 }

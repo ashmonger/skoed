@@ -319,7 +319,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import {
-  ArchiveBoxIcon, ClipboardDocumentListIcon, DocumentTextIcon, GlobeAltIcon, ShieldCheckIcon,
+  ArchiveBoxIcon, ClipboardDocumentListIcon, DocumentTextIcon, GlobeAltIcon,
+  ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,

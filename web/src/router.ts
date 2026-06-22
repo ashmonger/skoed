@@ -28,6 +28,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'query-log', name: 'query-log', component: () => import('./views/QueryLog.vue') },
       { path: 'stats', name: 'stats', component: () => import('./views/Stats.vue') },
       { path: 'cluster', name: 'cluster', component: () => import('./views/Cluster.vue') },
+      { path: 'dhcp', name: 'dhcp', component: () => import('./views/Dhcp.vue') },
       { path: 'settings', name: 'settings', component: () => import('./views/Settings.vue') },
       { path: 'settings/audit', name: 'audit', component: () => import('./views/Audit.vue') },
       { path: 'tools/test-domain', name: 'test-domain', component: () => import('./views/TestDomain.vue') },
