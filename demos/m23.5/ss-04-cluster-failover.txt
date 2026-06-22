@@ -1,0 +1,46 @@
+### Screenshot 4: Cluster status after leader failover
+### skoed-1 (10.0.0.100) was stopped → skoed-3 (10.0.0.102) elected leader at term=6
+### Raft election log (skoed-3):
+###   pre-vote granted: tally=2 (skoed-2 + skoed-3)
+###   election won: term=6
+###   entering leader state
+
+GET /api/v1/cluster/status  [queried from skoed-1 after it rejoined]
+{
+    "cluster_id": "",
+    "raft_term": 6,
+    "leader_id": "skoed-3",
+    "nodes": [
+        {
+            "node_id": "skoed-1",
+            "role": "follower",
+            "raft_address": "10.0.0.100:7000",
+            "api_address": "0.0.0.0:8080",
+            "last_contact": "2026-06-22T08:06:23Z",
+            "commit_index": 29,
+            "sync_state": "in_sync"
+        },
+        {
+            "node_id": "skoed-2",
+            "role": "follower",
+            "raft_address": "10.0.0.101:7000",
+            "api_address": "0.0.0.0:8080",
+            "last_contact": "2026-06-22T08:06:23Z",
+            "commit_index": 29,
+            "sync_state": "in_sync"
+        },
+        {
+            "node_id": "skoed-3",
+            "role": "leader",
+            "raft_address": "10.0.0.102:7000",
+            "api_address": "0.0.0.0:8080",
+            "last_contact": "2026-06-22T08:06:23Z",
+            "commit_index": 29,
+            "sync_state": "in_sync"
+        }
+    ]
+}
+
+DHCP port 67 binding:
+  CT 200 (skoed-1, 10.0.0.100): NOT bound  ← stopped, not leader
+  CT 202 (skoed-3, 10.0.0.102): BOUND      ← new leader owns DHCP

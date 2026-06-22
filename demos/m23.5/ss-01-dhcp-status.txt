@@ -1,0 +1,16 @@
+### Screenshot 1: DHCP Server Status (after leader failover)
+### Leader: skoed-3 (10.0.0.102) — skoed-1 was stopped to trigger failover
+
+GET /api/v1/dhcp/server/status  [Leader: skoed-3]
+{
+    "dns_server": "10.0.0.100",
+    "domain": "lan.skoed.local",
+    "enabled": true,
+    "gateway": "10.0.0.1",
+    "is_leader": true,
+    "lease_time_seconds": 3600,
+    "leases_active": 1,
+    "pool_end": "10.0.0.250",
+    "pool_start": "10.0.0.200",
+    "pool_total": 51
+}

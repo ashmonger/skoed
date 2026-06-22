@@ -1,0 +1,19 @@
+### Screenshot 2: DHCP DORA flow from client CT 204
+### udhcpc broadcasts DISCOVER, server offers 10.0.0.50 (static assignment)
+### Server: skoed-3 (10.0.0.102) — the new leader after failover
+
+# udhcpc -i eth0 -q -n -t 5
+udhcpc: started, v1.37.0
+udhcpc: broadcasting discover
+udhcpc: broadcasting select for 10.0.0.50, server 10.0.0.102
+udhcpc: lease of 10.0.0.50 obtained from 10.0.0.102, lease time 3600
+
+# ip a show eth0
+2: eth0@if81: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP qlen 1000
+    link/ether bc:24:11:f5:6a:92 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.0.50/24 scope global eth0
+       valid_lft forever preferred_lft forever
+
+# ip route
+default via 10.0.0.1 dev eth0  metric 202
+10.0.0.0/24 dev eth0 scope link  src 10.0.0.50

@@ -1,0 +1,21 @@
+### Screenshot 3: Lease table showing static origin after failover
+
+GET /api/v1/dhcp/leases  [Leader: skoed-3]
+[
+    {
+        "ip": "10.0.0.50",
+        "mac": "bc:24:11:f5:6a:92",
+        "hostname": "dhcp-client",
+        "expires_at": "2026-06-22T09:05:57.015622071Z",
+        "origin": "dhcp_static"
+    }
+]
+
+GET /api/v1/dhcp/static-assignments
+[
+    {
+        "mac": "bc:24:11:f5:6a:92",
+        "ip": "10.0.0.50",
+        "hostname": "dhcp-client"
+    }
+]

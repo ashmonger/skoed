@@ -1230,9 +1230,19 @@ func (c *Cluster) SetDhcpServerSettings(s config.DHCPServerConfig) error {
 	return c.applyAsLeader(CmdDhcpServerSettingsSet, DhcpServerSettingsSetPayload{Settings: s}, 0)
 }
 
-// GetDhcpServerSettings returns the current DHCP server settings from bbolt.
+// GetDhcpServerSettings returns the current DHCP server settings from bbolt,
+// including static assignments so callers get the full picture in one call.
 func (c *Cluster) GetDhcpServerSettings() (config.DHCPServerConfig, error) {
-	return c.store.DhcpServerSettings()
+	cfg, err := c.store.DhcpServerSettings()
+	if err != nil {
+		return cfg, err
+	}
+	statics, err := c.store.DhcpStaticAssignments()
+	if err != nil {
+		return cfg, err
+	}
+	cfg.StaticAssignments = statics
+	return cfg, nil
 }
 
 // UpsertDhcpStaticAssignment adds or replaces a single static MAC→IP entry.

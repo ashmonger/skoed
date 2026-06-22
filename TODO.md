@@ -63,7 +63,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M22 | Webhook / Push Alerts | ✅ | — | [note](demos/m22/DEMO_NOTE.md) · [report](demos/m22/test-report.html) | [webhooks](specs/functional/webhooks.feature) | [webhooks](tests/acceptance/webhooks_test.go) |
 | M22.5 | Browser Extension — Push Notification Bridge (Firefox + Chrome) | ✅ | — | [note](demos/m22.5/DEMO_NOTE.md) · [report](demos/m22.5/test-report.html) | [ext](specs/functional/browser-extension.feature) | [ext](tests/acceptance/browser_extension_test.go) |
 | M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
-| M23.5 | Built-in DHCP Server Core | 🔄 | — | — | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
+| M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
 | M23.6 | DHCP Server Web UI | ⬜ | — | — | (in dhcp-server.feature) | — |
 | M24 | Encrypted DNS (DoT/DoH upstream) | ⬜ | — | — | — | — |
 | M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
@@ -300,11 +300,13 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M23.5 — technical spec: `specs/technical/dhcp-server.openapi.yaml` (TS-DhcpServer, 6 endpoints, 5 schemas) — 2026-06-22
 - [x] M23.5 — acceptance tests: `tests/acceptance/dhcp_server_test.go` (11 API-layer tests, compile green) — 2026-06-22
 - [x] M23.5 — implementation: config structs, cluster commands+store+cluster methods, dhcp.Server (UDP 67, leader-owned), API handlers, routes — 2026-06-22
-- [ ] M23.5 — refactoring phase
-- [ ] M23.5 — build binary (CGO_ENABLED=0)
-- [ ] M23.5 — deploy to Proxmox 3-node cluster and run acceptance tests in Docker
-- [ ] M23.5 — Proxmox real-condition DHCP validation (DORA flow, static assignments, leader failover)
-- [ ] M23.5 — screenshots + demo note in `demos/m23.5/`
+- [x] M23.5 — bug fix: GetDhcpServerSettings omitted StaticAssignments → UpdateConfig populated empty static leases; fixed by merging in cluster.go — 2026-06-22
+- [x] M23.5 — refactoring phase — implementation clean; bug fix was minimal, no further changes — 2026-06-22
+- [x] M23.5 — build binary (CGO_ENABLED=0, make build) — 2026-06-22
+- [x] M23.5 — deploy to Proxmox 3-node cluster (CT 200/201/202) — fresh Alpine LXC from template — 2026-06-22
+- [x] M23.5 — Docker acceptance tests: 441 pass / 0 fail / 33 skip — 2026-06-22
+- [x] M23.5 — Proxmox real-condition DHCP validation: DORA ✅, static assignment ✅, leader failover ✅ — 2026-06-22
+- [x] M23.5 — screenshots + demo note in `demos/m23.5/` — 2026-06-22
 - [ ] M23.5 — UoR demo validation
 - [ ] M23.5 — merge to master
 
