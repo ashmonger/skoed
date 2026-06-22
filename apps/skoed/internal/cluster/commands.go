@@ -63,6 +63,10 @@ const (
 	CmdCertRotation CommandKind = "cert_rotation"
 	// M22 — replicated webhook endpoint list.
 	CmdWebhooksUpdate CommandKind = "webhooks.update"
+	// M23.5 — built-in DHCP server settings and static assignments.
+	CmdDhcpServerSettingsSet        CommandKind = "dhcp_server.settings.set"
+	CmdDhcpStaticAssignmentUpsert   CommandKind = "dhcp_server.static.upsert"
+	CmdDhcpStaticAssignmentDelete   CommandKind = "dhcp_server.static.delete"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -344,4 +348,20 @@ type CertRotationPayload struct {
 // WebhooksUpdatePayload replaces the full webhook endpoint list atomically.
 type WebhooksUpdatePayload struct {
 	Webhooks []config.WebhookEndpoint `json:"webhooks"`
+}
+
+// DhcpServerSettingsSetPayload carries the full DHCPServerConfig (minus
+// StaticAssignments, which have their own commands).
+type DhcpServerSettingsSetPayload struct {
+	Settings config.DHCPServerConfig `json:"settings"`
+}
+
+// DhcpStaticAssignmentUpsertPayload adds or replaces a static assignment.
+type DhcpStaticAssignmentUpsertPayload struct {
+	Assignment config.DHCPStaticAssignment `json:"assignment"`
+}
+
+// DhcpStaticAssignmentDeletePayload removes the assignment for the given MAC.
+type DhcpStaticAssignmentDeletePayload struct {
+	MAC string `json:"mac"`
 }

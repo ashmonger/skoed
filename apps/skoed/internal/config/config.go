@@ -36,6 +36,29 @@ type Config struct {
 	Bindings  []ScheduleBinding   `yaml:"schedule_bindings,omitempty" json:"schedule_bindings,omitempty"`
 	Categories []CategoryOverride `yaml:"category_overrides,omitempty" json:"category_overrides,omitempty"`
 	Webhooks  []WebhookEndpoint   `yaml:"webhooks,omitempty" json:"webhooks,omitempty"`
+	// M23.5 — built-in DHCP server (leader-owned).
+	DHCPServer DHCPServerConfig `yaml:"dhcp_server,omitempty" json:"dhcp_server,omitempty"`
+}
+
+// DHCPServerConfig is the persisted configuration for the built-in DHCP server.
+// Cluster-wide: replicated via Raft, stored in bbolt. The enable flag controls
+// whether the Raft leader starts a UDP 67 listener.
+type DHCPServerConfig struct {
+	Enabled          bool                  `yaml:"enabled"                     json:"enabled"`
+	PoolStart        string                `yaml:"pool_start,omitempty"        json:"pool_start,omitempty"`
+	PoolEnd          string                `yaml:"pool_end,omitempty"          json:"pool_end,omitempty"`
+	Gateway          string                `yaml:"gateway,omitempty"           json:"gateway,omitempty"`
+	LeaseTimeSeconds int                   `yaml:"lease_time_seconds,omitempty" json:"lease_time_seconds,omitempty"`
+	Domain           string                `yaml:"domain,omitempty"            json:"domain,omitempty"`
+	DNSServer        string                `yaml:"dns_server,omitempty"        json:"dns_server,omitempty"`
+	StaticAssignments []DHCPStaticAssignment `yaml:"static_assignments,omitempty" json:"static_assignments,omitempty"`
+}
+
+// DHCPStaticAssignment pins a MAC address to a fixed IP and optional hostname.
+type DHCPStaticAssignment struct {
+	MAC      string `yaml:"mac"               json:"mac"`
+	IP       string `yaml:"ip"                json:"ip"`
+	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
 }
 
 // Profile binds blocklists, allowlist entries, SafeSearch providers, and

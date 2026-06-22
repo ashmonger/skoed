@@ -282,6 +282,10 @@ func (c *Cluster) Raft() *raftNode { return c.raft }
 // IsLeader reports whether this node is the current Raft leader.
 func (c *Cluster) IsLeader() bool { return c.raft.IsLeader() }
 
+// LeadershipCh returns the underlying Raft leadership-change channel.
+// It fires true when this node becomes leader, false when it loses leadership.
+func (c *Cluster) LeadershipCh() <-chan bool { return c.raft.LeaderCh() }
+
 // NodeID returns this node's configured identifier.
 func (c *Cluster) NodeID() string { return c.node.Node.ID }
 
@@ -1214,4 +1218,34 @@ func (c *Cluster) UpdateWebhooks(endpoints []config.WebhookEndpoint) error {
 // WebhookEndpoints returns the current replicated webhook endpoint list.
 func (c *Cluster) WebhookEndpoints() ([]config.WebhookEndpoint, error) {
 	return c.store.WebhookEndpoints()
+}
+
+// ─── M23.5 — built-in DHCP server ────────────────────────────────────────────
+
+// SetDhcpServerSettings replicates a full settings update (enable flag + pool
+// config) via Raft. StaticAssignments in the payload are ignored; use
+// UpsertDhcpStaticAssignment / DeleteDhcpStaticAssignment for those.
+func (c *Cluster) SetDhcpServerSettings(s config.DHCPServerConfig) error {
+	s.StaticAssignments = nil // managed separately
+	return c.applyAsLeader(CmdDhcpServerSettingsSet, DhcpServerSettingsSetPayload{Settings: s}, 0)
+}
+
+// GetDhcpServerSettings returns the current DHCP server settings from bbolt.
+func (c *Cluster) GetDhcpServerSettings() (config.DHCPServerConfig, error) {
+	return c.store.DhcpServerSettings()
+}
+
+// UpsertDhcpStaticAssignment adds or replaces a single static MAC→IP entry.
+func (c *Cluster) UpsertDhcpStaticAssignment(a config.DHCPStaticAssignment) error {
+	return c.applyAsLeader(CmdDhcpStaticAssignmentUpsert, DhcpStaticAssignmentUpsertPayload{Assignment: a}, 0)
+}
+
+// DeleteDhcpStaticAssignment removes the static entry for the given MAC address.
+func (c *Cluster) DeleteDhcpStaticAssignment(mac string) error {
+	return c.applyAsLeader(CmdDhcpStaticAssignmentDelete, DhcpStaticAssignmentDeletePayload{MAC: mac}, 0)
+}
+
+// GetDhcpStaticAssignments returns all static MAC→IP assignments from bbolt.
+func (c *Cluster) GetDhcpStaticAssignments() ([]config.DHCPStaticAssignment, error) {
+	return c.store.DhcpStaticAssignments()
 }

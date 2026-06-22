@@ -239,6 +239,9 @@ func (n *raftNode) WaitForLeader(timeout time.Duration) error {
 // IsLeader reports whether this node is currently the leader.
 func (n *raftNode) IsLeader() bool { return n.r.State() == raft.Leader }
 
+// LeaderCh returns the Raft leadership-change channel.
+func (n *raftNode) LeaderCh() <-chan bool { return n.r.LeaderCh() }
+
 // hasExistingRaftState returns true when the on-disk Raft log/stable stores
 // already contain data, meaning the binary should NOT bootstrap a fresh
 // single-node cluster on this start.

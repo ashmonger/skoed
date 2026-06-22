@@ -56,6 +56,10 @@ type AppState interface {
 	// integration is disabled on this node.
 	GetDhcpMgr() *dhcp.Manager
 
+	// GetDhcpServer returns the M23.5 built-in DHCP server, or nil when
+	// the feature is not compiled in.
+	GetDhcpServer() *dhcp.Server
+
 	// GetDNSCache returns the live DNS cache used by the current DNS
 	// handler. Nil when caching is disabled in config.
 	GetDNSCache() *dnsengine.Cache
