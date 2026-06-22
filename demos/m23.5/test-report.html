@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>skoed M23.5 — DHCP Server Core — Test Report</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+  h1 { color: #58a6ff; font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: #8b949e; font-size: 0.85rem; margin: 0 0 20px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 20px; text-align: center; }
+  .stat .num { font-size: 2rem; font-weight: bold; }
+  .stat .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pass .num { color: #3fb950; }
+  .fail .num { color: #f85149; }
+  .skip .num { color: #d29922; }
+  .total .num { color: #58a6ff; }
+  h2 { color: #58a6ff; font-size: 1rem; margin: 20px 0 10px; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th { text-align: left; padding: 6px 8px; color: #8b949e; font-weight: 600; border-bottom: 1px solid #21262d; }
+  td { padding: 3px 8px; border-bottom: 1px solid #161b22; }
+  tr.pass { color: #c9d1d9; }
+  tr.fail { background: #2d1515; color: #f85149; }
+  tr.skip { color: #8b949e; }
+  .icon { width: 20px; text-align: center; font-size: 0.9rem; }
+  tr.pass .icon { color: #3fb950; }
+  tr.skip .icon { color: #d29922; }
+  .name { font-family: "SF Mono", Consolas, monospace; }
+  .dur { width: 80px; text-align: right; color: #8b949e; font-size: 0.7rem; }
+  .dhcp-section { background: #0d2137; border: 1px solid #1f4d7a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .dhcp-section h2 { border-color: #1f4d7a; margin-top: 0; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 0.85rem; }
+  .note h3 { color: #58a6ff; margin: 0 0 8px; font-size: 0.9rem; }
+  .note ul { margin: 4px 0; padding-left: 1.4em; color: #c9d1d9; }
+  .note li { margin: 3px 0; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+  .badge-pass { background: #1a4731; color: #3fb950; }
+  .badge-skip { background: #3b2f05; color: #d29922; }
+  footer { margin-top: 24px; font-size: 0.75rem; color: #8b949e; border-top: 1px solid #21262d; padding-top: 12px; }
+</style>
+</head>
+<body>
+<h1>skoed — Milestone 23.5: Built-in DHCP Server Core</h1>
+<p class="subtitle">Acceptance test report · 2026-06-22 08:13 UTC · branch: feature/m23.5-dhcp-server</p>
+
+<div class="summary">
+  <div class="stat total"><div class="num">474</div><div class="label">Total</div></div>
+  <div class="stat pass"><div class="num">441</div><div class="label">Passed</div></div>
+  <div class="stat fail"><div class="num">0</div><div class="label">Failed</div></div>
+  <div class="stat skip"><div class="num">33</div><div class="label">Skipped</div></div>
+</div>
+
+<div class="note">
+  <h3>Real-condition Proxmox validation (3-node LXC cluster)</h3>
+  <ul>
+    <li><strong>DHCP DORA:</strong> udhcpc on CT 204 → DISCOVER → OFFER (10.0.0.50) from skoed-1 → REQUEST → ACK. Static assignment honored.</li>
+    <li><strong>Static assignment:</strong> MAC bc:24:11:f5:6a:92 → 10.0.0.50 created via API, Raft-replicated. Client receives static IP on next DORA.</li>
+    <li><strong>Leader failover:</strong> skoed-1 (10.0.0.100) stopped. skoed-3 (10.0.0.102) elected at Raft term=6 in &lt;2s. DHCP socket bound on skoed-3, unbound on skoed-1. CT 204 got 10.0.0.50 from 10.0.0.102.</li>
+    <li><strong>Bug fixed during validation:</strong> GetDhcpServerSettings omitted StaticAssignments → UpdateConfig didn't populate in-memory static leases. Fixed by merging static assignments in cluster.GetDhcpServerSettings().</li>
+  </ul>
+</div>
+
+<div class="dhcp-section">
+  <h2>M23.5 DHCP Tests <span class="badge badge-pass">33 tests</span></h2>
+  <table>
+    <thead><tr><th></th><th>Test</th><th>Duration</th></tr></thead>
+    <tbody>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentDelete</td><td class="dur">1.47s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginDnsmasqDhcpHostParsed</td><td class="dur">3.66s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpLeaseListApi</td><td class="dur">1.63s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentPersisted</td><td class="dur">2.54s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerStatusApi</td><td class="dur">1.42s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsOptionDefaultsToSelf</td><td class="dur">1.45s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerStatusReflectsPoolConfig</td><td class="dur">1.55s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerConfigPersisted</td><td class="dur">2.01s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerEnableViaApi</td><td class="dur">1.35s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerDisableViaApi</td><td class="dur">2.13s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerDisabledByDefault</td><td class="dur">2.01s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpGenericRetry</td><td class="dur">1.78s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpGenericJsonRoundtrip</td><td class="dur">2.27s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpConnectorMalformedSkips</td><td class="dur">1.77s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsmasqSkipsExpired</td><td class="dur">2.06s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpConnectorRefreshInterval</td><td class="dur">7.06s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsmasqParsesLeaseFile</td><td class="dur">2.08s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpKeaHandlesAuth</td><td class="dur">2.09s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpKeaReadsLeases</td><td class="dur">1.76s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsDhcpGaugesWhenEnabled</td><td class="dur">2.27s</td></tr>
+      <tr class="skip"><td class="icon">⊘</td><td class="name">TestMetricsDhcpGaugesWhenEnabled/with_dhcp</td><td class="dur"></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseV6OnlyClientLookupByV6</td><td class="dur">1.78s</td></tr>
+      <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseMalformedV6LineSkipped</td><td class="dur"></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseV6DisabledLegacyShapeUnchanged</td><td class="dur">1.48s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseClientsPageShowsV6Column</td><td class="dur">1.76s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseProfileMatchingPriorityUnchanged</td><td class="dur">2.07s</td></tr>
+      <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseDnsmasqSkipsExpired</td><td class="dur"></td></tr>
+      <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseDnsmasqParsesLease6File</td><td class="dur"></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseDualStackMerge</td><td class="dur">1.38s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseKeaMergesIaNaAndIaPd</td><td class="dur">2.27s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseKeaReadsLease6</td><td class="dur">1.37s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpLeaderOwnsListener</td><td class="dur">2.31s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentRaft</td><td class="dur">2.15s</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>All Tests</h2>
+<table>
+  <thead><tr><th></th><th>Test</th><th>Duration</th></tr></thead>
+  <tbody>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestLocalTelemetryStaysLocalRequiresLiveCluster</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestClusterConvergesAfterActiveActiveWritesRequiresLiveCluster</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestSseReconnect</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCertStatusReturnsExpiry</td><td class="dur">2.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCertRotateAccepted</td><td class="dur">1.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCertRotateMaintainsQuorum</td><td class="dur">1.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCertRotateRequiresAdmin</td><td class="dur">1.35s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckArpStateAgreesWithLease</td><td class="dur">3.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckArpMacMismatchFlagsAnomaly</td><td class="dur">2.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckNdpMacMismatchFlagsAnomaly</td><td class="dur">3.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckGhostLeaseLongLivedButNeverInKernel</td><td class="dur">3.55s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckUnseenByKernelFreshLeaseStaysQuiet</td><td class="dur">5.11s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckUnseenByKernelAfterGracePeriod</td><td class="dur">3.71s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckGracefulWhenNetlinkUnavailable</td><td class="dur">5.04s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckUnknownIpReturns404</td><td class="dur">3.66s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestArpCheckAnomaliesListIncludesNewKinds</td><td class="dur">3.88s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestArpCheckSweepCadenceIsBestEffort</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofMacChangedForKnownClientId</td><td class="dur">3.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofClientIdChangedForKnownMac</td><td class="dur">3.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofNewMacForExistingHostname</td><td class="dur">3.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofHostnameChangeIsInfo</td><td class="dur">5.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofAnomaliesInResponse</td><td class="dur">4.19s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestSpoofAnomalyRetention</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSpoofAcknowledge</td><td class="dur">3.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3DisabledByDefault</td><td class="dur">1.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3ServerListens</td><td class="dur">2.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3AppliesFilter</td><td class="dur">2.31s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnscryptDisabledByDefault</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnscryptStampPublished</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnscryptServerListens</td><td class="dur">1.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnscryptAppliesFilter</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnscryptKeyReplicatedViaRaft</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3IndependentEnable</td><td class="dur">2.30s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestOperatorHelmTemplateRendersCorrectly</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSkoedClusterCrdSchema</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSkoedClusterPrinterColumns</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPvcVolumeClaimTemplateInCrd</td><td class="dur">0.00s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmFallbackUnaffected</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestScaleDownRequiresLiveCluster</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestAcmeCertRotationRequiresLiveCluster</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAurPkgbuildPresent</td><td class="dur">0.00s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartLints</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProxmoxScriptInExtraFiles</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestGoreleaserDeclaresApkFormat</td><td class="dur">0.00s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestDocsBuildSucceeds</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartInstallsSkoed</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartPublished</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestWebhookEventBlocklistFailed</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleIptablesSubnetScope</td><td class="dur">1.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentDelete</td><td class="dur">1.47s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRateLimit</td><td class="dur">1.80s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAcmeEnabledFromConfigBoots</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileSharedClientGroups</td><td class="dur">2.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchDuckDuckGo</td><td class="dur">2.13s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainAuthFullChain</td><td class="dur">2.20s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWebhookTestFire</td><td class="dur">2.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWebhookSignature</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileDefaultFallback</td><td class="dur">1.53s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWebhookEventDeviceNew</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileApiCrud</td><td class="dur">1.81s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfilePerClientAllowlist</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlRebuiltOnBoot</td><td class="dur">5.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileAssignByIp</td><td class="dur">1.54s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynClientLookupSurfacesMatchedProfile</td><td class="dur">1.61s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynProfileApiCrud</td><td class="dur">1.62s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileAssignByCidr</td><td class="dur">1.91s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginDnsmasqDhcpHostParsed</td><td class="dur">3.66s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynUnknownOriginTreatedAsNotDynamic</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynPriorityHigherTierStillWins</td><td class="dur">1.90s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynUnknownClientIsNotDynamic</td><td class="dur">1.43s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynRejectedOnDefaultProfile</td><td class="dur">1.43s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynRouterAdvertisedAndManualAdminCountAsNotDynamic</td><td class="dur">1.71s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynMixedCriteriaIsOrNotAnd</td><td class="dur">1.42s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynPureBlockDynamicProfileMatchesAllDynamicClients</td><td class="dur">1.96s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMgmtApiHttpsDualPort</td><td class="dur">1.51s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockDynEmptyMatchSetIsFine</td><td class="dur">2.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMgmtApiHttpsListens</td><td class="dur">1.48s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMgmtApiHttpsSinglePortRedirect</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryDelete</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMgmtApiHttpsHSTS</td><td class="dur">3.51s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMgmtApiHttpsHSTS/off_by_default</td><td class="dur">1.82s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistDoesNotAffectUnblockedDomains</td><td class="dur">1.51s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryNxdomainWhenNoUpstream</td><td class="dur">2.31s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDetectionCategoryDisableable</td><td class="dur">2.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistWildcardEntry</td><td class="dur">1.76s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistWildcardEntry/safe.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistWildcardEntry/sub.safe.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistWildcardEntry/deep.sub.safe.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryUpdate</td><td class="dur">1.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryPriorityOverUpstream</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryPriorityOverBlocklist</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistRemove</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryAddAAAA</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryAddCNAME</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLocalDnsEntryAddA</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistWildcardEntry</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistWildcardEntry/ads.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistWildcardEntry/sub.ads.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistWildcardEntry/deep.sub.ads.example.com</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAllowlistOverridesBlocklist</td><td class="dur">2.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistStats</td><td class="dur">1.61s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistParseAskoedFormat</td><td class="dur">1.48s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginPrometheusGauges</td><td class="dur">2.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginRefreshFlipsTag</td><td class="dur">3.36s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistParseHostsFormat</td><td class="dur">1.90s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginClientsListSurfacesBadge</td><td class="dur">3.09s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginUnknownClientOmitsOrigin</td><td class="dur">2.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginQueryLogDoesNotChange</td><td class="dur">4.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistEnable</td><td class="dur">2.12s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginHttpJsonRejectsUnknownValue</td><td class="dur">2.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginClientLookupExposesFields</td><td class="dur">2.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecModeConfigurable</td><td class="dur">1.57s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistDisable</td><td class="dur">2.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginHttpJsonHonoursWireField</td><td class="dur">3.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginDnsmasqConfigUnreadable</td><td class="dur">3.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistRemove</td><td class="dur">1.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDetectionTaggedInQueryLog</td><td class="dur">1.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDetectionDdrProbe</td><td class="dur">1.68s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlocklistAddManual</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockPolicyPerBlocklistReset</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDetectionFirefoxCanary</td><td class="dur">1.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockPolicyChangeGlobal</td><td class="dur">1.48s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDetectionResolverBlocklist</td><td class="dur">1.63s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockPolicyPerBlocklistIsolation</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohServesLocalDNS</td><td class="dur">1.68s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohForwardsUnmatched</td><td class="dur">1.85s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestBlockPolicyGlobalDefault</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDomainNotBlocked</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohConfiguredCert</td><td class="dur">1.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPerBlocklistPolicyOverridesGlobal</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDomainBlockingSubdomain</td><td class="dur">1.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohDisabledByDefault</td><td class="dur">1.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDotDisabledByDefault</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohSelfSignedCertOnFirstBoot</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDomainBlockingNULL</td><td class="dur">1.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDomainBlockingNODATA</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDomainBlockingNXDOMAIN</td><td class="dur">1.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDotAppliesFilter</td><td class="dur">1.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileSelectionGetReturnsProfileIDs</td><td class="dur">1.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDotServerListens</td><td class="dur">1.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohServerListensPostAndGet</td><td class="dur">1.40s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileSelectionRejectsUnknownProfile</td><td class="dur">1.84s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohAppliesFilter</td><td class="dur">2.21s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileSelectionMultipleProfiles</td><td class="dur">2.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileSelectionPausesOnlySelectedProfiles</td><td class="dur">1.91s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseQueryLogMarkedDuringProfilePause</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseFeatureDisabledWhenCeilingZero</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbResolverEntryShape</td><td class="dur">2.22s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbReadEndpointPublicOrAuthenticated</td><td class="dur">2.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseCeilingEnforced</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalOverridesProfile</td><td class="dur">1.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbMetricsCounters</td><td class="dur">3.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbRefreshRetriesWithBackoff</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbStaleFlagAfterSevenDays</td><td class="dur">1.47s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileCancelledEarly</td><td class="dur">2.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbLeaderOnlyScheduler</td><td class="dur">2.03s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbReplicatedAcrossNodes</td><td class="dur">2.85s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileDoesNotAffectOtherProfiles</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbScheduledDailyRefresh</td><td class="dur">2.04s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbRefreshRequiresAuth</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbAdminForceRefresh</td><td class="dur">1.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbListSnapshotShape</td><td class="dur">1.42s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileMultipleSimultaneous</td><td class="dur">5.22s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbSnapshotJsonExport</td><td class="dur">1.75s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDohResolverDbUpstreamFailureKeepsLastGoodSnapshot</td><td class="dur">6.27s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileExpiresAutomatically</td><td class="dur">5.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecValidateInsecurePassthrough</td><td class="dur">2.21s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecValidateBogusReturnsServfail</td><td class="dur">1.48s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecValidateOkPassthrough</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseProfileSuspendsOneProfile</td><td class="dur">2.09s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistOK</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWebhookCreateAndList</td><td class="dur">1.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP/http://127.0.0.1:99/x</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP/http://10.0.0.1/x</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP/http://192.168.1.1/x</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP/http://169.254.169.254/latest/meta-data/</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicTestBlocklistRefusesPrivateIP/http://[::1]/x</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalEnforcedCeiling</td><td class="dur">2.22s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalSurvivesRestart</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWebhookDelete</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalCancelledEarly</td><td class="dur">2.24s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusUnauthenticated</td><td class="dur">2.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseQueryLogMarkedDuringGlobalPause</td><td class="dur">4.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalIdempotentWhileActive</td><td class="dur">4.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpLeaseListApi</td><td class="dur">1.63s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalSuspendsAllProfiles</td><td class="dur">1.86s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentPersisted</td><td class="dur">2.54s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerStatusApi</td><td class="dur">1.42s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsOptionDefaultsToSelf</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaderFailoverWritesDuringTransition</td><td class="dur">2.15s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaderFailoverManualTransfer</td><td class="dur">2.60s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerStatusReflectsPoolConfig</td><td class="dur">1.55s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFilterPauseGlobalExpiresAutomatically</td><td class="dur">4.52s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerConfigPersisted</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerEnableViaApi</td><td class="dur">1.35s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerDisableViaApi</td><td class="dur">2.13s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaderFailoverFormerLeaderRejoinsAsFollower</td><td class="dur">3.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentM1ConfigMigration</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeRemoval</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerDisabledByDefault</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaderFailoverNoSplitBrainAcrossPartition</td><td class="dur">4.85s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentSingleNodeBootstrap</td><td class="dur">2.28s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaderFailoverAutomaticElection</td><td class="dur">4.55s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentPreservesNodeLocalSettings</td><td class="dur">2.31s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentInvalidToken</td><td class="dur">1.66s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentJoinTokenIsSingleUse</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentJoinWithValidToken</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentJoinTokenExpires</td><td class="dur">3.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplSourceUnreachableKeepsLastGood</td><td class="dur">6.05s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplFollowerWriteForwarded</td><td class="dur">3.71s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplLastPollUnixAdvances</td><td class="dur">6.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestNodeEnrollmentGenerateToken</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMtlsClusterFormsAndReplicates</td><td class="dur">1.80s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestLeaseReplEmptyClusterReturns503</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplStaleFollowerCatchesUp</td><td class="dur">7.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplFollowerAnomaliesMatchLeader</td><td class="dur">3.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3AltSvcAbsentWhenDisabled</td><td class="dur">1.34s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMtlsDefaultOffPlainStillWorks</td><td class="dur">2.27s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplSourceEndpointReportsLeader</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDoh3AltSvcAdvertised</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplLeasesEndpointExposesSnapshot</td><td class="dur">2.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainAuthRequiresAuth</td><td class="dur">1.67s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplLeaderFailoverResumesPolling</td><td class="dur">4.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplFollowersServeReplicatedSnapshot</td><td class="dur">2.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainGuestRateLimited</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainGuestRefusesIP</td><td class="dur">1.96s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpGenericRetry</td><td class="dur">1.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplChurnDoesNotAmplifyRaftLog</td><td class="dur">12.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplNoDoublePollDuringTransition</td><td class="dur">8.28s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainGuestAllowed</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainGuestBlocked</td><td class="dur">2.29s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncMinorityPartitionRefusesWrites</td><td class="dur">7.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpGenericJsonRoundtrip</td><td class="dur">2.27s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpConnectorMalformedSkips</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncMajorityPartitionContinues</td><td class="dur">2.09s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncQueryLogRawIsPerNode</td><td class="dur">2.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplOnlyLeaderPolls</td><td class="dur">7.54s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncBlocklistRemove</td><td class="dur">2.43s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsmasqSkipsExpired</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpConnectorRefreshInterval</td><td class="dur">7.06s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestLeaseCacheRefreshInterval</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpDnsmasqParsesLeaseFile</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncLocalDns</td><td class="dur">2.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpKeaHandlesAuth</td><td class="dur">2.09s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncSurvivesFollowerDisconnect</td><td class="dur">2.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncAllowlist</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpKeaReadsLeases</td><td class="dur">1.76s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiStatsSubnetPreviewAndCopy</td><td class="dur">2.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileMatchesByHostname</td><td class="dur">1.51s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestUpgradeBinarySwap</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileMatchPriority</td><td class="dur">2.20s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginKeaReservationsUnreachableInferred</td><td class="dur">3.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestUpgradeStartRecordedInAudit</td><td class="dur">1.76s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileMatchesByMac</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestProfileMatchesByClientId</td><td class="dur">1.56s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartManagementApiService</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseOriginKeaReservationsReportedHigh</td><td class="dur">3.21s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartBootstrapToken</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestQueryLogOmitsEnrichmentWhenNoLease</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestUpgradeStartForwardedToLeader</td><td class="dur">2.19s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartHostPortDns</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestQueryLogShowsHostname</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartValuesOverrides</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestUpgradeCheckEndpoint</td><td class="dur">1.87s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestHelmChartTemplatesRender</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestUpgradeCheckRequiresAuth</td><td class="dur">1.79s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientLookupReturnsEnrichedRecord</td><td class="dur">1.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientLookupFallsBackToIp</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigExportDoesNotIncludeCredentials</td><td class="dur">1.57s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiUnauthorizedRedirect</td><td class="dur">2.29s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiEmptyResolverDatabase</td><td class="dur">2.24s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigImportAtomic</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiStaleSnapshotBanner</td><td class="dur">1.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigImportOverwritesExisting</td><td class="dur">2.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigImportPreservesCredentials</td><td class="dur">3.65s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigBackupWebUiRoundTrip</td><td class="dur">4.57s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigExportImportRoundTrip</td><td class="dur">3.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiKeyboardNavigablePlatformTabs</td><td class="dur">2.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigExport</td><td class="dur">1.91s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiProfileScope</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogOutcomeBlocked</td><td class="dur">2.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusSameViewFromAnyNode</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchYoutube</td><td class="dur">2.34s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigImportOnFreshNode</td><td class="dur">3.82s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestRollingUpgradeRejectsSingleNode</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchBing</td><td class="dur">2.12s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestRollingUpgradeApplyRequiresURL</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusShowsUnreachableFollower</td><td class="dur">2.68s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestRollingUpgradeApplyAccepted</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchGoogle</td><td class="dur">1.86s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestRollingUpgradeStatusShape</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusShowsRaftTerm</td><td class="dur">4.35s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFollowerForwardsMutationToLeader</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiInvalidPayload</td><td class="dur">1.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFollowerServesGetDirectly</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusListsAllNodes</td><td class="dur">2.11s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusShowsCommitIndex</td><td class="dur">2.31s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterStatusShowsLaggingFollower</td><td class="dur">3.63s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiTokenDisplay</td><td class="dur">1.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiAlreadyMember</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogRetentionBound</td><td class="dur">1.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogRetentionConfigurable</td><td class="dur">1.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiExpiredToken</td><td class="dur">3.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusInvalidIp</td><td class="dur">2.06s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestMetricsOptionalAuthGate</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogFilterByClient</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogFilterByOutcome</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiFollowerDialog</td><td class="dur">4.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogBrowseAll</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainAuthAllowlistOverrides</td><td class="dur">1.70s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogOutcomeLocal</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogRecordsEntry</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainMatchesRealQuery</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleBindingsListEmpty</td><td class="dur">1.36s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesRetention</td><td class="dur">2.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesFanOutForRawEntries</td><td class="dur">3.24s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesFanOutPartialFailure</td><td class="dur">3.47s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlAtomicWrite</td><td class="dur">2.36s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlExcludesNodeLocal</td><td class="dur">4.28s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlIgnoredOnRead</td><td class="dur">4.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesAvailableDuringLeaderLoss</td><td class="dur">4.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlUpdatesAfterWrite</td><td class="dur">2.91s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesClusterStats</td><td class="dur">5.40s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditRequiresAuth</td><td class="dur">1.47s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleBindingsListNotFound</td><td class="dur">1.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider</td><td class="dur">11.44s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/dns.google</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/cloudflare-dns.com</td><td class="dur">1.36s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/mozilla.cloudflare-dns.com</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/dns.quad9.net</td><td class="dur">1.57s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/dns.adguard.com</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusSuspectedProvider/doh.opendns.com</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestQueryLogAggregatesPerNodePerHour</td><td class="dur">4.96s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsCacheGauges</td><td class="dur">1.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleWrittenToConfigYaml</td><td class="dur">3.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliBlocklistTest</td><td class="dur">0.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlPresentOnDisk</td><td class="dur">4.10s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusNoProbes</td><td class="dur">2.28s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliDaemonStillWorks</td><td class="dur">1.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClientDohStatusEndpointShape</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsOpenByDefault</td><td class="dur">2.09s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsClusterGauges</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsDhcpGaugesWhenEnabled</td><td class="dur">2.27s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestMetricsDhcpGaugesWhenEnabled/with_dhcp</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshMetrics</td><td class="dur">2.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliVersion</td><td class="dur">0.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliTokenCreate</td><td class="dur">1.74s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliHealth</td><td class="dur">2.13s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliStatus</td><td class="dur">2.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshStatusFields</td><td class="dur">2.59s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCategoryDohEnabledByDefault</td><td class="dur">1.83s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCategoryOverrideUrl</td><td class="dur">1.68s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthDnsUnaffected</td><td class="dur">2.13s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshFailureRecorded</td><td class="dur">4.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthPasswordChange</td><td class="dur">1.92s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshDisabledWhenZero</td><td class="dur">5.40s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCategoryDisableRemovesAssociation</td><td class="dur">2.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthFirstRunSetup</td><td class="dur">1.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshUpdatesAllNodes</td><td class="dur">4.90s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthInvalidCredentials</td><td class="dur">1.95s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCategoryEnableAddsBlocklist</td><td class="dur">2.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAutoRefreshLeaderOnly</td><td class="dur">7.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCategoryCatalogListed</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthUnauthenticatedUiRedirect</td><td class="dur">1.65s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthValidCredentials</td><td class="dur">1.86s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestSseFilterPauseEvent</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuthUnauthenticatedRequestRejected</td><td class="dur">1.34s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSseDeviceNewEvent</td><td class="dur">1.64s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditMetricsCounter</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsDnsQueryCounter</td><td class="dur">1.46s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsBuildInfo</td><td class="dur">1.46s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsDnsQueryHistogram</td><td class="dur">1.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainMetricsCounter</td><td class="dur">2.08s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestPublicLandingDisabledReturnsLogin</td><td class="dur">2.25s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestFwRuleRejectsUnknownProfile</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiStatsSubnetCallout</td><td class="dur">1.90s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleMultipleProfiles</td><td class="dur">2.02s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiClientsCopyToClipboard</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleBindingsList</td><td class="dur">1.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiClientsModalPlatformTabset</td><td class="dur">1.24s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUiClientsRowActionVisible</td><td class="dur">1.46s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleTimezoneIsNodeLocal</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleApiCrud</td><td class="dur">1.49s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleMetricsCounter</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleRequiresAuth</td><td class="dur">1.52s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleHeaderCarriesSnapshotProvenance</td><td class="dur">1.56s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestFwRuleStaleSnapshotStillServes</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleProfileScope</td><td class="dur">2.27s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleOpnsenseSubnetScope</td><td class="dur">1.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleRejectActionOptIn</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleRejectsInvalidSubnet</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncWriteToFollowerIsForwarded</td><td class="dur">2.26s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterConfigSyncWriteToLeader</td><td class="dur">2.46s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleRejectsUnknownPlatform</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleUnifiSubnetScope</td><td class="dur">1.35s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleAllScope</td><td class="dur">2.20s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCachePurgeOneDomain</td><td class="dur">2.05s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainAuthLocalDnsPriority</td><td class="dur">2.29s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwardingMX</td><td class="dur">1.67s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwardingAAAA</td><td class="dur">1.96s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecTransparentProxyBlockedDomain</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleActiveWindow</td><td class="dur">3.65s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleActiveWindow/outside_window_forwards</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleActiveWindow/inside_window_blocks</td><td class="dur">2.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleAllowMode</td><td class="dur">4.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleAllowMode/inside_window_forwards</td><td class="dur">2.29s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestScheduleAllowMode/outside_window_blocks</td><td class="dur">1.89s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwardingAllUpstreamsUnreachable</td><td class="dur">2.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecTransparentProxyNoDOBit</td><td class="dur">2.16s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwardingFallback</td><td class="dur">1.50s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestConfigShadowYamlRoundTrips</td><td class="dur">5.23s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwardingTCP</td><td class="dur">1.39s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnssecTransparentProxyDOBitForwarded</td><td class="dur">1.66s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDualStackNullBlockIPv4</td><td class="dur">1.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDualStackNullBlockIPv6</td><td class="dur">2.30s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDnsQueryForwarding</td><td class="dur">2.05s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCacheSurvivesConfigChange</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCacheInvalidatesOnAllowlistAdd</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDualStackIPv4Listener</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchAaaa</td><td class="dur">1.93s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseV6OnlyClientLookupByV6</td><td class="dur">1.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCacheRequiresAuth</td><td class="dur">1.45s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSseConnect</td><td class="dur">16.36s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseMalformedV6LineSkipped</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestAuditFilterByActor</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleMikrotikSubnetScope</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCachePurgeAll</td><td class="dur">2.19s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenReadScopeBlocksWrites</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCacheStatsEndpoint</td><td class="dur">2.15s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseV6DisabledLegacyShapeUnchanged</td><td class="dur">1.48s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditReplicatesAcrossNodes</td><td class="dur">2.81s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditListEndpointShape</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditFilterByAction</td><td class="dur">1.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseClientsPageShowsV6Column</td><td class="dur">1.76s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseProfileMatchingPriorityUnchanged</td><td class="dur">2.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditFailedWriteRecorded</td><td class="dur">1.56s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditReadsNotRecorded</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenPatchUpdatesLabel</td><td class="dur">1.78s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenUnknownScopeRejected</td><td class="dur">1.77s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAuditWriteRecorded</td><td class="dur">1.68s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseDnsmasqSkipsExpired</td><td class="dur"></td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestDhcpv6LeaseDnsmasqParsesLease6File</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestReadServedLocally</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenDefaultScopeReadWrite</td><td class="dur">1.81s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenAuditEntryRecordsTokenId</td><td class="dur">1.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenExpiredRejected</td><td class="dur">1.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenClusterAdminScopeRequiredForMint</td><td class="dur">1.98s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWriteAcceptedByAnyNode</td><td class="dur">0.00s</td></tr>
+    <tr class="skip"><td class="icon">⊘</td><td class="name">TestApiDocsDisabledByConfig</td><td class="dur"></td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWriteFailsWhenLeaderUnreachable</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenWriteScopeAllowsMutations</td><td class="dur">1.68s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestResponseIncludesServedBy</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseDualStackMerge</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestWriteForwardedToLeader</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenRevocationRejectsAuth</td><td class="dur">1.50s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseKeaMergesIaNaAndIaPd</td><td class="dur">2.27s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenBearerAuthenticatesRequest</td><td class="dur">1.69s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTokenMintReturnsValueOnce</td><td class="dur">1.58s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestFwRuleNftablesSubnetScope</td><td class="dur">2.29s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsServed</td><td class="dur">1.36s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsOpenApiYamlServed</td><td class="dur">1.97s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsAssetsServed</td><td class="dur">2.06s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsAssetsServed//api/docs/swagger-ui.css</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsAssetsServed//api/docs/swagger-ui-bundle.js</td><td class="dur">0.00s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAcmeCacheDirectoryCreated</td><td class="dur">1.66s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpv6LeaseKeaReadsLease6</td><td class="dur">1.37s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpLeaderOwnsListener</td><td class="dur">2.31s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAcmeFallsBackOnUnreachableDirectory</td><td class="dur">2.17s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentRaft</td><td class="dur">2.15s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestTestDomainCli</td><td class="dur">1.76s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAcmeChallengeListener</td><td class="dur">1.87s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestSafeSearchOptInPerProfile</td><td class="dur">2.32s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestMetricsEndpointAvailable</td><td class="dur">2.05s</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Environment: Docker (acceptance tests) + Proxmox 3-node LXC cluster (real-condition) ·
+  skoed M23.5 · 441 pass · 0 fail · 33 skip
+</footer>
+</body>
+</html>

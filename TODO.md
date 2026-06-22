@@ -62,8 +62,15 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M21 | DNSSEC Validation Mode | ✅ | — | [note](demos/m21/DEMO_NOTE.md) · [report](demos/m21/test-report.html) | [dnssec-val](specs/functional/dnssec-validation-mode.feature) | [dnssec-val](tests/acceptance/dnssec_validation_test.go) |
 | M22 | Webhook / Push Alerts | ✅ | — | [note](demos/m22/DEMO_NOTE.md) · [report](demos/m22/test-report.html) | [webhooks](specs/functional/webhooks.feature) | [webhooks](tests/acceptance/webhooks_test.go) |
 | M22.5 | Browser Extension — Push Notification Bridge (Firefox + Chrome) | ✅ | — | [note](demos/m22.5/DEMO_NOTE.md) · [report](demos/m22.5/test-report.html) | [ext](specs/functional/browser-extension.feature) | [ext](tests/acceptance/browser_extension_test.go) |
-| M23 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
-| M24 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
+| M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
+| M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
+| M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
+| M24 | Encrypted DNS (DoT/DoH upstream) | ⬜ | — | — | — | — |
+| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
+| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M27 | Per-Profile Allowlists (full) | ⬜ | — | — | — | — |
+| M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
+| M29 | Live Query Stream | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
@@ -285,6 +292,23 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M18 — merge to master + tag v0.1.5 — 2026-06-18
 
 ---
+
+## M23.5 tasks — Built-in DHCP Server Core
+
+- [x] M23.5 — functional spec: `specs/functional/dhcp-server.feature` (31 FSIDs, 8 groups: enable/disable, DORA, pool options, exhaustion, ARP, static assignments, HA, lease API, web UI) — 2026-06-22
+- [x] M23.5 — UoR validated functional spec — 2026-06-22
+- [x] M23.5 — technical spec: `specs/technical/dhcp-server.openapi.yaml` (TS-DhcpServer, 6 endpoints, 5 schemas) — 2026-06-22
+- [x] M23.5 — acceptance tests: `tests/acceptance/dhcp_server_test.go` (11 API-layer tests, compile green) — 2026-06-22
+- [x] M23.5 — implementation: config structs, cluster commands+store+cluster methods, dhcp.Server (UDP 67, leader-owned), API handlers, routes — 2026-06-22
+- [x] M23.5 — bug fix: GetDhcpServerSettings omitted StaticAssignments → UpdateConfig populated empty static leases; fixed by merging in cluster.go — 2026-06-22
+- [x] M23.5 — refactoring phase — implementation clean; bug fix was minimal, no further changes — 2026-06-22
+- [x] M23.5 — build binary (CGO_ENABLED=0, make build) — 2026-06-22
+- [x] M23.5 — deploy to Proxmox 3-node cluster (CT 200/201/202) — fresh Alpine LXC from template — 2026-06-22
+- [x] M23.5 — Docker acceptance tests: 441 pass / 0 fail / 33 skip — 2026-06-22
+- [x] M23.5 — Proxmox real-condition DHCP validation: DORA ✅, static assignment ✅, leader failover ✅ — 2026-06-22
+- [x] M23.5 — screenshots + demo note in `demos/m23.5/` — 2026-06-22
+- [ ] M23.5 — UoR demo validation
+- [ ] M23.5 — merge to master
 
 ## Backlog
 

@@ -137,7 +137,7 @@ import {
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
   DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
-  BellAlertIcon, KeyIcon,
+  BellAlertIcon, KeyIcon, ServerIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -201,8 +201,9 @@ const nav: Array<{
   {
     label: 'System',
     items: [
-      { name: 'cluster',  label: 'Cluster',  icon: CpuChipIcon },
-      { name: 'settings', label: 'Settings', icon: Cog6ToothIcon },
+      { name: 'cluster',  label: 'Cluster',      icon: CpuChipIcon },
+      { name: 'dhcp',     label: 'DHCP Server',  icon: ServerIcon },
+      { name: 'settings', label: 'Settings',     icon: Cog6ToothIcon },
     ],
   },
 ]
@@ -219,6 +220,7 @@ const titles: Record<string, string> = {
   'query-log': 'Query log',
   stats: 'Stats',
   cluster: 'Cluster',
+  dhcp: 'DHCP Server',
   'test-domain': 'Test a domain',
   settings: 'Settings',
   account: 'Account',

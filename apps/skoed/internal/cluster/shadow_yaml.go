@@ -148,6 +148,7 @@ type clusterSections struct {
 	Auth             config.AuthConfig          `yaml:"auth"`
 	Schedules        []config.Schedule         `yaml:"schedules,omitempty"`
 	ScheduleBindings []config.ScheduleBinding  `yaml:"schedule_bindings,omitempty"`
+	DHCPServer       config.DHCPServerConfig   `yaml:"dhcp_server,omitempty"`
 }
 
 // shadowDoc is the on-disk merged YAML shape: a node-local section, an
@@ -181,6 +182,7 @@ func (w *ShadowWriter) snapshotAndWrite() error {
 			Auth:             snap.Auth,
 			Schedules:        snap.Schedules,
 			ScheduleBindings: snap.Bindings,
+			DHCPServer:       snap.DHCPServer,
 		},
 	}
 	if node.Bootstrap.LeaderAddress != "" || node.Bootstrap.Token != "" {

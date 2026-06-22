@@ -417,6 +417,36 @@ func runDaemon(cfgPath string) {
 		log.Printf("DHCP integration enabled (kind=%s refresh=%s)", node.Node.DHCP.Kind, refresh)
 	}
 
+	// M23.5 — built-in DHCP server (leader-owned).
+	{
+		dhcpCfg, err := c.GetDhcpServerSettings()
+		if err != nil {
+			log.Printf("read dhcp server settings: %v", err)
+		}
+		dnsListenAddr := fmt.Sprintf("127.0.0.1:%d", snap.DNS.Listen.Port)
+		dhcpSrv := dhcp.NewServer(dhcpCfg, dnsListenAddr)
+		app.SetDhcpServer(dhcpSrv)
+		if dhcpCfg.Enabled && c.IsLeader() {
+			dhcpSrv.Start()
+		}
+		// Watch Raft leadership changes to start/stop the listener.
+		go func() {
+			for {
+				select {
+				case <-c.LeadershipCh():
+					cfg, _ := c.GetDhcpServerSettings()
+					dhcpSrv.UpdateConfig(cfg)
+					if cfg.Enabled && c.IsLeader() {
+						dhcpSrv.Start()
+					} else {
+						dhcpSrv.Stop()
+					}
+				}
+			}
+		}()
+		defer dhcpSrv.Stop()
+	}
+
 	// Initial DNS handler + server.
 	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)))
 

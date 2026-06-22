@@ -1,0 +1,342 @@
+openapi: "3.1.0"
+
+x-tsid: TS-DhcpServer
+x-fsid-links:
+  - FS-DhcpServerDisabledByDefault
+  - FS-DhcpServerEnableViaApi
+  - FS-DhcpServerDisableViaApi
+  - FS-DhcpServerConfigPersisted
+  - FS-DhcpDiscoverOfferRequestAck
+  - FS-DhcpLeaseRenewal
+  - FS-DhcpLeaseRelease
+  - FS-DhcpLeaseExpiry
+  - FS-DhcpOptionsDelivered
+  - FS-DhcpDnsOptionDefaultsToSelf
+  - FS-DhcpPoolExhaustion
+  - FS-DhcpArpConflictDetection
+  - FS-DhcpStaticAssignmentHonoured
+  - FS-DhcpStaticAssignmentPriorityOverPool
+  - FS-DhcpStaticAssignmentPersistedToConfig
+  - FS-DhcpStaticAssignmentReplicatedViaRaft
+  - FS-DhcpStaticAssignmentDelete
+  - FS-DhcpLeaderOwnsListener
+  - FS-DhcpLeaderFailoverTransfersOwnership
+  - FS-DhcpLeaseListApi
+  - FS-DhcpServerStatusApi
+  - FS-DhcpWebUiSettingsTabVisible
+  - FS-DhcpWebUiToggleEnable
+  - FS-DhcpWebUiToggleDisable
+  - FS-DhcpWebUiPoolConfig
+  - FS-DhcpWebUiStaticAssignmentCreate
+  - FS-DhcpWebUiStaticAssignmentDelete
+  - FS-DhcpWebUiLeaseTable
+  - FS-DhcpWebUiPoolUtilisationGauge
+
+info:
+  title: skoed DHCP Server API
+  version: "0.1.0"
+  description: |
+    API surface for the built-in DHCP server (M23.5).
+    The DHCP listener is owned exclusively by the Raft leader; all write
+    operations on followers are forwarded to the leader automatically.
+
+servers:
+  - url: /
+
+paths:
+  /api/v1/dhcp/server/status:
+    get:
+      operationId: getDhcpServerStatus
+      summary: Get current DHCP server state and pool utilisation
+      tags: [dhcp]
+      responses:
+        "200":
+          description: Current DHCP server status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpServerStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/settings/dhcp:
+    put:
+      operationId: putDhcpSettings
+      summary: Update DHCP settings (enable/disable and pool config)
+      description: |
+        Applies the supplied settings atomically. The enabled flag controls
+        whether the DHCP listener is bound to UDP 67 on the current leader.
+        Pool fields are optional; omitted fields retain their current values.
+        On followers this call is forwarded to the leader.
+      tags: [dhcp, settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DhcpSettingsUpdate"
+      responses:
+        "200":
+          description: Settings applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpServerStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Pool is not configured; cannot enable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/dhcp/leases:
+    get:
+      operationId: listDhcpLeases
+      summary: List all active DHCP leases
+      tags: [dhcp]
+      responses:
+        "200":
+          description: List of active leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DhcpLease"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/dhcp/static-assignments:
+    get:
+      operationId: listDhcpStaticAssignments
+      summary: List all static MAC→IP assignments
+      tags: [dhcp]
+      responses:
+        "200":
+          description: List of static assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DhcpStaticAssignment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createDhcpStaticAssignment
+      summary: Create a static MAC→IP assignment
+      description: |
+        The assignment is written to both the Raft state machine (runtime)
+        and the node YAML config file (durable). On followers the call is
+        forwarded to the leader.
+      tags: [dhcp]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DhcpStaticAssignmentRequest"
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpStaticAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: A static assignment for this MAC already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/dhcp/static-assignments/{mac}:
+    delete:
+      operationId: deleteDhcpStaticAssignment
+      summary: Delete a static assignment by MAC address
+      tags: [dhcp]
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
+          example: "de:ad:be:ef:00:01"
+      responses:
+        "204":
+          description: Assignment deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  schemas:
+    DhcpServerStatus:
+      type: object
+      required: [enabled, is_leader, pool_start, pool_end, lease_time_seconds, leases_active, pool_total]
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the DHCP listener is active
+        is_leader:
+          type: boolean
+          description: Whether this node is the current Raft leader (and thus owns the listener)
+        pool_start:
+          type: string
+          description: First address in the dynamic pool
+          example: "192.168.1.100"
+        pool_end:
+          type: string
+          description: Last address in the dynamic pool
+          example: "192.168.1.200"
+        gateway:
+          type: string
+          description: Default gateway advertised in DHCP option 3
+          example: "192.168.1.1"
+        lease_time_seconds:
+          type: integer
+          description: Default lease duration
+          example: 86400
+        domain:
+          type: string
+          description: Domain name advertised in DHCP option 15
+          example: "home.local"
+        dns_server:
+          type: string
+          description: |
+            DNS server advertised in DHCP option 6. Defaults to the skoed
+            node's own DNS listen address when not set.
+          example: "192.168.1.1"
+        leases_active:
+          type: integer
+          description: Number of currently active leases
+          example: 10
+        pool_total:
+          type: integer
+          description: Total number of addresses in the dynamic pool
+          example: 101
+
+    DhcpSettingsUpdate:
+      type: object
+      description: |
+        All fields are optional except at least one must be present.
+        Omitted fields retain their current values.
+      properties:
+        enabled:
+          type: boolean
+        pool_start:
+          type: string
+          example: "192.168.1.100"
+        pool_end:
+          type: string
+          example: "192.168.1.200"
+        gateway:
+          type: string
+          example: "192.168.1.1"
+        lease_time_seconds:
+          type: integer
+          minimum: 60
+          example: 86400
+        domain:
+          type: string
+          example: "home.local"
+        dns_server:
+          type: string
+          description: Override for DHCP option 6; leave empty to use skoed's own address
+
+    DhcpLease:
+      type: object
+      required: [ip, mac, expires_at, origin]
+      properties:
+        ip:
+          type: string
+          example: "192.168.1.105"
+        mac:
+          type: string
+          example: "aa:bb:cc:dd:ee:ff"
+        hostname:
+          type: string
+          example: "laptop"
+        client_id:
+          type: string
+          description: DHCP client-id option value if provided by the client
+        expires_at:
+          type: string
+          format: date-time
+          description: RFC3339 expiry timestamp
+        origin:
+          type: string
+          enum: [dhcp_dynamic, dhcp_static]
+          description: How this lease was allocated
+
+    DhcpStaticAssignment:
+      type: object
+      required: [mac, ip]
+      properties:
+        mac:
+          type: string
+          pattern: '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
+          example: "de:ad:be:ef:00:01"
+        ip:
+          type: string
+          example: "192.168.1.50"
+        hostname:
+          type: string
+          example: "printer"
+
+    DhcpStaticAssignmentRequest:
+      type: object
+      required: [mac, ip]
+      properties:
+        mac:
+          type: string
+          pattern: '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
+          example: "de:ad:be:ef:00:01"
+        ip:
+          type: string
+          example: "192.168.1.50"
+        hostname:
+          type: string
+          example: "printer"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        leader_id:
+          type: string
+        leader_address:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

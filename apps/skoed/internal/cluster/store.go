@@ -39,6 +39,10 @@ var (
 	bucketDNSCryptKeys = []byte("dnscrypt_keys")
 	// M22: replicated webhook endpoint list. Single key "list".
 	bucketWebhooks = []byte("webhooks")
+	// M23.5: built-in DHCP server settings (single key "settings") and
+	// static assignments (key = lowercase MAC address).
+	bucketDhcpServer      = []byte("dhcp_server")
+	bucketDhcpStaticAssns = []byte("dhcp_static_assignments")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -90,6 +94,8 @@ func (s *Store) init() error {
 			bucketAPITokens,
 			bucketDNSCryptKeys,
 			bucketWebhooks,
+			bucketDhcpServer,
+			bucketDhcpStaticAssns,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -573,6 +579,36 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketWebhooks).Put([]byte("list"), v)
+
+	case CmdDhcpServerSettingsSet:
+		var p DhcpServerSettingsSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Settings)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcpServer).Put([]byte("settings"), v)
+
+	case CmdDhcpStaticAssignmentUpsert:
+		var p DhcpStaticAssignmentUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Assignment)
+		if err != nil {
+			return err
+		}
+		key := []byte(strings.ToLower(p.Assignment.MAC))
+		return tx.Bucket(bucketDhcpStaticAssns).Put(key, v)
+
+	case CmdDhcpStaticAssignmentDelete:
+		var p DhcpStaticAssignmentDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcpStaticAssns).Delete([]byte(strings.ToLower(p.MAC)))
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -974,6 +1010,24 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			}
 		}
 
+		// M23.5 — DHCP server settings.
+		if v := tx.Bucket(bucketDhcpServer).Get([]byte("settings")); v != nil {
+			if err := json.Unmarshal(v, &out.DHCPServer); err != nil {
+				return err
+			}
+		}
+		// M23.5 — DHCP static assignments (embedded in DHCPServer config).
+		if err := tx.Bucket(bucketDhcpStaticAssns).ForEach(func(_, v []byte) error {
+			var a config.DHCPStaticAssignment
+			if err := json.Unmarshal(v, &a); err != nil {
+				return err
+			}
+			out.DHCPServer.StaticAssignments = append(out.DHCPServer.StaticAssignments, a)
+			return nil
+		}); err != nil {
+			return err
+		}
+
 		out.Version = config.SchemaVersion
 		return nil
 	})
@@ -1216,6 +1270,38 @@ func (s *Store) WebhookEndpoints() ([]config.WebhookEndpoint, error) {
 	})
 	if out == nil {
 		out = []config.WebhookEndpoint{}
+	}
+	return out, err
+}
+
+// DhcpServerSettings returns the cluster-wide DHCP server configuration.
+func (s *Store) DhcpServerSettings() (config.DHCPServerConfig, error) {
+	var out config.DHCPServerConfig
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketDhcpServer).Get([]byte("settings"))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &out)
+	})
+	return out, err
+}
+
+// DhcpStaticAssignments returns all static MAC→IP assignments.
+func (s *Store) DhcpStaticAssignments() ([]config.DHCPStaticAssignment, error) {
+	var out []config.DHCPStaticAssignment
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketDhcpStaticAssns).ForEach(func(_, v []byte) error {
+			var a config.DHCPStaticAssignment
+			if err := json.Unmarshal(v, &a); err != nil {
+				return err
+			}
+			out = append(out, a)
+			return nil
+		})
+	})
+	if out == nil {
+		out = []config.DHCPStaticAssignment{}
 	}
 	return out, err
 }

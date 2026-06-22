@@ -38,7 +38,8 @@ type App struct {
 	cluster   *cluster.Cluster
 	authStore *auth.Store
 	queryLog  *dlog.QueryLog
-	dhcpMgr   *dhcp.Manager     // optional; nil when DHCP integration is disabled
+	dhcpMgr    *dhcp.Manager     // optional; nil when DHCP integration is disabled
+	dhcpServer *dhcp.Server     // M23.5 built-in server; nil until wired
 	dnsCache  *dnsengine.Cache  // M4.7 — long-lived; survives Raft applies
 	metrics   *metrics.Metrics  // M5.1 — Prometheus exporter; nil disables /metrics
 
@@ -219,6 +220,12 @@ func (a *App) leaderNudgeLoop(m *dhcp.Manager) {
 // GetDhcpMgr returns the configured DHCP manager, or nil when M3.6
 // integration is disabled.
 func (a *App) GetDhcpMgr() *dhcp.Manager { return a.dhcpMgr }
+
+// SetDhcpServer wires the M23.5 built-in DHCP server.
+func (a *App) SetDhcpServer(s *dhcp.Server) { a.dhcpServer = s }
+
+// GetDhcpServer returns the M23.5 built-in DHCP server, or nil when not wired.
+func (a *App) GetDhcpServer() *dhcp.Server { return a.dhcpServer }
 
 // SetDNSCache wires the long-lived M4.7 DNS cache into the App so the
 // /api/v1/dns/cache/* handlers reach it via GetDNSCache(). main.go
@@ -859,6 +866,14 @@ func (a *App) Router() http.Handler {
 		// failovers without a separate /cluster/status round-trip.
 		r.Get("/api/v1/leases", h.GetLeases)
 		r.Get("/api/v1/leases/source", h.GetLeasesSource)
+
+		// M23.5 — built-in DHCP server.
+		r.Get("/api/v1/dhcp/server/status", h.DhcpServerStatus)
+		r.Put("/api/v1/settings/dhcp", a.forward(h.PutDhcpSettings))
+		r.Get("/api/v1/dhcp/leases", h.DhcpLeases)
+		r.Get("/api/v1/dhcp/static-assignments", h.ListDhcpStaticAssignments)
+		r.Post("/api/v1/dhcp/static-assignments", a.forward(h.CreateDhcpStaticAssignment))
+		r.Delete("/api/v1/dhcp/static-assignments/{mac}", a.forward(h.DeleteDhcpStaticAssignment))
 
 		// M22 — webhook endpoint management (TS-Webhooks).
 		wh := handlers.NewWebhookHandlers(a)

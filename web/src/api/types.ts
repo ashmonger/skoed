@@ -338,3 +338,32 @@ export interface ClientDohStatusDetail {
   last_doh_query: string | null
   suspected_provider: string | null
 }
+
+// ─── M23.5/M23.6 — Built-in DHCP server ─────────────────────────────────
+
+export interface DhcpServerStatus {
+  enabled: boolean
+  is_leader: boolean
+  pool_start: string
+  pool_end: string
+  gateway: string
+  lease_time_seconds: number
+  domain: string
+  dns_server: string
+  leases_active: number
+  pool_total: number
+}
+
+export interface DhcpStaticAssignment {
+  mac: string
+  ip: string
+  hostname: string
+}
+
+export interface DhcpLease {
+  ip: string
+  mac: string
+  hostname: string
+  expires_at: string
+  origin: string  // "dynamic" | "static"
+}
