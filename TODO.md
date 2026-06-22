@@ -64,7 +64,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M22.5 | Browser Extension — Push Notification Bridge (Firefox + Chrome) | ✅ | — | [note](demos/m22.5/DEMO_NOTE.md) · [report](demos/m22.5/test-report.html) | [ext](specs/functional/browser-extension.feature) | [ext](tests/acceptance/browser_extension_test.go) |
 | M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
 | M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
-| M23.6 | DHCP Server Web UI | ⬜ | — | — | (in dhcp-server.feature) | — |
+| M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
 | M24 | Encrypted DNS (DoT/DoH upstream) | ⬜ | — | — | — | — |
 | M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M26 | Custom Block Page | ⬜ | — | — | — | — |

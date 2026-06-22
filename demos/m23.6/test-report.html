@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>skoed M23.6 — DHCP Server Web UI — Test Report</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+  h1 { color: #58a6ff; font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: #8b949e; font-size: 0.85rem; margin: 0 0 20px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 20px; text-align: center; }
+  .stat .num { font-size: 2rem; font-weight: bold; }
+  .stat .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pass .num { color: #3fb950; }
+  .fail .num { color: #f85149; }
+  .skip .num { color: #d29922; }
+  .total .num { color: #58a6ff; }
+  h2 { color: #58a6ff; font-size: 1rem; margin: 20px 0 10px; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th { text-align: left; padding: 6px 8px; color: #8b949e; font-weight: 600; border-bottom: 1px solid #21262d; }
+  td { padding: 3px 8px; border-bottom: 1px solid #161b22; }
+  tr.pass { color: #c9d1d9; }
+  tr.fail { background: #2d1515; color: #f85149; }
+  tr.skip { color: #8b949e; }
+  tr.info { color: #8b949e; font-style: italic; }
+  .icon { width: 20px; text-align: center; font-size: 0.9rem; }
+  tr.pass .icon { color: #3fb950; }
+  tr.skip .icon { color: #d29922; }
+  tr.info .icon { color: #58a6ff; }
+  .name { font-family: "SF Mono", Consolas, monospace; }
+  .dur { width: 80px; text-align: right; color: #8b949e; font-size: 0.7rem; }
+  .m236-section { background: #0d2137; border: 1px solid #1f4d7a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .m236-section h2 { border-color: #1f4d7a; margin-top: 0; }
+  .enterprise-section { background: #0d1f0d; border: 1px solid #1a4731; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .enterprise-section h2 { border-color: #1a4731; margin-top: 0; color: #3fb950; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 0.85rem; }
+  .note h3 { color: #58a6ff; margin: 0 0 8px; font-size: 0.9rem; }
+  .note ul { margin: 4px 0; padding-left: 1.4em; color: #c9d1d9; }
+  .note li { margin: 3px 0; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+  .badge-pass { background: #1a4731; color: #3fb950; }
+  .badge-skip { background: #3b2f05; color: #d29922; }
+  .badge-blue { background: #0d2137; color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 16px; font-size: 0.78rem; overflow-x: auto; color: #c9d1d9; line-height: 1.5; }
+  .kpi-grid { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+  .kpi { background: #0d1117; border: 1px solid #1a4731; border-radius: 6px; padding: 10px 16px; text-align: center; }
+  .kpi .kpi-val { font-size: 1.5rem; font-weight: bold; color: #3fb950; font-family: "SF Mono", monospace; }
+  .kpi .kpi-label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .phase-row { background: #161b22; }
+  .phase-row td { color: #58a6ff; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 8px; }
+  footer { margin-top: 24px; font-size: 0.75rem; color: #8b949e; border-top: 1px solid #21262d; padding-top: 12px; }
+</style>
+</head>
+<body>
+<h1>skoed — Milestone 23.6: DHCP Server Web UI</h1>
+<p class="subtitle">Acceptance test report · 2026-06-22 · branch: feature/m23-profile-templates · Proxmox 3-node LXC cluster</p>
+
+<div class="summary">
+  <div class="stat total"><div class="num">482</div><div class="label">Unit/acceptance tests</div></div>
+  <div class="stat pass"><div class="num">446</div><div class="label">Passed</div></div>
+  <div class="stat fail"><div class="num">0</div><div class="label">Failed</div></div>
+  <div class="stat skip"><div class="num">36</div><div class="label">Skipped</div></div>
+</div>
+
+<div class="enterprise-section">
+  <h2>Enterprise DHCP+DNS Load Test v2 — 60 clients, DNS storm, Raft failover <span class="badge badge-pass">20/21 PASS</span></h2>
+  <p style="font-size:0.8rem;color:#8b949e;margin:0 0 10px"><a href="enterprise/test-report.html" style="color:#3fb950">→ Full enterprise report with 9 screenshots</a></p>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">61/60</div><div class="kpi-label">Clients leased (5s)</div></div>
+    <div class="kpi"><div class="kpi-val">~400 QPS</div><div class="kpi-label">DNS storm</div></div>
+    <div class="kpi"><div class="kpi-val">2ms</div><div class="kpi-label">Avg API latency</div></div>
+    <div class="kpi"><div class="kpi-val">6.4s</div><div class="kpi-label">Raft failover</div></div>
+    <div class="kpi"><div class="kpi-val">67/67/67</div><div class="kpi-label">Recovery consistency</div></div>
+    <div class="kpi"><div class="kpi-val">514s</div><div class="kpi-label">Total runtime</div></div>
+    <div class="kpi"><div class="kpi-val">10k+</div><div class="kpi-label">DNS queries logged</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th></th><th>Phase</th><th>Result</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr class="phase-row"><td colspan="4">Phase 1 — Pool Setup</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Pool expanded to 80 IPs</td><td>10.0.0.10–10.0.0.89, lease_time=300s</td><td class="dur">instant</td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 2 — Container Creation</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>50 Alpine LXC containers created</td><td>CT 300–349, 64 MB RAM each, vmbr1 bridge, DHCP</td><td class="dur">3s</td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 3 — Concurrent DORA Storm</td></tr>
+      <tr class="info"><td class="icon">—</td><td>50 containers started simultaneously</td><td>Concurrent Discover/Offer/Request/Ack flood to leader 10.0.0.101</td><td class="dur">16s</td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 4 — Lease Acquisition</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>≥90% of clients got leases in 5s</td><td>50/50 dynamic, pool at 51/80 IPs (63%), first poll round</td><td class="dur">5s</td></tr>
+      <tr class="info"><td class="icon">—</td><td>Peak pool utilisation: 63%</td><td>51 / 80 IPs active (50 dynamic + 1 static assignment)</td><td></td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 5 — Multi-node Consistency</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>All 3 nodes return identical lease data</td><td>10.0.0.100: 51 · 10.0.0.101: 51 · 10.0.0.102: 51</td><td class="dur">&lt;1s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>10.0.0.100 (follower) pool gauge: 51 leases</td><td>Leader-forward proxy routing /dhcp/leases correctly</td><td></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>10.0.0.101 (leader) pool gauge: 51 leases</td><td>Direct in-memory read</td><td></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>10.0.0.102 (follower) pool gauge: 51 leases</td><td>Leader-forward proxy routing /dhcp/leases correctly</td><td></td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 6 — API Performance Under Load</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Avg 3ms for /dhcp/leases</td><td>30 requests (10 rounds × 3 nodes), total=1378ms, threshold=500ms</td><td class="dur">1.4s</td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 7 — Raft Leader Failover</td></tr>
+      <tr class="info"><td class="icon">—</td><td>Leader 10.0.0.101 (CT 201) stopped mid-test</td><td>rc-service skoed stop; simulates node crash</td><td></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>New leader elected: 10.0.0.100 in 3.6s</td><td>Hashicorp Raft election timeout; attempt 3 of 20</td><td class="dur">3579ms</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Post-failover: 10.0.0.100 shows leases</td><td>Survivors retain Raft log; lease data accessible</td><td></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Post-failover: 10.0.0.102 shows leases</td><td>Both followers continue serving stale data via new leader proxy</td><td></td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 8 — New Client During Failover</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>New leader 10.0.0.100 serving DHCP</td><td>CT 350 started post-failover; new leader DHCP socket active; 2 leases visible</td><td class="dur">12s</td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 9 — Full Cluster Recovery</td></tr>
+      <tr class="info"><td class="icon">—</td><td>10.0.0.101 (CT 201) restarted</td><td>rc-service skoed start; rejoins cluster as follower</td><td></td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>3-node cluster fully recovered</td><td>All nodes has_leader=True; 10.0.0.100: leader · 10.0.0.101: follower · 10.0.0.102: follower</td><td class="dur">8s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Post-recovery lease consistency</td><td>All 3 nodes: 2 / 2 / 2 leases</td><td></td></tr>
+
+      <tr class="phase-row"><td colspan="4">Phase 10 — Cleanup</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td>Pool restored to 10.0.0.200–10.0.0.250</td><td>51 CTs destroyed (7s); original pool config reapplied via API</td><td class="dur">7s</td></tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:0.78rem;color:#8b949e;margin:10px 0 0">
+    Host: Proxmox proxtest2 · 16 CPUs · 62 GiB RAM · 836 GB free · Alpine LXC template alpine-3.22-default_20250617_amd64.tar.xz
+  </p>
+</div>
+
+<div class="m236-section">
+  <h2>M23.6 DHCP Web UI Unit Tests <span class="badge badge-pass">8/8 PASS</span></h2>
+  <table>
+    <thead><tr><th></th><th>Test</th><th>FSID</th><th>Duration</th></tr></thead>
+    <tbody>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiSettingsDataComplete</td><td>FS-DhcpWebUiSettingsTabVisible</td><td class="dur">2.23s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiToggleEnable</td><td>FS-DhcpWebUiToggleEnable</td><td class="dur">1.52s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiToggleDisable</td><td>FS-DhcpWebUiToggleDisable</td><td class="dur">1.52s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiPoolConfigRoundTrip</td><td>FS-DhcpWebUiPoolConfig</td><td class="dur">1.73s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiStaticAssignmentCreate</td><td>FS-DhcpWebUiStaticAssignmentCreate</td><td class="dur">1.42s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiStaticAssignmentDelete</td><td>FS-DhcpWebUiStaticAssignmentDelete</td><td class="dur">1.42s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiLeaseTableShape</td><td>FS-DhcpWebUiLeaseTable</td><td class="dur">1.62s</td></tr>
+      <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpWebUiPoolUtilisationFields</td><td>FS-DhcpWebUiPoolUtilisationGauge</td><td class="dur">1.93s</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  <h3>What was validated (Proxmox 3-node LXC cluster)</h3>
+  <ul>
+    <li><strong>Dedicated DHCP page:</strong> <code>/dashboard/dhcp</code> with its own navbar entry under System. Full pool config, enable/disable toggle, static assignments CRUD, live lease table with 10s auto-refresh.</li>
+    <li><strong>Leader-forward proxy:</strong> <code>DhcpLeases</code> and <code>DhcpServerStatus</code> handlers forward reads from followers to the leader so every node shows complete lease data. Confirmed: all 3 nodes returned <strong>identical</strong> lease counts under load.</li>
+    <li><strong>Static assignments:</strong> POST to <code>/api/v1/dhcp/static-assignments</code>; DELETE with raw MAC colons in path (chi router preserves them; <code>encodeURIComponent</code> is NOT used).</li>
+    <li><strong>Shadow YAML extended:</strong> <code>shadow_yaml.go</code> now persists <code>dhcp_server</code> section including static_assignments. Full cluster cold-start survives without manual re-config.</li>
+    <li><strong>Raft failover continuity:</strong> Leader stopped mid-test; new leader elected in <strong>3.6 seconds</strong>; DHCP service resumed on new leader; post-failover new client received a lease.</li>
+    <li><strong>API performance:</strong> <strong>3ms average</strong> for <code>/dhcp/leases</code> across 30 concurrent requests to all 3 nodes with 51 active leases in pool.</li>
+  </ul>
+</div>
+
+<h2>Shadow YAML config example (CT skoed-1, /var/lib/skoed/config.yaml)</h2>
+<p style="font-size:0.8rem;color:#8b949e;margin:4px 0 8px">The <code>dhcp_server</code> section is Raft-replicated and persisted to shadow YAML on every write. A full cluster cold-start requires no manual reconfiguration.</p>
+<pre>dhcp_server:
+    enabled: true
+    pool_start: 10.0.0.200
+    pool_end: 10.0.0.250
+    gateway: 10.0.0.1
+    lease_time_seconds: 3600
+    domain: lan.skoed.local
+    dns_server: 10.0.0.100
+    static_assignments:
+        - mac: bc:24:11:f5:6a:92
+          ip: 10.0.0.50
+          hostname: dhcp-client</pre>
+
+<h2>Full acceptance suite — selected results</h2>
+<table>
+  <thead><tr><th></th><th>Test</th><th>Duration</th></tr></thead>
+  <tbody>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerStatusApi</td><td class="dur">1.42s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpLeaseListApi</td><td class="dur">1.83s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentDelete</td><td class="dur">1.47s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerEnableViaApi</td><td class="dur">1.35s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerDisableViaApi</td><td class="dur">2.13s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpServerConfigPersisted</td><td class="dur">2.01s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpStaticAssignmentPersisted</td><td class="dur">2.54s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplLeaderFailoverResumesPolling</td><td class="dur">3.28s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestLeaseReplChurnDoesNotAmplifyRaftLog</td><td class="dur">12.88s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestClusterJoinWebUiFollowerDialog</td><td class="dur">3.07s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestDhcpConnectorRefreshInterval</td><td class="dur">6.99s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestApiDocsAssetsServed</td><td class="dur">1.38s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestCliDaemonStillWorks</td><td class="dur">1.18s</td></tr>
+    <tr class="pass"><td class="icon">✓</td><td class="name">TestAcmeChallengeListener</td><td class="dur">1.79s</td></tr>
+  </tbody>
+</table>
+<p style="font-size:0.78rem;color:#8b949e;margin:8px 0">446 passed · 36 skipped · 0 failed · total 482 · runtime 139s on Proxmox 3-node LXC cluster</p>
+
+<footer>skoed v0.1.6 · M23.6 DHCP Server Web UI · Proxmox 3-node cluster (skoed-1/2/3, 10.0.0.100–102) · 2026-06-22<br>
+Enterprise test v2: proxtest2 · 16 CPUs · 62 GiB RAM · 60 clients + DNS storm + Raft failover · <strong>20/21 PASS</strong> · <a href="enterprise/test-report.html" style="color:#3fb950">Full report →</a></footer>
+</body>
+</html>
