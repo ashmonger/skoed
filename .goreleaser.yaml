@@ -3,12 +3,6 @@
 
 version: 2
 
-before:
-  hooks:
-    - make build-ui
-    - make openapi-sync
-    - make build-extension
-
 builds:
   - id: skoed
     dir: apps/skoed

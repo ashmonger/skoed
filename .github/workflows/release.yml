@@ -38,6 +38,15 @@ jobs:
           cd web
           npm ci --no-audit --no-fund
 
+      - name: Build web UI
+        run: make build-ui
+
+      - name: Sync OpenAPI spec
+        run: make openapi-sync
+
+      - name: Build browser extensions
+        run: make build-extension
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
