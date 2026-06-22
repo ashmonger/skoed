@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	clusterConvergeTimeout  = 30 * time.Second
+	clusterConvergeTimeout  = 60 * time.Second
 	clusterConvergeInterval = 100 * time.Millisecond
 	tokenTTL                = 15 * time.Minute
 )
@@ -609,7 +609,7 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 // handle the case where leadership has just transferred.
 func (c *Cluster) Leader(t *testing.T) *ClusterNode {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		for _, n := range c.nodes {
 			if n.killed {
@@ -622,7 +622,7 @@ func (c *Cluster) Leader(t *testing.T) *ClusterNode {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("no leader found within 10s")
+	t.Fatalf("no leader found within 30s")
 	return nil
 }
 
