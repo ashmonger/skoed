@@ -123,8 +123,8 @@ release:
   prerelease: auto
   extra_files:
     - glob: scripts/proxmox-create.sh
-    - glob: dist/skoed-firefox.zip
-    - glob: dist/skoed-chrome.zip
+    - glob: extensions/skoed-firefox.zip
+    - glob: extensions/skoed-chrome.zip
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"

@@ -31,4 +31,7 @@ web/tsconfig.tsbuildinfo
 dist/
 # …except the embedded SPA bundle the Go binary needs at compile time.
 !apps/skoed/internal/api/static/dist/
+
+# Browser extension zips (built by make build-extension, uploaded to GitHub releases)
+extensions/
 .claude/

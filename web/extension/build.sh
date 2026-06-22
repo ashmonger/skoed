@@ -4,12 +4,12 @@
 #          dist/skoed-chrome.zip   (Manifest V3)
 set -euo pipefail
 cd "$(dirname "$0")"
-mkdir -p ../../dist
+mkdir -p ../../extensions
 
 build() {
   local browser="$1"
   local manifest="manifest-${browser}.json"
-  local out="../../dist/skoed-${browser}.zip"
+  local out="../../extensions/skoed-${browser}.zip"
   local tmp
   tmp=$(mktemp -d)
   trap "rm -rf $tmp" EXIT
