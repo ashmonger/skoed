@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>M27 Test Report — Per-Profile Allowlists</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --ground:    #0D1117;
+    --surface:   #161B22;
+    --border:    #21262D;
+    --text:      #E2E8F0;
+    --text-muted:#8B949E;
+    --accent:    #22D3EE;
+    --amber:     #F59E0B;
+    --pass:      #3FB950;
+    --fail:      #F85149;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout shell ─────────────────────────────────────────────── */
+
+  .shell {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Left rail — rotated milestone stamp */
+  .rail {
+    position: relative;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .rail-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .rail-label span {
+    color: var(--accent);
+    font-style: italic;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+  }
+
+  /* Main content */
+  .main {
+    padding: 64px 48px 80px 48px;
+    max-width: 820px;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────── */
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .eyebrow::after {
+    content: '';
+    flex: 1;
+    max-width: 120px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.35;
+  }
+
+  h1 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 48px;
+    padding-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .subtitle code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  /* ── Bug fix callout ──────────────────────────────────────────── */
+
+  .callout {
+    border: 1px solid var(--amber);
+    border-left-width: 3px;
+    background: rgba(245, 158, 11, 0.05);
+    border-radius: 0 4px 4px 0;
+    padding: 16px 20px;
+    margin-bottom: 40px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .callout-icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--amber);
+    margin-top: 1px;
+  }
+
+  .callout-body {
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+
+  .callout-body strong {
+    display: block;
+    font-weight: 600;
+    color: var(--amber);
+    margin-bottom: 4px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .callout-body code {
+    background: rgba(245, 158, 11, 0.12);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    color: var(--amber);
+  }
+
+  /* ── Section titles ───────────────────────────────────────────── */
+
+  .section-title {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Test table ───────────────────────────────────────────────── */
+
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 40px;
+  }
+
+  .test-table thead tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .test-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .test-table tbody tr {
+    border-bottom: 1px solid rgba(33, 38, 45, 0.6);
+    transition: background 0.1s;
+  }
+
+  .test-table tbody tr:hover {
+    background: rgba(34, 211, 238, 0.03);
+  }
+
+  .test-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .test-table td {
+    padding: 13px 12px;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .test-name {
+    color: var(--text);
+    font-weight: 500;
+    font-size: 12px;
+  }
+
+  .test-fsid {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .test-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    max-width: 320px;
+  }
+
+  .duration {
+    color: var(--text-muted);
+    text-align: right;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  .badge-pass {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(63, 185, 80, 0.12);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    color: var(--pass);
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .badge-pass::before {
+    content: '●';
+    font-size: 7px;
+  }
+
+  /* ── Summary bar ──────────────────────────────────────────────── */
+
+  .summary {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 48px;
+  }
+
+  .summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .summary-stat .val {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--pass);
+  }
+
+  .summary-stat .val.neutral {
+    color: var(--text-muted);
+  }
+
+  .summary-stat .lbl {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .summary-div {
+    width: 1px;
+    height: 36px;
+    background: var(--border);
+  }
+
+  .summary-verdict {
+    margin-left: auto;
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 15px;
+    color: var(--pass);
+    font-style: italic;
+  }
+
+  /* ── Coverage section ─────────────────────────────────────────── */
+
+  .coverage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+
+  .coverage-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .coverage-item .fsid {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .coverage-item .desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .coverage-item .status {
+    font-size: 10px;
+    color: var(--pass);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .coverage-item .status::before {
+    content: '✓';
+    font-size: 9px;
+  }
+
+  /* ── Implementation delta section ────────────────────────────── */
+
+  .delta-list {
+    list-style: none;
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .delta-list li {
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+
+  .delta-list li:last-child {
+    border-bottom: none;
+  }
+
+  .delta-marker {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(34, 211, 238, 0.1);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: var(--accent);
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .delta-marker.amber {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: var(--amber);
+  }
+
+  .delta-content {
+    flex: 1;
+  }
+
+  .delta-content strong {
+    color: var(--text);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .delta-content span {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .delta-content code {
+    font-size: 10.5px;
+    color: var(--accent);
+    background: rgba(34, 211, 238, 0.07);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
+  .delta-content code.amber {
+    color: var(--amber);
+    background: rgba(245, 158, 11, 0.07);
+  }
+
+  /* ── Out of scope section ────────────────────────────────────── */
+
+  .oos-list {
+    list-style: none;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 48px;
+  }
+
+  .oos-list li::before {
+    content: '— ';
+    color: var(--border);
+  }
+
+  /* ── Footer ───────────────────────────────────────────────────── */
+
+  .footer {
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+  }
+
+  .footer-sig {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* ── Canvas animation ─────────────────────────────────────────── */
+  /* One orchestrated moment: a single horizontal scan line that runs once
+     across the summary bar, evoking a network packet trace. */
+
+  .scan-wrap {
+    position: relative;
+    overflow: hidden;
+  }
+
+  #scanCanvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* ── Responsive ───────────────────────────────────────────────── */
+
+  @media (max-width: 600px) {
+    .main { padding: 40px 24px 60px 24px; }
+    .coverage-grid { grid-template-columns: 1fr; }
+    .shell { grid-template-columns: 36px 1fr; }
+    h1 { font-size: 26px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #scanCanvas { display: none; }
+    .test-table tbody tr { transition: none; }
+  }
+
+  /* Focus */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Left rail -->
+  <div class="rail" aria-hidden="true">
+    <span class="rail-label">skoed &mdash; <span>M27</span> &mdash; allowlists</span>
+  </div>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- Header -->
+    <p class="eyebrow">Test Report &mdash; 2026-06-23</p>
+    <h1>Per-Profile Allowlists<br /><em>Full Feature Surface</em></h1>
+    <p class="subtitle">
+      Branch <code>feature/m27-per-profile-allowlists</code> &nbsp;&middot;&nbsp;
+      Binary built with <code>CGO_ENABLED=0</code> &nbsp;&middot;&nbsp;
+      Single-node forwarding harness, SKOED_TEST_MODE=1
+    </p>
+
+    <!-- Bug fix callout -->
+    <div class="callout" role="note">
+      <span class="callout-icon" aria-hidden="true">⚠</span>
+      <div class="callout-body">
+        <strong>Correctness fix</strong>
+        <code>DeleteProfileAllowlistEntry</code> was missing
+        <code>cache.PurgeDomain(domain)</code> after removal. Without it,
+        a deleted allowlist entry continued resolving as <code>NOERROR</code>
+        from cache until the TTL expired — silently defeating the delete.
+        Fixed in this milestone; covered by <code>TestPerProfileAllowlistDeletePurgesCache</code>.
+      </div>
+    </div>
+
+    <!-- Summary bar -->
+    <div class="summary scan-wrap" id="summaryBar">
+      <canvas id="scanCanvas" aria-hidden="true"></canvas>
+      <div class="summary-stat">
+        <span class="val">5</span>
+        <span class="lbl">Tests run</span>
+      </div>
+      <div class="summary-div" aria-hidden="true"></div>
+      <div class="summary-stat">
+        <span class="val">5</span>
+        <span class="lbl">Passed</span>
+      </div>
+      <div class="summary-div" aria-hidden="true"></div>
+      <div class="summary-stat">
+        <span class="val neutral">0</span>
+        <span class="lbl">Failed</span>
+      </div>
+      <div class="summary-div" aria-hidden="true"></div>
+      <div class="summary-stat">
+        <span class="val neutral">2.77s</span>
+        <span class="lbl">Total time</span>
+      </div>
+      <p class="summary-verdict">All clear.</p>
+    </div>
+
+    <!-- Test results table -->
+    <p class="section-title">Test results</p>
+
+    <table class="test-table" aria-label="M27 acceptance test results">
+      <thead>
+        <tr>
+          <th scope="col">Test</th>
+          <th scope="col">Description</th>
+          <th scope="col">Status</th>
+          <th scope="col" style="text-align:right">Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="test-name">PutReplacesAll</div>
+            <div class="test-fsid">FS-PerProfileAllowlistPutReplacesAll</div>
+          </td>
+          <td class="test-desc">
+            PUT with a new list replaces existing entries atomically.
+            Old entries absent from GET afterward.
+          </td>
+          <td><span class="badge-pass">pass</span></td>
+          <td class="duration">1.80s</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="test-name">PutClearsOnEmpty</div>
+            <div class="test-fsid">FS-PerProfileAllowlistPutClearsOnEmpty</div>
+          </td>
+          <td class="test-desc">
+            PUT <code>[]</code> clears the allowlist entirely.
+            Subsequent GET returns an empty array.
+          </td>
+          <td><span class="badge-pass">pass</span></td>
+          <td class="duration">2.03s</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="test-name">DeletePurgesCache</div>
+            <div class="test-fsid">FS-PerProfileAllowlistDeletePurgesCache</div>
+          </td>
+          <td class="test-desc">
+            After DELETE, query returns NXDOMAIN immediately — not NOERROR from
+            a stale cached entry. Verifies the cache-purge bug fix.
+          </td>
+          <td><span class="badge-pass">pass</span></td>
+          <td class="duration">2.06s</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="test-name">WildcardSubdomain</div>
+            <div class="test-fsid">FS-PerProfileAllowlistWildcardSubdomain</div>
+          </td>
+          <td class="test-desc">
+            Entry <code>*.example.com</code> allows <code>sub.example.com</code>
+            — NOERROR with upstream answer, despite blocklist match.
+          </td>
+          <td><span class="badge-pass">pass</span></td>
+          <td class="duration">2.60s</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="test-name">WildcardApex</div>
+            <div class="test-fsid">FS-PerProfileAllowlistWildcardApex</div>
+          </td>
+          <td class="test-desc">
+            Entry <code>*.example.com</code> also allows the apex
+            <code>example.com</code> — engine normalises to apex on insert,
+            matching both.
+          </td>
+          <td><span class="badge-pass">pass</span></td>
+          <td class="duration">1.49s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- FSID coverage -->
+    <p class="section-title">FSID coverage</p>
+
+    <div class="coverage-grid">
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistPutReplacesAll</span>
+        <span class="desc">Atomic full replacement via PUT</span>
+        <span class="status">TestPerProfileAllowlistPutReplacesAll</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistPutClearsOnEmpty</span>
+        <span class="desc">Empty array clears the list</span>
+        <span class="status">TestPerProfileAllowlistPutClearsOnEmpty</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistDeletePurgesCache</span>
+        <span class="desc">DNS cache invalidated on entry removal</span>
+        <span class="status">TestPerProfileAllowlistDeletePurgesCache</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistWildcardSubdomain</span>
+        <span class="desc">Wildcard allows subdomain lookups</span>
+        <span class="status">TestPerProfileAllowlistWildcardSubdomain</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistWildcardApex</span>
+        <span class="desc">Wildcard allows apex domain</span>
+        <span class="status">TestPerProfileAllowlistWildcardApex</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-PerProfileAllowlistCountBadge</span>
+        <span class="desc">Entry count badge in web UI tab</span>
+        <span class="status" style="color: var(--text-muted); font-size:10px">UI — manual verify</span>
+      </div>
+      <div class="coverage-item">
+        <span class="fsid">FS-GlobalAllowlistScopeSwitcher</span>
+        <span class="desc">Scope selector shows profile list</span>
+        <span class="status" style="color: var(--text-muted); font-size:10px">UI — pre-existing</span>
+      </div>
+    </div>
+
+    <!-- Implementation delta -->
+    <p class="section-title">What changed</p>
+
+    <ul class="delta-list">
+      <li>
+        <span class="delta-marker amber" aria-hidden="true">!</span>
+        <div class="delta-content">
+          <strong>Bug fix: <code class="amber">DeleteProfileAllowlistEntry</code> — cache purge</strong>
+          <span>
+            Added <code>cache.PurgeDomain(domain)</code> after
+            <code>UpsertProfile</code>. Matches the behaviour already present in
+            <code>AddProfileAllowlistEntry</code> and global
+            <code>DeleteAllowlistEntry</code>.
+          </span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker" aria-hidden="true">+</span>
+        <div class="delta-content">
+          <strong>New handler: <code>ReplaceProfileAllowlist</code></strong>
+          <span>
+            <code>PUT /api/v1/profiles/{id}/allowlist</code> — decodes
+            <code>[]string</code> body, validates entries, replaces via
+            <code>UpsertProfile</code>, purges cache for removed domains.
+          </span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker" aria-hidden="true">+</span>
+        <div class="delta-content">
+          <strong>Route registered in <code>app.go</code></strong>
+          <span>
+            <code>r.Put("/api/v1/profiles/{id}/allowlist", a.forward(h.ReplaceProfileAllowlist))</code>
+            — placed between existing POST and DELETE routes.
+          </span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker" aria-hidden="true">+</span>
+        <div class="delta-content">
+          <strong>Web UI: Profile detail Allowlist tab</strong>
+          <span>
+            Modal in <code>Profiles.vue</code> gains Settings / Allowlist tabs
+            (edit mode only). Tab shows entry list, per-entry delete, wildcard
+            badge, add-domain input, and entry count badge.
+          </span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker" aria-hidden="true">+</span>
+        <div class="delta-content">
+          <strong>API client: <code>replaceProfileAllowlist</code></strong>
+          <span>
+            Added to <code>endpoints.ts</code>. Calls
+            <code>putJSON(`/api/v1/profiles/${id}/allowlist`, domains)</code>.
+          </span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker" aria-hidden="true">+</span>
+        <div class="delta-content">
+          <strong>Harness: <code>NodeConfig.Env</code></strong>
+          <span>
+            Added <code>Env []string</code> to <code>NodeConfig</code> and wired
+            into <code>cmd.Env</code> in <code>startNode</code>. Allows parallel
+            tests to set <code>SKOED_TEST_MODE=1</code> per-subprocess without
+            <code>t.Setenv</code>.
+          </span>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Out of scope -->
+    <p class="section-title">Not implemented</p>
+
+    <ul class="oos-list">
+      <li>Allowlist sharing between profiles</li>
+      <li>Allowlist scheduling and time-gated entries</li>
+      <li>Per-entry metadata (notes, expiry, tags)</li>
+      <li>Proxmox real-environment validation (pending UoR)</li>
+      <li>Dedicated profile detail route (modal-based edit retained)</li>
+    </ul>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>skoed · milestone 27 · 2026-06-23</span>
+      <span class="footer-sig">feature/m27-per-profile-allowlists</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  /* One orchestrated animation: a scan line running once across
+     the summary bar on load, like a terminal reading a packet capture. */
+
+  (function() {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq.matches) return;
+
+    const bar = document.getElementById('summaryBar');
+    const canvas = document.getElementById('scanCanvas');
+    if (!bar || !canvas) return;
+
+    function setup() {
+      const rect = bar.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+      const duration = 900; // ms
+      let start = null;
+
+      canvas.style.opacity = '1';
+
+      function draw(ts) {
+        if (!start) start = ts;
+        const t = Math.min((ts - start) / duration, 1);
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        ctx.clearRect(0, 0, W, H);
+
+        const x = ease * W;
+
+        // Trail gradient
+        const grad = ctx.createLinearGradient(Math.max(0, x - 120), 0, x, 0);
+        grad.addColorStop(0, 'rgba(34,211,238,0)');
+        grad.addColorStop(1, 'rgba(34,211,238,0.08)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, x, H);
+
+        // Leading edge
+        if (x < W) {
+          const lineGrad = ctx.createLinearGradient(0, 0, 0, H);
+          lineGrad.addColorStop(0, 'rgba(34,211,238,0)');
+          lineGrad.addColorStop(0.3, 'rgba(34,211,238,0.7)');
+          lineGrad.addColorStop(0.7, 'rgba(34,211,238,0.7)');
+          lineGrad.addColorStop(1, 'rgba(34,211,238,0)');
+          ctx.fillStyle = lineGrad;
+          ctx.fillRect(x, 0, 1.5, H);
+        }
+
+        if (t < 1) {
+          requestAnimationFrame(draw);
+        } else {
+          // Fade out the canvas
+          let fadeStart = null;
+          function fade(ts2) {
+            if (!fadeStart) fadeStart = ts2;
+            const ft = Math.min((ts2 - fadeStart) / 400, 1);
+            canvas.style.opacity = String(1 - ft);
+            if (ft < 1) requestAnimationFrame(fade);
+          }
+          requestAnimationFrame(fade);
+        }
+      }
+
+      // Start after a brief pause
+      setTimeout(() => requestAnimationFrame(draw), 300);
+    }
+
+    // Wait for layout
+    if (document.readyState === 'complete') {
+      setup();
+    } else {
+      window.addEventListener('load', setup, { once: true });
+    }
+  })();
+</script>
+
+</body>
+</html>

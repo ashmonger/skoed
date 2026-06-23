@@ -120,11 +120,86 @@
          @click.self="closeModal">
       <form class="card max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto space-y-4"
             @submit.prevent="submitModal">
-        <h2 class="text-base font-semibold text-fg-strong">
-          {{ mode === 'create' ? 'New profile' : `Edit ${original?.name ?? ''}` }}
-        </h2>
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="text-base font-semibold text-fg-strong">
+            {{ mode === 'create' ? 'New profile' : `Edit ${original?.name ?? ''}` }}
+          </h2>
+          <!-- Tab bar — only shown in edit mode -->
+          <div v-if="mode === 'edit'" class="flex items-center gap-1 text-sm border border-border rounded overflow-hidden">
+            <button type="button"
+                    class="px-3 py-1.5 transition-colors"
+                    :class="modalTab === 'settings' ? 'bg-accent text-white font-medium' : 'text-fg-muted hover:text-fg-strong'"
+                    @click="modalTab = 'settings'">
+              Settings
+            </button>
+            <button type="button"
+                    class="px-3 py-1.5 transition-colors flex items-center gap-1"
+                    :class="modalTab === 'allowlist' ? 'bg-accent text-white font-medium' : 'text-fg-muted hover:text-fg-strong'"
+                    @click="openAllowlistTab">
+              Allowlist
+              <span v-if="allowlistEntries.length > 0"
+                    class="inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full text-[10px] font-bold px-1"
+                    :class="modalTab === 'allowlist' ? 'bg-white/20 text-white' : 'bg-accent/20 text-accent'">
+                {{ allowlistEntries.length }}
+              </span>
+            </button>
+          </div>
+        </div>
 
         <p v-if="formError" class="text-sm text-danger">{{ formError }}</p>
+
+        <!-- ── Allowlist tab (edit mode only) ─────────────────────────────── -->
+        <div v-if="mode === 'edit' && modalTab === 'allowlist'" class="space-y-3">
+          <p v-if="allowlistError" class="text-sm text-danger">{{ allowlistError }}</p>
+
+          <!-- Add domain input -->
+          <div class="flex items-end gap-2">
+            <div class="flex-1">
+              <label class="label" for="pf-al-add">Add domain</label>
+              <input id="pf-al-add"
+                     v-model="allowlistAddInput"
+                     class="input font-mono text-sm"
+                     placeholder="example.com or *.example.com"
+                     :disabled="allowlistAdding"
+                     @keydown.enter.prevent="submitAllowlistAdd" />
+            </div>
+            <button type="button"
+                    class="btn-primary"
+                    :disabled="allowlistAdding || !allowlistAddInput.trim()"
+                    @click="submitAllowlistAdd">
+              <PlusIcon class="h-4 w-4" />
+              {{ allowlistAdding ? 'Adding…' : 'Add' }}
+            </button>
+          </div>
+
+          <!-- Entry list -->
+          <div v-if="allowlistLoading" class="text-sm text-fg-muted py-4 text-center">Loading…</div>
+          <div v-else-if="allowlistEntries.length === 0"
+               class="text-sm text-fg-muted text-center py-4 border border-dashed border-border rounded">
+            No allowlist entries for this profile.
+          </div>
+          <ul v-else class="divide-y divide-border border border-border rounded max-h-64 overflow-y-auto">
+            <li v-for="entry in allowlistEntries"
+                :key="entry"
+                class="flex items-center justify-between px-3 py-2 text-sm gap-2">
+              <span class="flex items-center gap-1.5 min-w-0">
+                <span v-if="isWildcard(entry)"
+                      class="badge-accent text-[10px] font-mono shrink-0">*</span>
+                <span class="font-mono text-xs text-fg truncate">{{ entry }}</span>
+              </span>
+              <button type="button"
+                      class="btn-ghost text-danger shrink-0"
+                      :disabled="allowlistDeleting === entry"
+                      :title="`Remove ${entry}`"
+                      @click="deleteAllowlistEntry(entry)">
+                <TrashIcon class="h-4 w-4" />
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- ── Settings tab (always shown in create mode; toggled in edit) ── -->
+        <template v-if="mode === 'create' || modalTab === 'settings'">
 
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -265,6 +340,13 @@
                 : (mode === 'create' ? 'Create profile' : 'Save changes') }}
           </button>
         </div>
+
+        </template><!-- end settings/create template -->
+
+        <!-- Close button for allowlist tab (no form submit needed) -->
+        <div v-if="mode === 'edit' && modalTab === 'allowlist'" class="flex justify-end pt-2">
+          <button type="button" class="btn-secondary" @click="closeModal">Close</button>
+        </div>
       </form>
     </div>
 
@@ -378,8 +460,9 @@ import {
   ClipboardDocumentListIcon, ClockIcon, PencilSquareIcon, PlusIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
 import {
-  clearProfilePause, createProfile, deleteProfile, getProfilePause,
-  listBlocklists, listProfiles, setProfilePause, updateProfile,
+  addProfileAllowlist, clearProfilePause, createProfile, deleteProfile,
+  getProfilePause, listBlocklists, listProfileAllowlist, listProfiles,
+  removeProfileAllowlist, setProfilePause, updateProfile,
 } from '@/api/endpoints'
 import type { FwRuleScope } from '@/api/endpoints'
 import type { Blocklist, PauseState, Profile } from '@/api/types'
@@ -433,6 +516,80 @@ const form = reactive<FormState>(emptyForm())
 
 const pendingDelete = ref<Profile | null>(null)
 const deleting = ref(false)
+
+// ─── Modal tab (edit mode only) ──────────────────────────────────────────
+
+type ModalTab = 'settings' | 'allowlist'
+const modalTab = ref<ModalTab>('settings')
+
+// Allowlist tab state
+const allowlistEntries = ref<string[]>([])
+const allowlistLoading = ref(false)
+const allowlistError = ref('')
+const allowlistAddInput = ref('')
+const allowlistAdding = ref(false)
+const allowlistDeleting = ref<string | null>(null)
+
+function isWildcard(entry: string): boolean {
+  // Wildcards are stored as "example.com" after normalisation, but displayed
+  // as entered. We detect them if the user entered "*.example.com" — in that
+  // case the stored form strips the prefix. For display we check original.
+  // Since the API stores the normalised form, we cannot reliably detect them
+  // post-round-trip unless we track the originals. Instead we check the raw
+  // entry from the API: if it starts with "*." it is a wildcard.
+  return entry.startsWith('*.')
+}
+
+async function openAllowlistTab() {
+  modalTab.value = 'allowlist'
+  if (!original.value) return
+  allowlistError.value = ''
+  allowlistLoading.value = true
+  allowlistAddInput.value = ''
+  try {
+    allowlistEntries.value = await listProfileAllowlist(original.value.id)
+  } catch (err) {
+    allowlistError.value = errMsg(err, 'Failed to load allowlist')
+  } finally {
+    allowlistLoading.value = false
+  }
+}
+
+async function submitAllowlistAdd() {
+  const domain = allowlistAddInput.value.trim()
+  if (!domain || !original.value) return
+  allowlistError.value = ''
+  allowlistAdding.value = true
+  try {
+    await addProfileAllowlist(original.value.id, domain)
+    allowlistEntries.value = await listProfileAllowlist(original.value.id)
+    allowlistAddInput.value = ''
+    // Keep the profile list in sync.
+    const idx = profiles.value.findIndex(p => p.id === original.value!.id)
+    if (idx >= 0) profiles.value[idx] = { ...profiles.value[idx], allowlist: [...allowlistEntries.value] }
+  } catch (err) {
+    allowlistError.value = errMsg(err, 'Failed to add domain')
+  } finally {
+    allowlistAdding.value = false
+  }
+}
+
+async function deleteAllowlistEntry(entry: string) {
+  if (!original.value) return
+  allowlistError.value = ''
+  allowlistDeleting.value = entry
+  try {
+    await removeProfileAllowlist(original.value.id, entry)
+    allowlistEntries.value = allowlistEntries.value.filter(e => e !== entry)
+    // Keep the profile list in sync.
+    const idx = profiles.value.findIndex(p => p.id === original.value!.id)
+    if (idx >= 0) profiles.value[idx] = { ...profiles.value[idx], allowlist: [...allowlistEntries.value] }
+  } catch (err) {
+    allowlistError.value = errMsg(err, 'Failed to remove domain')
+  } finally {
+    allowlistDeleting.value = null
+  }
+}
 
 // M6 — "Copy DoH-gap rules" modal scoped to a profile.
 const fwRuleScope = ref<FwRuleScope | null>(null)
@@ -568,6 +725,7 @@ async function refresh() {
 function openCreate() {
   mode.value = 'create'
   original.value = null
+  modalTab.value = 'settings'
   Object.assign(form, emptyForm())
   formError.value = ''
   showModal.value = true
@@ -575,6 +733,8 @@ function openCreate() {
 
 function openEdit(p: Profile) {
   mode.value = 'edit'
+  modalTab.value = 'settings'
+  allowlistEntries.value = p.allowlist ?? []
   original.value = p
   form.id = p.id
   form.name = p.name
