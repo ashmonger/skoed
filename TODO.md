@@ -65,9 +65,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
 | M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
 | M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
-| M24 | Encrypted DNS (DoT/DoH upstream) | 🔄 | — | [note](apps/skoed/demos/m24/DEMO_NOTE.md) | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | [enc-upstream](tests/acceptance/encrypted_dns_upstream_test.go) |
+| M24 | Encrypted DNS (DoT/DoH upstream) | ✅ | — | [note](demos/m24/DEMO_NOTE.md) · [report](demos/m24/test-report.html) | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | [enc-upstream](tests/acceptance/encrypted_dns_upstream_test.go) |
 | M27 | Per-Profile Allowlists (full) | ⬜ | — | — | — | — |
-| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M26 | Custom Block Page | ✅ | — | [note](demos/m26/DEMO_NOTE.md) · [report](demos/m26/test-report.html) | [custom-block-page](specs/functional/custom-block-page.feature) | [custom-block-page](tests/acceptance/custom_block_page_test.go) |
 | M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M29 | Live Query Stream | ⬜ | — | — | — | — |
 | M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
@@ -95,6 +95,15 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 - [x] M12 — UoR demo validation — confirmed on Proxmox cluster — 2026-06-12
 - [x] M12 — merged to master at 87bb02a — 2026-06-12
 
+## M26 tasks — Custom Block Page
+
+- [x] M26 — functional spec: `specs/functional/custom-block-page.feature` (7 FSIDs) — 2026-06-23
+- [x] M26 — technical spec: `specs/technical/custom-block-page.md` (TS-CustomBlockPage) — 2026-06-23
+- [x] M26 — acceptance tests: `tests/acceptance/custom_block_page_test.go` (7 tests) — 2026-06-23
+- [x] M26 — implementation: config.BlockPageConfig, PolicyRedirect DNS handler, blockpage.Server, PATCH /api/v1/blockpage, GET /api/v1/blockpage, cluster store persistence, web UI Settings block page section — 2026-06-23
+- [x] M26 — all 7 acceptance tests green — 2026-06-23
+- [x] M26 — demo note + test report: `demos/m26/` — 2026-06-23
+
 ## M24 tasks
 
 - [x] M24 — functional spec written: `specs/functional/encrypted-dns-upstream.feature` (11 FSIDs) — 2026-06-23
@@ -103,9 +112,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 - [x] M24 — implementation: DoT forwarder, DoH forwarder (POST + GET), mixed fallback, scheme validation in config + PATCH handler — 2026-06-23
 - [x] M24 — all 11 acceptance tests green, full suite (441+ tests) green — 2026-06-23
 - [x] M24 — refactoring phase complete — 2026-06-23
-- [x] M24 — demo note: `apps/skoed/demos/m24/DEMO_NOTE.md` — 2026-06-23
-- [ ] M24 — UoR demo validation
-- [ ] M24 — merge to master
+- [x] M24 — demo note + screenshots + test report: `demos/m24/` — 2026-06-23
+- [x] M24 — UoR demo validation — 2026-06-23
+- [x] M24 — merged to master at d14e828, released v0.2.1 — 2026-06-23
 
 ## Current tasks
 

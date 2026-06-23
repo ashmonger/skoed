@@ -160,12 +160,22 @@ type CacheConfig struct {
 	MaxEntries int  `yaml:"max_entries" json:"max_entries"`
 }
 
+// BlockPageConfig holds the settings for the M26 redirect block page.
+type BlockPageConfig struct {
+	IP           string `yaml:"ip,omitempty"            json:"ip,omitempty"`
+	Port         int    `yaml:"port,omitempty"          json:"port,omitempty"`
+	Title        string `yaml:"title,omitempty"         json:"title,omitempty"`
+	Message      string `yaml:"message,omitempty"       json:"message,omitempty"`
+	ContactEmail string `yaml:"contact_email,omitempty" json:"contact_email,omitempty"`
+}
+
 type FilteringConfig struct {
-	BlockPolicy     string      `yaml:"block_policy"` // "nxdomain" | "null" | "nodata"
-	Blocklists      []Blocklist `yaml:"blocklists,omitempty"`
-	Allowlist       []string    `yaml:"allowlist,omitempty"`
-	PauseMaxSeconds int         `yaml:"pause_max_seconds,omitempty" json:"pause_max_seconds,omitempty"` // 0 = feature disabled; absent = 86400
-	GlobalPause     *PauseState `yaml:"global_pause,omitempty"      json:"global_pause,omitempty"`
+	BlockPolicy     string          `yaml:"block_policy"` // "nxdomain" | "null" | "nodata" | "redirect"
+	Blocklists      []Blocklist     `yaml:"blocklists,omitempty"`
+	Allowlist       []string        `yaml:"allowlist,omitempty"`
+	PauseMaxSeconds int             `yaml:"pause_max_seconds,omitempty" json:"pause_max_seconds,omitempty"` // 0 = feature disabled; absent = 86400
+	GlobalPause     *PauseState     `yaml:"global_pause,omitempty"      json:"global_pause,omitempty"`
+	BlockPage       BlockPageConfig `yaml:"block_page,omitempty"        json:"block_page,omitempty"`
 }
 
 // Blocklist describes a named set of domain rules.
@@ -257,6 +267,9 @@ func (c *Config) Defaults() {
 	if c.Filtering.BlockPolicy == "" {
 		c.Filtering.BlockPolicy = "nxdomain"
 	}
+	if c.Filtering.BlockPage.Port == 0 {
+		c.Filtering.BlockPage.Port = 8053
+	}
 	if c.API.Port == 0 {
 		c.API.Port = 8080
 	}
@@ -285,9 +298,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("dns.mode must be 'forwarding' or 'recursive', got %q", c.DNS.Mode)
 	}
 	switch c.Filtering.BlockPolicy {
-	case "nxdomain", "null", "nodata":
+	case "nxdomain", "null", "nodata", "redirect":
 	default:
-		return fmt.Errorf("filtering.block_policy must be nxdomain, null, or nodata; got %q", c.Filtering.BlockPolicy)
+		return fmt.Errorf("filtering.block_policy must be nxdomain, null, nodata, or redirect; got %q", c.Filtering.BlockPolicy)
 	}
 	if c.DNS.Listen.Port < 1 || c.DNS.Listen.Port > 65535 {
 		return fmt.Errorf("dns.listen.port must be 1–65535")

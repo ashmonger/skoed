@@ -18,6 +18,7 @@ import (
 	"github.com/skoed/skoed/internal/api"
 	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/auth"
+	"github.com/skoed/skoed/internal/blockpage"
 	"github.com/skoed/skoed/internal/cli"
 	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
@@ -51,7 +52,7 @@ var (
 //
 // M5.1: when m is non-nil, every query exit observes outcome+duration
 // via m.ObserveQuery so /metrics counters reflect live traffic.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics, onDeviceNew func(string)) *dnsengine.Handler {
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics, onDeviceNew func(string), getBlockPageIP func() string) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -88,6 +89,7 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		DhcpLookup:    dhcpLookup,
 		ObserveQuery:  observe,
 		OnDeviceNew:   onDeviceNew,
+		BlockPageIP:   getBlockPageIP,
 	})
 }
 
@@ -338,7 +340,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp))
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -448,7 +450,7 @@ func runDaemon(cfgPath string) {
 	}
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -586,6 +588,28 @@ func runDaemon(cfgPath string) {
 	}
 	log.Printf("DNS server listening on :%d (mode=%s)", snap.DNS.Listen.Port, snap.DNS.Mode)
 
+	// M26 — block page HTTP server. Started when block_policy="redirect".
+	bpCfg := snap.Filtering.BlockPage
+	bpSrv := blockpage.New(blockpage.Config{
+		Title:        bpCfg.Title,
+		Message:      bpCfg.Message,
+		ContactEmail: bpCfg.ContactEmail,
+	})
+	app.SetBlockPageServer(bpSrv)
+	if snap.Filtering.BlockPolicy == "redirect" {
+		bpPort := bpCfg.Port
+		if bpPort == 0 {
+			bpPort = 8053
+		}
+		addr := fmt.Sprintf(":%d", bpPort)
+		if err := bpSrv.Start(addr); err != nil {
+			log.Printf("block page server: %v", err)
+		} else {
+			log.Printf("block page server listening on %s", addr)
+		}
+	}
+	defer bpSrv.Stop()
+
 	// M4/M8: encrypted DNS listeners (DoH/DoT/DoH3). All share a single TLS cert.
 	// A port at 0 disables that transport; all at 0 skips EncryptedServer.
 	var acmeMgr *dnsengine.AcmeManager
@@ -629,7 +653,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -668,7 +692,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp)),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)

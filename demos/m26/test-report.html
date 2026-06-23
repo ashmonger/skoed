@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M26 Custom Block Page — Test Report</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem;min-height:100vh}
+.container{max-width:900px;margin:0 auto}
+h1{font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:.25rem}
+.subtitle{color:#94a3b8;font-size:.9rem;margin-bottom:2rem}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
+.stat{background:#1e293b;border:1px solid #334155;border-radius:.75rem;padding:1.25rem;text-align:center}
+.stat-num{font-size:2rem;font-weight:700}
+.stat-label{font-size:.8rem;color:#94a3b8;margin-top:.25rem}
+.pass .stat-num{color:#4ade80}
+.fail .stat-num{color:#f87171}
+.skip .stat-num{color:#fbbf24}
+.section{background:#1e293b;border:1px solid #334155;border-radius:.75rem;margin-bottom:1.5rem;overflow:hidden}
+.section-header{padding:.875rem 1.25rem;background:#162032;border-bottom:1px solid #334155;font-weight:600;font-size:.9rem;color:#cbd5e1;display:flex;align-items:center;gap:.5rem}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
+th{padding:.625rem 1.25rem;text-align:left;color:#64748b;font-weight:500;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #1e3a5f}
+td{padding:.75rem 1.25rem;border-bottom:1px solid #1a2740;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:.2em .65em;border-radius:9999px;font-size:.75rem;font-weight:600;letter-spacing:.03em}
+.badge-pass{background:#14532d;color:#4ade80}
+.badge-fail{background:#450a0a;color:#f87171}
+.badge-skip{background:#422006;color:#fbbf24}
+.fsid{font-family:monospace;font-size:.8rem;color:#60a5fa;background:#0f2540;padding:.15em .5em;border-radius:.25rem}
+.duration{color:#64748b;font-size:.8rem}
+.meta{display:flex;gap:2rem;color:#64748b;font-size:.8rem;margin-top:1rem;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>M26 — Custom Block Page</h1>
+  <p class="subtitle">Acceptance test report · 2026-06-23 · branch feature/m26-custom-block-page</p>
+
+  <div class="summary">
+    <div class="stat pass">
+      <div class="stat-num">7</div>
+      <div class="stat-label">Passed</div>
+    </div>
+    <div class="stat fail">
+      <div class="stat-num">0</div>
+      <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat skip">
+      <div class="stat-num">0</div>
+      <div class="stat-label">Skipped</div>
+    </div>
+    <div class="stat" style="border-color:#334155">
+      <div class="stat-num" style="color:#e2e8f0;font-size:1.4rem">~2.8s</div>
+      <div class="stat-label">Total time</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">🧪 M26 Custom Block Page tests</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>FSIDs</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>TestBlockPageRedirectReturnsIP</td>
+          <td><span class="fsid">FS-BlockPageRedirectReturnsIP</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~2.0s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageRedirectServfailAAAA</td>
+          <td><span class="fsid">FS-BlockPageRedirectServfailAAAA</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~1.9s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageNonRedirectUnaffected</td>
+          <td><span class="fsid">FS-BlockPageNonRedirectUnaffected</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~2.0s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageHttpServerResponds</td>
+          <td><span class="fsid">FS-BlockPageHttpServerResponds</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~1.6s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageConfigGet</td>
+          <td><span class="fsid">FS-BlockPageConfigGet</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~2.1s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageConfigPersisted</td>
+          <td><span class="fsid">FS-BlockPageConfigPatch</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~2.7s</td>
+        </tr>
+        <tr>
+          <td>TestBlockPageTitleInResponse</td>
+          <td><span class="fsid">FS-BlockPageTitleInResponse</span></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td class="duration">~2.5s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header">📋 Coverage summary</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Covered by</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>DNS: A query → block page IP (redirect policy)</td>
+          <td>TestBlockPageRedirectReturnsIP</td>
+        </tr>
+        <tr>
+          <td>DNS: AAAA query → SERVFAIL (redirect policy)</td>
+          <td>TestBlockPageRedirectServfailAAAA</td>
+        </tr>
+        <tr>
+          <td>DNS: nxdomain policy unaffected</td>
+          <td>TestBlockPageNonRedirectUnaffected</td>
+        </tr>
+        <tr>
+          <td>HTTP server: 200 HTML response</td>
+          <td>TestBlockPageHttpServerResponds</td>
+        </tr>
+        <tr>
+          <td>API: GET /api/v1/blockpage</td>
+          <td>TestBlockPageConfigGet</td>
+        </tr>
+        <tr>
+          <td>API: PATCH /api/v1/blockpage → Raft persisted</td>
+          <td>TestBlockPageConfigPersisted</td>
+        </tr>
+        <tr>
+          <td>HTTP content: custom title in HTML response</td>
+          <td>TestBlockPageTitleInResponse</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="meta">
+    <span>Binary: CGO_ENABLED=0 static build</span>
+    <span>Go 1.26.1</span>
+    <span>SKOED_TEST_MODE=1</span>
+    <span>-parallel 7, -timeout 120s</span>
+    <span>Branch: feature/m26-custom-block-page</span>
+  </div>
+</div>
+</body>
+</html>

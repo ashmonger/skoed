@@ -36,6 +36,9 @@ type HandlerConfig struct {
 	// every query whose client IP is not recognised by the DHCP lookup.
 	// The dispatcher deduplicates within a 10-minute window.
 	OnDeviceNew func(clientIP string)
+	// M26: BlockPageIP is the IPv4 address returned for blocked A queries
+	// when block_policy is "redirect". Empty string disables redirect.
+	BlockPageIP func() string
 }
 
 // Handler implements dns.Handler and processes all incoming DNS queries.
@@ -50,6 +53,7 @@ type Handler struct {
 	dhcpFn      func(ip string) (hostname, mac, clientID string, ok bool)
 	observe     func(outcome string, elapsed time.Duration)
 	onDeviceNew func(clientIP string)
+	blockPageIP func() string // M26: returns current block page IP for redirect policy
 }
 
 // NewHandler constructs a Handler from the provided configuration.
@@ -65,6 +69,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		dhcpFn:      cfg.DhcpLookup,
 		observe:     cfg.ObserveQuery,
 		onDeviceNew: cfg.OnDeviceNew,
+		blockPageIP: cfg.BlockPageIP,
 	}
 }
 
@@ -357,6 +362,34 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 	case filter.PolicyNODATA:
 		m.Rcode = dns.RcodeSuccess
 		// Empty answer section.
+
+	case filter.PolicyRedirect:
+		// M26: A → return block page IP; AAAA → SERVFAIL; other → NXDOMAIN.
+		switch q.Qtype {
+		case dns.TypeA:
+			ip := net.IPv4zero
+			if h.blockPageIP != nil {
+				if parsed := net.ParseIP(h.blockPageIP()); parsed != nil {
+					ip = parsed.To4()
+				}
+			}
+			m.Rcode = dns.RcodeSuccess
+			m.Answer = []dns.RR{
+				&dns.A{
+					Hdr: dns.RR_Header{
+						Name:   q.Name,
+						Rrtype: dns.TypeA,
+						Class:  dns.ClassINET,
+						Ttl:    0,
+					},
+					A: ip,
+				},
+			}
+		case dns.TypeAAAA:
+			m.Rcode = dns.RcodeServerFailure
+		default:
+			m.Rcode = dns.RcodeNameError
+		}
 
 	default:
 		// PolicyNXDOMAIN and PolicyInherit (shouldn't reach here with Inherit,

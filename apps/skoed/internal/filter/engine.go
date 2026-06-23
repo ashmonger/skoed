@@ -17,6 +17,7 @@ const (
 	PolicyNXDOMAIN
 	PolicyNULL
 	PolicyNODATA
+	PolicyRedirect
 )
 
 type Disposition int
@@ -126,6 +127,8 @@ func parsePolicy(s string) BlockPolicy {
 		return PolicyNULL
 	case "nodata":
 		return PolicyNODATA
+	case "redirect":
+		return PolicyRedirect
 	default:
 		return PolicyInherit
 	}
