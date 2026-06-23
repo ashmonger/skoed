@@ -7,12 +7,28 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"math/rand"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 )
+
+var jokes = []string{
+	"Why did the DNS query cross the road? It got blocked before it could find out.",
+	"I tried to visit a blocked site. Now I have a SERVFAIL relationship with the internet.",
+	"What do you call a domain that keeps getting blocked? A repeat NXDOMAINder.",
+	"My DNS resolver walks into a bar. The bartender says: sorry, you're on the list.",
+	"Why don't DNS admins tell secrets? Because every query leaves a log.",
+	"A UDP packet walks into a bar. The bartender ignores it.",
+	"Why did the sysadmin break up with the firewall? Too many blocked connections.",
+	"What's a DNS server's favourite song? 'Hello, is it me you're looking for?' — No. NXDOMAIN.",
+	"How many sysadmins does it take to block a domain? Just one, but they'll cache the result for 86400 seconds.",
+	"Why is the internet like a blocked drain? Because of all the garbage going through port 80.",
+	"I asked my DNS server for directions. It said: that destination does not exist.",
+	"What did the router say to the doctor? It hurts when I ping.",
+}
 
 const htmlTmpl = `<!DOCTYPE html>
 <html lang="en">
@@ -22,23 +38,39 @@ const htmlTmpl = `<!DOCTYPE html>
 <title>{{.Title}}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
-.card{background:#1e293b;border:1px solid #334155;border-radius:1rem;padding:2.5rem 3rem;max-width:480px;width:100%;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,.5)}
-.icon{font-size:3rem;margin-bottom:1.25rem}
-h1{font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:.75rem}
-p{color:#94a3b8;line-height:1.6;margin-bottom:.75rem}
-.contact{margin-top:1.5rem;font-size:.875rem;color:#64748b}
-.contact a{color:#38bdf8;text-decoration:none}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;gap:1rem}
+.card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:1rem;padding:2.5rem 3rem;max-width:500px;width:100%;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.6)}
+.logo{display:flex;align-items:center;justify-content:center;gap:.6rem;margin-bottom:1.5rem}
+.logo-mark{width:40px;height:40px;background:linear-gradient(135deg,#4f9cf9,#818cf8);border-radius:.6rem;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:#fff;font-family:monospace;letter-spacing:-.05em;flex-shrink:0}
+.logo-name{font-size:1.1rem;font-weight:700;color:#e2e8f0;letter-spacing:.04em}
+.divider{width:3rem;height:2px;background:#2a2d3a;margin:.25rem auto 1.5rem}
+.stop{font-size:2.5rem;margin-bottom:1rem}
+h1{font-size:1.4rem;font-weight:700;color:#f1f5f9;margin-bottom:.6rem}
+.msg{color:#94a3b8;line-height:1.65;margin-bottom:.5rem;font-size:.95rem}
+.joke{margin-top:1.25rem;padding:.75rem 1rem;background:#0d1117;border:1px solid #2a2d3a;border-radius:.5rem;font-size:.82rem;color:#64748b;font-style:italic;line-height:1.5}
+.joke span{color:#4f9cf9}
+.contact{margin-top:1.25rem;font-size:.85rem;color:#64748b}
+.contact a{color:#4f9cf9;text-decoration:none}
 .contact a:hover{text-decoration:underline}
+footer{font-size:.75rem;color:#334155;margin-top:.5rem}
+footer a{color:#334155;text-decoration:none}
+footer a:hover{color:#64748b}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="icon">🚫</div>
+  <div class="logo">
+    <div class="logo-mark">sk</div>
+    <div class="logo-name">skoed</div>
+  </div>
+  <div class="divider"></div>
+  <div class="stop">🚫</div>
   <h1>{{.Title}}</h1>
-  <p>{{.Message}}</p>
+  <p class="msg">{{.Message}}</p>
+  <div class="joke"><span>DNS joke of the day:</span> {{.Joke}}</div>
   {{if .ContactEmail}}<div class="contact">Need access? Contact <a href="mailto:{{.ContactEmail}}">{{.ContactEmail}}</a></div>{{end}}
 </div>
+<footer>Protected by <a href="#">skoed</a> · self-hosted DNS filtering</footer>
 </body>
 </html>`
 
@@ -127,6 +159,11 @@ func (s *Server) IsRunning() bool {
 	return s.srv != nil
 }
 
+type pageData struct {
+	Config
+	Joke string
+}
+
 func (s *Server) handle(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	cfg := s.cfg
@@ -139,8 +176,13 @@ func (s *Server) handle(w http.ResponseWriter, _ *http.Request) {
 		cfg.Message = "This website has been blocked by your network administrator."
 	}
 
+	data := pageData{
+		Config: cfg,
+		Joke:   jokes[rand.Intn(len(jokes))],
+	}
+
 	var buf strings.Builder
-	if err := pageTmpl.Execute(&buf, cfg); err != nil {
+	if err := pageTmpl.Execute(&buf, data); err != nil {
 		http.Error(w, "block page unavailable", http.StatusInternalServerError)
 		return
 	}

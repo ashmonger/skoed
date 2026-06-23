@@ -3,119 +3,150 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>M26 Custom Block Page — Test Report</title>
+<title>M26 — Custom Block Page — Test Report</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem;min-height:100vh}
-.container{max-width:900px;margin:0 auto}
-h1{font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:.25rem}
-.subtitle{color:#94a3b8;font-size:.9rem;margin-bottom:2rem}
-.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
-.stat{background:#1e293b;border:1px solid #334155;border-radius:.75rem;padding:1.25rem;text-align:center}
-.stat-num{font-size:2rem;font-weight:700}
-.stat-label{font-size:.8rem;color:#94a3b8;margin-top:.25rem}
-.pass .stat-num{color:#4ade80}
-.fail .stat-num{color:#f87171}
-.skip .stat-num{color:#fbbf24}
-.section{background:#1e293b;border:1px solid #334155;border-radius:.75rem;margin-bottom:1.5rem;overflow:hidden}
-.section-header{padding:.875rem 1.25rem;background:#162032;border-bottom:1px solid #334155;font-weight:600;font-size:.9rem;color:#cbd5e1;display:flex;align-items:center;gap:.5rem}
-table{width:100%;border-collapse:collapse;font-size:.875rem}
-th{padding:.625rem 1.25rem;text-align:left;color:#64748b;font-weight:500;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #1e3a5f}
-td{padding:.75rem 1.25rem;border-bottom:1px solid #1a2740;vertical-align:top}
-tr:last-child td{border-bottom:none}
-.badge{display:inline-block;padding:.2em .65em;border-radius:9999px;font-size:.75rem;font-weight:600;letter-spacing:.03em}
-.badge-pass{background:#14532d;color:#4ade80}
-.badge-fail{background:#450a0a;color:#f87171}
-.badge-skip{background:#422006;color:#fbbf24}
-.fsid{font-family:monospace;font-size:.8rem;color:#60a5fa;background:#0f2540;padding:.15em .5em;border-radius:.25rem}
-.duration{color:#64748b;font-size:.8rem}
-.meta{display:flex;gap:2rem;color:#64748b;font-size:.8rem;margin-top:1rem;flex-wrap:wrap}
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; line-height: 1.6; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header p { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #14532d; color: var(--green); }
+  .badge-blue { background: #1e3a5f; color: var(--accent); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .section { margin-bottom: 3rem; }
+  h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { background: var(--surface); padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .pass-row td:first-child { border-left: 3px solid var(--green); }
+  code { font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.4rem; }
+  .screenshots { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+  .screenshot-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .screenshot-card img { width: 100%; display: block; }
+  .screenshot-card .caption { padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--muted); }
+  .meta { display: flex; gap: 2rem; color: var(--muted); font-size: 0.8rem; margin-top: 1rem; flex-wrap: wrap; }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>M26 — Custom Block Page</h1>
-  <p class="subtitle">Acceptance test report · 2026-06-23 · branch feature/m26-custom-block-page</p>
+<header>
+  <h1>M26 — Custom Block Page <span class="badge badge-green">7/7 PASS</span></h1>
+  <p>Acceptance test report · 2026-06-23 · branch feature/m26-custom-block-page</p>
+</header>
 
-  <div class="summary">
-    <div class="stat pass">
-      <div class="stat-num">7</div>
-      <div class="stat-label">Passed</div>
-    </div>
-    <div class="stat fail">
-      <div class="stat-num">0</div>
-      <div class="stat-label">Failed</div>
-    </div>
-    <div class="stat skip">
-      <div class="stat-num">0</div>
-      <div class="stat-label">Skipped</div>
-    </div>
-    <div class="stat" style="border-color:#334155">
-      <div class="stat-num" style="color:#e2e8f0;font-size:1.4rem">~2.8s</div>
-      <div class="stat-label">Total time</div>
+<div class="container">
+
+  <div class="section">
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="value green">7</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value red">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--muted)">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--text);font-size:1.4rem">~2.8s</div>
+        <div class="label">Total time</div>
+      </div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-header">🧪 M26 Custom Block Page tests</div>
+    <h2>Block page screenshot</h2>
+    <div class="screenshots">
+      <div class="screenshot-card">
+        <img src="ss-26-01-block-page.png" alt="Block page as seen by a network client" />
+        <div class="caption">Block page served by skoed at port 8053 — validated from dhcp-client container (CT204, 10.0.0.50) on the Proxmox 3-node cluster. DNS A query for a blocked domain returns <code>10.0.0.100</code>; browser is redirected to this page.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Test results</h2>
     <table>
       <thead>
         <tr>
           <th>Test</th>
-          <th>FSIDs</th>
+          <th>FSID</th>
           <th>Status</th>
           <th>Time</th>
         </tr>
       </thead>
       <tbody>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageRedirectReturnsIP</td>
-          <td><span class="fsid">FS-BlockPageRedirectReturnsIP</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~2.0s</td>
+          <td><code>FS-BlockPageRedirectReturnsIP</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~2.0s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageRedirectServfailAAAA</td>
-          <td><span class="fsid">FS-BlockPageRedirectServfailAAAA</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~1.9s</td>
+          <td><code>FS-BlockPageRedirectServfailAAAA</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~1.9s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageNonRedirectUnaffected</td>
-          <td><span class="fsid">FS-BlockPageNonRedirectUnaffected</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~2.0s</td>
+          <td><code>FS-BlockPageNonRedirectUnaffected</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~2.0s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageHttpServerResponds</td>
-          <td><span class="fsid">FS-BlockPageHttpServerResponds</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~1.6s</td>
+          <td><code>FS-BlockPageHttpServerResponds</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~1.6s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageConfigGet</td>
-          <td><span class="fsid">FS-BlockPageConfigGet</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~2.1s</td>
+          <td><code>FS-BlockPageConfigGet</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~2.1s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageConfigPersisted</td>
-          <td><span class="fsid">FS-BlockPageConfigPatch</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~2.7s</td>
+          <td><code>FS-BlockPageConfigPatch</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~2.7s</td>
         </tr>
-        <tr>
+        <tr class="pass-row">
           <td>TestBlockPageTitleInResponse</td>
-          <td><span class="fsid">FS-BlockPageTitleInResponse</span></td>
-          <td><span class="badge badge-pass">PASS</span></td>
-          <td class="duration">~2.5s</td>
+          <td><code>FS-BlockPageTitleInResponse</code></td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">~2.5s</td>
         </tr>
       </tbody>
     </table>
   </div>
 
   <div class="section">
-    <div class="section-header">📋 Coverage summary</div>
+    <h2>Coverage summary</h2>
     <table>
       <thead>
         <tr>
@@ -133,23 +164,23 @@ tr:last-child td{border-bottom:none}
           <td>TestBlockPageRedirectServfailAAAA</td>
         </tr>
         <tr>
-          <td>DNS: nxdomain policy unaffected</td>
+          <td>DNS: nxdomain policy unaffected by block page config</td>
           <td>TestBlockPageNonRedirectUnaffected</td>
         </tr>
         <tr>
-          <td>HTTP server: 200 HTML response</td>
+          <td>HTTP server: 200 HTML response on GET /</td>
           <td>TestBlockPageHttpServerResponds</td>
         </tr>
         <tr>
-          <td>API: GET /api/v1/blockpage</td>
+          <td>API: GET /api/v1/blockpage returns IP + port</td>
           <td>TestBlockPageConfigGet</td>
         </tr>
         <tr>
-          <td>API: PATCH /api/v1/blockpage → Raft persisted</td>
+          <td>API: PATCH /api/v1/blockpage → Raft-replicated, survives restart</td>
           <td>TestBlockPageConfigPersisted</td>
         </tr>
         <tr>
-          <td>HTTP content: custom title in HTML response</td>
+          <td>HTTP content: custom title reflected in HTML body</td>
           <td>TestBlockPageTitleInResponse</td>
         </tr>
       </tbody>
@@ -162,6 +193,7 @@ tr:last-child td{border-bottom:none}
     <span>SKOED_TEST_MODE=1</span>
     <span>-parallel 7, -timeout 120s</span>
     <span>Branch: feature/m26-custom-block-page</span>
+    <span>Proxmox: CT200/201/202 (skoed-1/2/3), CT204 (dhcp-client)</span>
   </div>
 </div>
 </body>
