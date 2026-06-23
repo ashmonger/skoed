@@ -58,6 +58,7 @@ const (
 type Node struct {
 	DNSAddr      string // "127.0.0.1:port" — UDP/TCP DNS listener
 	APIBase      string // "http://127.0.0.1:port" — management API
+	BlockPageURL string // "http://127.0.0.1:port" — block page HTTP server; "" when policy != redirect
 	DoHAddr      string // "127.0.0.1:port" — DoH HTTPS listener; "" when disabled
 	DoTAddr      string // "127.0.0.1:port" — DoT TLS listener; "" when disabled
 	AcmeHTTPAddr string // "127.0.0.1:port" — ACME HTTP-01 challenge listener; "" when ACME disabled
@@ -83,8 +84,12 @@ type NodeConfig struct {
 	Mode             string   // "forwarding" (default) or "recursive"
 	UpstreamResolvers []string // used when Mode="forwarding"
 	TrustedSubnets   []string // used when Mode="recursive"
-	BlockPolicy      string   // global default: "nxdomain" (default), "null", "nodata"
+	BlockPolicy      string   // global default: "nxdomain" (default), "null", "nodata", "redirect"
 	// Auth is always set up automatically with defaultUsername / defaultPassword.
+
+	// M26: block page settings (only used when BlockPolicy="redirect").
+	BlockPageIP   string // IPv4 to return for blocked A queries; default uses loopback
+	BlockPagePort int    // port for the block page HTTP server; 0 = use default (8053)
 }
 
 // skoedBinary returns the path to the binary under test.
@@ -117,6 +122,11 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		cfg.BlockPolicy = "nxdomain"
 	}
 
+	// M26: assign a unique block page port when policy is redirect and no port set.
+	if cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0 {
+		cfg.BlockPagePort = freeTCPPort(t)
+	}
+
 	writeConfig(t, dir, cfg, dnsPort, apiPort)
 
 	cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
@@ -129,10 +139,16 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		t.Fatalf("start skoed: %v", err)
 	}
 
+	blockPageURL := ""
+	if cfg.BlockPolicy == "redirect" {
+		blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
+	}
+
 	n := &Node{
-		DNSAddr: fmt.Sprintf("127.0.0.1:%d", dnsPort),
-		APIBase: fmt.Sprintf("http://127.0.0.1:%d", apiPort),
-		cmd:     cmd,
+		DNSAddr:      fmt.Sprintf("127.0.0.1:%d", dnsPort),
+		APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
+		BlockPageURL: blockPageURL,
+		cmd:          cmd,
 	}
 
 	t.Cleanup(func() {
@@ -486,8 +502,13 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 		UpstreamTimeout   int          `yaml:"upstream_timeout_seconds"`
 		Cache             cacheConfig  `yaml:"cache"`
 	}
+	type blockPageConfig struct {
+		IP   string `yaml:"ip,omitempty"`
+		Port int    `yaml:"port,omitempty"`
+	}
 	type filteringConfig struct {
-		BlockPolicy string `yaml:"block_policy"`
+		BlockPolicy string          `yaml:"block_policy"`
+		BlockPage   blockPageConfig `yaml:"block_page,omitempty"`
 	}
 	type apiConfig struct {
 		Port int `yaml:"port"`
@@ -497,6 +518,11 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 		DNS       dnsConfig       `yaml:"dns"`
 		Filtering filteringConfig `yaml:"filtering"`
 		API       apiConfig       `yaml:"api"`
+	}
+
+	bp := blockPageConfig{
+		IP:   cfg.BlockPageIP,
+		Port: cfg.BlockPagePort,
 	}
 
 	c := config{
@@ -509,7 +535,7 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 			UpstreamTimeout:   3,
 			Cache:             cacheConfig{Enabled: true, MaxEntries: 1000},
 		},
-		Filtering: filteringConfig{BlockPolicy: cfg.BlockPolicy},
+		Filtering: filteringConfig{BlockPolicy: cfg.BlockPolicy, BlockPage: bp},
 		API:       apiConfig{Port: apiPort},
 	}
 
