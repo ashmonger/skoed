@@ -90,6 +90,11 @@ type NodeConfig struct {
 	// M26: block page settings (only used when BlockPolicy="redirect").
 	BlockPageIP   string // IPv4 to return for blocked A queries; default uses loopback
 	BlockPagePort int    // port for the block page HTTP server; 0 = use default (8053)
+
+	// Env holds extra environment variables to append to the child process
+	// environment. Use "KEY=value" format. When non-nil, the child receives
+	// os.Environ() + Env so all current vars are still visible.
+	Env []string
 }
 
 // skoedBinary returns the path to the binary under test.
@@ -131,6 +136,9 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 
 	cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
 	cmd.Dir = dir
+	if len(cfg.Env) > 0 {
+		cmd.Env = append(os.Environ(), cfg.Env...)
+	}
 	if testing.Verbose() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
