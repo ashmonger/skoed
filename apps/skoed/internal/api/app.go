@@ -838,6 +838,7 @@ func (a *App) Router() http.Handler {
 		// Per-profile allowlist
 		r.Get("/api/v1/profiles/{id}/allowlist", h.GetProfileAllowlist)
 		r.Post("/api/v1/profiles/{id}/allowlist", a.forward(h.AddProfileAllowlistEntry))
+		r.Put("/api/v1/profiles/{id}/allowlist", a.forward(h.ReplaceProfileAllowlist))
 		r.Delete("/api/v1/profiles/{id}/allowlist/{domain}", a.forward(h.DeleteProfileAllowlistEntry))
 
 		// M13 — Per-profile pause

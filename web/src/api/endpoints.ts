@@ -113,6 +113,10 @@ export function removeProfileAllowlist(profileId: string, domain: string): Promi
   return deleteRequest(`/api/v1/profiles/${encodeURIComponent(profileId)}/allowlist/${encodeURIComponent(domain)}`)
 }
 
+export function replaceProfileAllowlist(profileId: string, domains: string[]): Promise<void> {
+  return putJSON(`/api/v1/profiles/${encodeURIComponent(profileId)}/allowlist`, domains)
+}
+
 // ─── Local DNS ───────────────────────────────────────────────────────────
 
 export function listLocalDNS(): Promise<LocalDNSEntry[]> {

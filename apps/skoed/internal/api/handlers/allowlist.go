@@ -169,6 +169,74 @@ func (h *Handler) DeleteProfileAllowlistEntry(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// M27 cache-purge fix: evict the stale cached DNS response so the next
+	// query for this domain sees the updated (now-blocked) decision immediately.
+	if cache := h.app.GetDNSCache(); cache != nil {
+		cache.PurgeDomain(domain)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ReplaceProfileAllowlist handles PUT /api/v1/profiles/{id}/allowlist.
+// Atomically replaces the full allowlist for the named profile.
+func (h *Handler) ReplaceProfileAllowlist(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+
+	var newList []string
+	if !decodeJSON(w, r, &newList) {
+		return
+	}
+	for _, d := range newList {
+		if d == "" {
+			writeError(w, http.StatusBadRequest, "allowlist entries must be non-empty strings")
+			return
+		}
+	}
+
+	cfg := h.app.GetCfg()
+	var existing *config.Profile
+	for i := range cfg.Profiles {
+		if cfg.Profiles[i].ID == id {
+			existing = &cfg.Profiles[i]
+			break
+		}
+	}
+	if existing == nil {
+		writeError(w, http.StatusNotFound, "profile not found")
+		return
+	}
+	if h.app.GetCluster() == nil {
+		writeError(w, http.StatusServiceUnavailable, "cluster not available")
+		return
+	}
+
+	// Track which domains were removed so we can purge their cache entries.
+	newSet := make(map[string]struct{}, len(newList))
+	for _, d := range newList {
+		newSet[d] = struct{}{}
+	}
+	var removed []string
+	for _, d := range existing.Allowlist {
+		if _, kept := newSet[d]; !kept {
+			removed = append(removed, d)
+		}
+	}
+
+	updated := *existing
+	updated.Allowlist = newList
+
+	if err := h.app.GetCluster().UpsertProfile(updated); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Purge cache for every domain that was in the old list but not the new one.
+	if cache := h.app.GetDNSCache(); cache != nil {
+		for _, d := range removed {
+			cache.PurgeDomain(d)
+		}
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
