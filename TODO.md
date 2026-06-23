@@ -65,12 +65,12 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
 | M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
 | M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
-| M24 | Encrypted DNS (DoT/DoH upstream) | ⬜ | — | — | — | — |
-| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
-| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M24 | Encrypted DNS (DoT/DoH upstream) | 🔄 | — | — | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | — |
 | M27 | Per-Profile Allowlists (full) | ⬜ | — | — | — | — |
-| M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
+| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M29 | Live Query Stream | ⬜ | — | — | — | — |
+| M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
@@ -94,6 +94,17 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 - [x] M12 — CI green — runs on master push — 2026-06-12
 - [x] M12 — UoR demo validation — confirmed on Proxmox cluster — 2026-06-12
 - [x] M12 — merged to master at 87bb02a — 2026-06-12
+
+## M24 tasks
+
+- [x] M24 — functional spec written: `specs/functional/encrypted-dns-upstream.feature` (11 FSIDs) — 2026-06-23
+- [ ] M24 — UoR validates functional spec
+- [ ] M24 — technical spec: `specs/technical/encrypted-dns-upstream.md` (TS-EncryptedDnsUpstream)
+- [ ] M24 — acceptance tests: `tests/acceptance/encrypted_dns_upstream_test.go`
+- [ ] M24 — implementation: DoT forwarder (tls:// scheme), DoH forwarder (https://), mixed fallback, config validation
+- [ ] M24 — refactoring phase
+- [ ] M24 — demo + DEMO_NOTE.md
+- [ ] M24 — merge to master
 
 ## Current tasks
 
