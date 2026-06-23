@@ -151,9 +151,9 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			f := patch.Filtering
 			if f.BlockPolicy != nil {
 				switch *f.BlockPolicy {
-				case "nxdomain", "null", "nodata":
+				case "nxdomain", "null", "nodata", "redirect":
 				default:
-					return &validationError{"filtering.block_policy must be nxdomain, null, or nodata"}
+					return &validationError{"filtering.block_policy must be nxdomain, null, nodata, or redirect"}
 				}
 				cfg.Filtering.BlockPolicy = *f.BlockPolicy
 				rebuildFilter = true

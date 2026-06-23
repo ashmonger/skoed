@@ -169,6 +169,18 @@
                 <span class="block text-xs text-fg-muted">Return empty success</span>
               </span>
             </label>
+            <label class="flex items-start gap-2">
+              <input type="radio" value="redirect"
+                     v-model="filteringForm.policy"
+                     class="mt-1"
+                     @change="markFilteringDirty" />
+              <span>
+                <span class="font-medium text-fg-strong">Redirect</span>
+                <span class="block text-xs text-fg-muted">
+                  Return block page IP — shows a human-readable block page
+                </span>
+              </span>
+            </label>
           </div>
         </div>
 
@@ -178,6 +190,86 @@
                   :disabled="!filteringDirty || filteringSaving"
                   @click="saveFiltering">
             {{ filteringSaving ? 'Saving…' : 'Save filtering' }}
+          </button>
+        </div>
+      </section>
+
+      <!-- ─── Block Page section (M26) ──────────────────────────────────── -->
+      <section class="card p-5 space-y-4">
+        <header class="flex items-center gap-2">
+          <ShieldCheckIcon class="h-5 w-5 text-accent" />
+          <h2 class="text-base font-semibold text-fg-strong">Block Page</h2>
+          <span class="text-xs text-fg-muted ml-1">
+            Used when block policy is set to <span class="font-mono">redirect</span>
+          </span>
+        </header>
+
+        <p class="text-sm text-fg-muted">
+          When the redirect block policy is active, blocked A queries return this IP.
+          The built-in HTTP server on the configured port serves a human-readable page.
+        </p>
+
+        <p v-if="blockPageError" class="text-sm text-danger">{{ blockPageError }}</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="label" for="bp-ip">Block page IP</label>
+            <input id="bp-ip"
+                   v-model="blockPageForm.ip"
+                   type="text"
+                   placeholder="e.g. 192.168.1.1"
+                   class="input"
+                   @input="markBlockPageDirty" />
+            <p class="text-xs text-fg-muted mt-1">
+              IPv4 address returned for blocked A queries. Leave empty to use the node's API host IP.
+            </p>
+          </div>
+          <div>
+            <label class="label" for="bp-port">Block page port</label>
+            <input id="bp-port"
+                   v-model.number="blockPageForm.port"
+                   type="number" min="1" max="65535"
+                   class="input"
+                   @input="markBlockPageDirty" />
+            <p class="text-xs text-fg-muted mt-1">
+              TCP port the block page HTTP server listens on (default 8053).
+            </p>
+          </div>
+          <div>
+            <label class="label" for="bp-title">Page title</label>
+            <input id="bp-title"
+                   v-model="blockPageForm.title"
+                   type="text"
+                   placeholder="Access Blocked"
+                   class="input"
+                   @input="markBlockPageDirty" />
+          </div>
+          <div>
+            <label class="label" for="bp-email">Contact email</label>
+            <input id="bp-email"
+                   v-model="blockPageForm.contact_email"
+                   type="email"
+                   placeholder="admin@example.com"
+                   class="input"
+                   @input="markBlockPageDirty" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="label" for="bp-message">Message</label>
+            <textarea id="bp-message"
+                      v-model="blockPageForm.message"
+                      rows="2"
+                      placeholder="This website has been blocked by your network administrator."
+                      class="input resize-none"
+                      @input="markBlockPageDirty" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-1">
+          <span v-if="blockPageSavedAt" class="text-xs text-success">Saved.</span>
+          <button class="btn-primary"
+                  :disabled="!blockPageDirty || blockPageSaving"
+                  @click="saveBlockPage">
+            {{ blockPageSaving ? 'Saving…' : 'Save block page' }}
           </button>
         </div>
       </section>
@@ -324,9 +416,10 @@ import {
 } from '@heroicons/vue/24/outline'
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
+  getBlockPageConfig, patchBlockPageConfig,
 } from '@/api/endpoints'
 import { api, getToken } from '@/api/client'
-import type { DNSCacheStats, DNSConfig, Settings } from '@/api/types'
+import type { BlockPageConfig, DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -345,7 +438,7 @@ interface DnsForm {
 }
 
 interface FilteringForm {
-  policy: 'nxdomain' | 'null' | 'nodata'
+  policy: 'nxdomain' | 'null' | 'nodata' | 'redirect'
 }
 
 interface QueryLogForm {
@@ -375,6 +468,19 @@ const queryLogError = ref('')
 const dnsSavedAt = ref(0)
 const filteringSavedAt = ref(0)
 const queryLogSavedAt = ref(0)
+
+// M26 — block page config
+const blockPageForm = reactive<BlockPageConfig>({
+  ip: '',
+  port: 8053,
+  title: '',
+  message: '',
+  contact_email: '',
+})
+const blockPageDirty = ref(false)
+const blockPageSaving = ref(false)
+const blockPageError = ref('')
+const blockPageSavedAt = ref(0)
 
 // M4.7 — DNS cache controls
 const cacheStats = ref<DNSCacheStats | null>(null)
@@ -407,8 +513,9 @@ async function onPurgeCache() {
 
 onMounted(async () => {
   try {
-    const s = await getSettings()
+    const [s, bp] = await Promise.all([getSettings(), getBlockPageConfig()])
     applySettings(s)
+    applyBlockPage(bp)
     await refreshCacheStats()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load settings')
@@ -439,11 +546,21 @@ function applySettings(s: Settings) {
   queryLogDirty.value = false
 }
 
+function applyBlockPage(bp: BlockPageConfig) {
+  blockPageForm.ip = bp.ip ?? ''
+  blockPageForm.port = bp.port ?? 8053
+  blockPageForm.title = bp.title ?? ''
+  blockPageForm.message = bp.message ?? ''
+  blockPageForm.contact_email = bp.contact_email ?? ''
+  blockPageDirty.value = false
+}
+
 // ─── Dirty tracking ────────────────────────────────────────────────────────
 
 function markDnsDirty() { dnsDirty.value = true }
 function markFilteringDirty() { filteringDirty.value = true }
 function markQueryLogDirty() { queryLogDirty.value = true }
+function markBlockPageDirty() { blockPageDirty.value = true }
 
 // ─── Saves ─────────────────────────────────────────────────────────────────
 
@@ -511,6 +628,26 @@ async function saveQueryLog() {
     queryLogError.value = errMsg(err, 'Failed to save query log settings')
   } finally {
     queryLogSaving.value = false
+  }
+}
+
+async function saveBlockPage() {
+  blockPageError.value = ''
+  blockPageSaving.value = true
+  try {
+    const patch: BlockPageConfig = {}
+    if (blockPageForm.ip) patch.ip = blockPageForm.ip
+    if (blockPageForm.port) patch.port = blockPageForm.port
+    if (blockPageForm.title !== undefined) patch.title = blockPageForm.title
+    if (blockPageForm.message !== undefined) patch.message = blockPageForm.message
+    if (blockPageForm.contact_email !== undefined) patch.contact_email = blockPageForm.contact_email
+    const updated = await patchBlockPageConfig(patch)
+    applyBlockPage(updated)
+    flashSaved(blockPageSavedAt)
+  } catch (err) {
+    blockPageError.value = errMsg(err, 'Failed to save block page settings')
+  } finally {
+    blockPageSaving.value = false
   }
 }
 

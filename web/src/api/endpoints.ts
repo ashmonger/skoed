@@ -1,7 +1,7 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Anomaly, APIToken, APITokenMinted, AuditPage, Blocklist, BlocklistSource, Category,
+  Anomaly, APIToken, APITokenMinted, AuditPage, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
   DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
@@ -139,6 +139,16 @@ export function getSettings(): Promise<Settings> {
 
 export function patchSettings(patch: Partial<Settings>): Promise<Settings> {
   return patchJSON('/api/v1/settings', patch)
+}
+
+// ─── Block page (M26) ────────────────────────────────────────────────────
+
+export function getBlockPageConfig(): Promise<BlockPageConfig> {
+  return getJSON('/api/v1/blockpage')
+}
+
+export function patchBlockPageConfig(patch: BlockPageConfig): Promise<BlockPageConfig> {
+  return patchJSON('/api/v1/blockpage', patch)
 }
 
 // ─── Query log ───────────────────────────────────────────────────────────

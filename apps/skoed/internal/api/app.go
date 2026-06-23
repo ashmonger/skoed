@@ -16,6 +16,7 @@ import (
 	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/api/swaggerui"
 	"github.com/skoed/skoed/internal/auth"
+	"github.com/skoed/skoed/internal/blockpage"
 	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
@@ -106,6 +107,11 @@ type App struct {
 	// SetSSEBroadcaster is called. When non-nil, webhook events are also
 	// published to all connected SSE clients.
 	sseBroadcaster *apiSSE.Broadcaster
+
+	// blockPageSrv is the M26 redirect block page HTTP server. Nil until
+	// SetBlockPageServer is called. Lifecycle (start/stop) is managed by
+	// main.go and by RestartBlockPageServer after a config change.
+	blockPageSrv *blockpage.Server
 }
 
 // SetDhcpManager wires the optional M3.6 DHCP manager in after App
@@ -226,6 +232,48 @@ func (a *App) SetDhcpServer(s *dhcp.Server) { a.dhcpServer = s }
 
 // GetDhcpServer returns the M23.5 built-in DHCP server, or nil when not wired.
 func (a *App) GetDhcpServer() *dhcp.Server { return a.dhcpServer }
+
+// SetBlockPageServer wires the M26 block page HTTP server.
+func (a *App) SetBlockPageServer(s *blockpage.Server) { a.blockPageSrv = s }
+
+// GetBlockPageIP returns the currently configured block page IP from the
+// live config. Used by the DNS handler when block_policy == "redirect".
+func (a *App) GetBlockPageIP() string {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Filtering.BlockPage.IP
+}
+
+// RestartBlockPageServer stops and restarts the block page server when the
+// config changes. Called by the PATCH /api/v1/blockpage handler.
+func (a *App) RestartBlockPageServer() {
+	if a.blockPageSrv == nil {
+		return
+	}
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return
+	}
+	bp := cfg.Filtering.BlockPage
+	a.blockPageSrv.UpdateConfig(blockpage.Config{
+		Title:        bp.Title,
+		Message:      bp.Message,
+		ContactEmail: bp.ContactEmail,
+	})
+	if cfg.Filtering.BlockPolicy == "redirect" {
+		if !a.blockPageSrv.IsRunning() {
+			port := bp.Port
+			if port == 0 {
+				port = 8053
+			}
+			_ = a.blockPageSrv.Start(fmt.Sprintf(":%d", port))
+		}
+	} else {
+		a.blockPageSrv.Stop()
+	}
+}
 
 // SetDNSCache wires the long-lived M4.7 DNS cache into the App so the
 // /api/v1/dns/cache/* handlers reach it via GetDNSCache(). main.go
@@ -866,6 +914,10 @@ func (a *App) Router() http.Handler {
 		// failovers without a separate /cluster/status round-trip.
 		r.Get("/api/v1/leases", h.GetLeases)
 		r.Get("/api/v1/leases/source", h.GetLeasesSource)
+
+		// M26 — block page config.
+		r.Get("/api/v1/blockpage", h.GetBlockPage)
+		r.Patch("/api/v1/blockpage", a.forward(h.UpdateBlockPage))
 
 		// M23.5 — built-in DHCP server.
 		r.Get("/api/v1/dhcp/server/status", h.DhcpServerStatus)

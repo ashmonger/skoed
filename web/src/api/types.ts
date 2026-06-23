@@ -137,8 +137,17 @@ export interface DNSConfig {
 
 export interface Settings {
   dns: DNSConfig
-  filtering: { block_policy: 'nxdomain' | 'null' | 'nodata' }
+  filtering: { block_policy: 'nxdomain' | 'null' | 'nodata' | 'redirect' }
   query_log: { max_entries: number; aggregate_retention_days: number }
+}
+
+// M26 — block page config
+export interface BlockPageConfig {
+  ip?: string
+  port?: number
+  title?: string
+  message?: string
+  contact_email?: string
 }
 
 export interface JoinTokenResponse {

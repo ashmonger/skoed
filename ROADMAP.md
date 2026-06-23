@@ -1143,6 +1143,69 @@ Node certificate rotation:
 
 ---
 
+### Milestone 25 — Prometheus Histograms + Grafana Dashboard
+
+**Outcome**: Operators gain p50/p95/p99 DNS query latency visibility and per-upstream resolver latency breakdowns via Prometheus histograms, plus a bundled Grafana dashboard JSON they can import with one click.
+
+**Capabilities:**
+- `dns_query_duration_seconds` histogram (buckets: 1ms…2s) labelled by outcome (forwarded/blocked/cached/local) exposed at existing `GET /api/v1/metrics`
+- Per-upstream latency histogram `dns_upstream_duration_seconds` labelled by upstream URL (scheme+host only, no credentials)
+- `dhcp_lease_duration_seconds` histogram labelled by origin (static/dynamic)
+- Grafana dashboard JSON (`packaging/grafana/skoed-dashboard.json`) importable against any Prometheus datasource scraping skoed; panels: QPS, p95 latency, block rate, upstream latency heatmap, DHCP lease activity
+- Dashboard shipped as a goreleaser extra file and documented in README
+
+**Non-goals:**
+- Built-in Grafana or Prometheus server (operator provides their own)
+- Pushing metrics (pull-only Prometheus scrape)
+- Per-client or per-domain label cardinality (unbounded label sets)
+
+**Dependencies:** M1 (existing Prometheus counter/gauge foundation at `/api/v1/metrics`).
+
+---
+
+### Milestone 26 — Custom Block Page
+
+**Outcome**: When a domain is blocked, clients that attempt to load it in a browser receive a human-readable HTML page explaining the block, instead of a browser error or silent no-response.
+
+**Capabilities:**
+- New `filtering.block_policy` value: `"redirect"` — DNS returns a configured IP (`block_page.ip`, default: node's own API host IP) for blocked A/AAAA queries
+- Embedded HTTP server on configurable `block_page.port` (default: 8053) serves a self-contained HTML block page for every inbound HTTP request
+- Block page content is configurable: `title`, `message`, `contact_email` (all optional with sensible defaults)
+- `GET /api/v1/blockpage` returns current block page config; `PATCH /api/v1/blockpage` updates it (admin auth required); changes Raft-replicated across the cluster
+- Web UI Settings panel gets a "Block Page" section: enable/disable redirect policy, IP, port, title, message
+- Non-redirect policies (nxdomain, null, nodata) are unaffected; redirect is opt-in
+
+**Non-goals:**
+- HTTPS for the block page
+- Per-domain or per-profile block page content (single shared template)
+- "Allow for N minutes" / bypass request workflow
+- IPv6 redirect address (IPv4 only; AAAA queries for blocked domains return SERVFAIL when redirect is active)
+
+**Dependencies:** M1 filtering engine (block_policy plumbing already exists); M4 TLS/API infrastructure.
+
+---
+
+### Milestone 27 — Per-Profile Allowlists (Full)
+
+**Outcome**: Each filtering profile has its own independently managed allowlist visible in the web UI, with full CRUD, wildcard support, bulk import, and cache-consistent delete — completing the allowlist feature surface started at M3.
+
+**Capabilities:**
+- `PUT /api/v1/profiles/{id}/allowlist` replaces the full list atomically (idempotent bulk update)
+- `DELETE /api/v1/profiles/{id}/allowlist/{domain}` correctly purges the DNS cache entry on removal (fixes silent stale-cache bug)
+- Wildcard entries (`*.example.com`) accepted and displayed distinctly from exact entries in the UI
+- Profile detail page gets a dedicated "Allowlist" tab: list with per-entry delete, add-domain input, bulk-import textarea, and entry count badge on the tab
+- Global allowlist page (`/dashboard/allowlist`) retains its scope switcher (global / per-profile) for quick cross-profile comparison
+- Export/import (config backup) includes per-profile allowlists
+
+**Non-goals:**
+- Allowlist sharing between profiles (each profile's allowlist is independent)
+- Allowlist-based scheduling (time-gated allow entries)
+- Per-entry metadata (notes, expiry dates)
+
+**Dependencies:** M3 per-profile filtering; M12 config export/import (ensure allowlists survive round-trip).
+
+---
+
 ### Milestone 28 — Companion / Remote-Admin App
 
 **Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.

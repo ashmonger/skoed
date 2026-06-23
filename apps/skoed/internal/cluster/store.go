@@ -708,10 +708,12 @@ type AuditRow struct {
 }
 
 type storedFilteringSettings struct {
-	BlockPolicy     string `json:"block_policy"`
+	BlockPolicy     string                  `json:"block_policy"`
 	// PauseMaxSeconds: -1 = never explicitly set (first-boot sentinel, Snapshot returns default 86400);
 	// 0 = feature explicitly disabled; positive = operator-defined ceiling in seconds.
-	PauseMaxSeconds int    `json:"pause_max_seconds"`
+	PauseMaxSeconds int                     `json:"pause_max_seconds"`
+	// M26: block page redirect configuration.
+	BlockPage       config.BlockPageConfig  `json:"block_page,omitempty"`
 }
 
 func readStoredFiltering(b *bolt.Bucket) storedFilteringSettings {
@@ -828,6 +830,7 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 	fv, err := json.Marshal(storedFilteringSettings{
 		BlockPolicy:     c.Filtering.BlockPolicy,
 		PauseMaxSeconds: pauseMax,
+		BlockPage:       c.Filtering.BlockPage,
 	})
 	if err != nil {
 		return err
@@ -928,6 +931,7 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			if s.PauseMaxSeconds >= 0 {
 				out.Filtering.PauseMaxSeconds = s.PauseMaxSeconds
 			}
+			out.Filtering.BlockPage = s.BlockPage
 		}
 		if v := sb.Get([]byte("query_log")); v != nil {
 			if err := json.Unmarshal(v, &out.QueryLog); err != nil {
