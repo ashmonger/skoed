@@ -65,12 +65,12 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M23 | Profile Templates | ✅ | — | [note](demos/m23/DEMO_NOTE.md) | [profile-templates](specs/functional/profile-templates.feature) | [profile-templates](tests/acceptance/profile_templates_test.go) |
 | M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
 | M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
-| M24 | Encrypted DNS (DoT/DoH upstream) | ⬜ | — | — | — | — |
-| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
-| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M24 | Encrypted DNS (DoT/DoH upstream) | 🔄 | — | [note](apps/skoed/demos/m24/DEMO_NOTE.md) | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | [enc-upstream](tests/acceptance/encrypted_dns_upstream_test.go) |
 | M27 | Per-Profile Allowlists (full) | ⬜ | — | — | — | — |
-| M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
+| M26 | Custom Block Page | ⬜ | — | — | — | — |
+| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M29 | Live Query Stream | ⬜ | — | — | — | — |
+| M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
@@ -94,6 +94,18 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 - [x] M12 — CI green — runs on master push — 2026-06-12
 - [x] M12 — UoR demo validation — confirmed on Proxmox cluster — 2026-06-12
 - [x] M12 — merged to master at 87bb02a — 2026-06-12
+
+## M24 tasks
+
+- [x] M24 — functional spec written: `specs/functional/encrypted-dns-upstream.feature` (11 FSIDs) — 2026-06-23
+- [x] M24 — technical spec: `specs/technical/encrypted-dns-upstream.md` (TS-EncryptedDnsUpstream) — 2026-06-23
+- [x] M24 — acceptance tests: `tests/acceptance/encrypted_dns_upstream_test.go` (11 tests) — 2026-06-23
+- [x] M24 — implementation: DoT forwarder, DoH forwarder (POST + GET), mixed fallback, scheme validation in config + PATCH handler — 2026-06-23
+- [x] M24 — all 11 acceptance tests green, full suite (441+ tests) green — 2026-06-23
+- [x] M24 — refactoring phase complete — 2026-06-23
+- [x] M24 — demo note: `apps/skoed/demos/m24/DEMO_NOTE.md` — 2026-06-23
+- [ ] M24 — UoR demo validation
+- [ ] M24 — merge to master
 
 ## Current tasks
 
@@ -320,32 +332,80 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 
 - ~~**Find a better name.**~~ Done — name is **skoed**. — closed 2026-06-09
 
-### From the ROADMAP post-M5 backlog (now mirrored here for tracking)
+### Maybe
 
-- **Active-active cluster** — any-node writes via Raft. Today the
-  leader serializes writes; this would let multi-DC deployments
-  accept writes locally. Major architecture change.
-- **DoH3 / HTTP/3 endpoint.** Client adoption is still slow but
-  growing; defer until usage warrants the QUIC dep.
-- **DNSCrypt server endpoint.** Rare in modern clients; lowest
-  priority of the encrypted-DNS family.
-- **API token authentication.** Replace HTTP Basic Auth with revocable
-  tokens (scopes, per-token rate limits, audit log integration).
-- ~~**IPv6-only / dual-stack validation.**~~ Closed — dual-stack (IPv4+IPv6 simultaneous) is the shipped mode; IPv6-only standalone deploy is low-value. — 2026-06-09
-- ~~**Kubernetes operator.**~~ Done — M9 shipped (SkoedCluster + SkoedNode CRDs, controller-runtime v0.19.0). — 2026-06-09
-- **Firewall-rule generators** (from M3.5 carve-out). Templates for
-  iptables / nftables / MikroTik RouterOS / OpnSense / pfSense / UniFi
-  to close the hardcoded-resolver-IP DoH bypass.
-- **Curated DoH-resolver-IP database** + auto-refresh (companion to
-  the firewall generators).
-- **"Closing the DoH gap" guide** (companion docs).
-- **ARP/NDP cross-check** (M3.6 Layer-3 anti-spoof). Query the local
-  ARP cache via netlink; flag when DHCP-reported MAC ≠ ARP-reported
-  MAC. Requires CAP_NET_ADMIN.
-- **Raft-replicated lease cache** (M3.6 follow-on). Today each node
-  polls its own DHCP source; replicating leases would give true
-  cluster-wide identity consistency at the cost of leader-only-polls.
-- **DHCPv6 lease parsing** (M3.6 follow-on).
+| Area | Feature |
+|------|---------|
+| DNS | Per-query upstream selection (route by domain pattern to different resolver) |
+| DNS | DNSCrypt upstream support (outbound to upstream resolvers) |
+| DNS | Automatic upstream discovery from DHCP / OS resolver (`/etc/resolv.conf`) |
+| DNS | DoT/DoH upstream connection pooling (new TLS conn per query today) |
+| DNS | DNS-over-QUIC (DoQ) upstream support |
+| DNS | DNSSEC-aware caching (cache unchanged between modes today) |
+| DNS | DNSSEC signing of local DNS entries (skoed is resolver-only) |
+| DNS | Per-profile DNSSEC policy (cluster-wide mode only today) |
+| DNS | Trust anchor auto-rollover (RFC 5011) |
+| DNS | Full chain DNSSEC validation from embedded root KSK |
+| DNS | Active-active cluster writes (any-node writes via Raft; leader serialises today) |
+| DHCP | DHCPv6 full support |
+| DHCP | DHCPv6 DUID as match criterion |
+| DHCP | DHCP failover protocol awareness (ISC/Kea) |
+| DHCP | Raft-replicated lease cache (node-local today) |
+| DHCP | Lease persistence across leader restart (in-memory today) |
+| DHCP | Bulk import of static assignments |
+| DHCP | Per-client DHCP option overrides via UI (YAML-only today) |
+| Security | Client-cert authentication on DoH/DoT endpoints |
+| Security | Certificate pinning |
+| Security | Certificate revocation lists (CRL / OCSP stapling) |
+| Security | Per-node cert rotation without full cluster rotation |
+| Security | Key rotation trigger via API (leader-automated today) |
+| Security | Backup encryption (plaintext tar.gz today) |
+| Security | Per-connection rate limiting |
+| Security | Cosign signature verification of downloaded assets |
+| Security | ACME DNS-01 challenge provider |
+| Security | ACME / Let's Encrypt auto-renewal (manual certbot today) |
+| Web UI | Drag-and-drop schedule editor |
+| Web UI | Pause start / expiry notifications |
+| Web UI | Dashboard alerts for new dynamic-client arrivals |
+| Web UI | Cert status and rotation trigger UI (API-only today) |
+| Web UI | DNSSEC mode toggle in UI (API-only today) |
+| Web UI | Per-domain cache eviction via UI |
+| Web UI | Lease list virtualization for large deployments |
+| Cluster | Blue-green node replacement |
+| Cluster | Canary-style partial rollouts |
+| Cluster | Coordinated rolling cluster upgrade |
+| Cluster | `node.advertise_address` separate from `node.api_address` |
+| Cluster | Automated VIP health check integration in skoed API |
+| Cluster | `SkoedNode` CRD per-pod status population |
+| Cluster | Rolling binary upgrade safety validation (Kubernetes) |
+| Cluster | Automated rollback on failed restart |
+| API | Progress streaming over SSE during blocklist downloads |
+| API | Upgrade progress via WebSocket / SSE (HTTP polling today) |
+| API | Merge / diff between two backup archives |
+| API | Scheduled or automatic backups (manual download today) |
+| API | Retry-failure webhook / dead-letter queue for failed deliveries |
+| API | Per-event webhook signing key rotation without endpoint delete |
+| API | Binding overlap / conflict validation |
+| API | Bulk-binding multiple (profile, blocklist) pairs in one request |
+| API | `last_used_at` timestamp tracking per API token |
+| Monitoring | High-cardinality per-domain / per-client Prometheus metrics |
+| Monitoring | Push-mode Prometheus (Pushgateway) |
+| Monitoring | Sub-hour granularity for cluster-wide stats |
+| Monitoring | Streaming push of new aggregates (poll-only today) |
+| Monitoring | Time-series histograms / percentile tracking |
+| Monitoring | Per-domain granular audit trail for SafeSearch redirects |
+| Packaging | Windows packaging |
+| Packaging | Alpine Linux official `edge` repository |
+| Packaging | Debian / Ubuntu official PPA |
+| Packaging | AUR live push (CI step ready; needs `AUR_SSH_PRIVATE_KEY` secret) |
+| Packaging | Firewall-rule generators (iptables / nftables / RouterOS / pfSense / UniFi) |
+| Packaging | Curated DoH-resolver-IP database with auto-refresh |
+| Packaging | "Closing the DoH gap" operator guide |
+| Packaging | Release channel selection (stable / beta / nightly) |
+| Extension | DNS filtering rule changes from the browser popup |
+| Extension | Browser sync of extension settings across profiles |
+| Extension | Mobile browser support |
+| Extension | AMO / CWS store submission (manual install today) |
 
 ### Under reconsideration — needs UoR decision
 

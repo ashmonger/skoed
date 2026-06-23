@@ -120,7 +120,15 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 				rebuildDNS = true
 			}
 			if d.UpstreamResolvers != nil {
-				cfg.DNS.UpstreamResolvers = d.UpstreamResolvers
+				normalised := make([]string, len(d.UpstreamResolvers))
+				for i, u := range d.UpstreamResolvers {
+					n, err := config.NormaliseUpstream(u)
+					if err != nil {
+						return &validationError{fmt.Sprintf("dns.upstream_resolvers[%d]: %s", i, err)}
+					}
+					normalised[i] = n
+				}
+				cfg.DNS.UpstreamResolvers = normalised
 				rebuildDNS = true
 			}
 			if d.UpstreamTimeout != nil {

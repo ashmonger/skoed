@@ -1121,7 +1121,29 @@ Node certificate rotation:
 
 ---
 
-### Milestone 24 — Companion / Remote-Admin App
+### Milestone 24 — Encrypted DNS Upstream Resolvers
+
+**Outcome**: Operators can configure skoed to forward DNS queries to upstream resolvers over DoT (DNS-over-TLS) or DoH (DNS-over-HTTPS), preventing plaintext DNS traffic between skoed and the public internet.
+
+**Capabilities:**
+- `upstream_resolvers` config accepts `tls://host:port` (DoT) and `https://host/path` (DoH) entries in addition to existing `host:port` plain UDP/TCP
+- DoT: TLS-verified connection on port 853 by default; `?skip_verify=true` param disables cert check for self-signed setups
+- DoH: RFC 8484 wire-format POST (default) or GET (`?method=get`) over HTTPS; full cert verification
+- Mixed lists: plain UDP/TCP, DoT, and DoH entries coexist; fallback order is preserved
+- Config validation at load/PUT time: unsupported schemes rejected with a clear error
+- Config persisted and reflected in `GET /api/v1/settings`
+
+**Non-goals:**
+- DNSCrypt upstream support
+- Per-domain upstream routing (use multiple profile upstreams in a future milestone)
+- Automatic resolver discovery from DHCP or OS config
+- Running skoed as a DoT/DoH server for LAN clients (M4)
+
+**Dependencies:** M4 (TLS infrastructure already in codebase). M1 forwarder architecture extended in-place.
+
+---
+
+### Milestone 28 — Companion / Remote-Admin App
 
 **Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
 

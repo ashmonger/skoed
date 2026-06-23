@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -294,6 +295,11 @@ func (c *Config) Validate() error {
 	if c.API.Port < 1 || c.API.Port > 65535 {
 		return fmt.Errorf("api.port must be 1–65535")
 	}
+	for i, u := range c.DNS.UpstreamResolvers {
+		if _, err := NormaliseUpstream(u); err != nil {
+			return fmt.Errorf("dns.upstream_resolvers[%d]: %w", i, err)
+		}
+	}
 	return nil
 }
 
@@ -331,13 +337,57 @@ func Save(dir string, c *Config) error {
 	return nil
 }
 
-// normaliseUpstream appends :53 if no port is specified.
-func normaliseUpstream(s string) string {
+// NormaliseUpstream validates and normalises a single upstream resolver address.
+// Supported forms:
+//   - Plain host or host:port   → appends :53 if no port
+//   - tls://host[:port][?...]   → appends :853 if no port
+//   - https://host/path[?...]   → returned unchanged
+//
+// Any other scheme returns an error. Exported for use by the settings handler.
+func NormaliseUpstream(s string) (string, error) {
 	if s == "" {
-		return s
+		return "", nil
 	}
+	if idx := strings.Index(s, "://"); idx >= 0 {
+		scheme := s[:idx]
+		switch scheme {
+		case "tls":
+			return normaliseTLSUpstream(s), nil
+		case "https":
+			return s, nil
+		default:
+			return "", fmt.Errorf("unsupported scheme %q (supported: tls://, https://, or plain host:port)", scheme)
+		}
+	}
+	// Plain host[:port].
 	if _, _, err := net.SplitHostPort(s); err == nil {
-		return s
+		return s, nil
 	}
-	return s + ":53"
+	return s + ":53", nil
+}
+
+// normaliseUpstream is the unexported shim used by Defaults (no error path needed
+// there because Validate catches bad schemes separately).
+func normaliseUpstream(s string) string {
+	n, _ := NormaliseUpstream(s)
+	if n == "" {
+		return s // unsupported scheme: leave as-is so Validate can report it
+	}
+	return n
+}
+
+// normaliseTLSUpstream appends :853 to a tls:// URL if the host has no port.
+func normaliseTLSUpstream(s string) string {
+	// s has the form "tls://host[:port][?query]"
+	rest := s[len("tls://"):]
+	hostPart := rest
+	queryPart := ""
+	if q := strings.IndexByte(rest, '?'); q >= 0 {
+		hostPart = rest[:q]
+		queryPart = rest[q:]
+	}
+	if _, _, err := net.SplitHostPort(hostPart); err != nil {
+		return "tls://" + hostPart + ":853" + queryPart
+	}
+	return s
 }
