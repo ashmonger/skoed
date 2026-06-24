@@ -69,7 +69,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M27 | Per-Profile Allowlists (full) | ✅ | v0.2.2 | [note](demos/m27/DEMO_NOTE.md) · [report](demos/m27/test-report.html) | [per-profile-allowlists](specs/functional/per-profile-allowlists.feature) | [per-profile-allowlists](tests/acceptance/per_profile_allowlist_test.go) |
 | M26 | Custom Block Page | ✅ | — | [note](demos/m26/DEMO_NOTE.md) · [report](demos/m26/test-report.html) | [custom-block-page](specs/functional/custom-block-page.feature) | [custom-block-page](tests/acceptance/custom_block_page_test.go) |
 | M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
-| M30 | DHCP Persistence + DHCPv6 | ⬜ | — | — | — | — |
+| M30 | DHCP Persistence + DHCPv6 | ✅ | — | [note](demos/m30/DEMO_NOTE.md) · [report](demos/m30/test-report.html) | [dhcp-persistence](specs/functional/dhcp-persistence.feature) | [dhcp-persistence](tests/acceptance/dhcp_persistence_test.go) |
 | M31 | Backup Hardening | ⬜ | — | — | — | — |
 | M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
 | M33 | Block Page Enhancements | ⬜ | — | — | — | — |

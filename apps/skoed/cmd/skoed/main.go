@@ -420,13 +420,14 @@ func runDaemon(cfgPath string) {
 	}
 
 	// M23.5 — built-in DHCP server (leader-owned).
+	var dhcpSrv *dhcp.Server
 	{
 		dhcpCfg, err := c.GetDhcpServerSettings()
 		if err != nil {
 			log.Printf("read dhcp server settings: %v", err)
 		}
 		dnsListenAddr := fmt.Sprintf("127.0.0.1:%d", snap.DNS.Listen.Port)
-		dhcpSrv := dhcp.NewServer(dhcpCfg, dnsListenAddr)
+		dhcpSrv = dhcp.NewServer(dhcpCfg, dnsListenAddr)
 		dhcpSrv.SetLeaseCallbacks(
 			func(ip, mac, hostname string, expiresAt int64) {
 				if err := c.PersistDhcpLease(ip, mac, hostname, expiresAt); err != nil {
@@ -450,46 +451,18 @@ func runDaemon(cfgPath string) {
 			}
 			dhcpSrv.Start()
 		}
-		// Watch Raft leadership changes to start/stop the listener.
-		go func() {
-			for {
-				select {
-				case <-c.LeadershipCh():
-					cfg, _ := c.GetDhcpServerSettings()
-					dhcpSrv.UpdateConfig(cfg)
-					if cfg.Enabled && c.IsLeader() {
-						// Load persisted leases before starting so the new leader
-						// inherits the full lease table without re-DORA.
-						if persisted, err := c.GetDhcpLeases(); err == nil {
-							l4 := make([]dhcp.Lease4, 0, len(persisted))
-							for _, p := range persisted {
-								l4 = append(l4, dhcp.Lease4{
-									IP:        p.IP,
-									MAC:       p.MAC,
-									Hostname:  p.Hostname,
-									ExpiresAt: time.Unix(p.ExpiresAt, 0),
-								})
-							}
-							dhcpSrv.LoadLeases(l4)
-						}
-						dhcpSrv.Start()
-					} else {
-						dhcpSrv.Stop()
-					}
-				}
-			}
-		}()
 		defer dhcpSrv.Stop()
 	}
 
 	// M30 — built-in DHCPv6 server (leader-owned).
+	var dhcpSrv6 *dhcp.Server6
 	{
 		dhcp6Cfg, err := c.GetDhcp6ServerSettings()
 		if err != nil {
 			log.Printf("read dhcp6 server settings: %v", err)
 		}
 		dns6Addr := fmt.Sprintf("127.0.0.1:%d", snap.DNS.Listen.Port)
-		dhcpSrv6 := dhcp.NewServer6(dhcp6Cfg, dns6Addr)
+		dhcpSrv6 = dhcp.NewServer6(dhcp6Cfg, dns6Addr)
 		dhcpSrv6.SetLeaseCallbacks(
 			func(address, duid, hostname, profileID string, expiresAt int64) {
 				if err := c.PersistDhcp6Lease(address, duid, hostname, profileID, expiresAt); err != nil {
@@ -505,49 +478,47 @@ func runDaemon(cfgPath string) {
 		app.SetDhcpServer6(dhcpSrv6)
 		if dhcp6Cfg.Enabled && c.IsLeader() {
 			if persisted6, err := c.GetDhcp6Leases(); err == nil {
-				l6 := make([]dhcp.Lease6, 0, len(persisted6))
-				for _, p := range persisted6 {
-					l6 = append(l6, dhcp.Lease6{
-						Address:   p.Address,
-						DUID:      p.DUID,
-						Hostname:  p.Hostname,
-						ProfileID: p.ProfileID,
-						ExpiresAt: time.Unix(p.ExpiresAt, 0),
-					})
-				}
+				l6 := dhcpV6LeasesFromPayloads(persisted6)
 				dhcpSrv6.LoadLeases(l6)
 			}
 			dhcpSrv6.Start()
 		}
-		go func() {
-			for {
-				select {
-				case <-c.LeadershipCh():
-					cfg6, _ := c.GetDhcp6ServerSettings()
-					dhcpSrv6.UpdateConfig(cfg6)
-					if cfg6.Enabled && c.IsLeader() {
-						if persisted6, err := c.GetDhcp6Leases(); err == nil {
-							l6 := make([]dhcp.Lease6, 0, len(persisted6))
-							for _, p := range persisted6 {
-								l6 = append(l6, dhcp.Lease6{
-									Address:   p.Address,
-									DUID:      p.DUID,
-									Hostname:  p.Hostname,
-									ProfileID: p.ProfileID,
-									ExpiresAt: time.Unix(p.ExpiresAt, 0),
-								})
-							}
-							dhcpSrv6.LoadLeases(l6)
-						}
-						dhcpSrv6.Start()
-					} else {
-						dhcpSrv6.Stop()
-					}
-				}
-			}
-		}()
 		defer dhcpSrv6.Stop()
 	}
+
+	// Single goroutine watches leadership changes for BOTH DHCP servers.
+	// One consumer per LeadershipCh — splitting across two goroutines would
+	// have them race and one server miss the notification.
+	go func() {
+		for range c.LeadershipCh() {
+			// DHCPv4
+			cfg, _ := c.GetDhcpServerSettings()
+			dhcpSrv.UpdateConfig(cfg)
+			if cfg.Enabled && c.IsLeader() {
+				if persisted, err := c.GetDhcpLeases(); err == nil {
+					l4 := make([]dhcp.Lease4, 0, len(persisted))
+					for _, p := range persisted {
+						l4 = append(l4, dhcp.Lease4{IP: p.IP, MAC: p.MAC, Hostname: p.Hostname, ExpiresAt: time.Unix(p.ExpiresAt, 0)})
+					}
+					dhcpSrv.LoadLeases(l4)
+				}
+				dhcpSrv.Start()
+			} else {
+				dhcpSrv.Stop()
+			}
+			// DHCPv6
+			cfg6, _ := c.GetDhcp6ServerSettings()
+			dhcpSrv6.UpdateConfig(cfg6)
+			if cfg6.Enabled && c.IsLeader() {
+				if persisted6, err := c.GetDhcp6Leases(); err == nil {
+					dhcpSrv6.LoadLeases(dhcpV6LeasesFromPayloads(persisted6))
+				}
+				dhcpSrv6.Start()
+			} else {
+				dhcpSrv6.Stop()
+			}
+		}
+	}()
 
 	// Initial DNS handler + server.
 	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP))
@@ -1090,4 +1061,20 @@ func deviceNewHook(disp *webhook.Dispatcher) func(string) {
 		return nil
 	}
 	return disp.NotifyDeviceNew
+}
+
+// dhcpV6LeasesFromPayloads converts Raft-persisted DHCPv6 lease payloads to
+// the in-memory Lease6 slice used by Server6.LoadLeases.
+func dhcpV6LeasesFromPayloads(payloads []cluster.Dhcp6ServerLeaseUpsertPayload) []dhcp.Lease6 {
+	out := make([]dhcp.Lease6, 0, len(payloads))
+	for _, p := range payloads {
+		out = append(out, dhcp.Lease6{
+			Address:   p.Address,
+			DUID:      p.DUID,
+			Hostname:  p.Hostname,
+			ProfileID: p.ProfileID,
+			ExpiresAt: time.Unix(p.ExpiresAt, 0),
+		})
+	}
+	return out
 }
