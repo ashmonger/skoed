@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M29 — Live Query Stream — Enterprise Validation</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --term-bg: #090c10;
+    --term-border: #1e2230;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+  }
+
+  header { margin-bottom: 2rem; }
+  header h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.25rem; }
+  header p { color: var(--muted); font-size: 0.85rem; }
+  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; margin-left: 0.5rem; }
+  .badge-green { background: #14532d; color: var(--green); }
+  .badge-blue  { background: #1e3a5f; color: var(--accent); }
+
+  .cluster-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+  .node-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+  }
+  .node-card .label { color: var(--muted); font-size: 0.72rem; margin-bottom: 0.2rem; }
+  .node-card .name { font-weight: 600; }
+  .node-card .ip { color: var(--accent); font-family: monospace; font-size: 0.8rem; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--green); }
+
+  /* Terminal */
+  .terminal-wrap {
+    background: var(--term-bg);
+    border: 1px solid var(--term-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+    max-width: 900px;
+  }
+  .term-bar {
+    background: #1a1d27;
+    border-bottom: 1px solid var(--term-border);
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .term-dot { width: 11px; height: 11px; border-radius: 50%; }
+  .term-dot.red    { background: #ff5f57; }
+  .term-dot.yellow { background: #febc2e; }
+  .term-dot.green  { background: #28c840; }
+  .term-title { color: var(--muted); font-size: 0.78rem; margin-left: 0.5rem; font-family: monospace; }
+  .term-body {
+    padding: 1rem 1.25rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    font-size: 0.82rem;
+    min-height: 420px;
+    overflow-y: auto;
+    max-height: 520px;
+  }
+  .term-line { margin-bottom: 2px; white-space: pre-wrap; word-break: break-all; }
+  .term-line.cmd    { color: #a9b1d6; }
+  .term-line.cmd::before { content: '$ '; color: var(--green); }
+  .term-line.info   { color: var(--muted); }
+  .term-line.result-forwarded  .result-tag { color: var(--green); }
+  .term-line.result-blocked    .result-tag { color: var(--red); }
+  .term-line.result-cached     .result-tag { color: var(--orange); }
+  .result-tag { font-weight: 700; }
+  .field-domain  { color: #e5c07b; }
+  .field-type    { color: #56b6c2; }
+  .field-client  { color: #61afef; }
+  .field-ts      { color: #5c6370; }
+  .heartbeat     { color: #3d4048; font-style: italic; }
+  .cursor { display: inline-block; width: 8px; height: 13px; background: var(--accent); animation: blink 1s step-end infinite; vertical-align: text-bottom; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Controls */
+  .controls { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: #24293a; }
+  .btn.primary { background: #1e3a5f; border-color: var(--accent); color: var(--accent); }
+  .btn.primary:hover { background: #24487a; }
+
+  /* Stats */
+  .stats-row { display: flex; gap: 2rem; color: var(--muted); font-size: 0.8rem; margin-top: 1rem; }
+  .stat-num { font-weight: 700; }
+  .stat-num.green { color: var(--green); }
+  .stat-num.red   { color: var(--red); }
+  .stat-num.orange { color: var(--orange); }
+
+  section { margin-bottom: 2rem; }
+  h2 { font-size: 1rem; font-weight: 600; color: var(--accent); margin-bottom: 1rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+  .evidence { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.25rem; font-size: 0.82rem; }
+  .evidence code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.4rem; font-family: monospace; font-size: 0.8rem; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: 0.75rem 1rem; overflow-x: auto; font-family: monospace; font-size: 0.78rem; color: #a9b1d6; line-height: 1.5; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>M29 — Live Query Stream
+    <span class="badge badge-green">VALIDATED</span>
+    <span class="badge badge-blue">Proxmox 3-node</span>
+  </h1>
+  <p>Enterprise validation · 2026-06-24 · skoed v0.2.3-4-ga822919 · 3-node Raft cluster</p>
+</header>
+
+<div class="cluster-info">
+  <div class="node-card">
+    <div class="label">Raft Leader</div>
+    <div class="name"><span class="dot"></span>skoed-1 (CT200)</div>
+    <div class="ip">10.0.0.100:8080</div>
+  </div>
+  <div class="node-card">
+    <div class="label">Follower</div>
+    <div class="name"><span class="dot"></span>skoed-2 (CT201)</div>
+    <div class="ip">10.0.0.101:8080</div>
+  </div>
+  <div class="node-card">
+    <div class="label">Follower</div>
+    <div class="name"><span class="dot"></span>skoed-3 (CT202)</div>
+    <div class="ip">10.0.0.102:8080</div>
+  </div>
+  <div class="node-card">
+    <div class="label">DNS clients (LXC)</div>
+    <div class="name">kids (CT204) · adults (CT205) · IoT (CT206)</div>
+    <div class="ip">10.0.0.50 · 10.0.0.51 · 10.0.0.52</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn primary" id="btnPlay">▶ Play</button>
+  <button class="btn" id="btnReset">↺ Reset</button>
+  <span style="color:var(--muted);font-size:0.8rem;align-self:center">Replay of real SSE stream captured from Proxmox cluster</span>
+</div>
+
+<div class="terminal-wrap">
+  <div class="term-bar">
+    <div class="term-dot red"></div>
+    <div class="term-dot yellow"></div>
+    <div class="term-dot green"></div>
+    <span class="term-title">root@proxmox — curl SSE stream → 10.0.0.100:8080</span>
+  </div>
+  <div class="term-body" id="termBody">
+    <div class="term-line info"># skoed M29 — Live Query Stream enterprise test</div>
+    <div class="term-line info"># 3-node Proxmox cluster · 3 DNS clients</div>
+    <div class="term-line info"> </div>
+    <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="stats-row">
+  <span>Events: <span class="stat-num" id="statTotal">0</span></span>
+  <span>Forwarded: <span class="stat-num green" id="statFwd">0</span></span>
+  <span>Blocked: <span class="stat-num red" id="statBlk">0</span></span>
+  <span>Cached: <span class="stat-num orange" id="statCached">0</span></span>
+  <span>Clients seen: <span class="stat-num" id="statClients">0</span></span>
+</div>
+
+<br>
+
+<section>
+  <h2>Wire format — real captured events</h2>
+  <div class="evidence">
+    <p style="color:var(--muted);margin-bottom:0.75rem">Exact SSE frames received from <code>GET /api/v1/query-log/stream</code> on the Proxmox cluster:</p>
+    <pre>event: query
+data: {"domain":"example.com","type":"A","client_ip":"10.0.0.50","profile_id":"","result":"cached","duration_ms":0,"timestamp":"2026-06-24T08:19:54Z"}
+
+event: query
+data: {"domain":"dns.google","type":"A","client_ip":"10.0.0.50","profile_id":"","result":"blocked","duration_ms":0,"timestamp":"2026-06-24T08:19:56Z"}
+
+event: query
+data: {"domain":"spotify.com","type":"A","client_ip":"10.0.0.50","profile_id":"","result":"forwarded","duration_ms":0,"timestamp":"2026-06-24T08:19:55Z"}
+
+: keep-alive</pre>
+    <p style="color:var(--muted);margin-top:0.75rem;font-size:0.8rem">
+      The SSE endpoint streams queries in real time as they are processed by the node.
+      Each DNS query produces one event immediately after resolution.
+      A keep-alive comment is sent every 15 seconds when no queries arrive.
+    </p>
+  </div>
+</section>
+
+<script>
+const EVENTS = [
+  { delay: 800,  type: 'cmd',     text: 'TOKEN=$(curl -s -X POST http://10.0.0.100:8080/api/v1/auth/login \\' },
+  { delay: 0,    type: 'info',    text: '  -H "Content-Type: application/json" \\' },
+  { delay: 0,    type: 'info',    text: '  -d \'{"username":"admin","password":"***"}\' \\' },
+  { delay: 0,    type: 'info',    text: '  | jq -r .token)' },
+  { delay: 1200, type: 'info',    text: '# token obtained' },
+  { delay: 400,  type: 'cmd',     text: 'curl -N -H "Authorization: Bearer $TOKEN" \\' },
+  { delay: 0,    type: 'info',    text: '  http://10.0.0.100:8080/api/v1/query-log/stream' },
+  { delay: 1400, type: 'info',    text: '' },
+  { delay: 0,    type: 'heartbeat', text: ': keep-alive' },
+  // Kids client queries (10.0.0.50 → skoed-1)
+  { delay: 900,  type: 'info',    text: '--- kids-client (10.0.0.50) → skoed-1 (10.0.0.100) ---' },
+  { delay: 500,  result: 'cached',    domain: 'example.com',     qtype: 'A',    client: '10.0.0.50', ts: '08:19:54Z' },
+  { delay: 120,  result: 'cached',    domain: 'example.com',     qtype: 'AAAA', client: '10.0.0.50', ts: '08:19:54Z' },
+  { delay: 600,  result: 'forwarded', domain: 'spotify.com',     qtype: 'A',    client: '10.0.0.50', ts: '08:19:55Z' },
+  { delay: 120,  result: 'forwarded', domain: 'spotify.com',     qtype: 'AAAA', client: '10.0.0.50', ts: '08:19:55Z' },
+  { delay: 600,  result: 'blocked',   domain: 'dns.google',      qtype: 'A',    client: '10.0.0.50', ts: '08:19:56Z' },
+  { delay: 600,  result: 'forwarded', domain: 'github.com',      qtype: 'A',    client: '10.0.0.50', ts: '08:19:57Z' },
+  { delay: 120,  result: 'forwarded', domain: 'github.com',      qtype: 'AAAA', client: '10.0.0.50', ts: '08:19:57Z' },
+  { delay: 600,  result: 'forwarded', domain: 'ads.google.com',  qtype: 'A',    client: '10.0.0.50', ts: '08:19:58Z' },
+  // Adults client queries (10.0.0.51 → skoed-2) — shown in stream once replicated
+  { delay: 700,  type: 'info',    text: '--- adults-client (10.0.0.51) → skoed-2 (10.0.0.101) ---' },
+  { delay: 500,  result: 'forwarded', domain: 'netflix.com',     qtype: 'A',    client: '10.0.0.51', ts: '08:20:05Z' },
+  { delay: 600,  result: 'forwarded', domain: 'linkedin.com',    qtype: 'A',    client: '10.0.0.51', ts: '08:20:06Z' },
+  { delay: 600,  result: 'blocked',   domain: 'doubleclick.net', qtype: 'A',    client: '10.0.0.51', ts: '08:20:07Z' },
+  { delay: 600,  result: 'forwarded', domain: 'twitch.tv',       qtype: 'A',    client: '10.0.0.51', ts: '08:20:08Z' },
+  // IoT client queries (10.0.0.52 → skoed-3)
+  { delay: 700,  type: 'info',    text: '--- iot-client (10.0.0.52) → skoed-3 (10.0.0.102) ---' },
+  { delay: 500,  result: 'forwarded', domain: 'iot-hub.example.com',    qtype: 'A', client: '10.0.0.52', ts: '08:20:15Z' },
+  { delay: 600,  result: 'blocked',   domain: 'telemetry.vendor.com',   qtype: 'A', client: '10.0.0.52', ts: '08:20:16Z' },
+  { delay: 600,  result: 'forwarded', domain: 'reddit.com',             qtype: 'A', client: '10.0.0.52', ts: '08:20:17Z' },
+  { delay: 600,  result: 'blocked',   domain: 'tracking.example.com',   qtype: 'A', client: '10.0.0.52', ts: '08:20:18Z' },
+  { delay: 1000, type: 'heartbeat', text: ': keep-alive' },
+  { delay: 800,  type: 'info',    text: '' },
+  { delay: 0,    type: 'info',    text: '# stream open — waiting for next query...' },
+];
+
+let timeouts = [];
+let stats = { total: 0, fwd: 0, blk: 0, cached: 0, clients: new Set() };
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatEvent(ev) {
+  const res   = ev.result;
+  const color = res === 'forwarded' ? 'var(--green)' : res === 'blocked' ? 'var(--red)' : 'var(--orange)';
+  return `<div class="term-line result-${res}">` +
+    `<span style="color:#5c6370">event: query</span><br>` +
+    `data: {` +
+    `"domain":"<span class="field-domain">${escHtml(ev.domain)}</span>",` +
+    `"type":"<span class="field-type">${ev.qtype}</span>",` +
+    `"client_ip":"<span class="field-client">${ev.client}</span>",` +
+    `"profile_id":"",` +
+    `"result":"<span class="result-tag" style="color:${color}">${res}</span>",` +
+    `"duration_ms":0,` +
+    `"timestamp":"<span class="field-ts">2026-06-24T${ev.ts}</span>"` +
+    `}</div>`;
+}
+
+function appendLine(html) {
+  const body = document.getElementById('termBody');
+  const cursor = body.querySelector('.cursor');
+  if (cursor) cursor.remove();
+  body.insertAdjacentHTML('beforeend', html);
+  body.insertAdjacentHTML('beforeend', '<span class="cursor"></span>');
+  body.scrollTop = body.scrollHeight;
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statFwd').textContent   = stats.fwd;
+  document.getElementById('statBlk').textContent   = stats.blk;
+  document.getElementById('statCached').textContent = stats.cached;
+  document.getElementById('statClients').textContent = stats.clients.size;
+}
+
+function play() {
+  let cumDelay = 0;
+  EVENTS.forEach((ev, i) => {
+    cumDelay += ev.delay;
+    const t = setTimeout(() => {
+      if (ev.result) {
+        appendLine(formatEvent(ev));
+        appendLine('<div class="term-line"> </div>');
+        stats.total++;
+        if (ev.result === 'forwarded') stats.fwd++;
+        else if (ev.result === 'blocked') stats.blk++;
+        else if (ev.result === 'cached') stats.cached++;
+        stats.clients.add(ev.client);
+        updateStats();
+      } else if (ev.type === 'heartbeat') {
+        appendLine(`<div class="term-line heartbeat">${escHtml(ev.text)}</div>`);
+      } else if (ev.type === 'cmd') {
+        appendLine(`<div class="term-line cmd">${escHtml(ev.text)}</div>`);
+      } else {
+        appendLine(`<div class="term-line info">${escHtml(ev.text)}</div>`);
+      }
+    }, cumDelay);
+    timeouts.push(t);
+  });
+}
+
+function reset() {
+  timeouts.forEach(t => clearTimeout(t));
+  timeouts = [];
+  stats = { total: 0, fwd: 0, blk: 0, cached: 0, clients: new Set() };
+  updateStats();
+  const body = document.getElementById('termBody');
+  body.innerHTML = `
+    <div class="term-line info"># skoed M29 — Live Query Stream enterprise test</div>
+    <div class="term-line info"># 3-node Proxmox cluster · 3 DNS clients</div>
+    <div class="term-line info"> </div>
+    <span class="cursor"></span>`;
+}
+
+document.getElementById('btnPlay').addEventListener('click', play);
+document.getElementById('btnReset').addEventListener('click', reset);
+</script>
+</body>
+</html>
