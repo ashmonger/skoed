@@ -248,6 +248,7 @@ async function doDelete() {
     endpoints.value = endpoints.value.filter(e => e.id !== id)
     deleteTarget.value = null
   } catch (e: unknown) {
+    deleteTarget.value = null
     error.value = (e as Error).message ?? 'Failed to delete'
   } finally {
     deleting.value = null

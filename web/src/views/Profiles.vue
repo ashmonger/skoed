@@ -107,7 +107,7 @@
               </td>
             </tr>
             <tr v-if="rowErrors[p.id]">
-              <td colspan="6" class="!py-1 text-xs text-danger">{{ rowErrors[p.id] }}</td>
+              <td colspan="7" class="!py-1 text-xs text-danger">{{ rowErrors[p.id] }}</td>
             </tr>
           </template>
         </tbody>
@@ -564,9 +564,10 @@ async function submitAllowlistAdd() {
     await addProfileAllowlist(original.value.id, domain)
     allowlistEntries.value = await listProfileAllowlist(original.value.id)
     allowlistAddInput.value = ''
-    // Keep the profile list in sync.
+    // Keep the profile list and Settings-tab textarea in sync.
     const idx = profiles.value.findIndex(p => p.id === original.value!.id)
     if (idx >= 0) profiles.value[idx] = { ...profiles.value[idx], allowlist: [...allowlistEntries.value] }
+    form.allowlistText = allowlistEntries.value.join('\n')
   } catch (err) {
     allowlistError.value = errMsg(err, 'Failed to add domain')
   } finally {
@@ -580,10 +581,11 @@ async function deleteAllowlistEntry(entry: string) {
   allowlistDeleting.value = entry
   try {
     await removeProfileAllowlist(original.value.id, entry)
-    allowlistEntries.value = allowlistEntries.value.filter(e => e !== entry)
-    // Keep the profile list in sync.
+    allowlistEntries.value = await listProfileAllowlist(original.value.id)
+    // Keep the profile list and Settings-tab textarea in sync.
     const idx = profiles.value.findIndex(p => p.id === original.value!.id)
     if (idx >= 0) profiles.value[idx] = { ...profiles.value[idx], allowlist: [...allowlistEntries.value] }
+    form.allowlistText = allowlistEntries.value.join('\n')
   } catch (err) {
     allowlistError.value = errMsg(err, 'Failed to remove domain')
   } finally {

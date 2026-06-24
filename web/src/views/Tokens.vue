@@ -307,6 +307,7 @@ async function doDelete() {
     tokens.value = tokens.value.filter(t => t.id !== deleteTarget.value!.id)
     deleteTarget.value = null
   } catch (e: unknown) {
+    deleteTarget.value = null
     error.value = (e as Error).message ?? 'Failed to revoke token'
   } finally {
     deleting.value = false

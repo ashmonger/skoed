@@ -376,3 +376,26 @@ export interface DhcpLease {
   expires_at: string
   origin: string  // "dynamic" | "static"
 }
+
+// ─── M30 — DHCPv6 server ─────────────────────────────────────────────────────
+
+export interface Dhcp6ServerStatus {
+  enabled: boolean
+  is_leader: boolean
+  prefix: string
+  pool_start: string
+  pool_end: string
+  lease_time: number
+  search_domain: string
+  leases_active: number
+  pool_total: number
+}
+
+export interface Dhcp6Lease {
+  address: string
+  duid: string
+  hostname: string
+  profile_id?: string
+  expires_at: string
+  origin: string  // "dhcp6_dynamic" | "dhcp6_static"
+}

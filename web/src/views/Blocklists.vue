@@ -460,7 +460,7 @@ async function resumeFiltering() {
   resumingGlobal.value = true
   try {
     await clearGlobalPause()
-    globalPause.value = { active: false }
+    globalPause.value = await getGlobalPause()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to resume filtering')
   } finally {

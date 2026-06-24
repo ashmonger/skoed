@@ -72,7 +72,7 @@
               <span v-else class="badge-danger">unreachable</span>
             </td>
             <td class="font-mono text-xs text-fg-muted">{{ n.raft_address }}</td>
-            <td class="font-mono text-xs text-fg-muted">{{ n.api_address }}</td>
+            <td class="font-mono text-xs text-fg-muted">{{ nodeApiAddress(n) }}</td>
             <td class="text-right font-mono text-xs">{{ n.commit_index }}</td>
             <td class="text-fg-muted text-xs" :title="formatAbsolute(n.last_contact)">
               {{ formatRelative(n.last_contact) }}
@@ -335,6 +335,12 @@ const joinPayloadText = computed(() => {
 })
 
 // ─── Action gating ───────────────────────────────────────────────────────
+
+function nodeApiAddress(n: ClusterNode): string {
+  const ip = n.raft_address.replace(/:\d+$/, '')
+  const port = n.api_address.replace(/^.*:/, '')
+  return `${ip}:${port}`
+}
 
 function canTransferTo(n: ClusterNode): boolean {
   return n.role === 'follower'
