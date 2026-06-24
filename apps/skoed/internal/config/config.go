@@ -53,12 +53,33 @@ type DHCPServerConfig struct {
 	Domain           string                `yaml:"domain,omitempty"            json:"domain,omitempty"`
 	DNSServer        string                `yaml:"dns_server,omitempty"        json:"dns_server,omitempty"`
 	StaticAssignments []DHCPStaticAssignment `yaml:"static_assignments,omitempty" json:"static_assignments,omitempty"`
+	// M30 — DHCPv6 server config (nested).
+	Server6 DHCPv6ServerConfig `yaml:"server6,omitempty" json:"server6,omitempty"`
 }
 
 // DHCPStaticAssignment pins a MAC address to a fixed IP and optional hostname.
 type DHCPStaticAssignment struct {
 	MAC      string `yaml:"mac"               json:"mac"`
 	IP       string `yaml:"ip"                json:"ip"`
+	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
+}
+
+// DHCPv6ServerConfig is the persisted configuration for the built-in DHCPv6 server.
+// M30 — cluster-wide, replicated via Raft. The leader binds UDP 547.
+type DHCPv6ServerConfig struct {
+	Enabled           bool                    `yaml:"enabled"                      json:"enabled"`
+	Prefix            string                  `yaml:"prefix,omitempty"             json:"prefix,omitempty"`
+	PoolStart         string                  `yaml:"pool_start,omitempty"         json:"pool_start,omitempty"`
+	PoolEnd           string                  `yaml:"pool_end,omitempty"           json:"pool_end,omitempty"`
+	LeaseTime         int                     `yaml:"lease_time,omitempty"         json:"lease_time,omitempty"` // seconds
+	SearchDomain      string                  `yaml:"search_domain,omitempty"      json:"search_domain,omitempty"`
+	StaticAssignments []Dhcp6StaticAssignment `yaml:"static_assignments,omitempty" json:"static_assignments,omitempty"`
+}
+
+// Dhcp6StaticAssignment pins a DUID to a fixed IPv6 address.
+type Dhcp6StaticAssignment struct {
+	DUID     string `yaml:"duid"               json:"duid"`
+	Address  string `yaml:"address"            json:"address"`
 	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
 }
 
@@ -83,6 +104,9 @@ type Profile struct {
 	// Origin is exactly "dhcp_dynamic" matches this profile as part of
 	// the tier-4 (IP/CIDR) union. Not allowed on the "default" profile.
 	BlockDynamicClients bool `yaml:"block_dynamic_clients,omitempty" json:"block_dynamic_clients,omitempty"`
+
+	// M30 (TS-Dhcpv6DuidProfileMatch): DHCPv6 client DUIDs that map to this profile.
+	ClientDUIDs []string `yaml:"client_duids,omitempty" json:"client_duids,omitempty"`
 
 	Pause *PauseState `yaml:"pause,omitempty" json:"pause,omitempty"`
 }

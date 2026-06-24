@@ -46,9 +46,11 @@ func (h *Handler) DhcpServerStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Follower: fetch lease count from the leader so the UI shows accurate utilisation.
 		if _, body, _, err := cl.ForwardWrite(r.Context(), http.MethodGet, "/api/v1/dhcp/leases", nil, r.Header); err == nil {
-			var ls []json.RawMessage
-			if json.Unmarshal(body, &ls) == nil {
-				leasesActive = len(ls)
+			var wrapped struct {
+				Leases []json.RawMessage `json:"leases"`
+			}
+			if json.Unmarshal(body, &wrapped) == nil {
+				leasesActive = len(wrapped.Leases)
 			}
 		}
 	}
@@ -194,14 +196,13 @@ func (h *Handler) DhcpLeases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	srv := h.app.GetDhcpServer()
-	var leases []dhcp.Lease4
+	leases := []dhcp.Lease4{}
 	if srv != nil {
-		leases = srv.ActiveLeases()
+		if active := srv.ActiveLeases(); active != nil {
+			leases = active
+		}
 	}
-	if leases == nil {
-		leases = []dhcp.Lease4{}
-	}
-	writeJSON(w, http.StatusOK, leases)
+	writeJSON(w, http.StatusOK, map[string]any{"leases": leases})
 }
 
 // ─── GET /api/v1/dhcp/static-assignments ─────────────────────────────────────

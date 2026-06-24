@@ -60,6 +60,10 @@ type AppState interface {
 	// the feature is not compiled in.
 	GetDhcpServer() *dhcp.Server
 
+	// GetDhcpServer6 returns the M30 built-in DHCPv6 server, or nil when
+	// the feature is not wired.
+	GetDhcpServer6() *dhcp.Server6
+
 	// GetDNSCache returns the live DNS cache used by the current DNS
 	// handler. Nil when caching is disabled in config.
 	GetDNSCache() *dnsengine.Cache

@@ -67,6 +67,15 @@ const (
 	CmdDhcpServerSettingsSet        CommandKind = "dhcp_server.settings.set"
 	CmdDhcpStaticAssignmentUpsert   CommandKind = "dhcp_server.static.upsert"
 	CmdDhcpStaticAssignmentDelete   CommandKind = "dhcp_server.static.delete"
+	// M30 — DHCPv4 dynamic lease persistence.
+	CmdDhcpServerLeasesUpsert CommandKind = "dhcp_server.leases.upsert"
+	CmdDhcpServerLeaseDelete  CommandKind = "dhcp_server.leases.delete"
+	// M30 — DHCPv6 server settings, static assignments, and lease persistence.
+	CmdDhcp6ServerSettingsSet      CommandKind = "dhcp6_server.settings.set"
+	CmdDhcp6StaticAssignmentUpsert CommandKind = "dhcp6_server.static.upsert"
+	CmdDhcp6StaticAssignmentDelete CommandKind = "dhcp6_server.static.delete"
+	CmdDhcp6ServerLeasesUpsert     CommandKind = "dhcp6_server.leases.upsert"
+	CmdDhcp6ServerLeaseDelete      CommandKind = "dhcp6_server.leases.delete"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -364,4 +373,48 @@ type DhcpStaticAssignmentUpsertPayload struct {
 // DhcpStaticAssignmentDeletePayload removes the assignment for the given MAC.
 type DhcpStaticAssignmentDeletePayload struct {
 	MAC string `json:"mac"`
+}
+
+// ─── M30 payloads ─────────────────────────────────────────────────────────────
+
+// DhcpServerLeaseUpsertPayload persists one DHCPv4 dynamic lease via Raft.
+type DhcpServerLeaseUpsertPayload struct {
+	IP        string `json:"ip"`
+	MAC       string `json:"mac"`
+	Hostname  string `json:"hostname"`
+	ExpiresAt int64  `json:"expires_at"` // Unix seconds
+}
+
+// DhcpServerLeaseDeletePayload removes one DHCPv4 dynamic lease from bbolt.
+type DhcpServerLeaseDeletePayload struct {
+	IP string `json:"ip"`
+}
+
+// Dhcp6ServerSettingsSetPayload carries the full DHCPv6 server configuration.
+type Dhcp6ServerSettingsSetPayload struct {
+	Settings config.DHCPv6ServerConfig `json:"settings"`
+}
+
+// Dhcp6StaticAssignmentUpsertPayload adds or replaces a DHCPv6 static DUID→address entry.
+type Dhcp6StaticAssignmentUpsertPayload struct {
+	Assignment config.Dhcp6StaticAssignment `json:"assignment"`
+}
+
+// Dhcp6StaticAssignmentDeletePayload removes the DHCPv6 static assignment for a DUID.
+type Dhcp6StaticAssignmentDeletePayload struct {
+	DUID string `json:"duid"`
+}
+
+// Dhcp6ServerLeaseUpsertPayload persists one DHCPv6 dynamic lease via Raft.
+type Dhcp6ServerLeaseUpsertPayload struct {
+	Address   string `json:"address"`
+	DUID      string `json:"duid"`
+	Hostname  string `json:"hostname"`
+	ProfileID string `json:"profile_id,omitempty"`
+	ExpiresAt int64  `json:"expires_at"` // Unix seconds
+}
+
+// Dhcp6ServerLeaseDeletePayload removes one DHCPv6 dynamic lease from bbolt.
+type Dhcp6ServerLeaseDeletePayload struct {
+	Address string `json:"address"`
 }

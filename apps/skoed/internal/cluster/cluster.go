@@ -1259,3 +1259,76 @@ func (c *Cluster) DeleteDhcpStaticAssignment(mac string) error {
 func (c *Cluster) GetDhcpStaticAssignments() ([]config.DHCPStaticAssignment, error) {
 	return c.store.DhcpStaticAssignments()
 }
+
+// ─── M30 — DHCPv4 dynamic lease persistence ──────────────────────────────────
+
+// PersistDhcpLease replicates one DHCPv4 dynamic lease via Raft.
+func (c *Cluster) PersistDhcpLease(ip, mac, hostname string, expiresAt int64) error {
+	return c.applyAsLeader(CmdDhcpServerLeasesUpsert, DhcpServerLeaseUpsertPayload{
+		IP: ip, MAC: mac, Hostname: hostname, ExpiresAt: expiresAt,
+	}, 0)
+}
+
+// DeleteDhcpLease removes one DHCPv4 dynamic lease via Raft.
+func (c *Cluster) DeleteDhcpLease(ip string) error {
+	return c.applyAsLeader(CmdDhcpServerLeaseDelete, DhcpServerLeaseDeletePayload{IP: ip}, 0)
+}
+
+// GetDhcpLeases returns all non-expired persisted DHCPv4 dynamic leases.
+func (c *Cluster) GetDhcpLeases() ([]DhcpServerLeaseUpsertPayload, error) {
+	return c.store.DhcpServerLeases()
+}
+
+// ─── M30 — DHCPv6 server ─────────────────────────────────────────────────────
+
+// SetDhcp6ServerSettings replicates DHCPv6 settings via Raft.
+func (c *Cluster) SetDhcp6ServerSettings(s config.DHCPv6ServerConfig) error {
+	s.StaticAssignments = nil // managed separately
+	return c.applyAsLeader(CmdDhcp6ServerSettingsSet, Dhcp6ServerSettingsSetPayload{Settings: s}, 0)
+}
+
+// GetDhcp6ServerSettings returns the current DHCPv6 settings from bbolt.
+func (c *Cluster) GetDhcp6ServerSettings() (config.DHCPv6ServerConfig, error) {
+	cfg, err := c.store.Dhcp6ServerSettings()
+	if err != nil {
+		return cfg, err
+	}
+	statics, err := c.store.Dhcp6StaticAssignments()
+	if err != nil {
+		return cfg, err
+	}
+	cfg.StaticAssignments = statics
+	return cfg, nil
+}
+
+// UpsertDhcp6StaticAssignment adds or replaces a DHCPv6 static DUID→address entry.
+func (c *Cluster) UpsertDhcp6StaticAssignment(a config.Dhcp6StaticAssignment) error {
+	return c.applyAsLeader(CmdDhcp6StaticAssignmentUpsert, Dhcp6StaticAssignmentUpsertPayload{Assignment: a}, 0)
+}
+
+// DeleteDhcp6StaticAssignment removes the DHCPv6 static entry for the given DUID.
+func (c *Cluster) DeleteDhcp6StaticAssignment(duid string) error {
+	return c.applyAsLeader(CmdDhcp6StaticAssignmentDelete, Dhcp6StaticAssignmentDeletePayload{DUID: duid}, 0)
+}
+
+// GetDhcp6StaticAssignments returns all static DUID→address assignments.
+func (c *Cluster) GetDhcp6StaticAssignments() ([]config.Dhcp6StaticAssignment, error) {
+	return c.store.Dhcp6StaticAssignments()
+}
+
+// PersistDhcp6Lease replicates one DHCPv6 dynamic lease via Raft.
+func (c *Cluster) PersistDhcp6Lease(address, duid, hostname, profileID string, expiresAt int64) error {
+	return c.applyAsLeader(CmdDhcp6ServerLeasesUpsert, Dhcp6ServerLeaseUpsertPayload{
+		Address: address, DUID: duid, Hostname: hostname, ProfileID: profileID, ExpiresAt: expiresAt,
+	}, 0)
+}
+
+// DeleteDhcp6Lease removes one DHCPv6 dynamic lease via Raft.
+func (c *Cluster) DeleteDhcp6Lease(address string) error {
+	return c.applyAsLeader(CmdDhcp6ServerLeaseDelete, Dhcp6ServerLeaseDeletePayload{Address: address}, 0)
+}
+
+// GetDhcp6Leases returns all non-expired persisted DHCPv6 dynamic leases.
+func (c *Cluster) GetDhcp6Leases() ([]Dhcp6ServerLeaseUpsertPayload, error) {
+	return c.store.Dhcp6ServerLeases()
+}
