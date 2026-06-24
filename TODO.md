@@ -74,6 +74,19 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M30 | Cluster-wide Live Query Stream | ⬜ | — | — | — | — |
 | M31 | Query Log Stream Enhancements (Backfill + WebSocket) | ⬜ | — | — | — | — |
 | M32 | DNSSEC Detail on Query Stream | ⬜ | — | — | — | — |
+| M33 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
+| M34 | Block Page Enhancements | ⬜ | — | — | — | — |
+| M35 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
+| M36 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
+| M37 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
+| M38 | Backup Hardening | ⬜ | — | — | — | — |
+| M39 | Webhook Reliability | ⬜ | — | — | — | — |
+| M40 | Certificate Management | ⬜ | — | — | — | — |
+| M41 | API Token Enhancements | ⬜ | — | — | — | — |
+| M42 | DHCP Persistence + DHCPv6 | ⬜ | — | — | — | — |
+| M43 | Per-Profile DNSSEC Policy | ⬜ | — | — | — | — |
+| M44 | High-Cardinality Metrics | ⬜ | — | — | — | — |
+| M45 | Upgrade Experience | ⬜ | — | — | — | — |
 
 ## M12 tasks
 

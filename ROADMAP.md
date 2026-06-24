@@ -1295,6 +1295,263 @@ Node certificate rotation:
 
 ---
 
+### Milestone 33 — Per-Domain Upstream Routing
+
+**Outcome**: Operators can route specific domains or domain patterns to dedicated upstream resolvers — e.g., send all `*.corp.internal` queries to an on-premises resolver while all other queries go to the default upstream list. Eliminates the need for a split-horizon DNS server alongside skoed.
+
+**Capabilities:**
+- New `upstream_routes` config section: a list of `{match: "*.corp.internal", resolvers: ["10.1.0.1:53"]}` rules evaluated top-down before the global upstream list.
+- Match syntax: exact domain, `*.suffix` wildcard, or CIDR (for reverse-DNS PTR queries).
+- Routes are Raft-replicated cluster config; managed via `PATCH /api/v1/settings` and the Web UI settings page.
+- Automatic upstream discovery: on startup (and on demand via `POST /api/v1/settings/discover-upstreams`), read system resolver from `/etc/resolv.conf` and offer it as a suggested upstream. Never applied automatically without operator confirmation.
+- DoT/DoH upstream connection pooling: reuse TLS connections across queries to the same upstream (new TLS conn per query today). Pool size configurable; default 4 per upstream.
+- DNS-over-QUIC (DoQ) upstream support: `doq://` scheme in the upstream list. QUIC eliminates head-of-line blocking; useful when DoT latency is high.
+
+**Non-goals:**
+- Policy-based routing by client IP (use profiles + per-profile upstreams instead)
+- Automatic failover within a route's resolver list (global failover behavior is unchanged)
+- GUI route ordering / drag-and-drop (text config + API only for now)
+
+**Dependencies:** M24 Encrypted DNS Upstream (DoT/DoH upstream already works; M33 layers routing on top).
+
+---
+
+### Milestone 34 — Block Page Enhancements
+
+**Outcome**: The block page is operationally useful rather than just informational — operators can brand it per profile, users on managed networks can request a temporary bypass, and IPv6 clients see a consistent redirect instead of a SERVFAIL.
+
+**Capabilities:**
+- **Per-profile block page content**: each profile can override `title`, `message`, `contact_email`, and the logo URL independently. Global defaults remain the fallback.
+- **IPv6 redirect**: when redirect mode is active, AAAA queries for blocked domains return the skoed IPv6 management address (configurable `redirect_address_v6`) instead of SERVFAIL.
+- **"Allow for N minutes" bypass workflow**: the block page presents a button that posts a time-bounded allowlist entry for the requesting client's IP. Duration presets: 5 min, 30 min, 2 h. Requires a valid operator passcode (separate from admin password; configurable per profile). The passcode is shown in the profile settings UI.
+- **HTTPS for the block page**: optional TLS on the redirect HTTP server (port 8053 today) using the same ACME certificate as the management API. Eliminates browser "Not Secure" warnings on modern browsers that downgrade mixed content.
+- **Custom HTML template**: operators can supply a full Jinja2-style HTML template (uploaded via API) that receives the same `{{ .Domain }}`, `{{ .Profile }}`, `{{ .Joke }}` variables as the built-in template.
+
+**Non-goals:**
+- Rich media block pages (video, iframe) — plain HTML only
+- Per-domain different block page — per-profile is the granularity
+- Rate-limiting the bypass button (operator configures the passcode to control who can use it)
+
+**Dependencies:** M26 Custom Block Page (the redirect server and template engine exist; M34 extends them); M27 Per-Profile Allowlists (bypass creates a time-bounded allowlist entry).
+
+---
+
+### Milestone 35 — Allowlist Scheduling + Per-Entry Metadata
+
+**Outcome**: Operators can set allowlist entries that expire automatically, are visible only during specific hours, or carry notes for auditing — matching the time-based capabilities already available for blocklists.
+
+**Capabilities:**
+- **Per-entry expiry**: optional `expires_at` (RFC 3339 timestamp) on each allowlist entry. Expired entries are filtered out at query time; a background job prunes them from storage daily.
+- **Per-entry notes**: optional `note` string (max 256 chars) stored with each entry. Surfaced in the Web UI allowlist table and the `GET /api/v1/profiles/{id}/allowlist` response.
+- **Time-gated entries**: optional `schedule` field referencing a schedule binding ID (M17). The entry is only active during the schedule's active windows. Allows "allow YouTube on weekends only" without manual add/remove.
+- **Cross-profile allowlist sharing**: a new `shared_allowlists` resource — a named list of domains managed independently and linked to one or more profiles. Changes to the shared list propagate instantly to all linked profiles.
+- **Bulk import**: `POST /api/v1/profiles/{id}/allowlist/import` accepts a newline-delimited domain list body (same format as blocklist inline content). Returns a count of entries added.
+
+**Non-goals:**
+- Per-entry different block policies (allowlist means allow, full stop)
+- Time-gated entries based on client IP (profile-level granularity only)
+
+**Dependencies:** M27 Per-Profile Allowlists (foundation); M17 Schedule Bindings (for time-gated entries).
+
+---
+
+### Milestone 36 — Schedule Binding Web UI + Bulk Operations
+
+**Outcome**: Operators can manage schedule bindings entirely from the Web UI without touching the API directly, and can apply a schedule to multiple profile–blocklist pairs in a single action.
+
+**Capabilities:**
+- **Schedule binding list page**: table of all bindings with columns for profile, blocklist, schedule name, active-window summary, and next-trigger time. Sortable. Links to profile and blocklist detail.
+- **Drag-and-drop time-window editor**: visual weekly grid (7 × 24 h). Operators drag to create windows; click to delete. Generates the underlying `windows` YAML. Replaces the current text-field input.
+- **Bulk-bind**: multi-select checkboxes on the blocklist list page; "Apply schedule" action opens a dialog to pick a profile and schedule and creates N bindings in one `POST`.
+- **Overlap / conflict validation**: when creating a binding, the API and UI warn if another binding for the same (profile, blocklist) pair already exists. For time windows: warn when two windows overlap within the same schedule.
+- **Schedule template library**: built-in named presets — "Weekdays school hours", "Weekends all-day", "Bedtime" — selectable as starting points in the editor.
+
+**Non-goals:**
+- Per-client or per-device schedule granularity (profile-level only)
+- Calendar-based one-off overrides (scheduled windows repeat weekly)
+- Mobile-optimised touch editor (desktop browser only for M36)
+
+**Dependencies:** M17 Schedule Bindings (the binding data model and API exist; M36 is a pure UI layer).
+
+---
+
+### Milestone 37 — Filtering Pause Enhancements
+
+**Outcome**: Operators and trusted users can pause filtering at finer granularity (per client IP, not just per profile), receive a notification when a pause expires, and manage pauses from the Web UI without using the API directly.
+
+**Capabilities:**
+- **Per-client pause**: `POST /api/v1/profiles/{id}/pause` gains an optional `client_ips: ["10.0.0.50"]` array. When set, filtering is suspended only for those IPs within the profile; other profile members remain filtered. Pause status shown per-IP on the client list.
+- **Pause management UI**: the profile detail page gains a "Pause" button that opens a duration picker (5 min / 30 min / 2 h / custom). Active pauses show a countdown badge. "Resume now" cancels the pause immediately.
+- **Dashboard alert for new dynamic clients**: a dismissible banner appears in the dashboard when a new DHCP client is seen for the first time (i.e., its MAC or client-id is not in any static assignment). The alert links to the DHCP client list so the operator can assign a profile.
+- **Pause-expiry webhook event**: M22 webhook infrastructure gains a new `filter.pause_expired` event type, emitted when a pause deadline is reached. Payload: `{profile_id, client_ips, expired_at}`.
+- **Pause history**: `GET /api/v1/profiles/{id}/pause/history` returns the last 50 pause events (start, end, triggered_by, scope) as an audit trail.
+
+**Non-goals:**
+- Per-domain pause (block a specific domain temporarily while keeping the rest active) — use the allowlist with an expiry (M35) instead
+- Auto-scheduled recurring pauses — use schedule bindings (M17/M36)
+- Pause propagation across cluster nodes without Raft — pauses are Raft-committed and consistent across nodes
+
+**Dependencies:** M13 Filtering Pause (the pause model and API exist); M22 Webhooks (for pause-expiry event); M35 Per-Entry Expiry (the bypass-from-block-page also creates timed allow entries, but per-client pause is distinct).
+
+---
+
+### Milestone 38 — Backup Hardening
+
+**Outcome**: Configuration backups are encrypted at rest, can be created on a schedule without manual intervention, and two backup archives can be diffed before a potentially destructive import.
+
+**Capabilities:**
+- **Backup encryption**: `POST /api/v1/config/export` gains an optional `passphrase` body field. When set, the tar.gz archive is symmetrically encrypted with AES-256-GCM before download (format: age-encrypted). Import automatically detects the encrypted header and prompts for the passphrase.
+- **Scheduled auto-backup**: new `backup` config section with `enabled`, `interval_hours` (default 24), and `retain_count` (default 7). Backups are stored in `$data_dir/backups/` on the leader node and replicated to followers via Raft log snapshots. `GET /api/v1/config/backups` lists stored backups; `GET /api/v1/config/backups/{id}/download` retrieves one.
+- **Backup diff**: `POST /api/v1/config/diff` accepts two backup archive bodies (multipart) and returns a structured JSON diff — added/removed/changed blocklists, allowlist entries, local DNS records, and settings. Useful to review what an import will change before committing.
+- **Remote backup target** (stretch): optional `backup.remote` config with `type: s3` (or `sftp`) and credentials. On each scheduled backup, the archive is uploaded to the remote target in addition to local storage.
+
+**Non-goals:**
+- Database-level incremental backups (config volume is small enough for full snapshots)
+- Backup monitoring / alerting when a backup fails (use M22 webhooks with a `backup.failed` event type — added as a new event)
+- Restoring from backup without downtime (import always requires a service restart)
+
+**Dependencies:** M12 Config Backup/Restore (the export/import endpoints exist; M38 extends them).
+
+---
+
+### Milestone 39 — Webhook Reliability
+
+**Outcome**: Webhook deliveries are durable — failures are logged and retried with backoff, signing keys can be rotated per-endpoint without downtime, and operators can see delivery history in the Web UI.
+
+**Capabilities:**
+- **Dead-letter queue**: failed deliveries (non-2xx response or connection timeout after the 3-retry window) are written to a per-endpoint dead-letter table in the Raft log (max 1 000 entries per endpoint). `GET /api/v1/webhooks/{id}/dead-letter` lists them; `POST /api/v1/webhooks/{id}/dead-letter/replay` requeues all entries for immediate delivery.
+- **Per-endpoint signing key rotation**: `POST /api/v1/webhooks/{id}/rotate-secret` generates a new HMAC-SHA256 signing secret and returns it. For a 5-minute overlap window, deliveries are signed with both the old and new key so operators can update their receiver without a gap. After the window, the old key is discarded.
+- **Delivery history UI**: each webhook endpoint detail page shows the last 50 delivery attempts — timestamp, event type, HTTP status, and duration. Failures are highlighted in red with a "Replay" button.
+- **Cluster fan-out deduplication**: the Raft leader is the sole delivery agent. Followers that observe a webhook-triggering event write a Raft entry; the leader deduplicates entries with the same `(event_type, node_id, timestamp_ms)` key within a 500 ms window before dispatching. Eliminates duplicate deliveries during leader re-elections.
+- **Delivery ordering**: deliveries to a single endpoint are serialised (one in-flight at a time per endpoint). A slow endpoint cannot block deliveries to other endpoints.
+
+**Non-goals:**
+- Email or SMS delivery (webhook + external service like ntfy.sh covers this)
+- Guaranteed exactly-once delivery (at-least-once with dedup is the target)
+- Multi-endpoint fan-out ordering guarantees across endpoints
+
+**Dependencies:** M22 Webhooks (the webhook data model, HMAC signing, and 3-retry logic exist; M39 hardens them); M20 Cluster Security (inter-node Raft log is the delivery bus).
+
+---
+
+### Milestone 40 — Certificate Management
+
+**Outcome**: TLS certificates for the management API and cluster mesh renew automatically without operator intervention, and certificate status is visible and actionable from the Web UI.
+
+**Capabilities:**
+- **ACME auto-renewal**: a background job checks the management API certificate expiry every 12 hours. When fewer than 30 days remain, it initiates an ACME HTTP-01 or DNS-01 challenge renewal using the existing `POST /api/v1/tls/acme` flow. Configurable: `tls.auto_renew: true` (default false to avoid breaking existing deployments).
+- **Certificate status UI**: the Settings page gains a "TLS Certificates" section showing current cert expiry dates (management API cert, cluster mesh CA, per-node certs), days until expiry, and a "Rotate now" button for each.
+- **Per-node cert rotation**: `POST /api/v1/cluster/nodes/{id}/rotate-cert` triggers cert rotation on a single node without touching the other nodes. Today rotation is cluster-wide and requires all nodes to restart.
+- **CRL / OCSP stapling**: the management API HTTPS server staples the OCSP response in the TLS handshake, eliminating client-side OCSP round trips. Configurable: `tls.ocsp_stapling: true`. CRL distribution point (CDP) is embedded in self-signed cluster certs.
+- **ACME DNS-01 challenge provider**: optional config `tls.acme.dns_provider` (cloudflare, route53, digitalocean) with API credentials. Enables wildcard certificates and avoids needing port 80.
+
+**Non-goals:**
+- HSM / TPM key storage (out of scope; key material stays on disk)
+- Multi-domain SAN certificates beyond the node's hostname and IP
+- Client certificate authentication on the management API (mTLS on the cluster mesh is already M5.3; the management API remains Bearer-token-only)
+
+**Dependencies:** M4.6 HTTPS Management API; M5.3 Encrypted Cluster Mesh; M20 Cluster Security Hardening (cert rotation primitives exist).
+
+---
+
+### Milestone 41 — API Token Enhancements
+
+**Outcome**: API tokens are safer in automated pipelines — they expire, are bound to a source IP, and carry a last-used timestamp so stale tokens can be identified and revoked.
+
+**Capabilities:**
+- **Token TTL / expiry**: `POST /api/v1/auth/tokens` gains an optional `expires_in_seconds` field. Expired tokens return 401 and are pruned nightly. Permanent tokens remain the default (omit the field).
+- **`last_used_at` tracking**: each token carries a `last_used_at` timestamp (updated at most once per minute to avoid write amplification). Surfaced in `GET /api/v1/auth/tokens` so operators can identify tokens that have not been used in 90+ days.
+- **Per-IP / per-CIDR token binding**: optional `allowed_cidrs: ["10.0.0.0/24"]` field on a token. Requests from outside the bound CIDRs receive 403 (not 401 — to avoid leaking that the token exists). Useful for locking down automation tokens to a specific host.
+- **Per-connection rate limiting**: per-token request rate limiter — configurable `rate_limit_per_minute` (default unlimited). Enforced in the auth middleware; excess requests receive 429 with a `Retry-After` header.
+- **Token audit events in audit log**: token creation, revocation, and auth failures are written to the M5.2 audit log with the source IP.
+
+**Non-goals:**
+- OAuth2 / OIDC / SAML (out of scope for self-hosted single-org deployment)
+- Token-for-Web-UI-login (the web session still uses username + password; tokens are for scripts)
+- Per-endpoint scope beyond the existing read/write/admin buckets (M20)
+
+**Dependencies:** M7 API Token Authentication; M20 Token Scoping; M5.2 Audit Log.
+
+---
+
+### Milestone 42 — DHCP Persistence + DHCPv6
+
+**Outcome**: DHCP lease state survives a leader restart without clients losing their leases, and the DHCP server handles IPv6 clients (DHCPv6 stateful address assignment).
+
+**Capabilities:**
+- **Lease persistence across leader restart**: the in-memory lease table is snapshotted to the Raft state machine on every lease mutation (ACK, RELEASE, EXPIRY). On restart the leader reloads from the latest snapshot. Clients that reconnect within their lease lifetime get the same IP without renegotiation.
+- **DHCPv6 stateful assignment**: the built-in DHCP server gains a DHCPv6 listener (port 547/udp). Supports IA_NA (non-temporary address) assignment from a configurable `dhcpv6_pool` prefix range. Client identity via DUID. Per-client static DHCPv6 assignments supported alongside IPv4 static assignments.
+- **DHCPv6 DUID as profile match criterion**: `profiles.match` gains a `duid` field. A client identified by its DUID is assigned to the matching profile, independent of MAC.
+- **Bulk import of static assignments**: `POST /api/v1/dhcp/static-assignments/import` accepts a CSV body (`mac,ip,hostname,profile_id`) and creates N assignments atomically. Returns a per-row status report.
+- **Per-client DHCP option overrides UI**: the static assignment detail page gains a "DHCP options" sub-panel where operators can set per-client options (router, NTP server, custom options) from the Web UI. Currently YAML-only.
+
+**Non-goals:**
+- DHCP failover protocol (ISC / Kea cluster failover wire format) — Raft replication already provides HA
+- DHCPv6 prefix delegation (PD) — home/lab deployments don't typically need it
+- ISC `dhcpd` / Kea lease file import — EOL upstream; operators migrate to static assignments
+
+**Dependencies:** M23.5 Built-in DHCP Server Core; M23.6 DHCP Server Web UI; M3.6 DHCP Integration (profile matching infrastructure).
+
+---
+
+### Milestone 43 — Per-Profile DNSSEC Policy
+
+**Outcome**: Operators can enforce strict DNSSEC validation for high-security profiles (e.g., corporate devices) while leaving validation off for profiles where it causes compatibility issues (e.g., IoT), without changing the cluster-wide default.
+
+**Capabilities:**
+- **Per-profile DNSSEC mode**: the profile resource gains a `dnssec_mode` field: `"inherit"` (use cluster default) | `"validate"` | `"transparent"`. The DNS engine selects the resolver path per query based on the client's profile.
+- **DNSSEC UI toggle**: the profile edit modal gains a DNSSEC dropdown (Inherit / Validate / Transparent). The cluster-wide default remains in Settings.
+- **DNSSEC-aware cache**: when validation mode is `"validate"`, the cache stores the validation outcome alongside the RR set. A cached `"bogus"` answer is returned as SERVFAIL without re-querying the upstream. Cache entries are keyed by `(qname, qtype, dnssec_mode)` to avoid serving a validated answer to a non-validating client and vice-versa.
+- **RFC 5011 trust anchor auto-rollover**: a background job periodically fetches the IANA root KSK list (via `https://data.iana.org/root-anchors/root-anchors.xml`) and updates the embedded trust anchor when a new KSK is published. Configurable: `dnssec.auto_rollover: true` (default false). Manual update path remains available.
+
+**Non-goals:**
+- DNSSEC signing of skoed-served local DNS entries (skoed is a recursive resolver, not an authoritative server)
+- Per-domain DNSSEC policy exceptions (e.g., disable validation for a single domain) — use transparent mode at the profile level
+
+**Dependencies:** M21 DNSSEC Validation Mode (the validate/transparent modes exist globally; M43 makes them per-profile); M32 DNSSEC Detail on Stream (complements by surfacing per-query outcomes).
+
+---
+
+### Milestone 44 — High-Cardinality Metrics
+
+**Outcome**: Operators who want per-domain or per-client DNS metrics can opt into a high-cardinality scrape endpoint, with a guard against runaway label sets, and cluster-wide aggregate stats are available at sub-hour granularity for short-lived anomaly detection.
+
+**Capabilities:**
+- **Per-domain metrics (opt-in)**: a new `GET /api/v1/metrics/domains` endpoint (not `/metrics`) returns a Prometheus-format text body with `skoed_domain_queries_total{domain="...",result="..."}` counters for the top-N domains (configurable `metrics.top_domains: 100`, default 100). Separate endpoint to avoid polluting the standard scrape.
+- **Per-client metrics (opt-in)**: similarly `GET /api/v1/metrics/clients` with `skoed_client_queries_total{client_ip="...",profile_id="..."}` for the top-N active clients. Default N=50.
+- **Query latency percentiles**: the standard `/metrics` endpoint gains `skoed_dns_resolution_duration_seconds` as a histogram (buckets: 1 ms, 5 ms, 10 ms, 25 ms, 50 ms, 100 ms, 250 ms, 500 ms, 1 s). Replaces the single-value `skoed_dns_resolution_duration_ms` gauge.
+- **Sub-hour aggregate stats**: `GET /api/v1/query-log/aggregates` gains a `?window=5m` (or `15m`, `1h`) query parameter for short-window summaries. Backed by a sliding ring buffer of per-minute counters (max 1 440 buckets = 24 h at 1-min resolution). Enables short-lived anomaly detection without a full time-series database.
+- **Streaming aggregate push**: `GET /api/v1/query-log/aggregates/stream` — SSE endpoint that emits a summary event every minute (count by result, top 10 domains, block rate). Complement to M29's per-query stream.
+
+**Non-goals:**
+- Built-in Prometheus or Grafana server (operator brings their own)
+- Push-mode Prometheus / Pushgateway integration
+- Per-rule or per-blocklist-entry query counts (too fine-grained; use per-domain metrics instead)
+
+**Dependencies:** M5.1 Prometheus Metrics (the `/metrics` endpoint exists; M44 extends it and adds the opt-in high-cardinality endpoints); M19 Query Log Aggregates (the 1-hour aggregate endpoint exists; M44 adds sub-hour windows and streaming); M29 Live Query Stream (the SSE infrastructure is reused for aggregate streaming).
+
+---
+
+### Milestone 45 — Upgrade Experience
+
+**Outcome**: The binary upgrade path is observable in real time, safe to roll back automatically on failure, and supports release channels so operators can opt into beta builds without manual URL construction.
+
+**Capabilities:**
+- **Upgrade progress via SSE**: `GET /api/v1/cluster/upgrade/stream` — SSE endpoint that emits progress events during a rolling upgrade: `{"node_id":"skoed-2","phase":"downloading","pct":45}`, `{"node_id":"skoed-2","phase":"restarting"}`, `{"node_id":"skoed-2","phase":"healthy","version":"0.2.5"}`. The M18 upgrade progress HTTP-polling endpoint (`GET /api/v1/cluster/upgrade/status`) remains for backwards compatibility.
+- **Automated rollback on failed restart**: if a node fails its `/api/v1/health` check within 30 seconds of restarting with the new binary, the upgrade orchestrator automatically restores the previous binary from the pre-upgrade backup (written to `$data_dir/skoed.prev` by M16's swap step) and restarts the node on the old version. A `cluster.upgrade_rollback` webhook event is emitted.
+- **Release channel selection**: a new `upgrade.channel` config field: `"stable"` (default) | `"beta"` | `"nightly"`. `GET /api/v1/cluster/upgrade/available` returns the latest available version for the configured channel. The channel is exposed in the upgrade UI as a dropdown.
+- **Cosign signature verification**: before the binary swap (M16), `skoed` downloads the `.sig` file from the GitHub release and verifies it against the embedded Cosign public key. If verification fails, the upgrade is aborted and a `cluster.upgrade_signature_invalid` event is emitted. Cosign key is bundled at build time; key rotation requires a new release.
+- **Web UI upgrade panel**: the Cluster page gains an "Upgrade" tab showing the current version, latest available version per channel, release notes excerpt, and a "Start rolling upgrade" button (currently all upgrade operations are API-only).
+
+**Non-goals:**
+- Blue-green node replacement (all nodes are upgraded in-place, one at a time)
+- Canary-style partial rollouts (all nodes run the same version after upgrade)
+- OS-level package upgrade (binary swap only; `apt upgrade skoed` is separate)
+
+**Dependencies:** M16 Binary Swap (the swap and backup mechanism); M18 Rolling Cluster Upgrade (the orchestrator and status polling endpoint); M22 Webhooks (for rollback and signature-failure events).
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.
