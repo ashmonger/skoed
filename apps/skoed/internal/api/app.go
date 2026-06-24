@@ -817,6 +817,7 @@ func (a *App) Router() http.Handler {
 
 		// Query log (per-node read; never forwarded)
 		r.Get("/api/v1/query-log", h.GetQueryLog)
+		r.Get("/api/v1/query-log/stream", h.StreamQueryLog) // M29: SSE live stream
 
 		// Config export/import
 		r.Get("/api/v1/config/export", h.ExportConfig)

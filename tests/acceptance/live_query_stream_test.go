@@ -11,7 +11,6 @@ package acceptance
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -37,15 +36,15 @@ type queryEvent struct {
 // caller is responsible for closing it. Fails immediately if the status is not 200.
 func openStream(t *testing.T, n *Node, params string) io.ReadCloser {
 	t.Helper()
-	url := fmt.Sprintf("http://%s/api/v1/query-log/stream", n.APIAddr)
+	streamURL := n.APIBase + "/api/v1/query-log/stream"
 	if params != "" {
-		url += "?" + params
+		streamURL += "?" + params
 	}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", streamURL, nil)
 	if err != nil {
 		t.Fatalf("openStream: build request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+n.Token)
+	req.Header.Set("Authorization", "Bearer "+n.sessionToken)
 
 	client := &http.Client{Timeout: 0} // no timeout — SSE is long-lived
 	resp, err := client.Do(req)
@@ -65,10 +64,14 @@ func openStream(t *testing.T, n *Node, params string) io.ReadCloser {
 }
 
 // readNextEvent reads SSE lines until a complete "data: …" event is found or
-// the deadline is exceeded. Returns the parsed queryEvent.
-func readNextEvent(t *testing.T, r io.Reader, deadline time.Duration) queryEvent {
+// the deadline is exceeded. Returns the parsed queryEvent and the raw JSON payload.
+func readNextEvent(t *testing.T, r io.Reader, deadline time.Duration) (queryEvent, map[string]any) {
 	t.Helper()
-	ch := make(chan queryEvent, 1)
+	type result struct {
+		ev  queryEvent
+		raw map[string]any
+	}
+	ch := make(chan result, 1)
 	go func() {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
@@ -76,19 +79,21 @@ func readNextEvent(t *testing.T, r io.Reader, deadline time.Duration) queryEvent
 			if strings.HasPrefix(line, "data: ") {
 				payload := strings.TrimPrefix(line, "data: ")
 				var ev queryEvent
+				var raw map[string]any
 				if err := json.Unmarshal([]byte(payload), &ev); err == nil {
-					ch <- ev
+					json.Unmarshal([]byte(payload), &raw) //nolint:errcheck
+					ch <- result{ev, raw}
 					return
 				}
 			}
 		}
 	}()
 	select {
-	case ev := <-ch:
-		return ev
+	case res := <-ch:
+		return res.ev, res.raw
 	case <-time.After(deadline):
 		t.Fatalf("readNextEvent: no event received within %v", deadline)
-		return queryEvent{}
+		return queryEvent{}, nil
 	}
 }
 
@@ -128,7 +133,7 @@ func TestLiveQueryStreamEventShape(t *testing.T) {
 		dnsQuery(t, n.DNSAddr, "example.com", dns.TypeA)
 	}()
 
-	ev := readNextEvent(t, body, 10*time.Second)
+	ev, raw := readNextEvent(t, body, 10*time.Second)
 
 	if ev.Domain == "" {
 		t.Error("event missing domain")
@@ -139,8 +144,9 @@ func TestLiveQueryStreamEventShape(t *testing.T) {
 	if ev.ClientIP == "" {
 		t.Error("event missing client_ip")
 	}
-	if ev.ProfileID == "" {
-		t.Error("event missing profile_id")
+	// profile_id key must be present (may be "" for the default profile).
+	if _, ok := raw["profile_id"]; !ok {
+		t.Error("event JSON missing profile_id key")
 	}
 	if ev.Result == "" {
 		t.Error("event missing result")
@@ -170,7 +176,7 @@ func TestLiveQueryStreamBlockedQuery(t *testing.T) {
 		dnsQuery(t, n.DNSAddr, "ads.blocked.test", dns.TypeA)
 	}()
 
-	ev := readNextEvent(t, body, 10*time.Second)
+	ev, _ := readNextEvent(t, body, 10*time.Second)
 	if ev.Result != "blocked" {
 		t.Fatalf("expected result=blocked, got %q", ev.Result)
 	}
@@ -244,7 +250,7 @@ func TestLiveQueryStreamUnauthenticated(t *testing.T) {
 		UpstreamResolvers: []string{upstream},
 	})
 
-	url := fmt.Sprintf("http://%s/api/v1/query-log/stream", n.APIAddr)
+	url := n.APIBase + "/api/v1/query-log/stream"
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET stream: %v", err)

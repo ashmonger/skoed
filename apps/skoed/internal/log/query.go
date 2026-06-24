@@ -48,10 +48,12 @@ func newEntryID() string {
 // QueryLog is a bounded in-memory ring buffer of DNS query entries.
 // It is safe for concurrent use.
 type QueryLog struct {
-	mu         sync.Mutex
-	entries    []Entry
-	maxEntries int
-	observer   func(Entry) // optional fan-out for cluster aggregator
+	mu          sync.Mutex
+	entries     []Entry
+	maxEntries  int
+	observer    func(Entry)        // optional fan-out for cluster aggregator
+	subscribers map[uint64]chan Entry
+	nextSubID   uint64
 }
 
 // New creates a QueryLog with the given maximum number of entries.
@@ -60,8 +62,9 @@ func New(maxEntries int) *QueryLog {
 		maxEntries = 0
 	}
 	return &QueryLog{
-		entries:    make([]Entry, 0, maxEntries),
-		maxEntries: maxEntries,
+		entries:     make([]Entry, 0, maxEntries),
+		maxEntries:  maxEntries,
+		subscribers: make(map[uint64]chan Entry),
 	}
 }
 
@@ -89,10 +92,44 @@ func (l *QueryLog) Append(e Entry) {
 		l.entries = append(l.entries, e)
 	}
 	obs := l.observer
+	// Snapshot subscriber channels while holding the lock, then send without it.
+	subs := make([]chan Entry, 0, len(l.subscribers))
+	for _, ch := range l.subscribers {
+		subs = append(subs, ch)
+	}
 	l.mu.Unlock()
 	if obs != nil {
 		obs(e)
 	}
+	for _, ch := range subs {
+		select {
+		case ch <- e:
+		default: // slow subscriber: drop rather than block Append
+		}
+	}
+}
+
+// Subscribe registers a new SSE stream subscriber. Returns an id used to
+// Unsubscribe and a channel that receives each appended entry. The channel is
+// buffered; slow consumers may miss entries if they fall behind.
+func (l *QueryLog) Subscribe() (uint64, <-chan Entry) {
+	ch := make(chan Entry, 64)
+	l.mu.Lock()
+	id := l.nextSubID
+	l.nextSubID++
+	l.subscribers[id] = ch
+	l.mu.Unlock()
+	return id, ch
+}
+
+// Unsubscribe removes and closes the subscriber channel registered under id.
+func (l *QueryLog) Unsubscribe(id uint64) {
+	l.mu.Lock()
+	if ch, ok := l.subscribers[id]; ok {
+		delete(l.subscribers, id)
+		close(ch)
+	}
+	l.mu.Unlock()
 }
 
 // Query returns entries matching the optional filters in reverse chronological
