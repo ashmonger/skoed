@@ -41,6 +41,20 @@ type Server struct {
 	// dnsAddr is this node's DNS listen address, used as the default option 6
 	// value when no explicit dns_server is configured.
 	dnsAddr string
+
+	// onUpsert and onDelete are optional callbacks for Raft-persisting lease events.
+	onUpsert func(ip, mac, hostname string, expiresAt int64)
+	onDelete func(ip string)
+}
+
+// SetLeaseCallbacks wires Raft-persistence hooks called on every lease event.
+// Both functions are called with the server's lease lock NOT held.
+func (s *Server) SetLeaseCallbacks(
+	onUpsert func(ip, mac, hostname string, expiresAt int64),
+	onDelete func(ip string),
+) {
+	s.onUpsert = onUpsert
+	s.onDelete = onDelete
 }
 
 type lease4 struct {
@@ -96,6 +110,35 @@ func (s *Server) UpdateConfig(cfg config.DHCPServerConfig) {
 		}
 	}
 	s.leasesMu.Unlock()
+}
+
+// LoadLeases populates the in-memory lease table from persisted Raft state.
+// Called by the leadership-change handler so that a newly elected leader
+// inherits all active leases without re-running a DORA exchange.
+func (s *Server) LoadLeases(leases []Lease4) {
+	s.leasesMu.Lock()
+	defer s.leasesMu.Unlock()
+	now := time.Now()
+	for _, l := range leases {
+		if l.ExpiresAt.Before(now) {
+			continue
+		}
+		ip := net.ParseIP(l.IP)
+		if ip == nil {
+			continue
+		}
+		mac, err := net.ParseMAC(l.MAC)
+		if err != nil {
+			continue
+		}
+		key := strings.ToLower(l.MAC)
+		s.leases[key] = &lease4{
+			IP:        ip.To4(),
+			MAC:       mac,
+			Hostname:  l.Hostname,
+			ExpiresAt: l.ExpiresAt,
+		}
+	}
 }
 
 // Start binds UDP 67 and begins serving DHCP requests.
@@ -413,8 +456,12 @@ func (s *Server) handleRequest(pkt *dhcp4Packet, addr net.Addr, cfg config.DHCPS
 func (s *Server) handleRelease(pkt *dhcp4Packet) {
 	key := strings.ToLower(pkt.chaddr.String())
 	s.leasesMu.Lock()
+	l, ok := s.leases[key]
 	delete(s.leases, key)
 	s.leasesMu.Unlock()
+	if ok && s.onDelete != nil {
+		go s.onDelete(l.IP.String())
+	}
 }
 
 // ─── allocation helpers ───────────────────────────────────────────────────────
@@ -597,6 +644,10 @@ func (s *Server) sendAck(pkt *dhcp4Packet, addr net.Addr, ip net.IP, hostname st
 	opts := s.buildStdOpts(ip, hostname, cfg)
 	reply := buildDHCP4(pkt, msgAck, ip, s.serverIP(), opts)
 	s.send(reply, pkt, addr)
+	if s.onUpsert != nil {
+		expiresAt := time.Now().Add(leaseDuration(cfg)).Unix()
+		go s.onUpsert(ip.String(), strings.ToLower(pkt.chaddr.String()), hostname, expiresAt)
+	}
 }
 
 func (s *Server) sendNak(pkt *dhcp4Packet, addr net.Addr, cfg config.DHCPServerConfig) {

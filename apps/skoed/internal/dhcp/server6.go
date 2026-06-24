@@ -15,6 +15,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
@@ -68,6 +69,19 @@ type Server6 struct {
 
 	// dnsAddr is this node's DNS listen address, used as the default DNS server option.
 	dnsAddr string
+
+	// onUpsert and onDelete are optional Raft-persistence callbacks.
+	onUpsert func(address, duid, hostname, profileID string, expiresAt int64)
+	onDelete func(address string)
+}
+
+// SetLeaseCallbacks wires Raft-persistence hooks called on every DHCPv6 lease event.
+func (s *Server6) SetLeaseCallbacks(
+	onUpsert func(address, duid, hostname, profileID string, expiresAt int64),
+	onDelete func(address string),
+) {
+	s.onUpsert = onUpsert
+	s.onDelete = onDelete
 }
 
 // lease6 is the in-memory form of one active DHCPv6 lease.
@@ -191,6 +205,30 @@ func (s *Server6) Start() {
 	if err != nil {
 		log.Printf("[dhcp6] server: cannot bind UDP 547: %v (is this node root?)", err)
 		return
+	}
+	// Join the All_DHCP_Servers multicast group (ff02::1:2) on every
+	// multicast-capable interface so clients using standard link-scoped
+	// Solicit packets reach this server (RFC 8415 §5.1).
+	if udpConn, ok := conn.(*net.UDPConn); ok {
+		group := net.ParseIP("ff02::1:2")
+		ifaces, _ := net.Interfaces()
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagMulticast == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			if err := udpConn.SetReadBuffer(256 * 1024); err == nil {
+				_ = err
+			}
+			mreq := &syscall.IPv6Mreq{Multiaddr: [16]byte{}, Interface: uint32(iface.Index)}
+			copy(mreq.Multiaddr[:], group.To16())
+			rawConn, rErr := udpConn.SyscallConn()
+			if rErr != nil {
+				continue
+			}
+			rawConn.Control(func(fd uintptr) {
+				syscall.SetsockoptIPv6Mreq(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_JOIN_GROUP, mreq)
+			})
+		}
 	}
 	s.conn = conn
 	s.stopCh = make(chan struct{})
@@ -519,6 +557,9 @@ func (s *Server6) handleRequest6(pkt *dhcp6Packet, addr net.Addr, cfg config.DHC
 		opts = appendOpt6(opts, optDomainList, encodeDomainList(cfg.SearchDomain))
 	}
 	s.send6(buildDHCP6(msg6Reply, pkt.xid, opts), addr)
+	if s.onUpsert != nil {
+		go s.onUpsert(assignedIP.String(), duid, "", "", time.Now().Add(leaseDuration6(cfg)).Unix())
+	}
 }
 
 func (s *Server6) handleRenew(pkt *dhcp6Packet, addr net.Addr, cfg config.DHCPv6ServerConfig) {
@@ -553,6 +594,9 @@ func (s *Server6) handleRenew(pkt *dhcp6Packet, addr net.Addr, cfg config.DHCPv6
 	opts = appendOpt6(opts, optIANA, ianaVal)
 	opts = appendOpt6(opts, optDNSServers, s.dnsServersOption())
 	s.send6(buildDHCP6(msg6Reply, pkt.xid, opts), addr)
+	if s.onUpsert != nil {
+		go s.onUpsert(assignedIP.String(), duid, "", "", time.Now().Add(lt).Unix())
+	}
 }
 
 func (s *Server6) handleConfirm(pkt *dhcp6Packet, addr net.Addr) {
@@ -567,14 +611,19 @@ func (s *Server6) handleConfirm(pkt *dhcp6Packet, addr net.Addr) {
 
 func (s *Server6) handleRelease6(pkt *dhcp6Packet, addr net.Addr) {
 	duid := duidHex(pkt.opts[optClientID])
+	var releasedAddr string
 	s.leasesMu.Lock()
 	for k, l := range s.leases {
 		if l.DUID == duid && !l.IsStatic {
+			releasedAddr = k
 			delete(s.leases, k)
 			break
 		}
 	}
 	s.leasesMu.Unlock()
+	if releasedAddr != "" && s.onDelete != nil {
+		go s.onDelete(releasedAddr)
+	}
 
 	statusVal := make([]byte, 2)
 	binary.BigEndian.PutUint16(statusVal, statusSuccess)
