@@ -66,10 +66,10 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M23.5 | Built-in DHCP Server Core | ✅ | — | [note](demos/m23.5/DEMO_NOTE.md) · [report](demos/m23.5/test-report.html) | [dhcp-server](specs/functional/dhcp-server.feature) | [dhcp-server](tests/acceptance/dhcp_server_test.go) |
 | M23.6 | DHCP Server Web UI | ✅ | — | [note](demos/m23.6/DEMO_NOTE.md) · [report](demos/m23.6/test-report.html) · [enterprise](demos/m23.6/enterprise/test-report.html) | (in dhcp-server.feature) | [dhcp-webui](tests/acceptance/dhcp_server_webui_test.go) |
 | M24 | Encrypted DNS (DoT/DoH upstream) | ✅ | — | [note](demos/m24/DEMO_NOTE.md) · [report](demos/m24/test-report.html) | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | [enc-upstream](tests/acceptance/encrypted_dns_upstream_test.go) |
-| M27 | Per-Profile Allowlists (full) | ⬜ | — | — | — | — |
+| M27 | Per-Profile Allowlists (full) | ✅ | v0.2.2 | [note](demos/m27/DEMO_NOTE.md) · [report](demos/m27/test-report.html) | [per-profile-allowlists](specs/functional/per-profile-allowlists.feature) | [per-profile-allowlists](tests/acceptance/per_profile_allowlist_test.go) |
 | M26 | Custom Block Page | ✅ | — | [note](demos/m26/DEMO_NOTE.md) · [report](demos/m26/test-report.html) | [custom-block-page](specs/functional/custom-block-page.feature) | [custom-block-page](tests/acceptance/custom_block_page_test.go) |
 | M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
-| M29 | Live Query Stream | ⬜ | — | — | — | — |
+| M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
 | M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 
 ## M12 tasks

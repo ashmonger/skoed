@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M29 — Live Query Stream — Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; line-height: 1.6; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header p { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #14532d; color: var(--green); }
+  .badge-blue { background: #1e3a5f; color: var(--accent); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .section { margin-bottom: 3rem; }
+  h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { background: var(--surface); padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .pass-row td:first-child { border-left: 3px solid var(--green); }
+  code { font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.4rem; }
+  pre { font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; color: #a9b1d6; line-height: 1.5; margin: 0.5rem 0 1rem; }
+  .evidence-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .evidence-block h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; }
+  .oos-list { list-style: none; color: var(--muted); font-size: 0.875rem; }
+  .oos-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; }
+  .oos-list li:last-child { border-bottom: none; }
+  .oos-list li::before { content: '—'; color: var(--border); flex-shrink: 0; }
+  .meta { display: flex; gap: 2rem; color: var(--muted); font-size: 0.8rem; margin-top: 1rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>M29 — Live Query Stream <span class="badge badge-green">7/7 PASS</span></h1>
+  <p>Acceptance test report · 2026-06-24 · branch feature/m29-live-query-stream</p>
+</header>
+
+<div class="container">
+
+  <div class="section">
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="value green">7</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value red">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--muted)">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--text);font-size:1.4rem">~17s</div>
+        <div class="label">Total time</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>SSE event format</h2>
+    <div class="evidence-block">
+      <h3>Wire format — each DNS query produces:</h3>
+      <pre>event: query
+data: {"domain":"ads.example.com","type":"A","client_ip":"10.0.0.50","profile_id":"kids","result":"blocked","duration_ms":0,"timestamp":"2026-06-24T10:00:00Z"}
+
+: keep-alive</pre>
+      <h3 style="margin-top:1rem">Endpoint</h3>
+      <pre>GET /api/v1/query-log/stream
+Authorization: Bearer &lt;token&gt;
+
+# Optional filters:
+?profile_id=kids
+?result=blocked|forwarded|cached|local|nxdomain
+?domain=example          # substring match</pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Test results</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>FSID</th>
+          <th>What it verifies</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamConnect</td>
+          <td><code>FS-LiveQueryStreamConnect</code></td>
+          <td>200 OK + <code>text/event-stream</code> Content-Type</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.4s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamEventShape</td>
+          <td><code>FS-LiveQueryStreamEventShape</code></td>
+          <td>All required fields present in event JSON: domain, type, client_ip, profile_id, result, timestamp</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.3s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamBlockedQuery</td>
+          <td><code>FS-LiveQueryStreamBlockedQuery</code></td>
+          <td>Blocked query appears on <code>?result=blocked</code> stream with correct domain and result</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.4s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamFilterByResult</td>
+          <td><code>FS-LiveQueryStreamFilterByResult</code></td>
+          <td>Forwarded queries do not appear on <code>?result=blocked</code> stream</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.7s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamUnauthenticated</td>
+          <td><code>FS-LiveQueryStreamUnauthenticated</code></td>
+          <td>No Bearer token → 401 Unauthorized</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.9s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamHeartbeat</td>
+          <td><code>FS-LiveQueryStreamHeartbeat</code></td>
+          <td>SSE comment <code>: keep-alive</code> received within 20 seconds of idle</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">16.9s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestLiveQueryStreamDisconnect</td>
+          <td><code>FS-LiveQueryStreamDisconnect</code></td>
+          <td>Node continues serving DNS normally after stream client disconnects</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.0s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Not implemented (out of scope)</h2>
+    <ul class="oos-list">
+      <li>Cluster-wide fan-out — each node streams its own queries only</li>
+      <li>Historical backfill of queries before the connection opened</li>
+      <li>Per-query DNSSEC chain detail on the stream</li>
+      <li>WebSocket alternative transport</li>
+      <li>Proxmox real-environment validation (pending UoR)</li>
+    </ul>
+  </div>
+
+  <div class="meta">
+    <span>Binary: CGO_ENABLED=0 static build</span>
+    <span>Go 1.26.1</span>
+    <span>SKOED_TEST_MODE=1</span>
+    <span>-parallel 7, -timeout 120s</span>
+    <span>Branch: feature/m29-live-query-stream</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,123 @@
+openapi: "3.1.0"
+x-tsid: TS-LiveQueryStream
+x-fsid-links:
+  - FS-LiveQueryStreamConnect
+  - FS-LiveQueryStreamEventShape
+  - FS-LiveQueryStreamBlockedQuery
+  - FS-LiveQueryStreamFilterByProfile
+  - FS-LiveQueryStreamFilterByResult
+  - FS-LiveQueryStreamUnauthenticated
+  - FS-LiveQueryStreamDisconnect
+  - FS-LiveQueryStreamHeartbeat
+
+info:
+  title: Live Query Stream
+  version: "1.0"
+  description: |
+    Server-Sent Events endpoint for real-time DNS query streaming.
+    Each processed query is emitted as an SSE event. The connection stays open
+    until the client disconnects. Optional query-string filters narrow the stream.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /query-log/stream:
+    get:
+      operationId: streamQueryLog
+      summary: Live DNS query stream (SSE)
+      tags: [query-log]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Restrict stream to queries from this profile.
+        - name: result
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [forwarded, blocked, cached, local, nxdomain]
+          description: Restrict stream to queries with this result.
+        - name: domain
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Restrict stream to queries whose domain contains this substring.
+      responses:
+        "200":
+          description: SSE stream open. Connection stays open indefinitely.
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: "text/event-stream"
+            Cache-Control:
+              schema:
+                type: string
+                example: "no-cache"
+            X-Accel-Buffering:
+              schema:
+                type: string
+                example: "no"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                event: query
+                data: {"domain":"example.com","type":"A","client_ip":"10.0.0.50","profile_id":"default","result":"forwarded","duration_ms":12,"timestamp":"2026-06-23T16:00:00Z"}
+
+                : keep-alive
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    QueryEvent:
+      type: object
+      required: [domain, type, client_ip, profile_id, result, duration_ms, timestamp]
+      properties:
+        domain:
+          type: string
+          example: "example.com"
+        type:
+          type: string
+          example: "A"
+          description: DNS query type (A, AAAA, CNAME, MX, …)
+        client_ip:
+          type: string
+          example: "10.0.0.50"
+        profile_id:
+          type: string
+          example: "kids"
+        result:
+          type: string
+          enum: [forwarded, blocked, cached, local, nxdomain]
+        duration_ms:
+          type: integer
+          example: 12
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
