@@ -1143,7 +1143,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 25 — Prometheus Histograms + Grafana Dashboard
+### Milestone 39 — Prometheus Histograms + Grafana Dashboard
 
 **Outcome**: Operators gain p50/p95/p99 DNS query latency visibility and per-upstream resolver latency breakdowns via Prometheus histograms, plus a bundled Grafana dashboard JSON they can import with one click.
 
@@ -1206,7 +1206,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 28 — Companion / Remote-Admin App
+### Milestone 40 — Companion / Remote-Admin App
 
 **Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
 
@@ -1226,7 +1226,7 @@ Node certificate rotation:
 
 **Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M23 Skoed4Phone (shares PWA infrastructure with the companion app).
 
-### Milestone 30 — Cluster-wide Live Query Stream
+### Milestone 41 — Cluster-wide Live Query Stream
 
 **Outcome**: An admin opens a single SSE connection to any cluster node and receives real-time DNS query events from all nodes in the Raft cluster, not just the node they connected to.
 
@@ -1240,14 +1240,14 @@ Node certificate rotation:
 
 **Non-goals:**
 - Cross-cluster (multi-cluster) aggregation
-- WebSocket transport (covered by M31)
-- Historical replay (covered by M31)
+- WebSocket transport (covered by M42)
+- Historical replay (covered by M42)
 
 **Dependencies:** M29 Live Query Stream (per-node SSE); M2 Raft cluster (peer address discovery); M20 cluster security (inter-node Bearer token).
 
 ---
 
-### Milestone 31 — Query Log Stream Enhancements (Backfill + WebSocket)
+### Milestone 42 — Query Log Stream Enhancements (Backfill + WebSocket)
 
 **Outcome**: The live query stream is more useful in two operational scenarios: (1) operators connecting mid-session see recent context immediately; (2) operators in corporate environments where SSE is stripped by reverse proxies can use a WebSocket transport instead.
 
@@ -1267,14 +1267,14 @@ Node certificate rotation:
 
 **Non-goals:**
 - Bidirectional commands over WebSocket (read-only, same as SSE)
-- Cluster-wide aggregation via WebSocket (covered by M30 for SSE; WebSocket aggregation is out of scope)
+- Cluster-wide aggregation via WebSocket (covered by M41 for SSE; WebSocket aggregation is out of scope)
 - Persistent subscriptions that survive server restart
 
-**Dependencies:** M29 Live Query Stream; M30 (backfill can be applied to the cluster-wide stream endpoint too, but M31 implements it on the single-node endpoint first).
+**Dependencies:** M29 Live Query Stream; M41 (backfill can be applied to the cluster-wide stream endpoint too, but M42 implements it on the single-node endpoint first).
 
 ---
 
-### Milestone 32 — DNSSEC Detail on Query Stream
+### Milestone 43 — DNSSEC Detail on Query Stream
 
 **Outcome**: Each query log entry and SSE stream event exposes the DNSSEC validation outcome so operators can distinguish between validated, insecure, and bogus responses in the live stream without consulting the resolver logs separately.
 
@@ -1282,20 +1282,20 @@ Node certificate rotation:
 - Two new optional fields on `QueryLog.Entry` and the SSE JSON payload:
   - `dnssec_status`: `"secure"` | `"insecure"` | `"bogus"` | `"indeterminate"` (matches RFC 4033 terminology). Omitted when DNSSEC validation is disabled.
   - `dnssec_error`: short string describing the validation failure (only present when `dnssec_status == "bogus"`).
-- The DNSSEC resolver (M21) already tracks the AD flag and SERVFAIL-from-bogus outcome; M32 surfaces this into the query log and stream.
+- The DNSSEC resolver (M21) already tracks the AD flag and SERVFAIL-from-bogus outcome; M43 surfaces this into the query log and stream.
 - The existing `/api/v1/query-log` paginated endpoint also gains these fields.
 - A new stream filter `?dnssec_status=bogus` (or `secure`, `insecure`) lets operators watch for DNSSEC failures in real time.
 - Web UI query log table gains a DNSSEC column (icon: shield/warning/error) when DNSSEC validation is enabled.
 
 **Non-goals:**
 - Full DNSSEC chain display (individual RRSIGs, DS records) in the stream — this belongs in a dedicated DNSSEC debug view, not the query log
-- Changing how DNSSEC validation works (M21 is the implementation; M32 only exposes its output)
+- Changing how DNSSEC validation works (M21 is the implementation; M43 only exposes its output)
 
-**Dependencies:** M21 DNSSEC Validation Mode (the validator already produces the status; M32 wires it into the log); M29 Live Query Stream (the SSE payload is extended, not replaced).
+**Dependencies:** M21 DNSSEC Validation Mode (the validator already produces the status; M43 wires it into the log); M29 Live Query Stream (the SSE payload is extended, not replaced).
 
 ---
 
-### Milestone 33 — Per-Domain Upstream Routing
+### Milestone 32 — Per-Domain Upstream Routing
 
 **Outcome**: Operators can route specific domains or domain patterns to dedicated upstream resolvers — e.g., send all `*.corp.internal` queries to an on-premises resolver while all other queries go to the default upstream list. Eliminates the need for a split-horizon DNS server alongside skoed.
 
@@ -1312,11 +1312,11 @@ Node certificate rotation:
 - Automatic failover within a route's resolver list (global failover behavior is unchanged)
 - GUI route ordering / drag-and-drop (text config + API only for now)
 
-**Dependencies:** M24 Encrypted DNS Upstream (DoT/DoH upstream already works; M33 layers routing on top).
+**Dependencies:** M24 Encrypted DNS Upstream (DoT/DoH upstream already works; M32 layers routing on top).
 
 ---
 
-### Milestone 34 — Block Page Enhancements
+### Milestone 33 — Block Page Enhancements
 
 **Outcome**: The block page is operationally useful rather than just informational — operators can brand it per profile, users on managed networks can request a temporary bypass, and IPv6 clients see a consistent redirect instead of a SERVFAIL.
 
@@ -1332,11 +1332,11 @@ Node certificate rotation:
 - Per-domain different block page — per-profile is the granularity
 - Rate-limiting the bypass button (operator configures the passcode to control who can use it)
 
-**Dependencies:** M26 Custom Block Page (the redirect server and template engine exist; M34 extends them); M27 Per-Profile Allowlists (bypass creates a time-bounded allowlist entry).
+**Dependencies:** M26 Custom Block Page (the redirect server and template engine exist; M33 extends them); M27 Per-Profile Allowlists (bypass creates a time-bounded allowlist entry).
 
 ---
 
-### Milestone 35 — Allowlist Scheduling + Per-Entry Metadata
+### Milestone 36 — Allowlist Scheduling + Per-Entry Metadata
 
 **Outcome**: Operators can set allowlist entries that expire automatically, are visible only during specific hours, or carry notes for auditing — matching the time-based capabilities already available for blocklists.
 
@@ -1355,7 +1355,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 36 — Schedule Binding Web UI + Bulk Operations
+### Milestone 37 — Schedule Binding Web UI + Bulk Operations
 
 **Outcome**: Operators can manage schedule bindings entirely from the Web UI without touching the API directly, and can apply a schedule to multiple profile–blocklist pairs in a single action.
 
@@ -1369,13 +1369,13 @@ Node certificate rotation:
 **Non-goals:**
 - Per-client or per-device schedule granularity (profile-level only)
 - Calendar-based one-off overrides (scheduled windows repeat weekly)
-- Mobile-optimised touch editor (desktop browser only for M36)
+- Mobile-optimised touch editor (desktop browser only for M37)
 
-**Dependencies:** M17 Schedule Bindings (the binding data model and API exist; M36 is a pure UI layer).
+**Dependencies:** M17 Schedule Bindings (the binding data model and API exist; M37 is a pure UI layer).
 
 ---
 
-### Milestone 37 — Filtering Pause Enhancements
+### Milestone 35 — Filtering Pause Enhancements
 
 **Outcome**: Operators and trusted users can pause filtering at finer granularity (per client IP, not just per profile), receive a notification when a pause expires, and manage pauses from the Web UI without using the API directly.
 
@@ -1387,15 +1387,15 @@ Node certificate rotation:
 - **Pause history**: `GET /api/v1/profiles/{id}/pause/history` returns the last 50 pause events (start, end, triggered_by, scope) as an audit trail.
 
 **Non-goals:**
-- Per-domain pause (block a specific domain temporarily while keeping the rest active) — use the allowlist with an expiry (M35) instead
-- Auto-scheduled recurring pauses — use schedule bindings (M17/M36)
+- Per-domain pause (block a specific domain temporarily while keeping the rest active) — use the allowlist with an expiry (M36) instead
+- Auto-scheduled recurring pauses — use schedule bindings (M17/M37)
 - Pause propagation across cluster nodes without Raft — pauses are Raft-committed and consistent across nodes
 
-**Dependencies:** M13 Filtering Pause (the pause model and API exist); M22 Webhooks (for pause-expiry event); M35 Per-Entry Expiry (the bypass-from-block-page also creates timed allow entries, but per-client pause is distinct).
+**Dependencies:** M13 Filtering Pause (the pause model and API exist); M22 Webhooks (for pause-expiry event); M36 Per-Entry Expiry (the bypass-from-block-page also creates timed allow entries, but per-client pause is distinct).
 
 ---
 
-### Milestone 38 — Backup Hardening
+### Milestone 31 — Backup Hardening
 
 **Outcome**: Configuration backups are encrypted at rest, can be created on a schedule without manual intervention, and two backup archives can be diffed before a potentially destructive import.
 
@@ -1410,11 +1410,11 @@ Node certificate rotation:
 - Backup monitoring / alerting when a backup fails (use M22 webhooks with a `backup.failed` event type — added as a new event)
 - Restoring from backup without downtime (import always requires a service restart)
 
-**Dependencies:** M12 Config Backup/Restore (the export/import endpoints exist; M38 extends them).
+**Dependencies:** M12 Config Backup/Restore (the export/import endpoints exist; M31 extends them).
 
 ---
 
-### Milestone 39 — Webhook Reliability
+### Milestone 44 — Webhook Reliability
 
 **Outcome**: Webhook deliveries are durable — failures are logged and retried with backoff, signing keys can be rotated per-endpoint without downtime, and operators can see delivery history in the Web UI.
 
@@ -1430,11 +1430,11 @@ Node certificate rotation:
 - Guaranteed exactly-once delivery (at-least-once with dedup is the target)
 - Multi-endpoint fan-out ordering guarantees across endpoints
 
-**Dependencies:** M22 Webhooks (the webhook data model, HMAC signing, and 3-retry logic exist; M39 hardens them); M20 Cluster Security (inter-node Raft log is the delivery bus).
+**Dependencies:** M22 Webhooks (the webhook data model, HMAC signing, and 3-retry logic exist; M44 hardens them); M20 Cluster Security (inter-node Raft log is the delivery bus).
 
 ---
 
-### Milestone 40 — Certificate Management
+### Milestone 34 — Certificate Management
 
 **Outcome**: TLS certificates for the management API and cluster mesh renew automatically without operator intervention, and certificate status is visible and actionable from the Web UI.
 
@@ -1454,7 +1454,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 41 — API Token Enhancements
+### Milestone 45 — API Token Enhancements
 
 **Outcome**: API tokens are safer in automated pipelines — they expire, are bound to a source IP, and carry a last-used timestamp so stale tokens can be identified and revoked.
 
@@ -1474,7 +1474,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 42 — DHCP Persistence + DHCPv6
+### Milestone 30 — DHCP Persistence + DHCPv6
 
 **Outcome**: DHCP lease state survives a leader restart without clients losing their leases, and the DHCP server handles IPv6 clients (DHCPv6 stateful address assignment).
 
@@ -1494,7 +1494,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 43 — Per-Profile DNSSEC Policy
+### Milestone 38 — Per-Profile DNSSEC Policy
 
 **Outcome**: Operators can enforce strict DNSSEC validation for high-security profiles (e.g., corporate devices) while leaving validation off for profiles where it causes compatibility issues (e.g., IoT), without changing the cluster-wide default.
 
@@ -1508,11 +1508,11 @@ Node certificate rotation:
 - DNSSEC signing of skoed-served local DNS entries (skoed is a recursive resolver, not an authoritative server)
 - Per-domain DNSSEC policy exceptions (e.g., disable validation for a single domain) — use transparent mode at the profile level
 
-**Dependencies:** M21 DNSSEC Validation Mode (the validate/transparent modes exist globally; M43 makes them per-profile); M32 DNSSEC Detail on Stream (complements by surfacing per-query outcomes).
+**Dependencies:** M21 DNSSEC Validation Mode (the validate/transparent modes exist globally; M38 makes them per-profile); M43 DNSSEC Detail on Stream (complements by surfacing per-query outcomes).
 
 ---
 
-### Milestone 44 — High-Cardinality Metrics
+### Milestone 46 — High-Cardinality Metrics
 
 **Outcome**: Operators who want per-domain or per-client DNS metrics can opt into a high-cardinality scrape endpoint, with a guard against runaway label sets, and cluster-wide aggregate stats are available at sub-hour granularity for short-lived anomaly detection.
 
@@ -1528,11 +1528,11 @@ Node certificate rotation:
 - Push-mode Prometheus / Pushgateway integration
 - Per-rule or per-blocklist-entry query counts (too fine-grained; use per-domain metrics instead)
 
-**Dependencies:** M5.1 Prometheus Metrics (the `/metrics` endpoint exists; M44 extends it and adds the opt-in high-cardinality endpoints); M19 Query Log Aggregates (the 1-hour aggregate endpoint exists; M44 adds sub-hour windows and streaming); M29 Live Query Stream (the SSE infrastructure is reused for aggregate streaming).
+**Dependencies:** M5.1 Prometheus Metrics (the `/metrics` endpoint exists; M46 extends it and adds the opt-in high-cardinality endpoints); M19 Query Log Aggregates (the 1-hour aggregate endpoint exists; M46 adds sub-hour windows and streaming); M29 Live Query Stream (the SSE infrastructure is reused for aggregate streaming).
 
 ---
 
-### Milestone 45 — Upgrade Experience
+### Milestone 47 — Upgrade Experience
 
 **Outcome**: The binary upgrade path is observable in real time, safe to roll back automatically on failure, and supports release channels so operators can opt into beta builds without manual URL construction.
 
