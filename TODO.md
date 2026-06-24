@@ -87,6 +87,8 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M45 | API Token Enhancements | ⬜ | — | — | — | — |
 | M46 | High-Cardinality Metrics | ⬜ | — | — | — | — |
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
+| M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
+| M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
 
 ## M12 tasks
 

@@ -1,0 +1,527 @@
+<title>skoed — Milestone Ledger</title>
+<style>
+:root {
+  --ground:  #070b12;
+  --surface: #0d1626;
+  --border:  #152035;
+  --text:    #c8d8e8;
+  --muted:   #4a6480;
+  --dim:     #2a3f58;
+  --id:      #5baddc;
+  --green:   #22c55e;
+  --blue:    #3b82f6;
+  --violet:  #a78bfa;
+  --gold:    #e8c547;
+  --mono: 'Cascadia Code','Fira Code','Courier New',monospace;
+  --sans: system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  background-color: var(--ground);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(7,11,18,0.93);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 1.1rem 2rem;
+}
+
+.header-inner {
+  max-width: 940px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-family: var(--mono);
+}
+
+.brand-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--id);
+  letter-spacing: -0.02em;
+}
+
+.brand-sep { color: var(--dim); }
+
+.brand-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.stat { display: flex; align-items: center; gap: 0.35rem; }
+.stat-n { font-weight: 700; font-size: 0.95rem; }
+.stat-shipped .stat-n  { color: var(--green); }
+.stat-planned .stat-n  { color: var(--blue); }
+.stat-proposed .stat-n { color: var(--violet); }
+.stat-tag .stat-n      { color: var(--gold); }
+
+/* ── Content ── */
+.content {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 5rem;
+}
+
+/* ── Era ── */
+.era { margin-bottom: 3rem; }
+
+.era-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0;
+}
+
+.era-name {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--id);
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.era-range {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.era-rule { flex: 1; height: 1px; background: var(--border); }
+
+.era-tally {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* ── Milestone rows ── */
+.ms-list { list-style: none; }
+
+.ms-row {
+  display: grid;
+  grid-template-columns: 5.75rem 1fr auto;
+  align-items: start;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid rgba(21,32,53,0.45);
+  border-radius: 3px;
+  transition: background 0.1s ease;
+}
+
+.ms-row:hover   { background: rgba(21,32,53,0.4); }
+.ms-row:focus-within { background: rgba(21,32,53,0.4); }
+.ms-row:last-child  { border-bottom-color: transparent; }
+
+.ms-id {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--id);
+  white-space: nowrap;
+  padding-top: 0.05rem;
+}
+
+.ms-body { padding: 0 0.75rem 0 0; }
+
+.ms-title {
+  font-size: 0.865rem;
+  line-height: 1.35;
+}
+
+.ms-row.shipped  .ms-title { color: #7a9ab8; }
+.ms-row.planned  .ms-title { color: var(--text); }
+.ms-row.proposed .ms-title { color: var(--text); font-style: italic; }
+
+.ms-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 0.1rem;
+}
+
+.ms-right {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.1rem;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.ms-tag {
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  color: var(--gold);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.ms-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  white-space: nowrap;
+}
+
+.ms-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.shipped  .ms-dot  { background: var(--green); }
+.shipped  .ms-badge { color: var(--green); opacity: 0.55; }
+.planned  .ms-dot  { background: var(--blue); }
+.planned  .ms-badge { color: var(--blue); opacity: 0.75; }
+.proposed .ms-dot  { background: transparent; border: 1.5px solid var(--violet); width: 6px; height: 6px; }
+.proposed .ms-badge { color: var(--violet); opacity: 0.9; }
+
+/* ── Sub-era dividers (Roadmap) ── */
+.sub-era-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 0.5rem 0.35rem;
+}
+
+.sub-era-head:first-child { padding-top: 0.1rem; }
+
+.sub-era-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.sub-era-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.45;
+}
+
+/* ── Footer ── */
+.page-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 2rem 1.75rem;
+}
+
+.footer-inner {
+  max-width: 940px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.legend {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  color: var(--muted);
+}
+
+.lgd-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.footer-gap { flex: 1; }
+
+.footer-note {
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  color: var(--dim);
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .ms-row { grid-template-columns: 4.5rem 1fr; }
+  .ms-right { display: none; }
+  .page-header { padding: 0.9rem 1rem; }
+  .content { padding: 1.5rem 1rem 3rem; }
+  .status-line { gap: 0.75rem; }
+  .stat-tag { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-row { transition: none; }
+}
+</style>
+
+<header class="page-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-name">skoed</span>
+      <span class="brand-sep">—</span>
+      <span class="brand-sub">Milestone Ledger</span>
+    </div>
+    <div class="status-line" id="status-line"></div>
+  </div>
+</header>
+
+<main class="content" id="ledger"></main>
+
+<footer class="page-footer">
+  <div class="footer-inner">
+    <div class="legend">
+      <div class="legend-item">
+        <span class="lgd-dot" style="background:var(--green)"></span> shipped
+      </div>
+      <div class="legend-item">
+        <span class="lgd-dot" style="background:var(--blue)"></span> planned
+      </div>
+      <div class="legend-item">
+        <span class="lgd-dot" style="background:transparent;border:1.5px solid var(--violet);width:6px;height:6px;border-radius:50%;display:inline-block;"></span> proposed
+      </div>
+    </div>
+    <div class="footer-gap"></div>
+    <div class="footer-note" id="footer-note"></div>
+  </div>
+</footer>
+
+<script>
+const ERAS = [
+  {
+    id: 'core', label: 'Core', range: 'M1–M4.7',
+    milestones: [
+      { id:'M1',    title:'Single Node Foundation',                       desc:'DNS resolver, blocklist engine, web UI',                     status:'shipped' },
+      { id:'M2',    title:'Multi-Node Cluster (Raft)',                    desc:'Raft consensus, cluster join, config sync',                  status:'shipped' },
+      { id:'M2.5',  title:'Helm Chart',                                   desc:'Helm chart for Kubernetes deployment',                       status:'shipped' },
+      { id:'M2.6',  title:'Web UI',                                       desc:'Vue.js admin panel, all core management views',             status:'shipped' },
+      { id:'M3',    title:'Parental Control + DoH/DoT Detection',         desc:'Per-client profiles, schedules, SafeSearch enforcement',    status:'shipped' },
+      { id:'M3.5',  title:'Per-Client DoH Surfacing + Firewall Recipes',  desc:'Per-client DoH detection, firewall rule exports',           status:'shipped' },
+      { id:'M3.6',  title:'DHCP Integration + Anti-Spoof Detection',      desc:'Passive DHCP monitor, MAC identity, anti-spoof',            status:'shipped' },
+      { id:'M4',    title:'DoH/DoT Server + ACME',                        desc:'DoH/DoT server endpoint, Let\'s Encrypt ACME',              status:'shipped' },
+      { id:'M4.5',  title:'API Documentation Browser',                    desc:'Swagger UI, interactive OpenAPI docs browser',              status:'shipped' },
+      { id:'M4.6',  title:'HTTPS Management API',                         desc:'TLS for management API, self-signed bootstrap',             status:'shipped' },
+      { id:'M4.7',  title:'DNS Cache Controls',                           desc:'Cache flush, TTL overrides, per-domain TTL caps',           status:'shipped' },
+    ]
+  },
+  {
+    id: 'hardening', label: 'Hardening', range: 'M5.1–M6.5',
+    milestones: [
+      { id:'M5.1',   title:'Prometheus /metrics',                         desc:'12+ DNS and cluster metrics endpoint',                      status:'shipped' },
+      { id:'M5.2',   title:'Audit Log',                                   desc:'Admin action trail, tamper-evident log entries',            status:'shipped' },
+      { id:'M5.3',   title:'Encrypted Cluster Mesh (mTLS)',               desc:'Mutual TLS for all inter-node communication',               status:'shipped' },
+      { id:'M5.4',   title:'Automated Blocklist Refresh',                 desc:'Scheduled downloads, per-source health tracking',          status:'shipped' },
+      { id:'M5.5',   title:'Native Packaging',                            desc:'.deb, .apk, and Proxmox PVE package formats',               status:'shipped' },
+      { id:'M5.6',   title:'In-place Upgrade Check + Banner',             desc:'Version check at startup, upgrade available banner',        status:'shipped' },
+      { id:'M5.7',   title:'Multi-architecture Release Builds',           desc:'amd64 + arm64 goreleaser pipeline',                         status:'shipped' },
+      { id:'M5.8',   title:'Documentation Site',                          desc:'Searchable docs site, getting-started guide',               status:'shipped' },
+      { id:'M5.9.1', title:'CLI + TUI',                                   desc:'cobra CLI, bubbletea TUI, rich shell interface',            status:'shipped' },
+      { id:'M5.9.2', title:'make dev SPA Hot-Reload',                     desc:'Vite hot-reload with live embedded API proxy',              status:'shipped' },
+      { id:'M5.9.3', title:'Docker Test Cache',                           desc:'go module volume cache for Docker test suite',              status:'shipped' },
+      { id:'M5.9.4', title:'Getting Started Card',                        desc:'Onboarding card in UI, deep-link to docs',                  status:'shipped' },
+      { id:'M5.9.5', title:'URL Tester',                                  desc:'skoed test-url CLI, landing page tester widget',           status:'shipped' },
+      { id:'M5.9.7', title:'"Would This Domain Be Blocked?" Tester',      desc:'CLI + API: dry-run domain check against active rules',      status:'shipped' },
+      { id:'M6',     title:'Closing the DoH Gap',                         desc:'Firewall rule generators, curated DoH resolver IP database', status:'shipped' },
+      { id:'M6.5',   title:'DHCP Layer-3 Anti-Spoof + Replicated Leases', desc:'ARP cross-check, Raft-replicated DHCP lease table',         status:'shipped' },
+    ]
+  },
+  {
+    id: 'growth', label: 'Growth', range: 'M7–M18',
+    milestones: [
+      { id:'M7',   title:'API Token Authentication',                      desc:'Scoped API tokens with revocation',                         status:'shipped', tag:'v0.1.0' },
+      { id:'M8',   title:'Encrypted DNS Expansion',                       desc:'DoH3 (HTTP/3), DNSCrypt upstream support',                  status:'shipped' },
+      { id:'M9',   title:'Kubernetes Operator',                           desc:'SkoedCluster CRD, operator controller, keepalived VIP',     status:'shipped' },
+      { id:'M10',  title:'Active-Active Cluster',                         desc:'Any-node writes via Raft, leader-serialized commits',       status:'shipped' },
+      { id:'M11',  title:'Distribution & Documentation',                  desc:'AUR, APT repo, Helm OCI, automated release dispatch',       status:'shipped' },
+      { id:'M12',  title:'Cluster Join via Web UI + Config Backup',       desc:'Web UI cluster join flow, config backup and restore',       status:'shipped' },
+      { id:'M13',  title:'Temporary Filtering Pause',                     desc:'Global and per-profile break-glass pause with ceiling',     status:'shipped' },
+      { id:'M14',  title:'Block Dynamic-Lease Clients',                   desc:'Auto-block clients with no static DHCP assignment',         status:'shipped' },
+      { id:'M15',  title:'Test Suite Cleanup + keepalived Reference',     desc:'Test harness refactor, keepalived reference config',        status:'shipped', tag:'v0.1.3' },
+      { id:'M16',  title:'In-place Upgrade Binary Swap',                  desc:'Atomic binary swap, goreleaser upgrade automation',         status:'shipped', tag:'v0.1.4' },
+      { id:'M17',  title:'Schedule Bindings + Config Export',             desc:'Schedule bindings, shadow config YAML export',              status:'shipped' },
+      { id:'M18',  title:'Rolling Cluster Upgrade',                       desc:'One-by-one rolling restart with compatibility checks',      status:'shipped', tag:'v0.1.5' },
+    ]
+  },
+  {
+    id: 'maturity', label: 'Maturity', range: 'M19–M29',
+    milestones: [
+      { id:'M19',   title:'Query Log Aggregates + DoH3 Expansion',        desc:'Aggregate stats API, expanded DoH3 test matrix',            status:'shipped' },
+      { id:'M20',   title:'Cluster Security Hardening',                   desc:'Token scoping, per-node TLS certificate rotation',          status:'shipped' },
+      { id:'M21',   title:'DNSSEC Validation Mode',                       desc:'Stub resolver validation, trust anchor management',         status:'shipped' },
+      { id:'M22',   title:'Webhook / Push Alerts',                        desc:'Signed webhook delivery with configurable retry',           status:'shipped' },
+      { id:'M22.5', title:'Browser Extension — Push Notification Bridge', desc:'Firefox + Chrome extension, cluster events push',           status:'shipped' },
+      { id:'M23',   title:'Profile Templates',                            desc:'Template library, clone and apply across profiles',         status:'shipped' },
+      { id:'M23.5', title:'Built-in DHCP Server Core',                    desc:'Full DORA cycle, static assignments, lease API',            status:'shipped' },
+      { id:'M23.6', title:'DHCP Server Web UI',                           desc:'Lease table, static assignment editor, server controls',    status:'shipped' },
+      { id:'M24',   title:'Encrypted DNS (DoT/DoH upstream)',              desc:'DoT/DoH upstream resolvers with fallback ordering',         status:'shipped', tag:'v0.2.1' },
+      { id:'M26',   title:'Custom Block Page',                            desc:'Custom HTML templates, per-profile block page theming',     status:'shipped' },
+      { id:'M27',   title:'Per-Profile Allowlists',                       desc:'Scoped allowlists, wildcard support, cluster cache purge',  status:'shipped', tag:'v0.2.2' },
+      { id:'M29',   title:'Live Query Stream',                            desc:'SSE query log stream, result/domain/profile filters',       status:'shipped', tag:'v0.2.4' },
+    ]
+  },
+  {
+    id: 'roadmap', label: 'Roadmap', range: 'M30–M49',
+    sub: [
+      {
+        label: 'Priority Queue',
+        milestones: [
+          { id:'M30', title:'DHCP Persistence + DHCPv6',                  desc:'Lease persistence across restart, full DHCPv6 support',      status:'planned' },
+          { id:'M31', title:'Backup Hardening',                           desc:'Encrypted archives, scheduled automatic exports',            status:'planned' },
+          { id:'M32', title:'Per-Domain Upstream Routing',                desc:'Route domain patterns to specific upstream resolver pools',  status:'planned' },
+          { id:'M33', title:'Block Page Enhancements',                    desc:'Template library, custom HTML assets, per-profile themes',   status:'planned' },
+          { id:'M34', title:'Certificate Management',                     desc:'ACME DNS-01 provider, Let\'s Encrypt auto-renewal, CRL',    status:'planned' },
+          { id:'M35', title:'Filtering Pause Enhancements',               desc:'Scheduled pause windows, push notifications on expiry',      status:'planned' },
+          { id:'M36', title:'Allowlist Scheduling + Per-Entry Metadata',  desc:'Time-limited allowlist entries, expiry, per-entry notes',    status:'planned' },
+          { id:'M37', title:'Schedule Binding Web UI + Bulk Operations',  desc:'Drag-and-drop schedule editor, bulk binding operations',     status:'planned' },
+          { id:'M38', title:'Per-Profile DNSSEC Policy',                  desc:'Override cluster-wide DNSSEC validation mode per profile',   status:'planned' },
+        ]
+      },
+      {
+        label: 'Backlog',
+        milestones: [
+          { id:'M39', title:'Prometheus Histograms + Grafana',            desc:'Latency histogram metrics, Grafana dashboard kit',           status:'planned' },
+          { id:'M40', title:'Companion / Remote-Admin App',               desc:'PWA companion app for remote cluster administration',        status:'planned' },
+          { id:'M41', title:'Cluster-wide Live Query Stream',             desc:'SSE fan-out aggregated across all cluster nodes',            status:'planned' },
+          { id:'M42', title:'Query Log Stream Enhancements',              desc:'Historical backfill, WebSocket alternative transport',       status:'planned' },
+          { id:'M43', title:'DNSSEC Detail on Query Stream',              desc:'Full DNSSEC chain and validation detail per event',          status:'planned' },
+          { id:'M44', title:'Webhook Reliability',                        desc:'Dead-letter queue, retry policy, per-event key rotation',    status:'planned' },
+          { id:'M45', title:'API Token Enhancements',                     desc:'last_used_at tracking, token expiry, scoped refinements',    status:'planned' },
+          { id:'M46', title:'High-Cardinality Metrics',                   desc:'Per-domain and per-client Prometheus label dimensions',      status:'planned' },
+          { id:'M47', title:'Upgrade Experience',                         desc:'Release channels, shell completion, AUR live push',          status:'planned' },
+        ]
+      },
+      {
+        label: 'Proposed',
+        milestones: [
+          { id:'M48', title:'Skoed4Phone — DNS-over-VPN',                 desc:'iOS/Android VPN tunnel to skoed cluster, on-device blocklist cache', status:'proposed' },
+          { id:'M49', title:'Browser Extension Distribution',             desc:'AMO/CWS auto-submission pipeline, Firefox for Android',      status:'proposed' },
+        ]
+      }
+    ]
+  }
+];
+
+function rowHTML(m) {
+  const tag   = m.tag ? `<span class="ms-tag">${m.tag}</span>` : '';
+  const badge = `<span class="ms-badge"><span class="ms-dot"></span>${m.status}</span>`;
+  return `<li class="ms-row ${m.status}">
+    <span class="ms-id">${m.id}</span>
+    <div class="ms-body">
+      <div class="ms-title">${m.title}</div>
+      <div class="ms-desc">${m.desc}</div>
+    </div>
+    <div class="ms-right">${tag}${badge}</div>
+  </li>`;
+}
+
+function render() {
+  let nShipped = 0, nPlanned = 0, nProposed = 0, latestTag = '';
+
+  function countM(m) {
+    if      (m.status === 'shipped')  { nShipped++;  if (m.tag) latestTag = m.tag; }
+    else if (m.status === 'planned')  nPlanned++;
+    else if (m.status === 'proposed') nProposed++;
+  }
+
+  ERAS.forEach(e => {
+    if (e.milestones)   e.milestones.forEach(countM);
+    else if (e.sub)     e.sub.forEach(s => s.milestones.forEach(countM));
+  });
+
+  document.getElementById('status-line').innerHTML =
+    `<span class="stat stat-shipped"><span class="stat-n">${nShipped}</span> shipped</span>` +
+    `<span class="stat stat-planned"><span class="stat-n">${nPlanned}</span> planned</span>` +
+    `<span class="stat stat-proposed"><span class="stat-n">${nProposed}</span> proposed</span>` +
+    `<span class="stat stat-tag"><span class="stat-n">${latestTag}</span> latest</span>`;
+
+  document.getElementById('footer-note').textContent =
+    `${nShipped + nPlanned + nProposed} milestones total`;
+
+  let html = '';
+  ERAS.forEach(era => {
+    let count  = 0;
+    let body   = '';
+
+    if (era.milestones) {
+      count = era.milestones.length;
+      body  = `<ul class="ms-list">${era.milestones.map(rowHTML).join('')}</ul>`;
+    } else if (era.sub) {
+      era.sub.forEach(s => count += s.milestones.length);
+      body = era.sub.map(s =>
+        `<div class="sub-era-head">
+          <span class="sub-era-label">${s.label}</span>
+          <span class="sub-era-rule"></span>
+        </div>
+        <ul class="ms-list">${s.milestones.map(rowHTML).join('')}</ul>`
+      ).join('');
+    }
+
+    html += `<section class="era">
+      <div class="era-header">
+        <span class="era-name">${era.label}</span>
+        <span class="era-range">${era.range}</span>
+        <span class="era-rule"></span>
+        <span class="era-tally">${count}</span>
+      </div>
+      ${body}
+    </section>`;
+  });
+
+  document.getElementById('ledger').innerHTML = html;
+}
+
+render();
+</script>
