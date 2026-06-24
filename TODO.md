@@ -68,23 +68,23 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M24 | Encrypted DNS (DoT/DoH upstream) | ✅ | — | [note](demos/m24/DEMO_NOTE.md) · [report](demos/m24/test-report.html) | [enc-upstream](specs/functional/encrypted-dns-upstream.feature) | [enc-upstream](tests/acceptance/encrypted_dns_upstream_test.go) |
 | M27 | Per-Profile Allowlists (full) | ✅ | v0.2.2 | [note](demos/m27/DEMO_NOTE.md) · [report](demos/m27/test-report.html) | [per-profile-allowlists](specs/functional/per-profile-allowlists.feature) | [per-profile-allowlists](tests/acceptance/per_profile_allowlist_test.go) |
 | M26 | Custom Block Page | ✅ | — | [note](demos/m26/DEMO_NOTE.md) · [report](demos/m26/test-report.html) | [custom-block-page](specs/functional/custom-block-page.feature) | [custom-block-page](tests/acceptance/custom_block_page_test.go) |
-| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
+| M42 | DHCP Persistence + DHCPv6 | ⬜ | — | — | — | — |
+| M38 | Backup Hardening | ⬜ | — | — | — | — |
+| M33 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
+| M34 | Block Page Enhancements | ⬜ | — | — | — | — |
+| M40 | Certificate Management | ⬜ | — | — | — | — |
+| M37 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
+| M35 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
+| M36 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
+| M43 | Per-Profile DNSSEC Policy | ⬜ | — | — | — | — |
+| M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 | M30 | Cluster-wide Live Query Stream | ⬜ | — | — | — | — |
 | M31 | Query Log Stream Enhancements (Backfill + WebSocket) | ⬜ | — | — | — | — |
 | M32 | DNSSEC Detail on Query Stream | ⬜ | — | — | — | — |
-| M33 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
-| M34 | Block Page Enhancements | ⬜ | — | — | — | — |
-| M35 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
-| M36 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
-| M37 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
-| M38 | Backup Hardening | ⬜ | — | — | — | — |
 | M39 | Webhook Reliability | ⬜ | — | — | — | — |
-| M40 | Certificate Management | ⬜ | — | — | — | — |
 | M41 | API Token Enhancements | ⬜ | — | — | — | — |
-| M42 | DHCP Persistence + DHCPv6 | ⬜ | — | — | — | — |
-| M43 | Per-Profile DNSSEC Policy | ⬜ | — | — | — | — |
 | M44 | High-Cardinality Metrics | ⬜ | — | — | — | — |
 | M45 | Upgrade Experience | ⬜ | — | — | — | — |
 
