@@ -1226,6 +1226,73 @@ Node certificate rotation:
 
 **Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M23 Skoed4Phone (shares PWA infrastructure with the companion app).
 
+### Milestone 30 — Cluster-wide Live Query Stream
+
+**Outcome**: An admin opens a single SSE connection to any cluster node and receives real-time DNS query events from all nodes in the Raft cluster, not just the node they connected to.
+
+**Capabilities:**
+- The connected node acts as an aggregator: it subscribes to its own `QueryLog` and opens a fan-in subscription to every peer node's `/api/v1/query-log/stream` endpoint using the cluster inter-node Bearer token.
+- Events from all nodes are merged and forwarded to the client in arrival order. Each event carries a `node_id` field identifying which cluster node processed the query.
+- Deduplication: leader re-elections or momentary double-subscription must not produce duplicate events on the client stream. Use a short (100 ms) dedup window keyed on `(node_id, domain, client_ip, timestamp)`.
+- Filters (`?profile_id=`, `?result=`, `?domain=`) are applied after fan-in, before delivery.
+- Graceful degradation: if a peer node's stream subscription fails (node down, network partition), the aggregator logs the failure and continues streaming from the remaining nodes. A synthetic `event: node_unavailable` frame is sent to the client.
+- Keep-alive comments are sent every 15 s as in M29.
+
+**Non-goals:**
+- Cross-cluster (multi-cluster) aggregation
+- WebSocket transport (covered by M31)
+- Historical replay (covered by M31)
+
+**Dependencies:** M29 Live Query Stream (per-node SSE); M2 Raft cluster (peer address discovery); M20 cluster security (inter-node Bearer token).
+
+---
+
+### Milestone 31 — Query Log Stream Enhancements (Backfill + WebSocket)
+
+**Outcome**: The live query stream is more useful in two operational scenarios: (1) operators connecting mid-session see recent context immediately; (2) operators in corporate environments where SSE is stripped by reverse proxies can use a WebSocket transport instead.
+
+**Capabilities:**
+
+**Backfill on connect:**
+- `GET /api/v1/query-log/stream?backfill=N` (default: 0, max: 500) — on connection, send the last N log entries as `event: query` frames before switching to live events.
+- Entries are taken from the in-memory `QueryLog.entries` ring buffer under a snapshot lock, then flushed before subscribing, so no query is sent twice.
+- A synthetic `event: backfill_end` frame separates replayed entries from live events.
+- Filters apply to backfill entries as well.
+
+**WebSocket transport:**
+- `GET /api/v1/query-log/ws` — identical semantics to the SSE endpoint but over a WebSocket connection. Authentication via `Authorization: Bearer` header on the upgrade request (same as SSE).
+- Server sends text frames with the same JSON payload as SSE `data:` lines. No binary framing.
+- Server sends `{"type":"keep-alive"}` text frames every 15 s when no queries arrive.
+- The SSE endpoint remains the primary transport; WebSocket is opt-in.
+
+**Non-goals:**
+- Bidirectional commands over WebSocket (read-only, same as SSE)
+- Cluster-wide aggregation via WebSocket (covered by M30 for SSE; WebSocket aggregation is out of scope)
+- Persistent subscriptions that survive server restart
+
+**Dependencies:** M29 Live Query Stream; M30 (backfill can be applied to the cluster-wide stream endpoint too, but M31 implements it on the single-node endpoint first).
+
+---
+
+### Milestone 32 — DNSSEC Detail on Query Stream
+
+**Outcome**: Each query log entry and SSE stream event exposes the DNSSEC validation outcome so operators can distinguish between validated, insecure, and bogus responses in the live stream without consulting the resolver logs separately.
+
+**Capabilities:**
+- Two new optional fields on `QueryLog.Entry` and the SSE JSON payload:
+  - `dnssec_status`: `"secure"` | `"insecure"` | `"bogus"` | `"indeterminate"` (matches RFC 4033 terminology). Omitted when DNSSEC validation is disabled.
+  - `dnssec_error`: short string describing the validation failure (only present when `dnssec_status == "bogus"`).
+- The DNSSEC resolver (M21) already tracks the AD flag and SERVFAIL-from-bogus outcome; M32 surfaces this into the query log and stream.
+- The existing `/api/v1/query-log` paginated endpoint also gains these fields.
+- A new stream filter `?dnssec_status=bogus` (or `secure`, `insecure`) lets operators watch for DNSSEC failures in real time.
+- Web UI query log table gains a DNSSEC column (icon: shield/warning/error) when DNSSEC validation is enabled.
+
+**Non-goals:**
+- Full DNSSEC chain display (individual RRSIGs, DS records) in the stream — this belongs in a dedicated DNSSEC debug view, not the query log
+- Changing how DNSSEC validation works (M21 is the implementation; M32 only exposes its output)
+
+**Dependencies:** M21 DNSSEC Validation Mode (the validator already produces the status; M32 wires it into the log); M29 Live Query Stream (the SSE payload is extended, not replaced).
+
 ---
 
 ## Pre-1.0 release tasks (no milestone number)

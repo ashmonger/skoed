@@ -71,15 +71,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M25 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
 | M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
 | M28 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
-
-## M29 out-of-scope (deferred)
-
-Items explicitly excluded from M29 scope — candidates for future milestones:
-
-- **Cluster-wide SSE fan-out**: aggregate query events across all Raft nodes into a single stream. Currently each node streams its own queries only. Would require a cluster event bus or leader-proxied subscription. Likely M30 scope.
-- **Query log backfill**: replay queries made before the stream connection opened (last N entries on connect). Requires snapshot-under-lock from `QueryLog.entries` at subscribe time.
-- **WebSocket transport**: bidirectional alternative to SSE for environments that don't support SSE (some corporate proxies). Low priority; SSE covers all current use cases.
-- **DNSSEC chain detail on stream**: expose per-query DNSSEC validation status (AD flag, chain errors). Blocked on DNSSEC resolver work (not yet implemented).
+| M30 | Cluster-wide Live Query Stream | ⬜ | — | — | — | — |
+| M31 | Query Log Stream Enhancements (Backfill + WebSocket) | ⬜ | — | — | — | — |
+| M32 | DNSSEC Detail on Query Stream | ⬜ | — | — | — | — |
 
 ## M12 tasks
 
