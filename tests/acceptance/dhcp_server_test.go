@@ -334,13 +334,15 @@ func TestDhcpLeaseListApi(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /api/v1/dhcp/leases: want 200, got %d", resp.StatusCode)
 	}
-	var leases []dhcpLeaseEntry
-	if err := json.NewDecoder(resp.Body).Decode(&leases); err != nil {
+	var result struct {
+		Leases []dhcpLeaseEntry `json:"leases"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode leases: %v", err)
 	}
-	// fresh node: empty array, not null
-	if leases == nil {
-		t.Error("lease list must be a JSON array (not null)")
+	// fresh node: leases field must not be null
+	if result.Leases == nil {
+		t.Error("leases field must be a JSON array (not null)")
 	}
 }
 
