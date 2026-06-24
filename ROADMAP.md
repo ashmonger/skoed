@@ -1568,7 +1568,6 @@ Node certificate rotation:
 
 ## Non-goals (permanent)
 
-- DHCP server
 - Transparent proxy mode (L4 transparent proxy to redirect hardcoded-resolver clients)
 - Deep packet inspection / HTTP filtering (out of scope; puts skoed in Squid/e2guardian territory)
 - Cloud-hosted SaaS (contradicts self-hosted-first thesis)
