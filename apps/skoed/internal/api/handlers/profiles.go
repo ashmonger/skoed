@@ -61,13 +61,15 @@ func (h *Handler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	id := urlParam(r, "id")
 	var patch struct {
-		Name                *string  `json:"name"`
-		Blocklists          []string `json:"blocklists"`
-		Allowlist           []string `json:"allowlist"`
-		SafeSearch          []string `json:"safesearch"`
-		ClientIPs           []string `json:"client_ips"`
-		ClientCIDRs         []string `json:"client_cidrs"`
-		BlockDynamicClients *bool    `json:"block_dynamic_clients"`
+		Name                *string                         `json:"name"`
+		Blocklists          []string                        `json:"blocklists"`
+		Allowlist           []string                        `json:"allowlist"`
+		SafeSearch          []string                        `json:"safesearch"`
+		ClientIPs           []string                        `json:"client_ips"`
+		ClientCIDRs         []string                        `json:"client_cidrs"`
+		BlockDynamicClients *bool                           `json:"block_dynamic_clients"`
+		// M33: per-profile block page overrides.
+		BlockPage           *config.ProfileBlockPageConfig  `json:"block_page"`
 	}
 	if !decodeJSON(w, r, &patch) {
 		return
@@ -110,6 +112,9 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated.BlockDynamicClients = *patch.BlockDynamicClients
+	}
+	if patch.BlockPage != nil {
+		updated.BlockPage = patch.BlockPage
 	}
 	if h.app.GetCluster() == nil {
 		writeError(w, http.StatusServiceUnavailable, "cluster not available")

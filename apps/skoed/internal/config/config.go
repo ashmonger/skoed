@@ -126,17 +126,8 @@ type Profile struct {
 
 	Pause *PauseState `yaml:"pause,omitempty" json:"pause,omitempty"`
 
-	// M33 (TS-BypassPasscode): per-profile block page overrides and bypass passcode.
-	BlockPage *ProfileBlockPageOverride `yaml:"block_page,omitempty" json:"block_page,omitempty"`
-}
-
-// ProfileBlockPageOverride holds per-profile block page customisation and the
-// optional bypass passcode introduced in M33.
-type ProfileBlockPageOverride struct {
-	Title          string `yaml:"title,omitempty"           json:"title,omitempty"`
-	Message        string `yaml:"message,omitempty"         json:"message,omitempty"`
-	ContactEmail   string `yaml:"contact_email,omitempty"   json:"contact_email,omitempty"`
-	BypassPasscode string `yaml:"bypass_passcode,omitempty" json:"bypass_passcode,omitempty"`
+	// M33: per-profile block page content overrides. Nil means use global defaults.
+	BlockPage *ProfileBlockPageConfig `yaml:"block_page,omitempty" json:"block_page,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a
@@ -214,11 +205,26 @@ type CacheConfig struct {
 
 // BlockPageConfig holds the settings for the M26 redirect block page.
 type BlockPageConfig struct {
-	IP           string `yaml:"ip,omitempty"            json:"ip,omitempty"`
-	Port         int    `yaml:"port,omitempty"          json:"port,omitempty"`
-	Title        string `yaml:"title,omitempty"         json:"title,omitempty"`
-	Message      string `yaml:"message,omitempty"       json:"message,omitempty"`
-	ContactEmail string `yaml:"contact_email,omitempty" json:"contact_email,omitempty"`
+	IP           string `yaml:"ip,omitempty"                  json:"ip,omitempty"`
+	Port         int    `yaml:"port,omitempty"                json:"port,omitempty"`
+	Title        string `yaml:"title,omitempty"               json:"title,omitempty"`
+	Message      string `yaml:"message,omitempty"             json:"message,omitempty"`
+	ContactEmail string `yaml:"contact_email,omitempty"       json:"contact_email,omitempty"`
+	// M33: optional IPv6 redirect address. When set, AAAA queries for blocked
+	// domains under the "redirect" policy return this address instead of SERVFAIL.
+	RedirectAddressV6 string `yaml:"redirect_address_v6,omitempty" json:"redirect_address_v6,omitempty"`
+}
+
+// ProfileBlockPageConfig holds per-profile block page content overrides (M33).
+// Fields present here take precedence over the global BlockPageConfig values.
+type ProfileBlockPageConfig struct {
+	Title          string `yaml:"title,omitempty"           json:"title,omitempty"`
+	Message        string `yaml:"message,omitempty"         json:"message,omitempty"`
+	ContactEmail   string `yaml:"contact_email,omitempty"   json:"contact_email,omitempty"`
+	LogoURL        string `yaml:"logo_url,omitempty"        json:"logo_url,omitempty"`
+	// BypassPasscode is the secret string a client must supply to POST /api/v1/bypass
+	// in order to receive a time-bounded pause on their profile's filtering.
+	BypassPasscode string `yaml:"bypass_passcode,omitempty" json:"bypass_passcode,omitempty"`
 }
 
 type FilteringConfig struct {

@@ -52,7 +52,7 @@ var (
 //
 // M5.1: when m is non-nil, every query exit observes outcome+duration
 // via m.ObserveQuery so /metrics counters reflect live traffic.
-func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics, onDeviceNew func(string), getBlockPageIP func() string) *dnsengine.Handler {
+func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog *dlog.QueryLog, dhcpMgr *dhcp.Manager, cache *dnsengine.Cache, m *metrics.Metrics, onDeviceNew func(string), getBlockPageIP func() string, getBlockPageV6 func() string) *dnsengine.Handler {
 	localRes := dnsengine.NewLocalResolver(cfg.LocalDNS.Entries)
 
 	var fwd *dnsengine.Forwarder
@@ -90,6 +90,7 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 		ObserveQuery:  observe,
 		OnDeviceNew:   onDeviceNew,
 		BlockPageIP:   getBlockPageIP,
+		BlockPageV6:   getBlockPageV6,
 	})
 }
 
@@ -340,7 +341,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -529,7 +530,7 @@ func runDaemon(cfgPath string) {
 	}()
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -732,7 +733,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -771,7 +772,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)

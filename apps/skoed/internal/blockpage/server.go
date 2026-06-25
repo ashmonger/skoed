@@ -91,12 +91,27 @@ func DefaultConfig() Config {
 	}
 }
 
+// ProfileConfig holds per-profile block page overrides (M33). Fields that
+// are non-empty override the corresponding global Config fields.
+type ProfileConfig struct {
+	Title        string
+	Message      string
+	ContactEmail string
+	ProfileID    string
+}
+
 // Server is a minimal HTTP server that serves the block page.
 type Server struct {
-	mu     sync.Mutex
-	cfg    Config
-	srv    *http.Server
-	ln     net.Listener
+	mu             sync.Mutex
+	cfg            Config
+	customTemplate string // M33: raw HTML template string; "" means use built-in
+	srv            *http.Server
+	ln             net.Listener
+
+	// M33: optional per-profile config lookup. When non-nil, the server
+	// reads the client_ip query parameter and calls this function to get
+	// profile-specific overrides. nil disables the feature.
+	profileConfigFn func(clientIP string) *ProfileConfig
 }
 
 // New creates a Server with the given initial config. Call Start to bind.
@@ -152,6 +167,30 @@ func (s *Server) UpdateConfig(cfg Config) {
 	s.mu.Unlock()
 }
 
+// SetCustomTemplate stores a raw HTML template string that replaces the
+// built-in template on every subsequent request. Pass "" to revert to the
+// built-in. Thread-safe.
+func (s *Server) SetCustomTemplate(html string) {
+	s.mu.Lock()
+	s.customTemplate = html
+	s.mu.Unlock()
+}
+
+// ClearCustomTemplate reverts the server to the built-in default template.
+func (s *Server) ClearCustomTemplate() {
+	s.mu.Lock()
+	s.customTemplate = ""
+	s.mu.Unlock()
+}
+
+// SetProfileConfigFn wires the M33 per-profile config lookup. Replaces any
+// previously wired function. Thread-safe.
+func (s *Server) SetProfileConfigFn(fn func(clientIP string) *ProfileConfig) {
+	s.mu.Lock()
+	s.profileConfigFn = fn
+	s.mu.Unlock()
+}
+
 // IsRunning reports whether the server is currently listening.
 func (s *Server) IsRunning() bool {
 	s.mu.Lock()
@@ -161,13 +200,41 @@ func (s *Server) IsRunning() bool {
 
 type pageData struct {
 	Config
-	Joke string
+	Joke      string
+	Domain    string
+	Profile   string
 }
 
-func (s *Server) handle(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	cfg := s.cfg
+	customTmpl := s.customTemplate
+	profileFn := s.profileConfigFn
 	s.mu.Unlock()
+
+	// M33: merge per-profile overrides when available.
+	profileID := ""
+	if profileFn != nil {
+		clientIP := r.URL.Query().Get("client_ip")
+		if clientIP == "" {
+			// Fall back to the request's remote address.
+			clientIP, _, _ = net.SplitHostPort(r.RemoteAddr)
+		}
+		if clientIP != "" {
+			if pcfg := profileFn(clientIP); pcfg != nil {
+				profileID = pcfg.ProfileID
+				if pcfg.Title != "" {
+					cfg.Title = pcfg.Title
+				}
+				if pcfg.Message != "" {
+					cfg.Message = pcfg.Message
+				}
+				if pcfg.ContactEmail != "" {
+					cfg.ContactEmail = pcfg.ContactEmail
+				}
+			}
+		}
+	}
 
 	if cfg.Title == "" {
 		cfg.Title = "Access Blocked"
@@ -176,13 +243,28 @@ func (s *Server) handle(w http.ResponseWriter, _ *http.Request) {
 		cfg.Message = "This website has been blocked by your network administrator."
 	}
 
+	domain := r.URL.Query().Get("domain")
+
 	data := pageData{
-		Config: cfg,
-		Joke:   jokes[rand.Intn(len(jokes))],
+		Config:  cfg,
+		Joke:    jokes[rand.Intn(len(jokes))],
+		Domain:  domain,
+		Profile: profileID,
+	}
+
+	// M33: use custom template when one has been stored; fall back to built-in.
+	tmpl := pageTmpl
+	if customTmpl != "" {
+		parsed, err := template.New("custom").Parse(customTmpl)
+		if err != nil {
+			http.Error(w, "block page template error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tmpl = parsed
 	}
 
 	var buf strings.Builder
-	if err := pageTmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		http.Error(w, "block page unavailable", http.StatusInternalServerError)
 		return
 	}

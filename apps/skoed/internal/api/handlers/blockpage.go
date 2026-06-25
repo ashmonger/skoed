@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 
@@ -10,20 +11,22 @@ import (
 
 // blockPageResponse is the JSON shape for GET/PATCH /api/v1/blockpage.
 type blockPageResponse struct {
-	IP           string `json:"ip,omitempty"`
-	Port         int    `json:"port,omitempty"`
-	Title        string `json:"title,omitempty"`
-	Message      string `json:"message,omitempty"`
-	ContactEmail string `json:"contact_email,omitempty"`
+	IP                string `json:"ip,omitempty"`
+	Port              int    `json:"port,omitempty"`
+	Title             string `json:"title,omitempty"`
+	Message           string `json:"message,omitempty"`
+	ContactEmail      string `json:"contact_email,omitempty"`
+	RedirectAddressV6 string `json:"redirect_address_v6,omitempty"`
 }
 
 func blockPageFromCfg(bp config.BlockPageConfig) blockPageResponse {
 	return blockPageResponse{
-		IP:           bp.IP,
-		Port:         bp.Port,
-		Title:        bp.Title,
-		Message:      bp.Message,
-		ContactEmail: bp.ContactEmail,
+		IP:                bp.IP,
+		Port:              bp.Port,
+		Title:             bp.Title,
+		Message:           bp.Message,
+		ContactEmail:      bp.ContactEmail,
+		RedirectAddressV6: bp.RedirectAddressV6,
 	}
 }
 
@@ -35,11 +38,12 @@ func (h *Handler) GetBlockPage(w http.ResponseWriter, r *http.Request) {
 
 // blockPagePatch is the body accepted by PATCH /api/v1/blockpage.
 type blockPagePatch struct {
-	IP           *string `json:"ip"`
-	Port         *int    `json:"port"`
-	Title        *string `json:"title"`
-	Message      *string `json:"message"`
-	ContactEmail *string `json:"contact_email"`
+	IP                *string `json:"ip"`
+	Port              *int    `json:"port"`
+	Title             *string `json:"title"`
+	Message           *string `json:"message"`
+	ContactEmail      *string `json:"contact_email"`
+	RedirectAddressV6 *string `json:"redirect_address_v6"`
 }
 
 // UpdateBlockPage handles PATCH /api/v1/blockpage.
@@ -78,6 +82,18 @@ func (h *Handler) UpdateBlockPage(w http.ResponseWriter, r *http.Request) {
 		if patch.ContactEmail != nil {
 			bp.ContactEmail = *patch.ContactEmail
 		}
+		if patch.RedirectAddressV6 != nil {
+			if *patch.RedirectAddressV6 != "" {
+				parsed := net.ParseIP(*patch.RedirectAddressV6)
+				if parsed == nil {
+					return &validationError{"block_page.redirect_address_v6 must be a valid IP address"}
+				}
+				if parsed.To4() != nil {
+					return &validationError{"block_page.redirect_address_v6 must be an IPv6 address"}
+				}
+			}
+			bp.RedirectAddressV6 = *patch.RedirectAddressV6
+		}
 		return nil
 	}); err != nil {
 		if ve, ok := err.(*validationError); ok {
@@ -105,4 +121,42 @@ func (h *Handler) UpdateBlockPage(w http.ResponseWriter, r *http.Request) {
 // BlockPageUpdater is implemented by api.App to react to block page config changes.
 type BlockPageUpdater interface {
 	RestartBlockPageServer()
+}
+
+// BlockPageTemplateManager is implemented by api.App to manage the M33 custom template.
+type BlockPageTemplateManager interface {
+	SetBlockPageTemplate(html string)
+	ClearBlockPageTemplate()
+}
+
+// PutBlockPageTemplate handles PUT /api/v1/blockpage/template.
+// Body is the raw HTML template string (Content-Type: text/html or application/octet-stream).
+func (h *Handler) PutBlockPageTemplate(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MiB max
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
+		return
+	}
+	if len(body) == 0 {
+		writeError(w, http.StatusBadRequest, "template body is empty")
+		return
+	}
+	mgr, ok := h.app.(BlockPageTemplateManager)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "custom template not supported")
+		return
+	}
+	mgr.SetBlockPageTemplate(string(body))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DeleteBlockPageTemplate handles DELETE /api/v1/blockpage/template.
+func (h *Handler) DeleteBlockPageTemplate(w http.ResponseWriter, r *http.Request) {
+	mgr, ok := h.app.(BlockPageTemplateManager)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "custom template not supported")
+		return
+	}
+	mgr.ClearBlockPageTemplate()
+	w.WriteHeader(http.StatusNoContent)
 }

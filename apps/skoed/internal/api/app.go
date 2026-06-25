@@ -245,7 +245,40 @@ func (a *App) SetDhcpServer6(s *dhcp.Server6) { a.dhcpServer6 = s }
 func (a *App) GetDhcpServer6() *dhcp.Server6 { return a.dhcpServer6 }
 
 // SetBlockPageServer wires the M26 block page HTTP server.
-func (a *App) SetBlockPageServer(s *blockpage.Server) { a.blockPageSrv = s }
+// SetBlockPageServer wires the M26 block page HTTP server and registers the
+// M33 per-profile config lookup function on it.
+func (a *App) SetBlockPageServer(s *blockpage.Server) {
+	a.blockPageSrv = s
+	if s != nil {
+		s.SetProfileConfigFn(a.blockPageProfileConfig)
+	}
+}
+
+// blockPageProfileConfig returns per-profile block page overrides for a given
+// client IP by scanning the live config. Returns a ProfileConfig with at least
+// the ProfileID set whenever a profile matches, even when no overrides exist.
+// Returns nil when no profile matches. Called by the block page server on
+// every request.
+func (a *App) blockPageProfileConfig(clientIP string) *blockpage.ProfileConfig {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return nil
+	}
+	for _, p := range cfg.Profiles {
+		for _, ip := range p.ClientIPs {
+			if ip == clientIP {
+				pc := &blockpage.ProfileConfig{ProfileID: p.ID}
+				if p.BlockPage != nil {
+					pc.Title = p.BlockPage.Title
+					pc.Message = p.BlockPage.Message
+					pc.ContactEmail = p.BlockPage.ContactEmail
+				}
+				return pc
+			}
+		}
+	}
+	return nil
+}
 
 // GetBlockPageIP returns the currently configured block page IP from the
 // live config. Used by the DNS handler when block_policy == "redirect".
@@ -255,6 +288,34 @@ func (a *App) GetBlockPageIP() string {
 		return ""
 	}
 	return cfg.Filtering.BlockPage.IP
+}
+
+// GetBlockPageV6 returns the currently configured block page IPv6 address.
+// Used by the DNS handler when block_policy == "redirect" for AAAA queries.
+func (a *App) GetBlockPageV6() string {
+	cfg := a.GetCfg()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Filtering.BlockPage.RedirectAddressV6
+}
+
+// SetBlockPageTemplate stores a custom HTML template on the block page server.
+// Implements handlers.BlockPageTemplateManager. Thread-safe.
+func (a *App) SetBlockPageTemplate(html string) {
+	if a.blockPageSrv == nil {
+		return
+	}
+	a.blockPageSrv.SetCustomTemplate(html)
+}
+
+// ClearBlockPageTemplate reverts the block page server to the built-in template.
+// Implements handlers.BlockPageTemplateManager.
+func (a *App) ClearBlockPageTemplate() {
+	if a.blockPageSrv == nil {
+		return
+	}
+	a.blockPageSrv.ClearCustomTemplate()
 }
 
 // RestartBlockPageServer stops and restarts the block page server when the
@@ -972,6 +1033,12 @@ func (a *App) Router() http.Handler {
 		// M26 — block page config.
 		r.Get("/api/v1/blockpage", h.GetBlockPage)
 		r.Patch("/api/v1/blockpage", a.forward(h.UpdateBlockPage))
+
+		// M33 — block page enhancements: custom template + bypass.
+		r.Put("/api/v1/blockpage/template", h.PutBlockPageTemplate)
+		r.Delete("/api/v1/blockpage/template", h.DeleteBlockPageTemplate)
+		bypassH := handlers.NewBypassHandlers(a)
+		r.Post("/api/v1/bypass", a.forward(bypassH.CreateBypass))
 
 		// M23.5 — built-in DHCP server.
 		r.Get("/api/v1/dhcp/server/status", h.DhcpServerStatus)
