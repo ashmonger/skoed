@@ -179,8 +179,7 @@ func TestBlockPageIPv6Redirect(t *testing.T) {
 }
 
 // FS-BlockPageIPv6NotConfigured
-// Without redirect_address_v6, AAAA queries for blocked domains return SERVFAIL.
-// (This is the existing M26 behaviour — we just confirm it remains unchanged.)
+// Without redirect_address_v6, AAAA queries for blocked domains return NXDOMAIN.
 func TestBlockPageIPv6NotConfigured(t *testing.T) {
 	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
@@ -192,9 +191,9 @@ func TestBlockPageIPv6NotConfigured(t *testing.T) {
 	})
 	addInlineBlocklist(t, n, "blocked", []string{"blocked.example.com"}, "")
 
-	// No redirect_address_v6 configured.
+	// No redirect_address_v6 configured → NXDOMAIN per FS-BlockPageIPv6NotConfigured.
 	r := dnsQuery(t, n.DNSAddr, "blocked.example.com", dns.TypeAAAA)
-	assertRcode(t, r, dns.RcodeServerFailure)
+	assertRcode(t, r, dns.RcodeNameError)
 }
 
 // ── Time-bounded bypass ───────────────────────────────────────────────────────

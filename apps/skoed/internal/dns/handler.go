@@ -392,8 +392,7 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 			}
 		case dns.TypeAAAA:
 			// M33: when redirect_address_v6 is set, redirect AAAA to the block
-			// page IPv6 address. Otherwise fall back to SERVFAIL (legacy M26
-			// behaviour preserved so existing tests keep passing).
+			// page IPv6 address. Otherwise return NXDOMAIN (FS-BlockPageIPv6NotConfigured).
 			if h.blockPageV6 != nil {
 				if v6addr := h.blockPageV6(); v6addr != "" {
 					if parsed := net.ParseIP(v6addr); parsed != nil {
@@ -413,7 +412,7 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 					}
 				}
 			}
-			m.Rcode = dns.RcodeServerFailure
+			m.Rcode = dns.RcodeNameError
 		default:
 			m.Rcode = dns.RcodeNameError
 		}

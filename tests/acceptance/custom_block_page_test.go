@@ -40,7 +40,8 @@ func TestBlockPageRedirectReturnsIP(t *testing.T) {
 }
 
 // FS-BlockPageRedirectServfailAAAA
-// When block_policy="redirect", a blocked AAAA query returns SERVFAIL.
+// When block_policy="redirect" and no redirect_address_v6 is set, a blocked
+// AAAA query returns NXDOMAIN (M33 updated the pre-M26 SERVFAIL behaviour).
 func TestBlockPageRedirectServfailAAAA(t *testing.T) {
 	t.Parallel()
 	upstream := startFakeUpstream(t, fakeUpstreamReturnsA("93.184.216.34"))
@@ -53,7 +54,7 @@ func TestBlockPageRedirectServfailAAAA(t *testing.T) {
 	addInlineBlocklist(t, n, "blocked", []string{"blocked.example.com"}, "")
 
 	r := dnsQuery(t, n.DNSAddr, "blocked.example.com", dns.TypeAAAA)
-	assertRcode(t, r, dns.RcodeServerFailure)
+	assertRcode(t, r, dns.RcodeNameError)
 }
 
 // FS-BlockPageNonRedirectUnaffected
