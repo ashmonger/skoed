@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -254,9 +255,9 @@ func TestDhcpGenericRetry(t *testing.T) {
 // FS-DhcpConnectorRefreshInterval
 func TestDhcpConnectorRefreshInterval(t *testing.T) {
 	t.Parallel()
-	calls := 0
+	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		calls.Add(1)
 		fmt.Fprint(w, "[]")
 	}))
 	defer srv.Close()
@@ -267,8 +268,8 @@ func TestDhcpConnectorRefreshInterval(t *testing.T) {
 	n := c.Leader(t).Node
 	requireDhcpHarness(t, n)
 	time.Sleep(5 * time.Second)
-	if calls < 2 || calls > 4 {
-		t.Errorf("with refresh=2s after 5s expected 2-4 polls, got %d", calls)
+	if n := calls.Load(); n < 2 || n > 4 {
+		t.Errorf("with refresh=2s after 5s expected 2-4 polls, got %d", n)
 	}
 }
 

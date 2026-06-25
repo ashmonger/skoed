@@ -12,6 +12,7 @@ package acceptance
 
 import (
 	"net"
+	"sync/atomic"
 	"testing"
 
 	"github.com/miekg/dns"
@@ -222,11 +223,11 @@ func TestDualStackNullBlockIPv6(t *testing.T) {
 // When the client sets the DO bit, DNSSEC records from upstream are forwarded.
 func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
 	t.Parallel()
-	var receivedDO bool
+	var receivedDO atomic.Bool
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		// Record whether the DO bit arrived at the upstream
 		if opt := r.IsEdns0(); opt != nil {
-			receivedDO = opt.Do()
+			receivedDO.Store(opt.Do())
 		}
 		m := new(dns.Msg)
 		m.SetReply(r)
@@ -251,7 +252,7 @@ func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
 
 	r := dnsQueryWithDO(t, n.DNSAddr, "example.com", dns.TypeA)
 
-	if !receivedDO {
+	if !receivedDO.Load() {
 		t.Fatal("skoed did not forward the DO bit to the upstream resolver")
 	}
 
@@ -272,10 +273,10 @@ func TestDnssecTransparentProxyDOBitForwarded(t *testing.T) {
 // Without the DO bit, the upstream is not asked for DNSSEC records.
 func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
 	t.Parallel()
-	var receivedDO bool
+	var receivedDO atomic.Bool
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
 		if opt := r.IsEdns0(); opt != nil {
-			receivedDO = opt.Do()
+			receivedDO.Store(opt.Do())
 		}
 		m := new(dns.Msg)
 		m.SetReply(r)
@@ -294,7 +295,7 @@ func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
 	// Plain query — no DO bit
 	dnsQuery(t, n.DNSAddr, "example.com", dns.TypeA)
 
-	if receivedDO {
+	if receivedDO.Load() {
 		t.Fatal("skoed set the DO bit on the upstream query but the client did not request it")
 	}
 }
@@ -303,9 +304,9 @@ func TestDnssecTransparentProxyNoDOBit(t *testing.T) {
 // DNSSEC records are not returned for blocked domains; upstream is not contacted.
 func TestDnssecTransparentProxyBlockedDomain(t *testing.T) {
 	t.Parallel()
-	contacted := false
+	var contacted atomic.Bool
 	upstreamAddr := startFakeUpstream(t, func(w dns.ResponseWriter, r *dns.Msg) {
-		contacted = true
+		contacted.Store(true)
 		m := new(dns.Msg)
 		m.SetReply(r)
 		w.WriteMsg(m) //nolint:errcheck
@@ -327,7 +328,7 @@ func TestDnssecTransparentProxyBlockedDomain(t *testing.T) {
 	r := dnsQueryWithDO(t, n.DNSAddr, "blocked.example.com", dns.TypeA)
 
 	assertRcode(t, r, dns.RcodeNameError) // NXDOMAIN
-	if contacted {
+	if contacted.Load() {
 		t.Fatal("skoed contacted the upstream resolver for a blocked domain")
 	}
 }
