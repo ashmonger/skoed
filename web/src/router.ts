@@ -35,6 +35,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'account', name: 'account', component: () => import('./views/Account.vue') },
       { path: 'webhooks', name: 'webhooks', component: () => import('./views/Webhooks.vue') },
       { path: 'tokens', name: 'tokens', component: () => import('./views/Tokens.vue') },
+      { path: 'custom-rules', name: 'custom-rules', component: () => import('./views/CustomRules.vue') },
     ],
   },
   { path: '/:catchAll(.*)*', redirect: '/' },

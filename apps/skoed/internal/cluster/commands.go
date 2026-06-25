@@ -70,6 +70,8 @@ const (
 	// M30 — DHCPv4 dynamic lease persistence.
 	CmdDhcpServerLeasesUpsert CommandKind = "dhcp_server.leases.upsert"
 	CmdDhcpServerLeaseDelete  CommandKind = "dhcp_server.leases.delete"
+	// M30.5 — cluster-wide custom filtering rules (TS-CustomRules).
+	CmdCustomRulesSet CommandKind = "custom_rules.set"
 	// M30 — DHCPv6 server settings, static assignments, and lease persistence.
 	CmdDhcp6ServerSettingsSet      CommandKind = "dhcp6_server.settings.set"
 	CmdDhcp6StaticAssignmentUpsert CommandKind = "dhcp6_server.static.upsert"
@@ -417,4 +419,11 @@ type Dhcp6ServerLeaseUpsertPayload struct {
 // Dhcp6ServerLeaseDeletePayload removes one DHCPv6 dynamic lease from bbolt.
 type Dhcp6ServerLeaseDeletePayload struct {
 	Address string `json:"address"`
+}
+
+// ─── M30.5 payloads (TS-CustomRules) ─────────────────────────────────────────
+
+// CustomRulesSetPayload replaces the full cluster-wide custom rules text.
+type CustomRulesSetPayload struct {
+	Rules string `json:"rules"`
 }

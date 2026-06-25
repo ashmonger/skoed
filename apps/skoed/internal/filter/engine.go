@@ -80,6 +80,8 @@ type Engine struct {
 	globalPolicy BlockPolicy
 	allowlist    domainSet
 	blocklists   []blocklistEntry
+	// M30.5 — cluster-wide custom rules (allow > block; checked before allowlist).
+	customRules  customRuleSet
 
 	// M3 additions — present whenever the engine is built with NewProfiled.
 	profiles  []profileEntry
@@ -187,6 +189,13 @@ func New(cfg config.FilteringConfig) *Engine {
 		globalPolicy:  parsePolicy(cfg.BlockPolicy),
 		allowlist:     newDomainSet(cfg.Allowlist),
 		blocklistByID: map[string]*blocklistEntry{},
+	}
+	if cfg.CustomRules != "" {
+		if rs, err := ParseCustomRules(cfg.CustomRules); err == nil {
+			e.customRules = rs
+		}
+		// Parsing errors are silently ignored here: the PUT handler already
+		// validated the text before committing it via Raft.
 	}
 
 	if cfg.GlobalPause != nil {
@@ -343,6 +352,14 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 	// Global pause targeting ALL profiles: short-circuit immediately.
 	if !e.globalPauseUntil.IsZero() && now.Before(e.globalPauseUntil) && len(e.globalPauseProfileIDs) == 0 {
 		return Result{Disposition: Allow, PauseActive: true}
+	}
+
+	// M30.5: cluster-wide custom rules (allow > block; highest priority after pause).
+	if matched, isAllow := e.customRules.evaluate(domain); matched {
+		if isAllow {
+			return Result{Disposition: Allow, BlocklistID: "custom_rule"}
+		}
+		return Result{Disposition: Block, BlocklistID: "custom_rule"}
 	}
 
 	// Global allowlist (legacy / non-profile) always wins first.
@@ -568,6 +585,14 @@ func (e *Engine) Evaluate(domain string) Result {
 	defer e.mu.RUnlock()
 
 	domain = strings.ToLower(domain)
+
+	// M30.5: custom rules have highest priority (allow > block within the set).
+	if matched, isAllow := e.customRules.evaluate(domain); matched {
+		if isAllow {
+			return Result{Disposition: Allow, BlocklistID: "custom_rule"}
+		}
+		return Result{Disposition: Block, BlocklistID: "custom_rule"}
+	}
 
 	if e.allowlist.matches(domain) {
 		return Result{Disposition: Allow}

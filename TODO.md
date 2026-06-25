@@ -70,6 +70,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M26 | Custom Block Page | ✅ | — | [note](demos/m26/DEMO_NOTE.md) · [report](demos/m26/test-report.html) | [custom-block-page](specs/functional/custom-block-page.feature) | [custom-block-page](tests/acceptance/custom_block_page_test.go) |
 | M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
 | M30 | DHCP Persistence + DHCPv6 | ✅ | — | [note](demos/m30/DEMO_NOTE.md) · [report](demos/m30/test-report.html) | [dhcp-persistence](specs/functional/dhcp-persistence.feature) | [dhcp-persistence](tests/acceptance/dhcp_persistence_test.go) |
+| M30.5 | Custom Filtering Rules (Regex + Exact) | ✅ | — | [note](demos/m30.5/DEMO_NOTE.md) · [report](demos/m30.5/test-report.html) | [custom-filtering-rules](specs/functional/custom-filtering-rules.feature) | [custom-rules](tests/acceptance/custom_rules_test.go) |
 | M31 | Backup Hardening | ⬜ | — | — | — | — |
 | M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
 | M33 | Block Page Enhancements | ⬜ | — | — | — | — |
@@ -348,6 +349,20 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M23.5 — screenshots + demo note in `demos/m23.5/` — 2026-06-22
 - [ ] M23.5 — UoR demo validation
 - [ ] M23.5 — merge to master
+
+## M30.5 tasks — Custom Filtering Rules (Regex + Exact)
+
+- [x] M30.5 — functional spec: `specs/functional/custom-filtering-rules.feature` (8 FSIDs) — 2026-06-24
+- [x] M30.5 — UoR validated functional spec — 2026-06-24
+- [x] M30.5 — technical spec: `specs/technical/custom-regex-rules.md` (TS-CustomRules) — 2026-06-24
+- [x] M30.5 — acceptance tests: `tests/acceptance/custom_rules_test.go` (8 tests) — 2026-06-24
+- [x] M30.5 — all 8 acceptance tests green — 2026-06-24
+- [x] M30.5 — implementation: `internal/filter/custom_rules.go`, `CmdCustomRulesSet` Raft command, `GET`+`PUT /api/v1/custom-rules`, CustomRules.vue web UI, Shell.vue nav entry, router — 2026-06-24
+- [x] M30.5 — refactoring phase — implementation clean, no behavior changes — 2026-06-24
+- [x] M30.5 — Proxmox validation: regex block/allow, cluster replication, 422 rejection — 2026-06-24
+- [x] M30.5 — screenshots + demo note + test report: `demos/m30.5/` — 2026-06-24
+- [ ] M30.5 — UoR demo validation
+- [ ] M30.5 — merge to master (pending M30 merge first)
 
 ## Backlog
 

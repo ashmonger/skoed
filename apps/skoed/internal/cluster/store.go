@@ -689,6 +689,13 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketDhcp6ServerLeases).Delete([]byte(p.Address))
+
+	case CmdCustomRulesSet:
+		var p CustomRulesSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketSettings).Put([]byte("custom_rules"), []byte(p.Rules))
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -925,6 +932,9 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 	if err := tx.Bucket(bucketSettings).Put([]byte("query_log"), qv); err != nil {
 		return err
 	}
+	if err := tx.Bucket(bucketSettings).Put([]byte("custom_rules"), []byte(c.Filtering.CustomRules)); err != nil {
+		return err
+	}
 
 	// Auth.
 	auth := AuthSetCredentialsPayload{
@@ -1024,6 +1034,9 @@ func (s *Store) Snapshot() (*config.Config, error) {
 				return err
 			}
 			out.Filtering.GlobalPause = &config.PauseState{ResumesAt: gp.ResumesAt, Reason: gp.Reason, ProfileIDs: gp.ProfileIDs}
+		}
+		if v := sb.Get([]byte("custom_rules")); v != nil {
+			out.Filtering.CustomRules = string(v)
 		}
 
 		// Auth.

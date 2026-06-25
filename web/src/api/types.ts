@@ -399,3 +399,9 @@ export interface Dhcp6Lease {
   expires_at: string
   origin: string  // "dhcp6_dynamic" | "dhcp6_static"
 }
+
+
+// M30.5 — Custom filtering rules (TS-CustomRules).
+export interface CustomRules {
+  rules: string
+}

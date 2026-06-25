@@ -87,6 +87,9 @@ type AppState interface {
 
 	// GetBuildVersion returns the (version, commit) injected at link time.
 	GetBuildVersion() (string, string)
+
+	// SetCustomRules replaces the cluster-wide custom filtering rules (M30.5).
+	SetCustomRules(rules string) error
 }
 
 // Handler groups all HTTP handlers and holds a reference to the application state.

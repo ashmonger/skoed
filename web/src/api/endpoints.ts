@@ -3,7 +3,7 @@ import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './cli
 import type {
   Anomaly, APIToken, APITokenMinted, AuditPage, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
-  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
+  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, CustomRules, DNSCacheStats,
   Dhcp6Lease, Dhcp6ServerStatus, DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
   ScheduleBinding, Settings, WebhookEndpoint,
@@ -585,4 +585,14 @@ export function putDhcp6ServerSettings(patch: Dhcp6SettingsPatch): Promise<Dhcp6
 
 export function listDhcp6Leases(): Promise<Dhcp6Lease[]> {
   return getJSON<{ leases: Dhcp6Lease[] }>('/api/v1/dhcp/leases6').then(r => r?.leases ?? [])
+}
+
+// ─── M30.5: Custom filtering rules ───────────────────────────────────────────
+
+export function getCustomRules(): Promise<CustomRules> {
+  return getJSON('/api/v1/custom-rules')
+}
+
+export function putCustomRules(rules: string): Promise<CustomRules> {
+  return putJSON('/api/v1/custom-rules', { rules })
 }

@@ -120,7 +120,7 @@ import {
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
   DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
-  BellAlertIcon, KeyIcon, ServerIcon,
+  BellAlertIcon, KeyIcon, ServerIcon, PencilSquareIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -158,8 +158,9 @@ const nav: Array<{
       { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
       { name: 'clients',    label: 'Clients',    icon: DevicePhoneMobileIcon },
       { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
-      { name: 'schedules',  label: 'Schedules',  icon: ClockIcon },
-      { name: 'categories', label: 'Categories', icon: TagIcon },
+      { name: 'schedules',     label: 'Schedules',     icon: ClockIcon },
+      { name: 'categories',    label: 'Categories',    icon: TagIcon },
+      { name: 'custom-rules',  label: 'Custom Rules',  icon: PencilSquareIcon },
     ],
   },
   {
@@ -210,6 +211,7 @@ const titles: Record<string, string> = {
   account: 'Account',
   webhooks: 'Webhooks',
   tokens: 'API Tokens',
+  'custom-rules': 'Custom Rules',
 }
 const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'skoed')
 
