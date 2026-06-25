@@ -1332,3 +1332,10 @@ func (c *Cluster) DeleteDhcp6Lease(address string) error {
 func (c *Cluster) GetDhcp6Leases() ([]Dhcp6ServerLeaseUpsertPayload, error) {
 	return c.store.Dhcp6ServerLeases()
 }
+
+// ─── M30.5 — custom filtering rules ──────────────────────────────────────────
+
+// SetCustomRules replaces the cluster-wide custom filtering rules text via Raft.
+func (c *Cluster) SetCustomRules(rules string) error {
+	return c.applyAsLeader(CmdCustomRulesSet, CustomRulesSetPayload{Rules: rules}, 0)
+}

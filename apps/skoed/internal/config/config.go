@@ -200,6 +200,9 @@ type FilteringConfig struct {
 	PauseMaxSeconds int             `yaml:"pause_max_seconds,omitempty" json:"pause_max_seconds,omitempty"` // 0 = feature disabled; absent = 86400
 	GlobalPause     *PauseState     `yaml:"global_pause,omitempty"      json:"global_pause,omitempty"`
 	BlockPage       BlockPageConfig `yaml:"block_page,omitempty"        json:"block_page,omitempty"`
+	// M30.5 — cluster-wide custom filtering rules (AdGuard Home syntax).
+	// /regex/ = block, @@/regex/ = allow, domain = exact block, @@domain = exact allow.
+	CustomRules     string          `yaml:"custom_rules,omitempty"      json:"custom_rules,omitempty"`
 }
 
 // Blocklist describes a named set of domain rules.

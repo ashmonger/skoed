@@ -631,6 +631,20 @@ func (a *App) UpdateAuthConfig() error {
 	return a.cluster.SetCredentials(exported.Username, exported.PasswordHash)
 }
 
+// ─── M30.5: Custom filtering rules ───────────────────────────────────────────
+
+// SetCustomRules replicates a new custom rules text via Raft (when clustered)
+// or updates the config directly (single-node).
+func (a *App) SetCustomRules(rules string) error {
+	if a.cluster != nil {
+		return a.cluster.SetCustomRules(rules)
+	}
+	return a.WithWriteLock(func(cfg *config.Config) error {
+		cfg.Filtering.CustomRules = rules
+		return nil
+	})
+}
+
 // ─── M13: Filtering pause accessors ─────────────────────────────────────────
 
 // SetGlobalPause replicates a global pause deadline through the cluster.
@@ -811,6 +825,10 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/allowlist", h.GetAllowlist)
 		r.Post("/api/v1/allowlist", a.forward(h.AddAllowlistEntry))
 		r.Delete("/api/v1/allowlist/{domain}", a.forward(h.DeleteAllowlistEntry))
+
+		// M30.5 — Custom filtering rules (TS-CustomRules).
+		r.Get("/api/v1/custom-rules", h.GetCustomRules)
+		r.Put("/api/v1/custom-rules", a.forward(h.PutCustomRules))
 
 		// Local DNS
 		r.Get("/api/v1/local-dns", h.ListLocalDNS)
