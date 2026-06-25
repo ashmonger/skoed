@@ -43,6 +43,13 @@ var (
 	// static assignments (key = lowercase MAC address).
 	bucketDhcpServer      = []byte("dhcp_server")
 	bucketDhcpStaticAssns = []byte("dhcp_static_assignments")
+	// M30: dynamic DHCPv4 lease persistence (key = IPv4 string).
+	bucketDhcpServerLeases = []byte("dhcp_server_leases")
+	// M30: DHCPv6 server settings (single key "settings"), static assignments
+	// (key = DUID string), and dynamic leases (key = IPv6 address string).
+	bucketDhcp6Server      = []byte("dhcp6_server")
+	bucketDhcp6StaticAssns = []byte("dhcp6_static_assignments")
+	bucketDhcp6ServerLeases = []byte("dhcp6_server_leases")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -96,6 +103,10 @@ func (s *Store) init() error {
 			bucketWebhooks,
 			bucketDhcpServer,
 			bucketDhcpStaticAssns,
+			bucketDhcpServerLeases,
+			bucketDhcp6Server,
+			bucketDhcp6StaticAssns,
+			bucketDhcp6ServerLeases,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -609,6 +620,75 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketDhcpStaticAssns).Delete([]byte(strings.ToLower(p.MAC)))
+
+	// M30 — DHCPv4 dynamic lease persistence.
+	case CmdDhcpServerLeasesUpsert:
+		var p DhcpServerLeaseUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcpServerLeases).Put([]byte(p.IP), v)
+
+	case CmdDhcpServerLeaseDelete:
+		var p DhcpServerLeaseDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcpServerLeases).Delete([]byte(p.IP))
+
+	// M30 — DHCPv6 server settings.
+	case CmdDhcp6ServerSettingsSet:
+		var p Dhcp6ServerSettingsSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Settings)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcp6Server).Put([]byte("settings"), v)
+
+	// M30 — DHCPv6 static assignments.
+	case CmdDhcp6StaticAssignmentUpsert:
+		var p Dhcp6StaticAssignmentUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Assignment)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcp6StaticAssns).Put([]byte(p.Assignment.DUID), v)
+
+	case CmdDhcp6StaticAssignmentDelete:
+		var p Dhcp6StaticAssignmentDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcp6StaticAssns).Delete([]byte(p.DUID))
+
+	// M30 — DHCPv6 dynamic lease persistence.
+	case CmdDhcp6ServerLeasesUpsert:
+		var p Dhcp6ServerLeaseUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcp6ServerLeases).Put([]byte(p.Address), v)
+
+	case CmdDhcp6ServerLeaseDelete:
+		var p Dhcp6ServerLeaseDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDhcp6ServerLeases).Delete([]byte(p.Address))
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -1306,6 +1386,88 @@ func (s *Store) DhcpStaticAssignments() ([]config.DHCPStaticAssignment, error) {
 	})
 	if out == nil {
 		out = []config.DHCPStaticAssignment{}
+	}
+	return out, err
+}
+
+// ─── M30: DHCPv4 dynamic lease persistence ───────────────────────────────────
+
+// DhcpServerLeases returns all non-expired persisted DHCPv4 dynamic leases.
+func (s *Store) DhcpServerLeases() ([]DhcpServerLeaseUpsertPayload, error) {
+	var out []DhcpServerLeaseUpsertPayload
+	now := time.Now().Unix()
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketDhcpServerLeases).ForEach(func(_, v []byte) error {
+			var p DhcpServerLeaseUpsertPayload
+			if err := json.Unmarshal(v, &p); err != nil {
+				return nil // skip malformed
+			}
+			if p.ExpiresAt > 0 && p.ExpiresAt < now {
+				return nil // skip expired
+			}
+			out = append(out, p)
+			return nil
+		})
+	})
+	if out == nil {
+		out = []DhcpServerLeaseUpsertPayload{}
+	}
+	return out, err
+}
+
+// ─── M30: DHCPv6 server settings and persistence ─────────────────────────────
+
+// Dhcp6ServerSettings returns the cluster-wide DHCPv6 server configuration.
+func (s *Store) Dhcp6ServerSettings() (config.DHCPv6ServerConfig, error) {
+	var out config.DHCPv6ServerConfig
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketDhcp6Server).Get([]byte("settings"))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &out)
+	})
+	return out, err
+}
+
+// Dhcp6StaticAssignments returns all static DUID→address assignments.
+func (s *Store) Dhcp6StaticAssignments() ([]config.Dhcp6StaticAssignment, error) {
+	var out []config.Dhcp6StaticAssignment
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketDhcp6StaticAssns).ForEach(func(_, v []byte) error {
+			var a config.Dhcp6StaticAssignment
+			if err := json.Unmarshal(v, &a); err != nil {
+				return err
+			}
+			out = append(out, a)
+			return nil
+		})
+	})
+	if out == nil {
+		out = []config.Dhcp6StaticAssignment{}
+	}
+	return out, err
+}
+
+// Dhcp6ServerLeases returns all non-expired persisted DHCPv6 dynamic leases.
+func (s *Store) Dhcp6ServerLeases() ([]Dhcp6ServerLeaseUpsertPayload, error) {
+	var out []Dhcp6ServerLeaseUpsertPayload
+	now := time.Now().Unix()
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketDhcp6ServerLeases).ForEach(func(_, v []byte) error {
+			var p Dhcp6ServerLeaseUpsertPayload
+			if err := json.Unmarshal(v, &p); err != nil {
+				return nil // skip malformed
+			}
+			if p.ExpiresAt > 0 && p.ExpiresAt < now {
+				return nil // skip expired
+			}
+			out = append(out, p)
+			return nil
+		})
+	})
+	if out == nil {
+		out = []Dhcp6ServerLeaseUpsertPayload{}
 	}
 	return out, err
 }

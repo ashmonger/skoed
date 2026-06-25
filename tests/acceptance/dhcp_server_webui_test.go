@@ -289,12 +289,15 @@ func TestDhcpWebUiLeaseTableShape(t *testing.T) {
 		t.Fatalf("GET /api/v1/dhcp/leases: want 200, got %d: %s", resp.StatusCode, b)
 	}
 
-	var leases []json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&leases); err != nil {
+	var leasesResp struct {
+		Leases []json.RawMessage `json:"leases"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&leasesResp); err != nil {
 		t.Fatalf("decode lease array: %v", err)
 	}
+	leases := leasesResp.Leases
 	if leases == nil {
-		t.Fatal("GET /api/v1/dhcp/leases returned null — UI cannot iterate leases")
+		t.Fatal("GET /api/v1/dhcp/leases returned null leases — UI cannot iterate leases")
 	}
 
 	// Validate each existing entry has the required display fields.

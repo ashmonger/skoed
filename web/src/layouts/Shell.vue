@@ -50,32 +50,6 @@
         </div>
       </nav>
 
-      <div class="px-3 py-3 border-t border-border text-xs text-fg-muted shrink-0">
-        <div v-if="health" class="space-y-0.5">
-          <div>
-            <span class="text-fg-subtle">node</span>
-            <span class="font-mono ml-1">{{ health.node_id }}</span>
-          </div>
-          <div>
-            <span class="text-fg-subtle">role</span>
-            <span class="ml-1">{{ health.role }}</span>
-          </div>
-          <div>
-            <span class="text-fg-subtle">mode</span>
-            <span class="ml-1">{{ health.mode }}</span>
-          </div>
-          <div>
-            <span class="text-fg-subtle">term</span>
-            <span class="font-mono ml-1">{{ health.raft_term }}</span>
-            <span class="text-fg-subtle ml-2">commit</span>
-            <span class="font-mono ml-1">{{ health.commit_index }}</span>
-          </div>
-          <div v-if="health.version" class="pt-0.5 border-t border-border mt-0.5">
-            <span class="font-mono text-accent">{{ health.version }}</span>
-            <span v-if="health.commit" class="text-fg-subtle ml-1">({{ health.commit }})</span>
-          </div>
-        </div>
-      </div>
     </aside>
 
     <!-- Main column -->
@@ -91,6 +65,27 @@
         </button>
         <h1 class="text-sm font-semibold text-fg-strong">{{ pageTitle }}</h1>
         <div class="ml-auto flex items-center gap-2">
+          <!-- Node info chips (moved from sidebar footer) -->
+          <template v-if="health">
+            <button
+              class="text-xs text-fg-muted hidden lg:block hover:text-fg transition-colors"
+              title="Change palette"
+              @click="cyclePalette"
+            >{{ paletteLabel }}</button>
+            <span class="hidden lg:inline-flex items-center gap-1 border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-muted">
+              <span>{{ health.node_id }}</span>
+              <span :class="health.role === 'leader' ? 'text-accent font-semibold' : 'text-fg-muted'">{{ health.role }}</span>
+              <template v-if="leaderId">
+                <span class="text-fg-subtle mx-0.5">·</span>
+                <span class="text-fg-subtle">leader</span>
+                <span class="text-accent font-semibold">{{ leaderId }}</span>
+              </template>
+            </span>
+            <span v-if="health.version" class="hidden lg:inline-flex border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-muted">
+              {{ health.version }}
+            </span>
+            <div class="hidden lg:block w-px h-4 bg-border mx-1" />
+          </template>
           <button
             class="btn-ghost p-1.5"
             :title="theme.mode === 'dark' ? 'Switch to light' : 'Switch to dark'"
@@ -99,18 +94,6 @@
             <SunIcon v-if="theme.mode === 'dark'" class="w-5 h-5" />
             <MoonIcon v-else class="w-5 h-5" />
           </button>
-          <select
-            class="input py-1 w-44"
-            :value="theme.palette"
-            @change="onPaletteChange"
-            title="Palette"
-          >
-            <option value="monokai-solarized">Monokai Solarized</option>
-            <option value="monokai">Monokai (vivid)</option>
-            <option value="monokai-blue">Monokai Blue</option>
-            <option value="monokai-pro">Monokai Pro</option>
-            <option value="lipgloss">Lipgloss</option>
-          </select>
           <div class="text-xs text-fg-muted hidden sm:block">{{ auth.user }}</div>
           <button class="btn-ghost p-1.5" title="Account" @click="$router.push({ name: 'account' })">
             <UserCircleIcon class="w-5 h-5" />
@@ -129,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   HomeIcon, NoSymbolIcon, CheckBadgeIcon, ServerStackIcon,
@@ -141,7 +124,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
-import { clusterHealth } from '@/api/endpoints'
+import { clusterHealth, clusterStatus } from '@/api/endpoints'
 import type { ClusterHealth } from '@/api/types'
 
 const theme = useThemeStore()
@@ -151,6 +134,7 @@ const router = useRouter()
 
 const sidebarOpen = ref(true)
 const health = ref<ClusterHealth | null>(null)
+const leaderId = ref<string | null>(null)
 
 // Sidebar nav is grouped into thematic sections:
 //   Overview — the dashboard
@@ -229,10 +213,19 @@ const titles: Record<string, string> = {
 }
 const pageTitle = computed(() => titles[String(route.name ?? '')] ?? 'skoed')
 
-function onPaletteChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value as
-    'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro' | 'lipgloss'
-  theme.setPalette(v)
+const paletteLabel = computed(() => ({
+  'lipgloss': 'Lipgloss',
+  'monokai': 'Monokai',
+  'monokai-solarized': 'Monokai Solarized',
+  'monokai-blue': 'Monokai Blue',
+  'monokai-pro': 'Monokai Pro',
+}[theme.palette] ?? theme.palette))
+
+const PALETTES = ['lipgloss', 'monokai', 'monokai-solarized', 'monokai-blue', 'monokai-pro'] as const
+
+function cyclePalette() {
+  const idx = PALETTES.indexOf(theme.palette as typeof PALETTES[number])
+  theme.setPalette(PALETTES[(idx + 1) % PALETTES.length])
 }
 
 async function onLogout() {
@@ -241,10 +234,22 @@ async function onLogout() {
 }
 
 async function refreshHealth() {
-  try { health.value = await clusterHealth() } catch { /* ignore */ }
+  try {
+    health.value = await clusterHealth()
+    if (health.value.mode === 'cluster' && health.value.role !== 'leader') {
+      const s = await clusterStatus()
+      leaderId.value = s.leader_id || null
+    } else {
+      leaderId.value = null
+    }
+  } catch { /* ignore */ }
 }
+let healthTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   await refreshHealth()
-  setInterval(refreshHealth, 10_000)
+  healthTimer = setInterval(refreshHealth, 10_000)
+})
+onUnmounted(() => {
+  if (healthTimer !== null) clearInterval(healthTimer)
 })
 </script>

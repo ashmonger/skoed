@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M30 — DHCP Persistence + DHCPv6 — Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --purple: #a78bfa;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; line-height: 1.6; }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--muted); margin-top: 0.25rem; font-size: 0.875rem; }
+  .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .badge-green  { background: #14532d; color: var(--green); }
+  .badge-blue   { background: #1e3a5f; color: var(--accent); }
+  .badge-purple { background: #2e1a5f; color: var(--purple); }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .section { margin-bottom: 3rem; }
+  h2 {
+    font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;
+    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+    color: var(--accent);
+  }
+
+  /* ── Hero: persistence proof ── */
+  .hero {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 2rem;
+    margin-bottom: 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% 110%, rgba(79,156,249,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 1rem;
+  }
+  .hero-headline {
+    font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 1.5rem;
+  }
+  .hero-headline em { color: var(--green); font-style: normal; }
+  .survive-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+  @media (max-width: 600px) { .survive-grid { grid-template-columns: 1fr; } }
+  .survive-card {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.25rem 1.5rem;
+  }
+  .survive-card .proto {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem;
+  }
+  .survive-card .count {
+    font-size: 2.8rem; font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .survive-card .count .survived { color: var(--green); }
+  .survive-card .count .slash { color: var(--muted); font-weight: 300; font-size: 2rem; }
+  .survive-card .count .total  { color: var(--muted); }
+  .survive-card .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; }
+  .survive-card .protocol-pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem; font-weight: 700;
+    margin-right: 0.4rem;
+  }
+  .pill-v4  { background: rgba(79,156,249,0.12); color: var(--accent); }
+  .pill-v6  { background: rgba(167,139,250,0.12); color: var(--purple); }
+
+  /* ── SARR / DORA flow ── */
+  .flow-diagram {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    font-family: 'SFMono-Regular', ui-monospace, monospace;
+    margin: 0.75rem 0;
+  }
+  .flow-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .flow-step.highlight { border-color: var(--accent); color: var(--accent); }
+  .flow-arrow { color: var(--muted); }
+
+  /* ── Test results table ── */
+  .test-grid { display: flex; flex-direction: column; gap: 0.375rem; }
+  .test-row {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr auto;
+    gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.625rem 0.875rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s;
+  }
+  .test-row:hover { border-color: #3a3d4a; }
+  .test-row.pass { border-left: 3px solid var(--green); }
+  .test-row.fail { border-left: 3px solid var(--red); }
+  .test-icon { font-size: 0.9rem; }
+  .test-name { font-family: 'SFMono-Regular', ui-monospace, monospace; color: var(--text); }
+  .test-name .group { color: var(--muted); }
+  .test-tag {
+    font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.4rem;
+    border-radius: 3px; white-space: nowrap;
+  }
+  .tag-persist { background: rgba(79,156,249,0.12); color: var(--accent); }
+  .tag-sarr    { background: rgba(167,139,250,0.12); color: var(--purple); }
+  .tag-failover{ background: rgba(34,197,94,0.12);  color: var(--green); }
+  .tag-restart { background: rgba(245,158,11,0.12); color: var(--orange); }
+
+  /* ── Proxmox validation ── */
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .evidence-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+  .evidence-card .label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  .evidence-card .value { font-size: 1.4rem; font-weight: 700; }
+  .evidence-card .value.green  { color: var(--green); }
+  .evidence-card .value.accent { color: var(--accent); }
+  .evidence-card .value.purple { color: var(--purple); }
+  .evidence-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+  .timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+  .timeline::before {
+    content: ''; position: absolute; left: 0.75rem; top: 0; bottom: 0;
+    width: 1px; background: var(--border);
+  }
+  .tl-item {
+    display: flex; gap: 1.5rem; padding: 0.625rem 0 0.625rem 2.5rem;
+    position: relative; font-size: 0.875rem;
+  }
+  .tl-item::before {
+    content: ''; position: absolute; left: 0.5rem; top: 50%;
+    transform: translateY(-50%);
+    width: 0.6rem; height: 0.6rem;
+    border-radius: 50%; border: 2px solid var(--border);
+    background: var(--bg);
+    z-index: 1;
+  }
+  .tl-item.pass::before  { border-color: var(--green);  background: #14532d; }
+  .tl-item.kill::before  { border-color: var(--red);    background: #450a0a; }
+  .tl-item.start::before { border-color: var(--orange); background: #451a03; }
+  .tl-dot {}
+  .tl-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 5rem; }
+  .tl-text { color: var(--text); flex: 1; }
+  .tl-result { font-weight: 700; white-space: nowrap; }
+  .tl-result.green  { color: var(--green); }
+  .tl-result.accent { color: var(--accent); }
+
+  code { font-family: 'SFMono-Regular', ui-monospace, monospace; font-size: 0.85em; color: var(--accent); background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+
+  /* ── Architecture note ── */
+  .arch-note {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.25rem 1.5rem;
+    font-family: 'SFMono-Regular', ui-monospace, monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    color: var(--muted);
+    overflow-x: auto;
+  }
+  .arch-note .hi    { color: var(--text); }
+  .arch-note .acc   { color: var(--accent); }
+  .arch-note .grn   { color: var(--green); }
+  .arch-note .pur   { color: var(--purple); }
+  .arch-note .org   { color: var(--orange); }
+
+  /* ── Summary bar ── */
+  .summary-bar {
+    display: flex; gap: 1.5rem; align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem 1.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-bar .stat { text-align: center; }
+  .summary-bar .stat .n { font-size: 2rem; font-weight: 800; }
+  .summary-bar .stat .n.green  { color: var(--green); }
+  .summary-bar .stat .n.accent { color: var(--accent); }
+  .summary-bar .stat .l { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .summary-bar .divider { width: 1px; background: var(--border); align-self: stretch; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1><span>M30</span> — DHCP Persistence + DHCPv6 Server</h1>
+    <p>Raft-persisted lease recovery &amp; DHCPv6 SARR on UDP 547 — Proxmox 3-node enterprise validation</p>
+    <div class="badges">
+      <span class="badge badge-green">9/9 tests pass</span>
+      <span class="badge badge-blue">30 DHCPv4 leases</span>
+      <span class="badge badge-purple">15 DHCPv6 leases</span>
+      <span class="badge badge-green">Leader failover ✓</span>
+      <span class="badge badge-green">Full restart ✓</span>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:0.8rem; color:var(--muted)">2026-06-24</div>
+    <div style="font-size:0.8rem; color:var(--muted)">skoed v0.2.4-12-g975baaa</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-label">Persistence proof — Proxmox 3-node Raft cluster</div>
+    <div class="hero-headline">
+      All leases survived leader failover <em>and</em> full cluster restart
+    </div>
+    <div class="survive-grid">
+      <div class="survive-card">
+        <div class="proto"><span class="protocol-pill pill-v4">DHCPv4</span> UDP 67 · DORA flow</div>
+        <div class="count">
+          <span class="survived">30</span><span class="slash">/</span><span class="total">30</span>
+        </div>
+        <div class="meta">macvlan clients · 10 per CT · CT204/205/206</div>
+        <div class="flow-diagram" style="margin-top:0.75rem">
+          <span class="flow-step">Discover</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">Offer</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">Request</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step highlight">ACK → Raft</span>
+        </div>
+      </div>
+      <div class="survive-card">
+        <div class="proto"><span class="protocol-pill pill-v6">DHCPv6</span> UDP 547 · SARR flow · ff02::1:2</div>
+        <div class="count">
+          <span class="survived">15</span><span class="slash">/</span><span class="total">15</span>
+        </div>
+        <div class="meta">Python SARR client · bypasses RA requirement</div>
+        <div class="flow-diagram" style="margin-top:0.75rem">
+          <span class="flow-step">Solicit</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">Advertise</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">Request</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step highlight">Reply → Raft</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCEPTANCE TESTS -->
+  <div class="section">
+    <h2>Acceptance tests — 9/9</h2>
+    <div class="test-grid">
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV4LeasePersistedAfterLeaderFailover</span>
+        <span class="test-tag tag-failover">failover</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV4LeasesRestoredAfterFullClusterRestart</span>
+        <span class="test-tag tag-restart">restart</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV4PersistLeaseOnAck</span>
+        <span class="test-tag tag-persist">persist</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV4DeleteLeaseOnRelease</span>
+        <span class="test-tag tag-persist">persist</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV6ServerSarr</span>
+        <span class="test-tag tag-sarr">SARR</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV6LeasePersistedAfterLeaderFailover</span>
+        <span class="test-tag tag-failover">failover</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV6LeasesRestoredAfterFullClusterRestart</span>
+        <span class="test-tag tag-restart">restart</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV6PersistLeaseOnReply</span>
+        <span class="test-tag tag-persist">persist</span>
+      </div>
+
+      <div class="test-row pass">
+        <span class="test-icon" style="color:var(--green)">✓</span>
+        <span class="test-name"><span class="group">dhcp_persistence/</span>TestDhcpV6DeleteLeaseOnRelease</span>
+        <span class="test-tag tag-persist">persist</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PROXMOX VALIDATION -->
+  <div class="section">
+    <h2>Proxmox enterprise validation</h2>
+
+    <div class="evidence-grid">
+      <div class="evidence-card">
+        <div class="label">DHCPv4 leases</div>
+        <div class="value accent">30</div>
+        <div class="sub">10 macvlan clients × 3 CTs</div>
+      </div>
+      <div class="evidence-card">
+        <div class="label">DHCPv6 leases</div>
+        <div class="value purple">15</div>
+        <div class="sub">Python SARR, accumulated soak</div>
+      </div>
+      <div class="evidence-card">
+        <div class="label">Leader failover</div>
+        <div class="value green">0 lost</div>
+        <div class="sub">30 v4 + 15 v6 survived</div>
+      </div>
+      <div class="evidence-card">
+        <div class="label">Full restart</div>
+        <div class="value green">0 lost</div>
+        <div class="sub">All 3 nodes stopped → started</div>
+      </div>
+      <div class="evidence-card">
+        <div class="label">Re-election time</div>
+        <div class="value green">8s</div>
+        <div class="sub">New leader elected on kill</div>
+      </div>
+      <div class="evidence-card">
+        <div class="label">Cluster size</div>
+        <div class="value accent">3</div>
+        <div class="sub">CT200/201/202 · skoed-1/2/3</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:1.5rem">Test 1 — Leader failover timeline</h2>
+    <div class="timeline">
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:07</div>
+        <div class="tl-text">Soak complete — DHCPv4: <strong>30 leases</strong>, DHCPv6: <strong>15 leases</strong> persisted to Raft</div>
+        <div class="tl-result accent"></div>
+      </div>
+      <div class="tl-item kill">
+        <div class="tl-time">11:44:11</div>
+        <div class="tl-text">Leader CT201 (skoed-2) stopped via <code>rc-service skoed stop</code></div>
+        <div class="tl-result" style="color:var(--red)">−leader</div>
+      </div>
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:20</div>
+        <div class="tl-text">New leader elected: CT200 (skoed-1) — elected in <strong>8s</strong></div>
+        <div class="tl-result accent">+leader</div>
+      </div>
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:20</div>
+        <div class="tl-text">Lease check on new leader — DHCPv4: <strong>30/30</strong>, DHCPv6: <strong>15/15</strong></div>
+        <div class="tl-result green">PASS ✓</div>
+      </div>
+      <div class="tl-item start">
+        <div class="tl-time">11:44:25</div>
+        <div class="tl-text">CT201 rejoined cluster — all 3 nodes in sync</div>
+        <div class="tl-result accent">+rejoin</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:1.5rem">Test 2 — Full cluster restart timeline</h2>
+    <div class="timeline">
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:25</div>
+        <div class="tl-text">Pre-restart snapshot — DHCPv4: <strong>30</strong>, DHCPv6: <strong>15</strong></div>
+        <div class="tl-result accent"></div>
+      </div>
+      <div class="tl-item kill">
+        <div class="tl-time">11:44:25</div>
+        <div class="tl-text">CT200, CT201, CT202 all stopped — cluster fully down for 3s</div>
+        <div class="tl-result" style="color:var(--red)">all down</div>
+      </div>
+      <div class="tl-item start">
+        <div class="tl-time">11:44:29</div>
+        <div class="tl-text">CT200, CT201, CT202 started — Raft election + bbolt lease load</div>
+        <div class="tl-result accent">starting</div>
+      </div>
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:42</div>
+        <div class="tl-text">New leader: CT201 — loaded leases from bbolt on leadership gain</div>
+        <div class="tl-result accent">+leader</div>
+      </div>
+      <div class="tl-item pass">
+        <div class="tl-time">11:44:42</div>
+        <div class="tl-text">Lease check — DHCPv4: <strong>30/30</strong>, DHCPv6: <strong>15/15</strong> restored</div>
+        <div class="tl-result green">PASS ✓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="section">
+    <h2>Persistence architecture</h2>
+    <div class="arch-note">
+<span class="hi">DHCP ACK / DHCPv6 Reply received</span>
+        │
+        ▼
+<span class="acc">server.sendAck()  /  server6.handleRequest6()</span>
+        │  go s.<span class="grn">onUpsert</span>(ip, mac, hostname, expiresAt)   ← non-blocking
+        ▼
+<span class="grn">cluster.PersistDhcpLease()</span>  →  <span class="org">CmdDhcp4ServerLeasesUpsert</span>  →  Raft FSM
+        │                                                    │
+        │                                              bbolt bucket:
+        │                                           <span class="acc">"dhcp4_leases"</span>
+        │
+        ▼ (on leadership gain)
+<span class="grn">cluster.GetDhcpLeases()</span>  →  <span class="acc">Server.LoadLeases([]Lease4)</span>
+        │   skips expired entries
+        └─→  in-memory lease table rebuilt   ← DHCP server ready
+
+
+<span class="hi">DHCPv6 SARR flow (UDP 547 · ff02::1:2 multicast):</span>
+  Client  ──Solicit──▶  [All_DHCP_Servers]  ──Advertise──▶  Client
+  Client  ──Request──▶  Leader node          ──<span class="pur">Reply→Raft</span>──▶  bbolt <span class="pur">"dhcp6_leases"</span>
+
+
+<span class="hi">Leadership goroutine (single consumer — prevents split-brain):</span>
+  for range <span class="acc">c.LeadershipCh()</span> {
+      dhcpSrv<span class="grn">.UpdateConfig</span>(cfg)    // DHCPv4
+      if leader { dhcpSrv<span class="grn">.LoadLeases</span>(); dhcpSrv<span class="grn">.Start()</span> } else { dhcpSrv<span class="acc">.Stop()</span> }
+      dhcpSrv6<span class="pur">.UpdateConfig</span>(cfg6)  // DHCPv6
+      if leader { dhcpSrv6<span class="pur">.LoadLeases</span>(); dhcpSrv6<span class="pur">.Start()</span> } else { dhcpSrv6<span class="acc">.Stop()</span> }
+  }
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="section">
+    <h2>Summary</h2>
+    <div class="summary-bar">
+      <div class="stat"><div class="n green">9/9</div><div class="l">Tests pass</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="n accent">30</div><div class="l">DHCPv4 leases</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="n" style="color:var(--purple)">15</div><div class="l">DHCPv6 leases</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="n green">✓</div><div class="l">Leader failover</div></div>
+      <div class="divider"></div>
+      <div class="stat"><div class="n green">✓</div><div class="l">Full restart</div></div>
+      <div class="divider"></div>
+      <div style="flex:1; color:var(--muted); font-size:0.8rem;">
+        Cluster: CT200/201/202 · skoed-1/2/3 · Alpine Linux<br>
+        Binary: <code>skoed v0.2.4-12-g975baaa</code> · CGO_ENABLED=0<br>
+        Date: 2026-06-24
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

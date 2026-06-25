@@ -1552,6 +1552,47 @@ Node certificate rotation:
 
 ---
 
+### Milestone 48 — Skoed4Phone: DNS-over-VPN
+
+**Outcome**: Mobile devices (iOS and Android) can have all their DNS traffic silently routed to the user's skoed cluster over a local VPN tunnel, receiving the same filtering and profile enforcement as any other device on the network — even when off-site.
+
+**Capabilities:**
+- **Android VPN service**: an Android app that activates the system `VpnService`, routes only port-53 UDP/TCP traffic into the tunnel, and forwards queries to the user's skoed cluster via DoH3. No root required; standard Android VPN profile. Uses the existing M7 API token for cluster authentication.
+- **iOS Network Extension**: equivalent implementation using the iOS `NEPacketTunnelProvider` API (App Store distribution), routing only DNS traffic.
+- **LAN detection**: when the device is connected to a network whose prefix matches the configured `home_network` (e.g., `10.0.0.0/24`), the VPN tunnel is suspended and DNS resolves normally via the LAN. Resumes automatically when the device leaves the LAN.
+- **On-device blocklist cache**: a periodic background fetch of the cluster's active blocklist snapshot, stored on-device. When the cluster is unreachable, the app answers DNS queries from the local cache (forwarding allowed domains to `1.1.1.1`). Cache TTL configurable (default 24 h).
+- **Battery and data optimization**: queries are batched into the existing DoH3 connection; no persistent socket kept open. Blocklist cache sync uses conditional HTTP (`ETag` / `If-None-Match`).
+- **Companion-app pairing**: uses the same QR-code pairing flow as M40's companion app; the user scans a QR code from the skoed web UI to provision the API token and cluster address.
+
+**Non-goals:**
+- Full skoed cluster participation from the phone (the phone is a DNS client only, not a cluster node)
+- Traffic proxying beyond DNS (HTTP/HTTPS content filtering is out of scope)
+- App Store / Play Store distribution automation (manual submission only; automated pipeline is M49)
+- Windows or macOS VPN clients
+
+**Dependencies:** M7 API Tokens; M8 DoH3 server; M40 Companion App (shares pairing flow and QR provisioning).
+
+---
+
+### Milestone 49 — Browser Extension Distribution
+
+**Outcome**: The skoed browser extension (shipped in M22.5 for Firefox + Chrome desktop) is automatically submitted to AMO and the Chrome Web Store on every release, and a Firefox for Android version ships alongside the desktop extension.
+
+**Capabilities:**
+- **AMO automated submission**: the goreleaser pipeline gains a post-release hook that submits the Firefox extension `.zip` to `addons.mozilla.org` via the AMO API (`SIGNING_KEY` / `SIGNING_SECRET` CI secrets). The submission is signed and published automatically; no manual upload step.
+- **Chrome Web Store automated submission**: a separate CI step submits the Chrome extension `.zip` to the CWS Publish API (`CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`). Triggers only on non-pre-release tags.
+- **Firefox for Android (MV2)**: the existing desktop extension source (MV2-compatible) is adapted for Android via the same Vite + WXT build. The Android build target adds the `android` platform key and disables features not supported on mobile (popup size constraints, service worker fallbacks). The `.xpi` artifact is included in the AMO submission as a multi-platform extension.
+- **Version consistency gate**: CI blocks the extension submission if the extension manifest version does not match the goreleaser binary version tag.
+
+**Non-goals:**
+- Safari extension (requires Apple Developer Program enrollment; not planned)
+- Extension settings sync across browser profiles
+- DNS filtering rule changes from the browser popup (the extension is a notification bridge only; filtering management is via the web UI)
+
+**Dependencies:** M22.5 Browser Extension (the extension source tree and build pipeline); M11 Distribution (the goreleaser release pipeline).
+
+---
+
 ## Pre-1.0 release tasks (no milestone number)
 
 - ~~**Find a better name.**~~ **Done** — name is **skoed**.

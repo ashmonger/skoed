@@ -368,7 +368,7 @@
 
           <div class="flex flex-wrap items-center gap-3">
             <label class="btn-secondary cursor-pointer">
-              <input type="file" accept=".tar.gz,.tgz" class="sr-only"
+              <input ref="fileInputEl" type="file" accept=".tar.gz,.tgz" class="sr-only"
                      :disabled="restoring"
                      @change="onBackupFileSelected" />
               {{ selectedFile ? selectedFile.name : 'Choose archive…' }}
@@ -678,6 +678,7 @@ async function downloadBackup() {
 }
 
 const selectedFile = ref<File | null>(null)
+const fileInputEl = ref<HTMLInputElement | null>(null)
 const restoring = ref(false)
 const restoreConfirm = ref(false)
 const backupError = ref('')
@@ -707,8 +708,12 @@ async function doRestore() {
       const body = await resp.json().catch(() => ({}))
       throw new Error(body.error || `HTTP ${resp.status}`)
     }
-    backupSuccess.value = 'Configuration restored. Refresh the page to see the updated settings.'
     selectedFile.value = null
+    if (fileInputEl.value) fileInputEl.value.value = ''
+    const [s, bp] = await Promise.all([getSettings(), getBlockPageConfig()])
+    applySettings(s)
+    applyBlockPage(bp)
+    backupSuccess.value = 'Configuration restored successfully.'
   } catch (err) {
     backupError.value = errMsg(err, 'Restore failed')
   } finally {

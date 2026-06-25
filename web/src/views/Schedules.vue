@@ -102,6 +102,7 @@
                       <span class="badge-accent font-mono">{{ b.blocklist_id }}</span>
                       <button class="btn-ghost text-danger ml-auto !py-0 !px-1"
                               title="Remove binding"
+                              :disabled="!!bindingRemoving[`${s.id}|${b.profile_id}|${b.blocklist_id}`]"
                               @click="removeBinding(s.id, b.profile_id, b.blocklist_id)">
                         <XMarkIcon class="h-3 w-3" />
                       </button>
@@ -340,6 +341,7 @@ const bindings = reactive<Record<string, ScheduleBinding[]>>({})
 const bindingDraft = reactive<Record<string, { profile_id: string; blocklist_id: string }>>({})
 const bindingSubmitting = reactive<Record<string, boolean>>({})
 const bindingErrors = reactive<Record<string, string>>({})
+const bindingRemoving = reactive<Record<string, boolean>>({})
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -573,7 +575,10 @@ async function submitBinding(id: string) {
 }
 
 async function removeBinding(id: string, profile_id: string, blocklist_id: string) {
+  const key = `${id}|${profile_id}|${blocklist_id}`
+  if (bindingRemoving[key]) return
   bindingErrors[id] = ''
+  bindingRemoving[key] = true
   try {
     await deleteScheduleBinding(id, profile_id, blocklist_id)
     bindings[id] = (bindings[id] ?? []).filter(
@@ -581,6 +586,8 @@ async function removeBinding(id: string, profile_id: string, blocklist_id: strin
     )
   } catch (err) {
     bindingErrors[id] = errMsg(err, 'Failed to remove binding')
+  } finally {
+    delete bindingRemoving[key]
   }
 }
 

@@ -4,7 +4,7 @@ import type {
   Anomaly, APIToken, APITokenMinted, AuditPage, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, DNSCacheStats,
-  DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
+  Dhcp6Lease, Dhcp6ServerStatus, DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
   ScheduleBinding, Settings, WebhookEndpoint,
 } from './types'
@@ -561,5 +561,28 @@ export function deleteDhcpStaticAssignment(mac: string): Promise<void> {
 }
 
 export function listDhcpLeases(): Promise<DhcpLease[]> {
-  return getJSON('/api/v1/dhcp/leases')
+  return getJSON<{ leases: DhcpLease[] }>('/api/v1/dhcp/leases').then(r => r?.leases ?? [])
+}
+
+// ─── M30 — DHCPv6 ────────────────────────────────────────────────────────────
+
+export function getDhcp6ServerStatus(): Promise<Dhcp6ServerStatus> {
+  return getJSON('/api/v1/dhcp/server/status6')
+}
+
+export interface Dhcp6SettingsPatch {
+  enabled?: boolean
+  prefix?: string
+  pool_start?: string
+  pool_end?: string
+  lease_time?: number
+  search_domain?: string
+}
+
+export function putDhcp6ServerSettings(patch: Dhcp6SettingsPatch): Promise<Dhcp6ServerStatus> {
+  return putJSON('/api/v1/settings/dhcp6', patch)
+}
+
+export function listDhcp6Leases(): Promise<Dhcp6Lease[]> {
+  return getJSON<{ leases: Dhcp6Lease[] }>('/api/v1/dhcp/leases6').then(r => r?.leases ?? [])
 }

@@ -39,8 +39,9 @@ type App struct {
 	cluster   *cluster.Cluster
 	authStore *auth.Store
 	queryLog  *dlog.QueryLog
-	dhcpMgr    *dhcp.Manager     // optional; nil when DHCP integration is disabled
-	dhcpServer *dhcp.Server     // M23.5 built-in server; nil until wired
+	dhcpMgr     *dhcp.Manager   // optional; nil when DHCP integration is disabled
+	dhcpServer  *dhcp.Server   // M23.5 built-in server; nil until wired
+	dhcpServer6 *dhcp.Server6  // M30 built-in DHCPv6 server; nil until wired
 	dnsCache  *dnsengine.Cache  // M4.7 — long-lived; survives Raft applies
 	metrics   *metrics.Metrics  // M5.1 — Prometheus exporter; nil disables /metrics
 
@@ -232,6 +233,12 @@ func (a *App) SetDhcpServer(s *dhcp.Server) { a.dhcpServer = s }
 
 // GetDhcpServer returns the M23.5 built-in DHCP server, or nil when not wired.
 func (a *App) GetDhcpServer() *dhcp.Server { return a.dhcpServer }
+
+// SetDhcpServer6 wires the M30 built-in DHCPv6 server.
+func (a *App) SetDhcpServer6(s *dhcp.Server6) { a.dhcpServer6 = s }
+
+// GetDhcpServer6 returns the M30 built-in DHCPv6 server, or nil when not wired.
+func (a *App) GetDhcpServer6() *dhcp.Server6 { return a.dhcpServer6 }
 
 // SetBlockPageServer wires the M26 block page HTTP server.
 func (a *App) SetBlockPageServer(s *blockpage.Server) { a.blockPageSrv = s }
@@ -928,6 +935,15 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/dhcp/static-assignments", h.ListDhcpStaticAssignments)
 		r.Post("/api/v1/dhcp/static-assignments", a.forward(h.CreateDhcpStaticAssignment))
 		r.Delete("/api/v1/dhcp/static-assignments/{mac}", a.forward(h.DeleteDhcpStaticAssignment))
+
+		// M30 — DHCPv6 server.
+		r.Get("/api/v1/dhcp/server/status6", h.DhcpV6ServerStatus)
+		r.Put("/api/v1/settings/dhcp6", a.forward(h.PutDhcpV6Settings))
+		r.Get("/api/v1/dhcp/leases6", h.DhcpV6Leases)
+		r.Delete("/api/v1/dhcp/leases6/{address}", a.forward(h.DeleteDhcpV6Lease))
+		r.Get("/api/v1/dhcp/static-assignments6", h.ListDhcpV6StaticAssignments)
+		r.Post("/api/v1/dhcp/static-assignments6", a.forward(h.CreateDhcpV6StaticAssignment))
+		r.Delete("/api/v1/dhcp/static-assignments6/{duid}", a.forward(h.DeleteDhcpV6StaticAssignment))
 
 		// M22 — webhook endpoint management (TS-Webhooks).
 		wh := handlers.NewWebhookHandlers(a)

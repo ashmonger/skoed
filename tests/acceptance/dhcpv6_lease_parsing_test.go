@@ -612,17 +612,19 @@ func TestDhcpv6LeaseProfileMatchingPriorityUnchanged(t *testing.T) {
 	})
 	resp2 := n.apiDo(t, "POST", "/api/v1/profiles", duidBody)
 	resp2.Body.Close()
-	// Either rejected (4xx) OR the field is ignored — but it must
-	// never be the matcher that decides the profile.
+	// M30: client_duids is now a supported profile field. Either accepted
+	// (2xx, field stored) or rejected (4xx) — both are valid outcomes.
+	// The key invariant is that M3.6 client_ids matching (kids profile) still
+	// works correctly and DUID matching does not interfere with it.
 	if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
-		// Accepted: fetch back and confirm DUID list is empty/absent.
-		raw, err := readProfileRaw(t, n, "duid-rule")
-		if err == nil {
-			if duids, ok := raw["client_duids"]; ok && duids != nil {
-				if arr, ok := duids.([]any); ok && len(arr) > 0 {
-					t.Errorf("M6.5 must not accept client_duids; got %v", arr)
-				}
-			}
+		// Accepted: field may be stored (M30) or ignored (pre-M30). Both are fine.
+		// The only check: the kids profile (client_ids-based) must still be queryable.
+		raw, err := readProfileRaw(t, n, "kids")
+		if err != nil {
+			t.Errorf("kids profile must still be accessible after duid-rule profile creation: %v", err)
+		}
+		if ids, ok := raw["client_ids"].([]any); !ok || len(ids) == 0 {
+			t.Errorf("kids profile client_ids must be preserved; got %v", raw["client_ids"])
 		}
 	}
 }

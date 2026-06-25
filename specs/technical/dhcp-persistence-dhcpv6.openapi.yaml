@@ -1,0 +1,299 @@
+openapi: "3.1.0"
+
+x-tsid: TS-DhcpPersistenceDhcpv6
+x-fsid-links:
+  - FS-DhcpLeasePersistenceRestart
+  - FS-DhcpLeasePersistenceFullClusterRestart
+  - FS-DhcpLeasePersistenceLeaderFailover
+  - FS-DhcpLeasePersistenceSoakRestart
+  - FS-DhcpLeasePersistedToRaft
+  - FS-DhcpLeaseExpiryRespectedAfterRestart
+  - FS-Dhcpv6SarrFlow
+  - FS-Dhcpv6IaNaPool
+  - FS-Dhcpv6LeaseRenewal
+  - FS-Dhcpv6LeaseRelease
+  - FS-Dhcpv6PoolExhaustion
+  - FS-Dhcpv6StaticAssignment
+  - FS-Dhcpv6StaticAssignmentReplicatedViaRaft
+  - FS-Dhcpv6LeasePersistenceRestart
+  - FS-Dhcpv6LeasePersistenceFullClusterRestart
+  - FS-Dhcpv6LeaseListApi
+  - FS-Dhcpv6ServerStatusApi
+  - FS-Dhcpv6WebUiStaticAssignmentCreate
+
+info:
+  title: skoed DHCP Persistence + DHCPv6 API
+  version: "0.1.0"
+  description: |
+    New endpoints added in M30 for DHCPv6 management and DHCPv4 lease
+    persistence visibility. Existing DHCPv4 endpoints are unchanged.
+
+servers:
+  - url: /
+
+paths:
+
+  /api/v1/dhcp/leases6:
+    get:
+      operationId: listDhcpV6Leases
+      summary: List active DHCPv6 leases
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active DHCPv6 lease list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leases:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DhcpV6Lease"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/dhcp/leases6/{address}:
+    delete:
+      operationId: deleteDhcpV6Lease
+      summary: Force-expire a DHCPv6 lease
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "fd00::102"
+      responses:
+        "204":
+          description: Lease removed
+        "404":
+          description: Lease not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/dhcp/server/status6:
+    get:
+      operationId: getDhcpV6ServerStatus
+      summary: Get DHCPv6 server state and pool utilisation
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: DHCPv6 server status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpV6ServerStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/settings/dhcp6:
+    put:
+      operationId: configureDhcpV6Server
+      summary: Configure the DHCPv6 server (enable/disable, pool, lease time)
+      tags: [dhcp, settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DhcpV6Config"
+      responses:
+        "200":
+          description: Configuration applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpV6Config"
+        "400":
+          description: Invalid pool configuration
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/dhcp/static-assignments6:
+    get:
+      operationId: listDhcpV6StaticAssignments
+      summary: List DHCPv6 static assignments (DUID → IPv6 address)
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: DHCPv6 static assignment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DhcpV6StaticAssignment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createDhcpV6StaticAssignment
+      summary: Create a DHCPv6 static assignment (DUID → fixed IPv6 address)
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DhcpV6StaticAssignment"
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpV6StaticAssignment"
+        "400":
+          description: Invalid DUID or address
+        "409":
+          description: DUID or address already assigned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/dhcp/static-assignments6/{duid}:
+    delete:
+      operationId: deleteDhcpV6StaticAssignment
+      summary: Delete a DHCPv6 static assignment by DUID
+      tags: [dhcp]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: duid
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "00:01:00:01:aa:bb:cc:dd:ee:ff"
+      responses:
+        "204":
+          description: Assignment deleted
+        "404":
+          description: Assignment not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid Bearer token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  schemas:
+
+    DhcpV6Lease:
+      type: object
+      required: [address, duid, expires_at, origin]
+      properties:
+        address:
+          type: string
+          example: "fd00::102"
+        duid:
+          type: string
+          description: DHCPv6 client DUID (hex-colon notation)
+          example: "00:01:00:01:aa:bb:cc:dd:ee:01"
+        iaid:
+          type: string
+          description: IA_NA IAID (hex)
+          example: "00000001"
+        hostname:
+          type: string
+          example: "laptop-kids"
+        expires_at:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          enum: [dhcp6_dynamic, dhcp6_static]
+        profile_id:
+          type: string
+          example: "kids"
+
+    DhcpV6ServerStatus:
+      type: object
+      required: [enabled, is_leader, pool_total, leases_active]
+      properties:
+        enabled:
+          type: boolean
+        is_leader:
+          type: boolean
+        prefix:
+          type: string
+          example: "fd00::/64"
+        pool_start:
+          type: string
+          example: "fd00::100"
+        pool_end:
+          type: string
+          example: "fd00::1ff"
+        pool_total:
+          type: integer
+        leases_active:
+          type: integer
+        listen_address:
+          type: string
+          description: IPv6 address skoed listens on for DHCPv6
+
+    DhcpV6Config:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        prefix:
+          type: string
+          example: "fd00::/64"
+        pool_start:
+          type: string
+          example: "fd00::100"
+        pool_end:
+          type: string
+          example: "fd00::1ff"
+        lease_time:
+          type: integer
+          description: Lease duration in seconds
+          example: 86400
+        search_domain:
+          type: string
+          example: "home.local"
+
+    DhcpV6StaticAssignment:
+      type: object
+      required: [duid, address]
+      properties:
+        duid:
+          type: string
+          example: "00:01:00:01:aa:bb:cc:dd:ee:ff"
+        address:
+          type: string
+          example: "fd00::200"
+        hostname:
+          type: string
+          example: "server1"
