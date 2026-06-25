@@ -41,6 +41,22 @@ type Config struct {
 	DHCPServer DHCPServerConfig `yaml:"dhcp_server,omitempty" json:"dhcp_server,omitempty"`
 }
 
+// BackupConfig configures the scheduled backup feature (M31).
+// Node-local: stored directly in bbolt, not replicated via Raft.
+type BackupConfig struct {
+	Enabled       bool `yaml:"enabled"        json:"enabled"`
+	IntervalHours int  `yaml:"interval_hours" json:"interval_hours"`
+	RetainCount   int  `yaml:"retain_count"   json:"retain_count"`
+}
+
+// BackupEntry describes a single stored backup archive.
+type BackupEntry struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	SizeBytes int64     `json:"size_bytes"`
+	Encrypted bool      `json:"encrypted"`
+}
+
 // DHCPServerConfig is the persisted configuration for the built-in DHCP server.
 // Cluster-wide: replicated via Raft, stored in bbolt. The enable flag controls
 // whether the Raft leader starts a UDP 67 listener.

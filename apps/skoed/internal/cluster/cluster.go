@@ -1339,3 +1339,16 @@ func (c *Cluster) GetDhcp6Leases() ([]Dhcp6ServerLeaseUpsertPayload, error) {
 func (c *Cluster) SetCustomRules(rules string) error {
 	return c.applyAsLeader(CmdCustomRulesSet, CustomRulesSetPayload{Rules: rules}, 0)
 }
+
+// ─── M31 — scheduled backup (node-local) ─────────────────────────────────────
+
+// GetBackupConfig returns the node-local backup scheduler configuration.
+func (c *Cluster) GetBackupConfig() (config.BackupConfig, error) {
+	return c.store.BackupConfig()
+}
+
+// SetBackupConfig persists the node-local backup scheduler configuration.
+// Not replicated via Raft — each node manages its own backup schedule.
+func (c *Cluster) SetBackupConfig(cfg config.BackupConfig) error {
+	return c.store.SetBackupConfig(cfg)
+}

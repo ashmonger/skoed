@@ -50,6 +50,9 @@ var (
 	bucketDhcp6Server      = []byte("dhcp6_server")
 	bucketDhcp6StaticAssns = []byte("dhcp6_static_assignments")
 	bucketDhcp6ServerLeases = []byte("dhcp6_server_leases")
+	// M31: scheduled backup configuration (key "settings"), entries (key "entry:{id}"),
+	// and last-backup raft index (key "last_raft_index").
+	bucketBackups = []byte("config_backups")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -107,6 +110,7 @@ func (s *Store) init() error {
 			bucketDhcp6Server,
 			bucketDhcp6StaticAssns,
 			bucketDhcp6ServerLeases,
+			bucketBackups,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -1483,4 +1487,90 @@ func (s *Store) Dhcp6ServerLeases() ([]Dhcp6ServerLeaseUpsertPayload, error) {
 		out = []Dhcp6ServerLeaseUpsertPayload{}
 	}
 	return out, err
+}
+
+// ─── M31: Scheduled backup ───────────────────────────────────────────────────
+
+// BackupConfig returns the node-local backup scheduler configuration.
+func (s *Store) BackupConfig() (config.BackupConfig, error) {
+	var out config.BackupConfig
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketBackups).Get([]byte("settings"))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &out)
+	})
+	return out, err
+}
+
+// SetBackupConfig persists the backup scheduler configuration.
+func (s *Store) SetBackupConfig(cfg config.BackupConfig) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b, err := json.Marshal(cfg)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketBackups).Put([]byte("settings"), b)
+	})
+}
+
+// BackupEntries returns all stored backup entries ordered by insertion order.
+func (s *Store) BackupEntries() ([]config.BackupEntry, error) {
+	var out []config.BackupEntry
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketBackups).ForEach(func(k, v []byte) error {
+			if !strings.HasPrefix(string(k), "entry:") {
+				return nil
+			}
+			var e config.BackupEntry
+			if err := json.Unmarshal(v, &e); err == nil {
+				out = append(out, e)
+			}
+			return nil
+		})
+	})
+	if out == nil {
+		out = []config.BackupEntry{}
+	}
+	return out, err
+}
+
+// UpsertBackupEntry stores a backup entry with key "entry:{id}".
+func (s *Store) UpsertBackupEntry(e config.BackupEntry) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b, err := json.Marshal(e)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketBackups).Put([]byte("entry:"+e.ID), b)
+	})
+}
+
+// DeleteBackupEntry removes a backup entry by ID.
+func (s *Store) DeleteBackupEntry(id string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketBackups).Delete([]byte("entry:" + id))
+	})
+}
+
+// BackupLastHash returns the content hash (hex-encoded SHA-256) written at the
+// time of the last successful backup. Returns "" when no backup has been taken.
+func (s *Store) BackupLastHash() (string, error) {
+	var h string
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketBackups).Get([]byte("last_content_hash"))
+		if v != nil {
+			h = string(v)
+		}
+		return nil
+	})
+	return h, err
+}
+
+// SetBackupLastHash persists the content hash of the most recent backup.
+func (s *Store) SetBackupLastHash(hash string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketBackups).Put([]byte("last_content_hash"), []byte(hash))
+	})
 }
