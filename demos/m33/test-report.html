@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M33 — Block Page Enhancements — Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; line-height: 1.6; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header p { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #14532d; color: var(--green); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .section { margin-bottom: 3rem; }
+  h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { background: var(--surface); padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .pass-row td:first-child { border-left: 3px solid var(--green); }
+  code { font-family: 'Fira Code', monospace; font-size: 0.82rem; }
+  .inline-code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.4rem; font-family: monospace; font-size: 0.82rem; }
+  .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-right: 0.3rem; }
+  .tag-new { background: #1e3a2a; color: #34d399; }
+  .tag-fix { background: #422006; color: #fdba74; }
+  .coverage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; }
+  .coverage-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.875rem 1rem; }
+  .coverage-item .fsid { font-size: 0.75rem; font-weight: 600; color: var(--accent); font-family: monospace; margin-bottom: 0.25rem; }
+  .coverage-item .desc { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+  .coverage-item .test-name { font-size: 0.75rem; color: var(--green); }
+  .delta-list { list-style: none; }
+  .delta-list li { display: flex; gap: 0.75rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+  .delta-list li:last-child { border-bottom: none; }
+  .delta-marker { flex-shrink: 0; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-top: 0.1rem; }
+  .marker-new { background: rgba(79,156,249,0.15); color: var(--accent); }
+  .marker-fix { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .delta-content { flex: 1; font-size: 0.875rem; }
+  .delta-content strong { display: block; font-weight: 600; color: var(--text); margin-bottom: 0.2rem; }
+  .delta-content span { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+  .oos-list { list-style: none; color: var(--muted); font-size: 0.875rem; }
+  .oos-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; }
+  .oos-list li:last-child { border-bottom: none; }
+  .oos-list li::before { content: '—'; color: var(--border); flex-shrink: 0; }
+  .meta { display: flex; gap: 2rem; color: var(--muted); font-size: 0.8rem; margin-top: 1rem; flex-wrap: wrap; }
+  .callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--orange); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+  .callout .callout-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--orange); margin-bottom: 0.4rem; }
+  .callout p { font-size: 0.875rem; color: var(--muted); line-height: 1.65; }
+  .section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>M33 — Block Page Enhancements <span class="badge badge-green">19/19 PASS</span></h1>
+  <p>Acceptance test report · 2026-06-25 · branch feature/m33-block-page-enhancements</p>
+</header>
+
+<div class="container">
+
+  <div class="section">
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="value green">19</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value red">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--muted)">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--text);font-size:1.4rem">~3.4s</div>
+        <div class="label">Total time</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Behaviour change: AAAA → NXDOMAIN (not SERVFAIL)</div>
+      <p>In M26, AAAA queries on blocked domains in redirect mode returned SERVFAIL when no <code class="inline-code">redirect_address_v6</code> was set.
+      M33 changes this to NXDOMAIN per <code class="inline-code">FS-BlockPageIPv6NotConfigured</code> — a more precise response
+      that tells the client "this domain has no IPv6 address" rather than "server error". The existing
+      <code class="inline-code">TestBlockPageRedirectServfailAAAA</code> test was updated accordingly.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Test results</h2>
+
+    <p class="section-label">Per-profile block page content</p>
+    <table style="margin-bottom:2rem">
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBlockPagePerProfileContent</td>
+          <td><code>FS-BlockPagePerProfileContent</code></td>
+          <td>Profile with title/message override serves those values in block page HTML</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.25s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageGlobalFallback</td>
+          <td><code>FS-BlockPageGlobalFallback</code></td>
+          <td>Profile without override falls back to global block page title</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.99s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageProfileContactEmail</td>
+          <td><code>FS-BlockPageProfileContactEmail</code></td>
+          <td>contact_email override appears in rendered block page</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.09s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="section-label">IPv6 redirect</p>
+    <table style="margin-bottom:2rem">
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBlockPageIPv6Redirect</td>
+          <td><code>FS-BlockPageIPv6Redirect</code></td>
+          <td>AAAA query on blocked domain returns NOERROR with configured redirect_address_v6</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.29s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageIPv6NotConfigured</td>
+          <td><code>FS-BlockPageIPv6NotConfigured</code></td>
+          <td>Without redirect_address_v6, AAAA query returns NXDOMAIN</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.18s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="section-label">Time-bounded bypass</p>
+    <table style="margin-bottom:2rem">
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBlockPageBypassGranted</td>
+          <td><code>FS-BlockPageBypassGranted</code></td>
+          <td>Correct passcode triggers profile pause; response contains profile_id and expires_at</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.74s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageBypassWrongPasscode</td>
+          <td><code>FS-BlockPageBypassWrongPasscode</code></td>
+          <td>Wrong passcode returns 403; no profile pause is applied</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.55s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageBypassExpiry</td>
+          <td><code>FS-BlockPageBypassExpiry</code></td>
+          <td>Bypass pause expires after the requested duration</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.68s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageBypassProfileRequired</td>
+          <td><code>FS-BlockPageBypassProfileRequired</code></td>
+          <td>Profile without bypass_passcode configured returns 404</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.05s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="section-label">Custom HTML template</p>
+    <table style="margin-bottom:2rem">
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBlockPageCustomTemplate</td>
+          <td><code>FS-BlockPageCustomTemplate</code></td>
+          <td>PUT template + visit block page renders the custom template with .Domain filled in</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.97s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageCustomTemplateVariables</td>
+          <td><code>FS-BlockPageCustomTemplateVariables</code></td>
+          <td>Template receives .Domain and .Profile variables correctly</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.59s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageCustomTemplateDelete</td>
+          <td><code>FS-BlockPageCustomTemplateDelete</code></td>
+          <td>DELETE /blockpage/template reverts to built-in layout (contains "skoed" branding)</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.95s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="section-label">Regression tests (M26)</p>
+    <table>
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBlockPageRedirectReturnsIP</td>
+          <td><code>FS-BlockPageRedirectReturnsIP</code></td>
+          <td>A query in redirect mode returns the configured block page IP</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.15s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageRedirectServfailAAAA</td>
+          <td><code>FS-BlockPageRedirectServfailAAAA</code></td>
+          <td>AAAA on blocked domain without v6 redirect → NXDOMAIN (updated from M26 SERVFAIL)</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.28s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageNonRedirectUnaffected</td>
+          <td>—</td>
+          <td>Non-redirect policies are unaffected by block_page configuration</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.27s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageHttpServerResponds</td>
+          <td>—</td>
+          <td>Block page HTTP server starts and responds on configured port</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.17s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageConfigGet</td>
+          <td>—</td>
+          <td>GET /api/v1/blockpage returns current block page config</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.68s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageConfigPersisted</td>
+          <td>—</td>
+          <td>Block page config survives node restart</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.89s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBlockPageTitleInResponse</td>
+          <td>—</td>
+          <td>Global title appears in block page HTML body</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.84s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>What changed</h2>
+    <ul class="delta-list">
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">ProfileBlockPageConfig</code> struct in config</strong>
+          <span>Fields: <code class="inline-code">Title</code>, <code class="inline-code">Message</code>, <code class="inline-code">ContactEmail</code>, <code class="inline-code">LogoURL</code>, <code class="inline-code">BypassPasscode</code>. Attached to <code class="inline-code">Profile</code> via <code class="inline-code">BlockPage *ProfileBlockPageConfig</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">RedirectAddressV6</code> in <code class="inline-code">BlockPageConfig</code></strong>
+          <span>IPv6 address returned for AAAA queries on blocked domains in redirect mode.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> Block page server: per-profile content + custom template</strong>
+          <span><code class="inline-code">?client_ip=</code> triggers profile lookup for per-profile title/message. <code class="inline-code">SetCustomTemplate</code> / <code class="inline-code">ClearCustomTemplate</code> for runtime template swap.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">POST /api/v1/bypass</code> handler</strong>
+          <span>Verifies <code class="inline-code">bypass_passcode</code>, calls <code class="inline-code">SetProfilePause</code> for the requested duration. Returns <code class="inline-code">{profile_id, expires_at}</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> Template routes: <code class="inline-code">PUT</code> / <code class="inline-code">DELETE /api/v1/blockpage/template</code></strong>
+          <span>Upload or remove a custom HTML template. DELETE reverts to built-in layout.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-fix">!</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-fix">fix</span> AAAA blocked without v6 addr → NXDOMAIN (was SERVFAIL)</strong>
+          <span>DNS handler now returns <code class="inline-code">RcodeNameError</code> when <code class="inline-code">redirect_address_v6</code> is not configured, matching <code class="inline-code">FS-BlockPageIPv6NotConfigured</code>.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Not implemented (out of scope)</h2>
+    <ul class="oos-list">
+      <li>Per-client bypass (allowlist entry) — current bypass pauses whole profile via SetProfilePause</li>
+      <li>Rich media block pages (video, iframe) — plain HTML only</li>
+      <li>Per-domain block page granularity (per-profile is the granularity)</li>
+      <li>HTTPS / ACME for the block page redirect server — post-M33</li>
+      <li>Bypass button rate-limiting (passcode controls access)</li>
+    </ul>
+  </div>
+
+  <div class="meta">
+    <span>Binary: CGO_ENABLED=0 static build</span>
+    <span>Go 1.24.4 linux/amd64</span>
+    <span>SKOED_TEST_MODE=1</span>
+    <span>Proxmox host (ns3251245.ip-91-134-62.eu)</span>
+    <span>Branch: feature/m33-block-page-enhancements · commit 0b605cf</span>
+  </div>
+
+</div>
+</body>
+</html>
