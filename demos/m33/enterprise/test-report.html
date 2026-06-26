@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>M33 Block Page Enhancements — Test Report</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #0d1117; color: #e6edf3; }
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 24px 32px; }
+  .header h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .header p { margin: 0; color: #8b949e; font-size: 14px; }
+  .summary { display: flex; gap: 16px; padding: 24px 32px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px 24px; min-width: 120px; }
+  .card .num { font-size: 32px; font-weight: 700; }
+  .card .lbl { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+  .card.green .num { color: #3fb950; }
+  .card.red .num { color: #f85149; }
+  .card.blue .num { color: #58a6ff; }
+  table { width: calc(100% - 64px); margin: 0 32px 32px; border-collapse: collapse; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+  th { background: #21262d; padding: 10px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; border-bottom: 1px solid #30363d; }
+  td { padding: 10px 16px; font-size: 14px; border-bottom: 1px solid #21262d; font-family: monospace; }
+  tr:last-child td { border-bottom: none; }
+  tr.pass td:first-child { color: #3fb950; font-weight: 700; }
+  tr.fail td:first-child { color: #f85149; font-weight: 700; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge.pass { background: #1a4a2e; color: #3fb950; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>M33 — Block Page Enhancements</h1>
+  <p>Enterprise acceptance test run · Proxmox proxtest2 (16 CPUs, 62 GiB RAM) · 2026-06-26 14:04 UTC</p>
+</div>
+<div class="summary">
+  <div class="card green"><div class="num">19</div><div class="lbl">Passed</div></div>
+  <div class="card red"><div class="num">0</div><div class="lbl">Failed</div></div>
+  <div class="card blue"><div class="num">19</div><div class="lbl">Total</div></div>
+  <div class="card"><div class="num" style="color:#8b949e">3.5s</div><div class="lbl">Duration</div></div>
+  <div class="card"><div class="num" style="font-size:16px;padding-top:8px"><span class="badge pass">PASS</span></div><div class="lbl">Result</div></div>
+</div>
+<table>
+<thead><tr><th>Result</th><th>Test</th><th>Duration</th></tr></thead>
+<tbody><tr class="pass"><td>✓</td><td>TestBlockPageBypassExpiry</td><td>2.19s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageBypassGranted</td><td>1.89s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageBypassProfileRequired</td><td>1.79s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageBypassWrongPasscode</td><td>1.38s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageConfigGet</td><td>1.88s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageConfigPersisted</td><td>2.08s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageCustomTemplate</td><td>1.69s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageCustomTemplateDelete</td><td>1.79s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageCustomTemplateVariables</td><td>1.99s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageGlobalFallback</td><td>1.38s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageHttpServerResponds</td><td>1.58s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageIPv6NotConfigured</td><td>1.28s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageIPv6Redirect</td><td>1.49s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageNonRedirectUnaffected</td><td>1.49s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPagePerProfileContent</td><td>1.38s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageProfileContactEmail</td><td>1.89s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageRedirectReturnsIP</td><td>1.38s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageRedirectServfailAAAA</td><td>1.69s</td></tr>
+<tr class="pass"><td>✓</td><td>TestBlockPageTitleInResponse</td><td>1.58s</td></tr>
+</tbody>
+</table>
+</body>
+</html>

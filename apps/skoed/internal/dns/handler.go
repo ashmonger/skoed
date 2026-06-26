@@ -39,21 +39,25 @@ type HandlerConfig struct {
 	// M26: BlockPageIP is the IPv4 address returned for blocked A queries
 	// when block_policy is "redirect". Empty string disables redirect.
 	BlockPageIP func() string
+	// M33: BlockPageV6 is the IPv6 address returned for blocked AAAA queries
+	// when block_policy is "redirect". Empty string → SERVFAIL (legacy behaviour).
+	BlockPageV6 func() string
 }
 
 // Handler implements dns.Handler and processes all incoming DNS queries.
 type Handler struct {
-	cfg         config.DNSConfig
-	fe          func() *filter.Engine
-	lr          *LocalResolver
-	fwd         *Forwarder
-	rec         *Recursor
-	ch          *Cache
-	ql          *dlog.QueryLog
-	dhcpFn      func(ip string) (hostname, mac, clientID string, ok bool)
-	observe     func(outcome string, elapsed time.Duration)
-	onDeviceNew func(clientIP string)
-	blockPageIP func() string // M26: returns current block page IP for redirect policy
+	cfg          config.DNSConfig
+	fe           func() *filter.Engine
+	lr           *LocalResolver
+	fwd          *Forwarder
+	rec          *Recursor
+	ch           *Cache
+	ql           *dlog.QueryLog
+	dhcpFn       func(ip string) (hostname, mac, clientID string, ok bool)
+	observe      func(outcome string, elapsed time.Duration)
+	onDeviceNew  func(clientIP string)
+	blockPageIP  func() string // M26: returns current block page IP for redirect policy
+	blockPageV6  func() string // M33: returns current block page IPv6 for redirect policy
 }
 
 // NewHandler constructs a Handler from the provided configuration.
@@ -70,6 +74,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		observe:     cfg.ObserveQuery,
 		onDeviceNew: cfg.OnDeviceNew,
 		blockPageIP: cfg.BlockPageIP,
+		blockPageV6: cfg.BlockPageV6,
 	}
 }
 
@@ -386,7 +391,28 @@ func (h *Handler) buildBlockResponse(r *dns.Msg, q dns.Question, policy filter.B
 				},
 			}
 		case dns.TypeAAAA:
-			m.Rcode = dns.RcodeServerFailure
+			// M33: when redirect_address_v6 is set, redirect AAAA to the block
+			// page IPv6 address. Otherwise return NXDOMAIN (FS-BlockPageIPv6NotConfigured).
+			if h.blockPageV6 != nil {
+				if v6addr := h.blockPageV6(); v6addr != "" {
+					if parsed := net.ParseIP(v6addr); parsed != nil {
+						m.Rcode = dns.RcodeSuccess
+						m.Answer = []dns.RR{
+							&dns.AAAA{
+								Hdr: dns.RR_Header{
+									Name:   q.Name,
+									Rrtype: dns.TypeAAAA,
+									Class:  dns.ClassINET,
+									Ttl:    0,
+								},
+								AAAA: parsed,
+							},
+						}
+						break
+					}
+				}
+			}
+			m.Rcode = dns.RcodeNameError
 		default:
 			m.Rcode = dns.RcodeNameError
 		}
