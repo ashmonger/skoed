@@ -125,6 +125,18 @@ type Profile struct {
 	ClientDUIDs []string `yaml:"client_duids,omitempty" json:"client_duids,omitempty"`
 
 	Pause *PauseState `yaml:"pause,omitempty" json:"pause,omitempty"`
+
+	// M33 (TS-BypassPasscode): per-profile block page overrides and bypass passcode.
+	BlockPage *ProfileBlockPageOverride `yaml:"block_page,omitempty" json:"block_page,omitempty"`
+}
+
+// ProfileBlockPageOverride holds per-profile block page customisation and the
+// optional bypass passcode introduced in M33.
+type ProfileBlockPageOverride struct {
+	Title          string `yaml:"title,omitempty"           json:"title,omitempty"`
+	Message        string `yaml:"message,omitempty"         json:"message,omitempty"`
+	ContactEmail   string `yaml:"contact_email,omitempty"   json:"contact_email,omitempty"`
+	BypassPasscode string `yaml:"bypass_passcode,omitempty" json:"bypass_passcode,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a

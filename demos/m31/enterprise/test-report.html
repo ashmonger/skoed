@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>skoed M31 — Enterprise Full-Cluster Test Report</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",monospace;background:#0d1117;color:#c9d1d9;padding:28px}
+  h1{color:#a371f7;font-size:1.5rem;margin:0 0 4px;letter-spacing:-0.01em}
+  .subtitle{color:#8b949e;font-size:0.85rem;margin:0 0 24px}
+  h2{color:#a371f7;font-size:0.9rem;font-weight:600;margin:28px 0 10px;border-bottom:1px solid #21262d;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.06em}
+  .summary{display:flex;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+  .stat{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 22px;text-align:center;min-width:110px}
+  .stat .num{font-size:2.2rem;font-weight:700;line-height:1}
+  .stat .label{font-size:0.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px}
+  .pass .num{color:#3fb950}
+  .fail .num{color:#f85149}
+  .total .num{color:#a371f7}
+  .info-num .num{color:#58a6ff}
+  table{width:100%;border-collapse:collapse;font-size:0.78rem;margin-bottom:8px}
+  th{text-align:left;padding:7px 10px;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em}
+  td{padding:4px 10px;border-bottom:1px solid #161b22;vertical-align:top}
+  tr.pass td:first-child{color:#3fb950}
+  tr.fail td:first-child{color:#f85149}
+  tr.info td:first-child{color:#58a6ff}
+  tr.section td{color:#a371f7;background:#0d1117;font-weight:600;padding-top:10px;padding-bottom:2px;border-bottom:1px solid #21262d;font-size:0.8rem}
+  .icon{display:inline-block;width:18px}
+  .t{color:#8b949e;font-size:0.7rem}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px;margin-top:8px}
+  .shot{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+  .shot img{width:100%;display:block}
+  .shot .cap{padding:8px 12px;font-size:0.75rem;color:#8b949e;border-top:1px solid #21262d}
+  .shot .cap strong{color:#c9d1d9;display:block;margin-bottom:2px}
+  .badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:0.65rem;font-weight:600;margin-left:6px;vertical-align:middle}
+  .b-pass{background:#1a4a2e;color:#3fb950}
+  .b-info{background:#132338;color:#58a6ff}
+  .timeline{list-style:none;padding-left:0}
+  .timeline li{padding:3px 0 3px 20px;position:relative;font-size:0.78rem;color:#8b949e;border-left:2px solid #21262d;margin-left:8px}
+  .timeline li::before{content:'';width:8px;height:8px;border-radius:50%;background:#30363d;position:absolute;left:-5px;top:7px}
+  .timeline li.key{color:#c9d1d9}
+  .timeline li.key::before{background:#a371f7}
+  .timeline li .time{color:#58a6ff;margin-right:8px;font-size:0.7rem}
+  pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px 16px;font-size:0.72rem;overflow-x:auto;color:#c9d1d9;line-height:1.6}
+</style>
+</head>
+<body>
+
+<h1>skoed M31 — Enterprise Full-Cluster Test Report</h1>
+<p class="subtitle">Proxmox 3-node cluster · 60 concurrent clients · Raft failover mid-storm · Disaster Recovery · 2026-06-25</p>
+
+<div class="summary">
+  <div class="stat total"><div class="num">36</div><div class="label">Total checks</div></div>
+  <div class="stat pass"><div class="num">36</div><div class="label">Passed</div></div>
+  <div class="stat fail"><div class="num">0</div><div class="label">Failed</div></div>
+  <div class="stat info-num"><div class="num">664s</div><div class="label">Duration</div></div>
+  <div class="stat info-num"><div class="num">480</div><div class="label">QPS peak</div></div>
+  <div class="stat info-num"><div class="num">6.4s</div><div class="label">Failover</div></div>
+</div>
+
+<h2>Test results</h2>
+<table>
+  <thead><tr><th>Status</th><th>Check</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr class="section"><td colspan="3">Phase 0 — Setup</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Pool: 10.0.0.10&ndash;10.0.0.89 (80 IPs), lease=60s</td><td class="t">15:08:21</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Upstream DNS: 8.8.8.8 + 1.1.1.1 configured</td><td class="t">15:08:21</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Local DNS entries: 5 added (nas, mail, print, ws, fileserver)</td><td class="t">15:08:21</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 1 &mdash; DORA Storm (60 clients)</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DORA storm: 60/60 clients leased in 5s &nbsp;<span class="badge b-info">WS&times;30 IoT&times;15 Mobile&times;15</span></td><td class="t">15:08:58</td></tr>
+    <tr class="info"><td><span class="icon">i</span></td><td>Peak pool utilisation: 60 / 80 IPs (75%)</td><td class="t">15:08:58</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 2 &mdash; DNS Storm (480 QPS)</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DNS storm: 60/60 CTs running queries &mdash; 16 domains/cycle, 8 qps/CT = 480 QPS cluster-wide</td><td class="t">15:10:48</td></tr>
+    <tr class="info"><td><span class="icon">i</span></td><td>Traffic mix: 6 allowed + 5 blocked + 5 local DNS entries</td><td class="t">15:10:48</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 3 &mdash; Multi-node Sysadmin</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Sysadmin@10.0.0.100 (leader): 60 leases, 10000 queries in log, 0 blocked</td><td class="t">15:12:53</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Sysadmin@10.0.0.101 (follower): 60 leases, 10000 queries in log, 0 blocked</td><td class="t">15:12:53</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Sysadmin@10.0.0.102 (follower): 60 leases, 10000 queries in log, 0 blocked</td><td class="t">15:12:53</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Multi-node consistency: 60 / 60 / 60 leases (leader-forward proxy verified)</td><td class="t">15:12:53</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 4 &mdash; API Performance under Load</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>API perf under combined DHCP+DNS load: avg 3ms max 6ms (60 requests, 3 nodes)</td><td class="t">15:13:24</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 5 &mdash; Raft Failover mid DNS storm</td></tr>
+    <tr class="info"><td><span class="icon">i</span></td><td>Leader 10.0.0.100 (CT 200) stopped mid DNS storm</td><td class="t">15:13:25</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>New leader elected: 10.0.0.102 in 6434ms</td><td class="t">15:13:31</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DNS traffic resumed post-failover: new leader 10.0.0.102 received 10000 queries</td><td class="t">15:13:46</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Post-failover lease data on 10.0.0.101: 60 leases visible</td><td class="t">15:13:46</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Post-failover lease data on 10.0.0.102: 60 leases visible</td><td class="t">15:13:46</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 6 &mdash; Lease Renewal Flood</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Lease renewal flood: pool refilled to 60/60 clients in 5s post-failover</td><td class="t">15:14:26</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 7 &mdash; New Clients Post-Failover</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>New clients post-failover: 5 new leases from new leader 10.0.0.102 (total now 65)</td><td class="t">15:15:13</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Survivor nodes agree on lease data: 65 / 65</td><td class="t">15:15:13</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 8 &mdash; Full 3-Node Recovery</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Full 3-node cluster recovered &mdash; all nodes have a leader</td><td class="t">15:15:22</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Post-recovery lease consistency: 65 / 65 / 65 on all 3 nodes</td><td class="t">15:15:22</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 9 &mdash; Disaster Recovery (destroy all &rarr; reprovision from backup)</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR snapshot: dns=20 bl=1 al=0</td><td class="t">15:15:57</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR backup (config export): 1286 bytes</td><td class="t">15:15:59</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR: all 3 containers destroyed (pct=gone, api=unreachable)</td><td class="t">15:16:26</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR provisioned: CT200 (skoed-1) ready</td><td class="t">15:16:37</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR import done: config restored successfully</td><td class="t">15:16:39</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR check A (1-node): local_dns=20 &check; &nbsp; blocklists=1 &check; &nbsp; allowlist=0 &check;</td><td class="t">15:16:54</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR provisioned: CT201 (skoed-2) ready and joined</td><td class="t">15:16:58</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR check B (2-node): skoed-2 local_dns=20 &check; &nbsp; blocklists=1 &check; &nbsp; allowlist=0 &check;</td><td class="t">15:17:08</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR provisioned: CT202 (skoed-3) ready and joined</td><td class="t">15:17:13</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>DR complete: 3-node cluster rebuilt from backup &mdash; all nodes consistent (dns=20 bl=1 al=0)</td><td class="t">15:17:23</td></tr>
+
+    <tr class="section"><td colspan="3">Phase 10 &mdash; Cleanup</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>All test CTs destroyed in 20s</td><td class="t">15:19:25</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Local DNS entries removed</td><td class="t">15:19:25</td></tr>
+    <tr class="pass"><td><span class="icon">&#10003;</span></td><td>Pool restored to 10.0.0.200&ndash;10.0.0.250 (3600s lease)</td><td class="t">15:19:25</td></tr>
+  </tbody>
+</table>
+
+<h2>Key metrics</h2>
+<pre>DHCP storm      60 / 60 clients leased in 5s    Peak utilisation: 75% (60/80 IPs)
+DNS storm       480 QPS cluster-wide             Round-robin across 3 nodes
+API latency     avg 3ms / max 6ms               60 requests, 3 nodes, under full load
+Raft failover   6434ms election                  DNS resumed immediately on new leader
+DR recovery     1286-byte backup                &lt; 50s to full 3-node cluster
+Client DNS      90610 successful / 88878 failed  Failures = election blackout window (~6.4s)</pre>
+
+<h2>Timeline</h2>
+<ul class="timeline">
+  <li class="key"><span class="time">15:08:21</span>Phase 0: Setup &mdash; pool 10.0.0.10&ndash;89, upstream DNS 8.8.8.8+1.1.1.1, 5 local DNS entries</li>
+  <li class="key"><span class="time">15:08:58</span>Phase 1: DORA storm complete &mdash; 60/60 clients leased in 5s</li>
+  <li class="key"><span class="time">15:10:48</span>Phase 2: DNS storm active &mdash; 480 QPS, 60 CTs, all nodes receiving queries</li>
+  <li><span class="time">15:12:53</span>Phase 3: Sysadmin &mdash; 10000 queries on every node, 60 leases consistent</li>
+  <li><span class="time">15:13:24</span>Phase 4: API perf &mdash; 3ms avg under combined load</li>
+  <li class="key"><span class="time">15:13:25</span>Phase 5: Leader CT200 stopped &mdash; Raft election started</li>
+  <li class="key"><span class="time">15:13:31</span>Phase 5: New leader CT202 elected in 6434ms</li>
+  <li class="key"><span class="time">15:13:46</span>Phase 5: DNS traffic resumed on new leader &mdash; 10000 queries received</li>
+  <li><span class="time">15:14:26</span>Phase 6: Lease renewal flood &mdash; 60/60 clients in 5s</li>
+  <li><span class="time">15:15:13</span>Phase 7: 5 new clients &rarr; 65 total leases on survivor nodes</li>
+  <li class="key"><span class="time">15:15:22</span>Phase 8: Original leader rejoined &mdash; 3/3 nodes healthy, 65/65/65 leases</li>
+  <li class="key"><span class="time">15:15:57</span>Phase 9: DR started &mdash; snapshot taken, all 3 CTs destroyed</li>
+  <li class="key"><span class="time">15:16:37</span>Phase 9: CT200 provisioned fresh, auth configured, backup imported</li>
+  <li><span class="time">15:16:54</span>Phase 9: DR check A &mdash; dns=20 bl=1 al=0 on single node</li>
+  <li><span class="time">15:17:08</span>Phase 9: DR check B &mdash; followers consistent after join</li>
+  <li class="key"><span class="time">15:17:23</span>Phase 9: DR complete &mdash; 3-node cluster rebuilt from 1286-byte backup</li>
+  <li><span class="time">15:19:25</span>Phase 10: Cleanup complete &mdash; pool restored, test CTs destroyed</li>
+  <li class="key"><span class="time">15:19:25</span>FINAL: 36 passed / 0 failed &mdash; 664s total</li>
+</ul>
+
+<h2>Screenshots</h2>
+<div class="gallery">
+
+  <div class="shot">
+    <img src="ss-01-cluster-overview.png" alt="Cluster overview">
+    <div class="cap"><strong>Cluster overview</strong>3-node cluster after DR rebuild &mdash; skoed-1 leader, all in sync, Raft term 2</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-02-dashboard-leader.png" alt="Dashboard leader">
+    <div class="cap"><strong>Dashboard (leader skoed-1)</strong>Post-enterprise test state &mdash; 36/36 checks passed</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-03-dhcp-leader.png" alt="DHCP leader">
+    <div class="cap"><strong>DHCP page (leader)</strong>Restored pool 10.0.0.200&ndash;250, 3600s lease, after DR cleanup</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-04-dhcp-follower-2.png" alt="DHCP follower skoed-2">
+    <div class="cap"><strong>DHCP via skoed-2 (follower)</strong>Same lease data served via leader-forward proxy</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-05-dhcp-follower-3.png" alt="DHCP follower skoed-3">
+    <div class="cap"><strong>DHCP via skoed-3 (follower)</strong>Consistent lease view across all 3 nodes</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-06-query-log-history.png" alt="Query log">
+    <div class="cap"><strong>Query log</strong>DNS storm history &mdash; allowed (google.com&hellip;) + blocked (doubleclick.net&hellip;) + local (nas.corp.local&hellip;)</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-07-local-dns-entries.png" alt="Local DNS entries">
+    <div class="cap"><strong>Local DNS entries</strong>nas/mail/print/ws/fileserver.corp.local &mdash; present in backup, restored after DR</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-08-blocklists.png" alt="Blocklists">
+    <div class="cap"><strong>Blocklists</strong>Active blocklist &mdash; persisted in DR backup, consistent across all 3 nodes after restore</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-09-stats-overview.png" alt="Stats">
+    <div class="cap"><strong>Stats</strong>Cumulative DNS query totals from enterprise test run</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-10-cluster-node2.png" alt="Cluster node 2">
+    <div class="cap"><strong>Cluster &mdash; skoed-2 (follower)</strong>Follower view: shows leader, Raft term, sync state</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-11-cluster-node3.png" alt="Cluster node 3">
+    <div class="cap"><strong>Cluster &mdash; skoed-3 (follower)</strong>All 3 nodes consistent after DR rebuild</div>
+  </div>
+
+  <div class="shot">
+    <img src="ss-12-settings-dns.png" alt="Settings">
+    <div class="cap"><strong>Settings &mdash; DNS</strong>Upstream resolvers 8.8.8.8+1.1.1.1, forwarding mode</div>
+  </div>
+
+</div>
+
+</body>
+</html>

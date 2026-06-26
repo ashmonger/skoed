@@ -33,6 +33,39 @@
 
 ## Validation
 
+### Proxmox 3-Node Cluster (2026-06-25)
+
+3-node Raft cluster: CT200 (skoed-1 leader), CT201 (skoed-2), CT202 (skoed-3) — Alpine Linux.
+
+**TEST 1 — Encrypted Export:**
+- `POST /api/v1/config/export` with passphrase returns age-encrypted body
+- Response starts with `age-encryption.org/v1` header ✓
+
+**TEST 2 — Scheduled Backup Config:**
+- `PUT /api/v1/settings/backup` enables schedule; response confirms `enabled=true` ✓
+
+**TEST 3 — Trigger + Dedup:**
+- First trigger: `{"created":true}` ✓
+- Second trigger (no config change): `{"created":false}` — dedup working ✓
+
+**TEST 4 — List Backups:**
+- `GET /api/v1/config/backups` returns 1 entry after one trigger ✓
+
+**TEST 5 — Download:**
+- `GET /api/v1/config/backups/{id}/download` streams 795 bytes ✓
+
+**TEST 6 — Diff:**
+- Export A → add allowlist entry → Export B → `POST /api/v1/config/diff`
+- Response: `{"added":{"allowlist":["diff-test.example.com"],...}}`  ✓
+
+### Web UI
+Settings page backup section expanded with:
+- Optional passphrase field for encrypted export (`.age` archive); empty → plain `.tar.gz`
+- Passphrase field for importing encrypted archives
+- Scheduled backup toggle, interval (hours), retain count — persisted via `PUT /api/v1/settings/backup`
+- Stored backups table: created timestamp, size, per-row download button
+- "Trigger now" button with dedup feedback ("Backup created." / "No changes — backup skipped (dedup).")
+
 ### Acceptance Tests (Proxmox host, go test direct)
 12/12 pass:
 - `TestBackupExportEncrypted` ✓

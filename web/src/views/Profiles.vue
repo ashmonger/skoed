@@ -143,6 +143,12 @@
                 {{ allowlistEntries.length }}
               </span>
             </button>
+            <button type="button"
+                    class="px-3 py-1.5 transition-colors"
+                    :class="modalTab === 'blockpage' ? 'bg-accent text-white font-medium' : 'text-fg-muted hover:text-fg-strong'"
+                    @click="modalTab = 'blockpage'">
+              Block page
+            </button>
           </div>
         </div>
 
@@ -196,6 +202,47 @@
               </button>
             </li>
           </ul>
+        </div>
+
+        <!-- ── Block page tab (edit mode only) ────────────────────────────── -->
+        <div v-if="mode === 'edit' && modalTab === 'blockpage'" class="space-y-3">
+          <p class="text-xs text-fg-muted">
+            Override the global block page content for clients in this profile.
+            Leave fields empty to use the global default.
+          </p>
+          <p v-if="blockPageTabError" class="text-sm text-danger">{{ blockPageTabError }}</p>
+          <p v-if="blockPageTabSaved" class="text-sm text-success">Saved.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="label" for="bp-tab-title">Page title</label>
+              <input id="bp-tab-title" v-model="blockPageTabForm.title"
+                     type="text" placeholder="Access Blocked" class="input" />
+            </div>
+            <div>
+              <label class="label" for="bp-tab-email">Contact email</label>
+              <input id="bp-tab-email" v-model="blockPageTabForm.contact_email"
+                     type="email" placeholder="admin@example.com" class="input" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="label" for="bp-tab-message">Message</label>
+              <textarea id="bp-tab-message" v-model="blockPageTabForm.message"
+                        rows="2" placeholder="This site has been blocked." class="input resize-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="label" for="bp-tab-passcode">Bypass passcode</label>
+              <input id="bp-tab-passcode" v-model="blockPageTabForm.bypass_passcode"
+                     type="text" placeholder="e.g. homework1234" class="input font-mono" />
+              <p class="text-xs text-fg-muted mt-1">
+                Users on the block page can enter this code to pause filtering for a set duration.
+              </p>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" class="btn-secondary" @click="closeModal">Close</button>
+            <button type="button" class="btn-primary" :disabled="blockPageTabSaving" @click="saveBlockPageTab">
+              {{ blockPageTabSaving ? 'Saving…' : 'Save block page' }}
+            </button>
+          </div>
         </div>
 
         <!-- ── Settings tab (always shown in create mode; toggled in edit) ── -->
@@ -462,10 +509,10 @@ import {
 import {
   addProfileAllowlist, clearProfilePause, createProfile, deleteProfile,
   getProfilePause, listBlocklists, listProfileAllowlist, listProfiles,
-  removeProfileAllowlist, setProfilePause, updateProfile,
+  patchProfileBlockPage, removeProfileAllowlist, setProfilePause, updateProfile,
 } from '@/api/endpoints'
 import type { FwRuleScope } from '@/api/endpoints'
-import type { Blocklist, PauseState, Profile } from '@/api/types'
+import type { Blocklist, PauseState, Profile, ProfileBlockPage } from '@/api/types'
 import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 // ─── Constants ───────────────────────────────────────────────────────────
@@ -519,7 +566,7 @@ const deleting = ref(false)
 
 // ─── Modal tab (edit mode only) ──────────────────────────────────────────
 
-type ModalTab = 'settings' | 'allowlist'
+type ModalTab = 'settings' | 'allowlist' | 'blockpage'
 const modalTab = ref<ModalTab>('settings')
 
 // Allowlist tab state
@@ -529,6 +576,35 @@ const allowlistError = ref('')
 const allowlistAddInput = ref('')
 const allowlistAdding = ref(false)
 const allowlistDeleting = ref<string | null>(null)
+
+// Block page tab state (M33)
+const blockPageTabForm = reactive<ProfileBlockPage>({
+  title: '', message: '', contact_email: '', bypass_passcode: '',
+})
+const blockPageTabSaving = ref(false)
+const blockPageTabSaved = ref(false)
+const blockPageTabError = ref('')
+
+async function saveBlockPageTab() {
+  if (!original.value) return
+  blockPageTabSaving.value = true
+  blockPageTabError.value = ''
+  blockPageTabSaved.value = false
+  try {
+    const patch: ProfileBlockPage = {}
+    if (blockPageTabForm.title) patch.title = blockPageTabForm.title
+    if (blockPageTabForm.message) patch.message = blockPageTabForm.message
+    if (blockPageTabForm.contact_email) patch.contact_email = blockPageTabForm.contact_email
+    if (blockPageTabForm.bypass_passcode) patch.bypass_passcode = blockPageTabForm.bypass_passcode
+    await patchProfileBlockPage(original.value.id, patch)
+    blockPageTabSaved.value = true
+    setTimeout(() => { blockPageTabSaved.value = false }, 2000)
+  } catch (err) {
+    blockPageTabError.value = String(err)
+  } finally {
+    blockPageTabSaving.value = false
+  }
+}
 
 function isWildcard(entry: string): boolean {
   // Wildcards are stored as "example.com" after normalisation, but displayed
@@ -748,6 +824,13 @@ function openEdit(p: Profile) {
   form.clientIdsText = (p.client_ids ?? []).join('\n')
   form.clientMacsText = (p.client_macs ?? []).join('\n')
   form.clientHostnamesText = (p.client_hostnames ?? []).join('\n')
+  // M33 — block page overrides
+  blockPageTabForm.title = p.block_page?.title ?? ''
+  blockPageTabForm.message = p.block_page?.message ?? ''
+  blockPageTabForm.contact_email = p.block_page?.contact_email ?? ''
+  blockPageTabForm.bypass_passcode = p.block_page?.bypass_passcode ?? ''
+  blockPageTabError.value = ''
+  blockPageTabSaved.value = false
   formError.value = ''
   showModal.value = true
 }

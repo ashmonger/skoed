@@ -141,13 +141,27 @@ export interface Settings {
   query_log: { max_entries: number; aggregate_retention_days: number }
 }
 
-// M26 — block page config
+// M26 — block page config (M33 adds redirect_address_v6)
 export interface BlockPageConfig {
   ip?: string
   port?: number
   title?: string
   message?: string
   contact_email?: string
+  redirect_address_v6?: string
+}
+
+// M31 — backup hardening
+export interface BackupEntry {
+  id: string
+  created_at: string
+  size_bytes: number
+}
+
+export interface BackupSettings {
+  enabled: boolean
+  interval_hours: number
+  retain_count: number
 }
 
 export interface JoinTokenResponse {
@@ -164,6 +178,14 @@ export interface ApiError {
 
 // ─── M3 ───────────────────────────────────────────────────────────────────
 
+// M33 — per-profile block page overrides
+export interface ProfileBlockPage {
+  title?: string
+  message?: string
+  contact_email?: string
+  bypass_passcode?: string
+}
+
 export interface Profile {
   id: string
   name: string
@@ -176,6 +198,8 @@ export interface Profile {
   client_ids?: string[]
   client_macs?: string[]
   client_hostnames?: string[]
+  // M33: per-profile block page overrides
+  block_page?: ProfileBlockPage
 }
 
 export type ScheduleMode = 'block_only_inside' | 'allow_only_inside'

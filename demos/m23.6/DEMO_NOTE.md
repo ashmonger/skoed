@@ -28,19 +28,9 @@
 - All 8 M23.6 FSID-tagged tests pass: FS-DhcpWebUiSettingsTabVisible through FS-DhcpWebUiPoolUtilisationGauge
 - Screenshots taken in Lipgloss dark theme on skoed-1 (10.0.0.100)
 
-## Enterprise load test v2 (2026-06-22)
+## Enterprise load test
 
-**20/21 PASS · 514s · Proxmox proxtest2 (16 CPUs, 62 GiB RAM) · [Full report with screenshots](enterprise/test-report.html)**
+The enterprise full-cluster test was introduced at M23.6. Starting from M31, it is run as the default validation test for each milestone that ships cluster features. The latest enterprise test results live in the most recent milestone's demo folder.
 
-9-phase test: 60 concurrent clients (30 WS + 15 IoT + 15 mobile), sustained DNS storm (~400 QPS, 16 domains/cycle), multi-node sysadmin, API perf, Raft failover mid-storm, lease renewal flood, new clients post-failover, full cluster recovery.
-
-| Metric | Result |
-|--------|--------|
-| 60 concurrent DHCP clients (Alpine LXC) | All 61 leases in **5 seconds** |
-| DNS traffic | **~400 QPS** sustained (60 CTs × 16 domains/2s cycle) |
-| DNS queries logged | **10,000+** (ring buffer max) |
-| API latency under full load | **avg 2ms / max 4ms** |
-| Raft leader failover mid DNS storm | **6.4 seconds** (term 13) |
-| Post-failover new clients | 5 new leases from new leader |
-| Full 3-node recovery consistency | **67 / 67 / 67** leases |
-| 1 known failure | `cluster/stats` shows 0 (hourly flush — not a bug) |
+- **M23.6 run (2026-06-22):** 20/21 PASS (1 known non-bug: cluster/stats hourly flush)
+- **M31 run (2026-06-25):** [**36/36 PASS** · 664s · full report](../m31/enterprise/test-report.html)

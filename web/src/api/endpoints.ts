@@ -1,11 +1,11 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Anomaly, APIToken, APITokenMinted, AuditPage, BlockPageConfig, Blocklist, BlocklistSource, Category,
+  Anomaly, APIToken, APITokenMinted, AuditPage, BackupEntry, BackupSettings, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, CustomRules, DNSCacheStats,
   Dhcp6Lease, Dhcp6ServerStatus, DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
-  JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, QueryLogPage, Schedule,
+  JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, ProfileBlockPage, QueryLogPage, Schedule,
   ScheduleBinding, Settings, WebhookEndpoint,
 } from './types'
 
@@ -595,4 +595,28 @@ export function getCustomRules(): Promise<CustomRules> {
 
 export function putCustomRules(rules: string): Promise<CustomRules> {
   return putJSON('/api/v1/custom-rules', { rules })
+}
+
+// ─── M31: Backup hardening ────────────────────────────────────────────────
+
+export function getBackupSettings(): Promise<BackupSettings> {
+  return getJSON('/api/v1/settings/backup')
+}
+
+export function putBackupSettings(s: BackupSettings): Promise<BackupSettings> {
+  return putJSON('/api/v1/settings/backup', s)
+}
+
+export function listBackups(): Promise<BackupEntry[]> {
+  return getJSON<{ backups: BackupEntry[] }>('/api/v1/config/backups').then(r => r?.backups ?? [])
+}
+
+export function triggerBackup(): Promise<{ created: boolean }> {
+  return postJSON('/api/v1/config/backups/trigger')
+}
+
+// ─── M33: per-profile block page ─────────────────────────────────────────
+
+export function patchProfileBlockPage(profileId: string, bp: ProfileBlockPage): Promise<Profile> {
+  return patchJSON(`/api/v1/profiles/${profileId}`, { block_page: bp })
 }

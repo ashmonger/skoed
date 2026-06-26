@@ -10,10 +10,18 @@
     <!-- Toolbar -->
     <div class="flex items-center justify-between">
       <h1 class="text-lg font-semibold text-fg-strong">Categories</h1>
-      <button class="btn-secondary" :disabled="loading" @click="refresh">
-        <ArrowPathIcon class="h-4 w-4" :class="{ 'animate-spin': loading }" />
-        Refresh
-      </button>
+      <div class="flex items-center gap-2">
+        <button v-if="unenableledForDefault.length > 0"
+                class="btn-primary text-xs"
+                :disabled="bulkEnabling"
+                @click="enableAllForDefault">
+          {{ bulkEnabling ? 'Enabling…' : `Enable all for default (${unenableledForDefault.length})` }}
+        </button>
+        <button class="btn-secondary" :disabled="loading" @click="refresh">
+          <ArrowPathIcon class="h-4 w-4" :class="{ 'animate-spin': loading }" />
+          Refresh
+        </button>
+      </div>
     </div>
 
     <p v-if="loading" class="card p-6 text-sm text-fg-muted text-center">Loading…</p>
@@ -217,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   ArrowPathIcon, PencilSquareIcon, PlusIcon, TagIcon, XMarkIcon,
 } from '@heroicons/vue/24/outline'
@@ -264,6 +272,30 @@ function availableProfilesFor(cat: Category | null): Profile[] {
   if (!cat) return []
   const enabled = new Set(cat.enabled_for_profiles)
   return profiles.value.filter(p => !enabled.has(p.id))
+}
+
+// Categories not yet enabled for the 'default' profile
+const unenableledForDefault = computed(() =>
+  categories.value.filter(c => !c.enabled_for_profiles.includes('default')),
+)
+
+// Bulk enable
+const bulkEnabling = ref(false)
+
+async function enableAllForDefault() {
+  bulkEnabling.value = true
+  const targets = unenableledForDefault.value.map(c => c.name)
+  for (const name of targets) {
+    try {
+      await enableCategory(name, 'default')
+    } catch { /* continue — individual error shown on card */ }
+  }
+  try {
+    categories.value = await listCategories()
+  } catch (err) {
+    lastError.value = errMsg(err, 'Failed to reload categories')
+  }
+  bulkEnabling.value = false
 }
 
 // ─── Data loading ────────────────────────────────────────────────────────
@@ -347,8 +379,10 @@ async function resetUrl(cat: Category) {
 
 function openEnable(cat: Category) {
   enableTarget.value = cat
-  enableProfileId.value = ''
   enableError.value = ''
+  // Pre-select 'default' if it's available, otherwise leave blank
+  const avail = availableProfilesFor(cat)
+  enableProfileId.value = avail.some(p => p.id === 'default') ? 'default' : (avail[0]?.id ?? '')
 }
 
 function closeEnable() {

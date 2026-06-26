@@ -136,8 +136,11 @@
             :value="theme.palette"
             @change="onPaletteChange"
           >
+            <option value="lipgloss">Lipgloss</option>
+            <option value="monokai">Monokai</option>
             <option value="monokai-solarized">Monokai Solarized</option>
-            <option value="monokai">Monokai (vivid)</option>
+            <option value="monokai-blue">Monokai Blue</option>
+            <option value="monokai-pro">Monokai Pro</option>
           </select>
         </div>
 
@@ -180,7 +183,7 @@ import { useThemeStore } from '@/stores/theme'
 import { changePassword } from '@/api/endpoints'
 
 type Mode = 'light' | 'dark'
-type Palette = 'monokai' | 'monokai-solarized'
+type Palette = 'lipgloss' | 'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro'
 
 const auth = useAuthStore()
 const theme = useThemeStore()

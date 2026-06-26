@@ -1123,6 +1123,13 @@ func serveSPA(w http.ResponseWriter, r *http.Request) {
 		clean = "index.html"
 	}
 
+	// JS and CSS assets: no-cache so the browser revalidates after a binary
+	// upgrade. The file content (ETag) still avoids a full re-download when
+	// nothing changed; no-cache only means "check before serving from cache".
+	if strings.HasPrefix(clean, "assets/") {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+
 	fsys := static.FS()
 	if f, err := fsys.Open(clean); err == nil {
 		_ = f.Close()
