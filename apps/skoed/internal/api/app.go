@@ -47,6 +47,10 @@ type App struct {
 
 	upgradeChecker *upgrade.Checker // M5.6 — release-feed cache; nil disables /upgrade/*
 
+	// backupScheduler is the M31 scheduled-backup goroutine. Nil until
+	// SetBackupScheduler is called (e.g. in unit tests that don't need backups).
+	backupScheduler *config.BackupScheduler
+
 	// metricsRequireAuth is node-local config (node.api.metrics.require_auth).
 	// Cached at construction; today operators restart the process to flip it,
 	// matching how every other node.api.* knob works.
@@ -331,6 +335,20 @@ func (a *App) GetUpgradeChecker() handlers.UpgradeChecker {
 		return nil
 	}
 	return a.upgradeChecker
+}
+
+// SetBackupScheduler wires the M31 backup scheduler so the trigger and
+// listing endpoints can reach it. Nil keeps the endpoints active but returning
+// 503 (useful for unit tests that don't need scheduled backups).
+func (a *App) SetBackupScheduler(s *config.BackupScheduler) { a.backupScheduler = s }
+
+// GetBackupScheduler returns the backup scheduler as a handlers interface.
+// Returns nil when no scheduler is wired.
+func (a *App) GetBackupScheduler() handlers.BackupSchedulerIface {
+	if a.backupScheduler == nil {
+		return nil
+	}
+	return a.backupScheduler
 }
 
 // SetMetricsRequireAuth flips /metrics from open (default) to
@@ -844,9 +862,18 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/query-log", h.GetQueryLog)
 		r.Get("/api/v1/query-log/stream", h.StreamQueryLog) // M29: SSE live stream
 
-		// Config export/import
+		// Config export/import (M1) and M31 backup hardening
 		r.Get("/api/v1/config/export", h.ExportConfig)
-		r.Post("/api/v1/config/import", a.forward(h.ImportConfig))
+		r.Post("/api/v1/config/export", h.ExportConfigPost)
+		r.Post("/api/v1/config/import", a.forward(h.ImportConfigWithPassphrase))
+
+		// M31 — backup hardening
+		bkh := handlers.NewBackupHandlers(a, a.GetBackupScheduler())
+		r.Put("/api/v1/settings/backup", a.forward(bkh.PutBackupSettings))
+		r.Get("/api/v1/config/backups", bkh.ListBackups)
+		r.Get("/api/v1/config/backups/{id}/download", bkh.DownloadBackup)
+		r.Post("/api/v1/config/backups/trigger", a.forward(bkh.TriggerBackup))
+		r.Post("/api/v1/config/diff", bkh.DiffBackups)
 
 		// M13 — Filtering pause (global + per-profile)
 		ph := handlers.NewFilteringPauseHandlers(a)
@@ -1094,6 +1121,13 @@ func serveSPA(w http.ResponseWriter, r *http.Request) {
 	clean := strings.TrimPrefix(r.URL.Path, "/")
 	if clean == "" {
 		clean = "index.html"
+	}
+
+	// JS and CSS assets: no-cache so the browser revalidates after a binary
+	// upgrade. The file content (ETag) still avoids a full re-download when
+	// nothing changed; no-cache only means "check before serving from cache".
+	if strings.HasPrefix(clean, "assets/") {
+		w.Header().Set("Cache-Control", "no-cache")
 	}
 
 	fsys := static.FS()

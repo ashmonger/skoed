@@ -41,6 +41,22 @@ type Config struct {
 	DHCPServer DHCPServerConfig `yaml:"dhcp_server,omitempty" json:"dhcp_server,omitempty"`
 }
 
+// BackupConfig configures the scheduled backup feature (M31).
+// Node-local: stored directly in bbolt, not replicated via Raft.
+type BackupConfig struct {
+	Enabled       bool `yaml:"enabled"        json:"enabled"`
+	IntervalHours int  `yaml:"interval_hours" json:"interval_hours"`
+	RetainCount   int  `yaml:"retain_count"   json:"retain_count"`
+}
+
+// BackupEntry describes a single stored backup archive.
+type BackupEntry struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	SizeBytes int64     `json:"size_bytes"`
+	Encrypted bool      `json:"encrypted"`
+}
+
 // DHCPServerConfig is the persisted configuration for the built-in DHCP server.
 // Cluster-wide: replicated via Raft, stored in bbolt. The enable flag controls
 // whether the Raft leader starts a UDP 67 listener.
@@ -109,6 +125,18 @@ type Profile struct {
 	ClientDUIDs []string `yaml:"client_duids,omitempty" json:"client_duids,omitempty"`
 
 	Pause *PauseState `yaml:"pause,omitempty" json:"pause,omitempty"`
+
+	// M33 (TS-BypassPasscode): per-profile block page overrides and bypass passcode.
+	BlockPage *ProfileBlockPageOverride `yaml:"block_page,omitempty" json:"block_page,omitempty"`
+}
+
+// ProfileBlockPageOverride holds per-profile block page customisation and the
+// optional bypass passcode introduced in M33.
+type ProfileBlockPageOverride struct {
+	Title          string `yaml:"title,omitempty"           json:"title,omitempty"`
+	Message        string `yaml:"message,omitempty"         json:"message,omitempty"`
+	ContactEmail   string `yaml:"contact_email,omitempty"   json:"contact_email,omitempty"`
+	BypassPasscode string `yaml:"bypass_passcode,omitempty" json:"bypass_passcode,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a

@@ -3,6 +3,7 @@ module github.com/skoed/skoed
 go 1.26.1
 
 require (
+	filippo.io/age v1.3.1
 	github.com/ameshkov/dnscrypt/v2 v2.4.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -21,6 +22,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/AdguardTeam/golibs v0.32.7 // indirect
 	github.com/ameshkov/dnsstamps v1.0.3 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

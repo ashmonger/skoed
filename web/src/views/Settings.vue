@@ -213,7 +213,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="label" for="bp-ip">Block page IP</label>
+            <label class="label" for="bp-ip">Block page IP (IPv4)</label>
             <input id="bp-ip"
                    v-model="blockPageForm.ip"
                    type="text"
@@ -222,6 +222,18 @@
                    @input="markBlockPageDirty" />
             <p class="text-xs text-fg-muted mt-1">
               IPv4 address returned for blocked A queries. Leave empty to use the node's API host IP.
+            </p>
+          </div>
+          <div>
+            <label class="label" for="bp-ipv6">Block page IPv6 (optional)</label>
+            <input id="bp-ipv6"
+                   v-model="blockPageForm.redirect_address_v6"
+                   type="text"
+                   placeholder="e.g. 2001:db8::1"
+                   class="input"
+                   @input="markBlockPageDirty" />
+            <p class="text-xs text-fg-muted mt-1">
+              IPv6 address returned for blocked AAAA queries. Leave empty to return NXDOMAIN for AAAA.
             </p>
           </div>
           <div>
@@ -335,7 +347,7 @@
         </div>
       </section>
 
-      <!-- ─── Configuration backup ──────────────────────────────────────── -->
+      <!-- ─── Configuration backup (M31) ──────────────────────────────── -->
       <section class="card p-5 space-y-4">
         <header class="flex items-center gap-2">
           <ArchiveBoxIcon class="h-5 w-5 text-accent" />
@@ -348,15 +360,24 @@
           backup and are never changed by a restore.
         </p>
 
-        <!-- Download -->
-        <div class="flex flex-wrap items-center gap-3 pt-1">
-          <button class="btn-secondary" :disabled="exporting" @click="downloadBackup">
-            {{ exporting ? 'Preparing…' : 'Download backup' }}
-          </button>
+        <!-- Export -->
+        <div class="space-y-2 pt-1">
+          <h3 class="text-sm font-semibold text-fg-strong">Export</h3>
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <label class="label" for="export-passphrase">Passphrase (optional)</label>
+              <input id="export-passphrase"
+                     v-model="exportPassphrase"
+                     type="password"
+                     placeholder="Leave empty for plain .tar.gz"
+                     class="input w-64" />
+              <p class="text-xs text-fg-muted mt-1">When set, archive is age-encrypted (.age)</p>
+            </div>
+            <button class="btn-secondary" :disabled="exporting" @click="downloadBackup">
+              {{ exporting ? 'Preparing…' : 'Download backup' }}
+            </button>
+          </div>
           <span v-if="exportError" class="text-xs text-danger">{{ exportError }}</span>
-          <span v-else class="text-xs text-fg-muted">
-            Downloads <code class="font-mono">skoed-config.tar.gz</code>
-          </span>
         </div>
 
         <!-- Restore -->
@@ -366,19 +387,111 @@
           <p v-if="backupError" class="text-sm text-danger">{{ backupError }}</p>
           <p v-if="backupSuccess" class="text-sm text-success">{{ backupSuccess }}</p>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <label class="btn-secondary cursor-pointer">
-              <input ref="fileInputEl" type="file" accept=".tar.gz,.tgz" class="sr-only"
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="btn-secondary cursor-pointer self-end">
+              <input ref="fileInputEl" type="file" accept=".tar.gz,.tgz,.age" class="sr-only"
                      :disabled="restoring"
                      @change="onBackupFileSelected" />
               {{ selectedFile ? selectedFile.name : 'Choose archive…' }}
             </label>
-            <button class="btn-danger"
+            <div>
+              <label class="label" for="import-passphrase">Passphrase (if encrypted)</label>
+              <input id="import-passphrase"
+                     v-model="importPassphrase"
+                     type="password"
+                     placeholder="For .age archives"
+                     class="input w-48" />
+            </div>
+            <button class="btn-danger self-end"
                     :disabled="!selectedFile || restoring"
                     @click="restoreConfirm = true">
               {{ restoring ? 'Restoring…' : 'Restore' }}
             </button>
           </div>
+        </div>
+
+        <!-- Scheduled backup -->
+        <div class="border-t border-border pt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-fg-strong">Scheduled backup</h3>
+          <p class="text-xs text-fg-muted">
+            Automatically snapshot the configuration at regular intervals. Backups are deduplicated —
+            no snapshot is created when the config has not changed.
+          </p>
+          <p v-if="backupScheduleError" class="text-sm text-danger">{{ backupScheduleError }}</p>
+
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" v-model="backupSchedule.enabled" class="rounded" />
+              Enable scheduled backups
+            </label>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-fg-muted" for="sched-interval">Every</label>
+              <input id="sched-interval"
+                     v-model.number="backupSchedule.interval_hours"
+                     type="number" min="1" max="168"
+                     class="input w-20"
+                     :disabled="!backupSchedule.enabled" />
+              <span class="text-sm text-fg-muted">hours</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-fg-muted" for="sched-retain">Keep</label>
+              <input id="sched-retain"
+                     v-model.number="backupSchedule.retain_count"
+                     type="number" min="1" max="100"
+                     class="input w-20"
+                     :disabled="!backupSchedule.enabled" />
+              <span class="text-sm text-fg-muted">backups</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span v-if="backupScheduleSavedAt" class="text-xs text-success">Saved.</span>
+            <button class="btn-primary" :disabled="backupScheduleSaving" @click="saveBackupSchedule">
+              {{ backupScheduleSaving ? 'Saving…' : 'Save schedule' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Stored backups -->
+        <div class="border-t border-border pt-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-fg-strong">
+              Stored backups
+              <span v-if="storedBackups.length" class="text-fg-muted font-normal">({{ storedBackups.length }})</span>
+            </h3>
+            <div class="flex items-center gap-2">
+              <span v-if="triggerResult" class="text-xs" :class="triggerResult.includes('skipped') ? 'text-fg-muted' : 'text-success'">
+                {{ triggerResult }}
+              </span>
+              <button class="btn-secondary text-xs" :disabled="triggeringBackup" @click="doTriggerBackup">
+                {{ triggeringBackup ? 'Running…' : 'Trigger now' }}
+              </button>
+            </div>
+          </div>
+
+          <p v-if="!storedBackups.length" class="text-xs text-fg-muted italic">
+            No stored backups yet. Enable the schedule or trigger one manually.
+          </p>
+          <table v-else class="w-full text-xs">
+            <thead>
+              <tr class="text-fg-muted border-b border-border">
+                <th class="text-left py-1">Created</th>
+                <th class="text-right py-1">Size</th>
+                <th class="text-right py-1"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="bk in storedBackups" :key="bk.id" class="border-b border-border/50">
+                <td class="py-1.5 font-mono">{{ fmtDate(bk.created_at) }}</td>
+                <td class="py-1.5 text-right text-fg-muted">{{ fmtBytes(bk.size_bytes) }}</td>
+                <td class="py-1.5 text-right">
+                  <button class="text-accent hover:underline" @click="downloadStoredBackup(bk.id)">
+                    Download
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </template>
@@ -417,9 +530,10 @@ import {
 import {
   getDNSCacheStats, getSettings, patchSettings, purgeDNSCache,
   getBlockPageConfig, patchBlockPageConfig,
+  getBackupSettings, putBackupSettings, listBackups, triggerBackup,
 } from '@/api/endpoints'
 import { api, getToken } from '@/api/client'
-import type { BlockPageConfig, DNSCacheStats, DNSConfig, Settings } from '@/api/types'
+import type { BackupEntry, BackupSettings, BlockPageConfig, DNSCacheStats, DNSConfig, Settings } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -469,13 +583,14 @@ const dnsSavedAt = ref(0)
 const filteringSavedAt = ref(0)
 const queryLogSavedAt = ref(0)
 
-// M26 — block page config
+// M26/M33 — block page config (M33 adds redirect_address_v6)
 const blockPageForm = reactive<BlockPageConfig>({
   ip: '',
   port: 8053,
   title: '',
   message: '',
   contact_email: '',
+  redirect_address_v6: '',
 })
 const blockPageDirty = ref(false)
 const blockPageSaving = ref(false)
@@ -517,6 +632,7 @@ onMounted(async () => {
     applySettings(s)
     applyBlockPage(bp)
     await refreshCacheStats()
+    await loadBackupData()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load settings')
   } finally {
@@ -552,6 +668,7 @@ function applyBlockPage(bp: BlockPageConfig) {
   blockPageForm.title = bp.title ?? ''
   blockPageForm.message = bp.message ?? ''
   blockPageForm.contact_email = bp.contact_email ?? ''
+  blockPageForm.redirect_address_v6 = bp.redirect_address_v6 ?? ''
   blockPageDirty.value = false
 }
 
@@ -641,6 +758,7 @@ async function saveBlockPage() {
     if (blockPageForm.title !== undefined) patch.title = blockPageForm.title
     if (blockPageForm.message !== undefined) patch.message = blockPageForm.message
     if (blockPageForm.contact_email !== undefined) patch.contact_email = blockPageForm.contact_email
+    if (blockPageForm.redirect_address_v6 !== undefined) patch.redirect_address_v6 = blockPageForm.redirect_address_v6
     const updated = await patchBlockPageConfig(patch)
     applyBlockPage(updated)
     flashSaved(blockPageSavedAt)
@@ -651,22 +769,41 @@ async function saveBlockPage() {
   }
 }
 
-// ─── Configuration backup ──────────────────────────────────────────────────
+// ─── Configuration backup (M31: encrypted export, scheduled backups) ──────
 
+// Export
 const exporting = ref(false)
 const exportError = ref('')
+const exportPassphrase = ref('')
 
 async function downloadBackup() {
   exporting.value = true
   exportError.value = ''
   try {
-    const res = await api.get('/api/v1/config/export', { responseType: 'blob' })
-    const blob = new Blob([res.data as BlobPart], { type: 'application/gzip' })
+    let blob: Blob
+    let filename: string
+    if (exportPassphrase.value) {
+      const token = getToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers.Authorization = `Bearer ${token}`
+      const resp = await fetch('/api/v1/config/export', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ passphrase: exportPassphrase.value }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      blob = await resp.blob()
+      filename = 'skoed-config.age'
+    } else {
+      const res = await api.get('/api/v1/config/export', { responseType: 'blob' })
+      blob = new Blob([res.data as BlobPart], { type: 'application/gzip' })
+      filename = 'skoed-config.tar.gz'
+    }
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.style.cssText = 'position:fixed;top:-100px;left:-100px'
     a.href = url
-    a.download = 'skoed-config.tar.gz'
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 1000)
@@ -677,12 +814,87 @@ async function downloadBackup() {
   }
 }
 
+// Scheduled backup
+const backupSchedule = ref<BackupSettings>({ enabled: false, interval_hours: 24, retain_count: 7 })
+const backupScheduleSaving = ref(false)
+const backupScheduleError = ref('')
+const backupScheduleSavedAt = ref(0)
+const storedBackups = ref<BackupEntry[]>([])
+const triggeringBackup = ref(false)
+const triggerResult = ref<string>('')
+
+async function loadBackupData() {
+  try {
+    const [sched, backups] = await Promise.all([getBackupSettings(), listBackups()])
+    backupSchedule.value = sched
+    storedBackups.value = backups
+  } catch {
+    // backup settings not available — keep defaults
+  }
+}
+
+async function saveBackupSchedule() {
+  backupScheduleSaving.value = true
+  backupScheduleError.value = ''
+  try {
+    const updated = await putBackupSettings(backupSchedule.value)
+    backupSchedule.value = updated
+    flashSaved(backupScheduleSavedAt)
+  } catch (err) {
+    backupScheduleError.value = errMsg(err, 'Failed to save backup schedule')
+  } finally {
+    backupScheduleSaving.value = false
+  }
+}
+
+async function doTriggerBackup() {
+  triggeringBackup.value = true
+  triggerResult.value = ''
+  try {
+    const r = await triggerBackup()
+    triggerResult.value = r.created ? 'Backup created.' : 'No changes — backup skipped (dedup).'
+    storedBackups.value = await listBackups()
+  } catch (err) {
+    triggerResult.value = errMsg(err, 'Trigger failed')
+  } finally {
+    triggeringBackup.value = false
+  }
+}
+
+async function downloadStoredBackup(id: string) {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const resp = await fetch(`/api/v1/config/backups/${encodeURIComponent(id)}/download`, { headers })
+  if (!resp.ok) return
+  const blob = await resp.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `skoed-backup-${id}.tar.gz`
+  a.style.cssText = 'position:fixed;top:-100px;left:-100px'
+  document.body.appendChild(a)
+  a.click()
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 1000)
+}
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(2)} MB`
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString()
+}
+
 const selectedFile = ref<File | null>(null)
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const restoring = ref(false)
 const restoreConfirm = ref(false)
 const backupError = ref('')
 const backupSuccess = ref('')
+const importPassphrase = ref('')
 
 function onBackupFileSelected(e: Event) {
   const input = e.target as HTMLInputElement
@@ -703,6 +915,7 @@ async function doRestore() {
     if (token) headers.Authorization = `Bearer ${token}`
     const form = new FormData()
     form.append('archive', selectedFile.value, selectedFile.value.name)
+    if (importPassphrase.value) form.append('passphrase', importPassphrase.value)
     const resp = await fetch('/api/v1/config/import', { method: 'POST', headers, body: form })
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}))

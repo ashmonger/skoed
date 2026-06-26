@@ -203,8 +203,10 @@ func (n *raftNode) CurrentTerm() uint64 {
 	return 0
 }
 
-// CommitIndex returns this node's latest committed log index.
-func (n *raftNode) CommitIndex() uint64 { return n.r.LastIndex() }
+// CommitIndex returns the last log index applied to the FSM. Using AppliedIndex
+// (rather than LastIndex) ensures the dedup logic in BackupScheduler only fires
+// on actual config mutations, not on Raft heartbeat/no-op log entries.
+func (n *raftNode) CommitIndex() uint64 { return n.r.AppliedIndex() }
 
 // Configuration returns the current Raft configuration (the cluster's voter list).
 func (n *raftNode) Configuration() raft.Configuration {

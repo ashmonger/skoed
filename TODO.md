@@ -71,9 +71,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M29 | Live Query Stream | ✅ | v0.2.4 | [note](demos/m29/DEMO_NOTE.md) · [report](demos/m29/test-report.html) | [live-query-stream](specs/functional/live-query-stream.feature) | [live-query-stream](tests/acceptance/live_query_stream_test.go) |
 | M30 | DHCP Persistence + DHCPv6 | ✅ | v0.2.5 | [note](demos/m30/DEMO_NOTE.md) · [report](demos/m30/test-report.html) | [dhcp-persistence](specs/functional/dhcp-persistence.feature) | [dhcp-persistence](tests/acceptance/dhcp_persistence_test.go) |
 | M30.5 | Custom Filtering Rules (Regex + Exact) | ✅ | v0.2.5 | [note](demos/m30.5/DEMO_NOTE.md) · [report](demos/m30.5/test-report.html) | [custom-filtering-rules](specs/functional/custom-filtering-rules.feature) | [custom-rules](tests/acceptance/custom_rules_test.go) |
-| M31 | Backup Hardening | ⬜ | — | — | — | — |
+| M31 | Backup Hardening | 🔄 | — | — | [backup-hardening](specs/functional/backup-hardening.feature) | — |
 | M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
-| M33 | Block Page Enhancements | ⬜ | — | — | — | — |
+| M33 | Block Page Enhancements | 🔄 | — | — | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | — |
 | M34 | Certificate Management | ⬜ | — | — | — | — |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
@@ -401,7 +401,7 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 | Security | Certificate revocation lists (CRL / OCSP stapling) |
 | Security | Per-node cert rotation without full cluster rotation |
 | Security | Key rotation trigger via API (leader-automated today) |
-| Security | Backup encryption (plaintext tar.gz today) |
+| Security | Backup encryption key rotation after passphrase change |
 | Security | Per-connection rate limiting |
 | Security | Cosign signature verification of downloaded assets |
 | Security | ACME DNS-01 challenge provider |
@@ -423,8 +423,8 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 | Cluster | Automated rollback on failed restart |
 | API | Progress streaming over SSE during blocklist downloads |
 | API | Upgrade progress via WebSocket / SSE (HTTP polling today) |
-| API | Merge / diff between two backup archives |
-| API | Scheduled or automatic backups (manual download today) |
+| API | Remote backup targets (S3, SFTP) — M31 deferred |
+| API | Backup failure webhook event (`backup.failed`) — M31 deferred, use M22 |
 | API | Retry-failure webhook / dead-letter queue for failed deliveries |
 | API | Per-event webhook signing key rotation without endpoint delete |
 | API | Binding overlap / conflict validation |
@@ -433,6 +433,10 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 | Monitoring | High-cardinality per-domain / per-client Prometheus metrics |
 | Monitoring | Push-mode Prometheus (Pushgateway) |
 | Monitoring | Sub-hour granularity for cluster-wide stats |
+| Security | HTTPS/TLS on block page redirect server — M33 deferred |
+| Web UI | Rich media block pages (video, iframe) — M33 non-goal |
+| Web UI | Per-domain block page granularity (per-profile today) — M33 non-goal |
+| Web UI | Bypass button rate-limiting per profile — M33 non-goal |
 | Monitoring | Streaming push of new aggregates (poll-only today) |
 | Monitoring | Time-series histograms / percentile tracking |
 | Monitoring | Per-domain granular audit trail for SafeSearch redirects |

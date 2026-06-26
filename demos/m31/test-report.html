@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M31 — Backup Hardening — Test Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4f9cf9;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; line-height: 1.6; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header p { color: var(--muted); margin-top: 0.25rem; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+  .badge-green { background: #14532d; color: var(--green); }
+  .badge-blue { background: #1e3a5f; color: var(--accent); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .section { margin-bottom: 3rem; }
+  h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { background: var(--surface); padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .pass-row td:first-child { border-left: 3px solid var(--green); }
+  code { font-family: 'Fira Code', monospace; font-size: 0.82rem; }
+  .inline-code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.4rem; font-family: monospace; font-size: 0.82rem; }
+  .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-right: 0.3rem; }
+  .tag-new { background: #1e3a2a; color: #34d399; }
+  .coverage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; }
+  .coverage-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.875rem 1rem; }
+  .coverage-item .fsid { font-size: 0.75rem; font-weight: 600; color: var(--accent); font-family: monospace; margin-bottom: 0.25rem; }
+  .coverage-item .desc { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+  .coverage-item .test-name { font-size: 0.75rem; color: var(--green); }
+  .delta-list { list-style: none; }
+  .delta-list li { display: flex; gap: 0.75rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+  .delta-list li:last-child { border-bottom: none; }
+  .delta-marker { flex-shrink: 0; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-top: 0.1rem; }
+  .marker-new { background: rgba(79,156,249,0.15); color: var(--accent); }
+  .delta-content { flex: 1; font-size: 0.875rem; }
+  .delta-content strong { display: block; font-weight: 600; color: var(--text); margin-bottom: 0.2rem; }
+  .delta-content span { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+  .oos-list { list-style: none; color: var(--muted); font-size: 0.875rem; }
+  .oos-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); display: flex; gap: 0.5rem; }
+  .oos-list li:last-child { border-bottom: none; }
+  .oos-list li::before { content: '—'; color: var(--border); flex-shrink: 0; }
+  .meta { display: flex; gap: 2rem; color: var(--muted); font-size: 0.8rem; margin-top: 1rem; flex-wrap: wrap; }
+  .callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+  .callout .callout-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 0.4rem; }
+  .callout p { font-size: 0.875rem; color: var(--muted); line-height: 1.65; }
+</style>
+</head>
+<body>
+<header>
+  <h1>M31 — Backup Hardening <span class="badge badge-green">12/12 PASS</span></h1>
+  <p>Acceptance test report · 2026-06-25 · branch feature/m31-backup-hardening</p>
+</header>
+
+<div class="container">
+
+  <div class="section">
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="value green">12</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value red">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--muted)">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" style="color:var(--text);font-size:1.4rem">~2.8s</div>
+        <div class="label">Total time</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Design note — dedup via content hash</div>
+      <p>Scheduled backup deduplication uses SHA-256 of exported config bytes, not the Raft applied index.
+      The applied index advances on every Raft log entry including background DoH resolver heartbeats
+      (<code class="inline-code">CmdDohResolverSnapshotReplace</code>), so an index-based comparison would
+      generate a spurious backup every interval even with no real config change.
+      Content hashing is correct and independent of Raft activity.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Test results</h2>
+    <table>
+      <thead>
+        <tr><th>Test</th><th>FSID</th><th>What it verifies</th><th>Status</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass-row">
+          <td>TestBackupExportEncrypted</td>
+          <td><code>FS-BackupExportEncrypted</code></td>
+          <td>POST /config/export with passphrase returns age-encrypted body starting with age header</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.75s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupImportEncryptedSuccess</td>
+          <td><code>FS-BackupImportEncryptedSuccess</code></td>
+          <td>Correct passphrase decrypts and applies the config; returns 200</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.43s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupImportEncryptedWrongPassphrase</td>
+          <td><code>FS-BackupImportEncryptedWrongPassphrase</code></td>
+          <td>Wrong passphrase returns 422 with error body containing "invalid passphrase or corrupted archive"</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.83s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupImportPlaintext</td>
+          <td><code>FS-BackupImportPlaintext</code></td>
+          <td>Existing plaintext tar.gz can still be imported after encryption feature ships</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.79s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupScheduleEnableAndList</td>
+          <td><code>FS-BackupScheduleEnableAndList</code></td>
+          <td>Enabling schedule + triggering once produces an entry in GET /config/backups</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.48s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupScheduleRetainCount</td>
+          <td><code>FS-BackupScheduleRetainCount</code></td>
+          <td>After N+1 backups with retain_count=N, oldest entry is pruned; exactly N entries remain</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.39s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupDownload</td>
+          <td><code>FS-BackupDownload</code></td>
+          <td>GET /config/backups/{id}/download streams the stored archive with correct Content-Type</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.28s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupScheduleDisable</td>
+          <td><code>FS-BackupScheduleDisable</code></td>
+          <td>Disabling schedule stops new backups; backup count stays the same after another trigger</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.59s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupScheduleSkipsUnchanged</td>
+          <td><code>FS-BackupScheduleSkipsUnchanged</code></td>
+          <td>Second trigger with no config change returns {"created":false}; backup count unchanged</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.09s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupDiffDetectsChanges</td>
+          <td><code>FS-BackupDiffDetectsChanges</code></td>
+          <td>Diff of two different archives returns added/removed/changed entries correctly</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.38s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupDiffNoChanges</td>
+          <td><code>FS-BackupDiffNoChanges</code></td>
+          <td>Diff of identical archives returns all empty sections</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">1.38s</td>
+        </tr>
+        <tr class="pass-row">
+          <td>TestBackupDiffSettingsChange</td>
+          <td><code>FS-BackupDiffSettingsChange</code></td>
+          <td>Changed upstream resolver in archive B appears under changed entries in diff</td>
+          <td><span class="badge badge-green">PASS</span></td>
+          <td style="color:var(--muted)">2.19s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>FSID coverage</h2>
+    <div class="coverage-grid">
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupExportEncrypted</div>
+        <div class="desc">age-encrypted export with passphrase</div>
+        <div class="test-name">✓ TestBackupExportEncrypted</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupImportEncryptedSuccess</div>
+        <div class="desc">Correct passphrase import succeeds</div>
+        <div class="test-name">✓ TestBackupImportEncryptedSuccess</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupImportEncryptedWrongPassphrase</div>
+        <div class="desc">Wrong passphrase returns 422</div>
+        <div class="test-name">✓ TestBackupImportEncryptedWrongPassphrase</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupImportPlaintext</div>
+        <div class="desc">Backward-compatible plaintext import</div>
+        <div class="test-name">✓ TestBackupImportPlaintext</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupScheduleEnableAndList</div>
+        <div class="desc">Scheduled backup appears in list</div>
+        <div class="test-name">✓ TestBackupScheduleEnableAndList</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupScheduleRetainCount</div>
+        <div class="desc">Old entries pruned at retain_count</div>
+        <div class="test-name">✓ TestBackupScheduleRetainCount</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupDownload</div>
+        <div class="desc">Download backup by ID</div>
+        <div class="test-name">✓ TestBackupDownload</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupScheduleDisable</div>
+        <div class="desc">Disabling stops new backups</div>
+        <div class="test-name">✓ TestBackupScheduleDisable</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupScheduleSkipsUnchanged</div>
+        <div class="desc">No backup when config unchanged (SHA-256 dedup)</div>
+        <div class="test-name">✓ TestBackupScheduleSkipsUnchanged</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupDiffDetectsChanges</div>
+        <div class="desc">Diff shows added/changed entries</div>
+        <div class="test-name">✓ TestBackupDiffDetectsChanges</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupDiffNoChanges</div>
+        <div class="desc">Diff of identical archives is empty</div>
+        <div class="test-name">✓ TestBackupDiffNoChanges</div>
+      </div>
+      <div class="coverage-item">
+        <div class="fsid">FS-BackupDiffSettingsChange</div>
+        <div class="desc">Changed setting appears in diff</div>
+        <div class="test-name">✓ TestBackupDiffSettingsChange</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>What changed</h2>
+    <ul class="delta-list">
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">config.ExportWithPassphrase</code> / <code class="inline-code">ImportWithPassphrase</code></strong>
+          <span>age-encrypted export/import using <code class="inline-code">filippo.io/age</code> (scrypt KDF, AES-256-GCM). Wrong passphrase returns wrapped error containing "invalid passphrase or corrupted archive".</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">config.BackupScheduler</code></strong>
+          <span>Goroutine loop reading <code class="inline-code">BackupConfig</code> from bbolt each iteration. SHA-256 content-hash dedup skips backup when exported bytes match <code class="inline-code">last_content_hash</code>. Prunes oldest files when <code class="inline-code">retain_count</code> exceeded.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> bbolt buckets: <code class="inline-code">config_backups</code>, <code class="inline-code">config_backup_settings</code></strong>
+          <span>Node-local storage (not replicated via Raft) for backup entries and scheduler settings. <code class="inline-code">last_content_hash</code> key stored alongside entries.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> Routes: backup CRUD + diff</strong>
+          <span><code class="inline-code">PUT /api/v1/settings/backup</code>, <code class="inline-code">GET /api/v1/config/backups</code>, <code class="inline-code">GET /api/v1/config/backups/{id}/download</code>, <code class="inline-code">POST /api/v1/config/backups/trigger</code>, <code class="inline-code">POST /api/v1/config/diff</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="delta-marker marker-new">+</span>
+        <div class="delta-content">
+          <strong><span class="tag tag-new">new</span> <code class="inline-code">config.DiffArchives</code></strong>
+          <span>Reads two archives, compares blocklists (name, url), allowlists (domain), local DNS entries (host, ip), and settings (upstream resolver). Returns structured <code class="inline-code">DiffResult</code> with added/removed/changed sections.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Not implemented (out of scope)</h2>
+    <ul class="oos-list">
+      <li>Database-level incremental backups (full snapshots only)</li>
+      <li>Remote backup targets (S3, SFTP) — post-M31</li>
+      <li>Backup failure webhook event — post-M31</li>
+      <li>Backup encryption key rotation after passphrase change</li>
+      <li>Restoring a backup without service interruption</li>
+    </ul>
+  </div>
+
+  <div class="meta">
+    <span>Binary: CGO_ENABLED=0 static build</span>
+    <span>Go 1.24.4 linux/amd64</span>
+    <span>SKOED_TEST_MODE=1</span>
+    <span>Proxmox host (ns3251245.ip-91-134-62.eu)</span>
+    <span>Branch: feature/m31-backup-hardening · commit 2844a50</span>
+  </div>
+
+</div>
+</body>
+</html>

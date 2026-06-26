@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"filippo.io/age"
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,4 +87,26 @@ func Export(c *Config, w io.Writer) error {
 		return fmt.Errorf("export: close gzip: %w", err)
 	}
 	return nil
+}
+
+// ExportWithPassphrase serialises the config to a tar.gz archive. When
+// passphrase is non-empty the archive is wrapped in an age-encrypted envelope
+// so the caller receives an opaque binary blob that can only be decrypted with
+// the same passphrase.
+func ExportWithPassphrase(c *Config, w io.Writer, passphrase string) error {
+	if passphrase == "" {
+		return Export(c, w)
+	}
+	r, err := age.NewScryptRecipient(passphrase)
+	if err != nil {
+		return fmt.Errorf("export: create age recipient: %w", err)
+	}
+	aw, err := age.Encrypt(w, r)
+	if err != nil {
+		return fmt.Errorf("export: start age encryption: %w", err)
+	}
+	if err := Export(c, aw); err != nil {
+		return err
+	}
+	return aw.Close()
 }

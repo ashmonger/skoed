@@ -58,44 +58,38 @@
           <div>
             <label class="label" for="dhcp-pool-start">Pool start</label>
             <input id="dhcp-pool-start" v-model="dhcpForm.pool_start" type="text"
-                   class="input font-mono text-sm" placeholder="10.0.0.100"
-                   @input="dhcpDirty = true" />
+                   class="input font-mono text-sm" placeholder="10.0.0.100" />
           </div>
           <div>
             <label class="label" for="dhcp-pool-end">Pool end</label>
             <input id="dhcp-pool-end" v-model="dhcpForm.pool_end" type="text"
-                   class="input font-mono text-sm" placeholder="10.0.0.200"
-                   @input="dhcpDirty = true" />
+                   class="input font-mono text-sm" placeholder="10.0.0.200" />
           </div>
           <div>
             <label class="label" for="dhcp-gateway">Gateway</label>
             <input id="dhcp-gateway" v-model="dhcpForm.gateway" type="text"
-                   class="input font-mono text-sm" placeholder="10.0.0.1"
-                   @input="dhcpDirty = true" />
+                   class="input font-mono text-sm" placeholder="10.0.0.1" />
           </div>
           <div>
             <label class="label" for="dhcp-lease-time">Lease time (seconds)</label>
             <input id="dhcp-lease-time" v-model.number="dhcpForm.lease_time_seconds"
-                   type="number" min="60" class="input"
-                   @input="dhcpDirty = true" />
+                   type="number" min="60" class="input" />
           </div>
           <div>
             <label class="label" for="dhcp-domain">Domain <span class="text-fg-subtle font-normal">(optional)</span></label>
             <input id="dhcp-domain" v-model="dhcpForm.domain" type="text"
-                   class="input font-mono text-sm" placeholder="home.arpa"
-                   @input="dhcpDirty = true" />
+                   class="input font-mono text-sm" placeholder="home.arpa" />
           </div>
           <div>
             <label class="label" for="dhcp-dns-server">DNS server override <span class="text-fg-subtle font-normal">(optional)</span></label>
             <input id="dhcp-dns-server" v-model="dhcpForm.dns_server" type="text"
-                   class="input font-mono text-sm" placeholder="leave blank to use this node"
-                   @input="dhcpDirty = true" />
+                   class="input font-mono text-sm" placeholder="leave blank to use this node" />
           </div>
         </div>
 
         <div class="flex items-center justify-end pt-1">
           <button class="btn-primary"
-                  :disabled="!dhcpDirty || dhcpSaving"
+                  :disabled="dhcpSaving"
                   @click="saveDhcpPool">
             {{ dhcpSaving ? 'Saving…' : 'Save DHCPv4 settings' }}
           </button>
@@ -251,38 +245,33 @@
           <div>
             <label class="label" for="dhcp6-prefix">Prefix</label>
             <input id="dhcp6-prefix" v-model="dhcp6Form.prefix" type="text"
-                   class="input font-mono text-sm" placeholder="fd00::/64"
-                   @input="dhcp6Dirty = true" />
+                   class="input font-mono text-sm" placeholder="fd00::/64" />
           </div>
           <div>
             <label class="label" for="dhcp6-pool-start">Pool start</label>
             <input id="dhcp6-pool-start" v-model="dhcp6Form.pool_start" type="text"
-                   class="input font-mono text-sm" placeholder="fd00::100"
-                   @input="dhcp6Dirty = true" />
+                   class="input font-mono text-sm" placeholder="fd00::100" />
           </div>
           <div>
             <label class="label" for="dhcp6-pool-end">Pool end</label>
             <input id="dhcp6-pool-end" v-model="dhcp6Form.pool_end" type="text"
-                   class="input font-mono text-sm" placeholder="fd00::1ff"
-                   @input="dhcp6Dirty = true" />
+                   class="input font-mono text-sm" placeholder="fd00::1ff" />
           </div>
           <div>
             <label class="label" for="dhcp6-lease-time">Lease time (seconds)</label>
             <input id="dhcp6-lease-time" v-model.number="dhcp6Form.lease_time"
-                   type="number" min="60" class="input"
-                   @input="dhcp6Dirty = true" />
+                   type="number" min="60" class="input" />
           </div>
           <div>
             <label class="label" for="dhcp6-search-domain">Search domain <span class="text-fg-subtle font-normal">(optional)</span></label>
             <input id="dhcp6-search-domain" v-model="dhcp6Form.search_domain" type="text"
-                   class="input font-mono text-sm" placeholder="home.arpa"
-                   @input="dhcp6Dirty = true" />
+                   class="input font-mono text-sm" placeholder="home.arpa" />
           </div>
         </div>
 
         <div class="flex items-center justify-end pt-1">
           <button class="btn-primary"
-                  :disabled="!dhcp6Dirty || dhcp6Saving"
+                  :disabled="dhcp6Saving"
                   @click="saveDhcp6Settings">
             {{ dhcp6Saving ? 'Saving…' : 'Save DHCPv6 settings' }}
           </button>
@@ -382,7 +371,6 @@ const dhcpForm = reactive<DhcpForm>({
   enabled: false, pool_start: '', pool_end: '', gateway: '',
   lease_time_seconds: 86400, domain: '', dns_server: '',
 })
-const dhcpDirty = ref(false)
 const dhcpSaving = ref(false)
 const dhcpToggling = ref(false)
 
@@ -417,7 +405,6 @@ const dhcp6Form = reactive<Dhcp6Form>({
   enabled: false, prefix: '', pool_start: '', pool_end: '',
   lease_time: 3600, search_domain: '',
 })
-const dhcp6Dirty = ref(false)
 const dhcp6Saving = ref(false)
 const dhcp6Toggling = ref(false)
 
@@ -436,7 +423,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   await Promise.all([loadDhcp(), loadDhcp6(), refreshStaticEntries(), refreshLeases(), refreshLeases6()])
   pollTimer = setInterval(async () => {
-    await Promise.all([loadDhcp(), loadDhcp6(), refreshLeases(), refreshLeases6()])
+    await Promise.all([pollDhcpStatus(), pollDhcp6Status(), refreshLeases(), refreshLeases6()])
   }, 10000)
 })
 
@@ -457,10 +444,15 @@ async function loadDhcp() {
     dhcpForm.lease_time_seconds = s.lease_time_seconds || 86400
     dhcpForm.domain = s.domain
     dhcpForm.dns_server = s.dns_server
-    dhcpDirty.value = false
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load DHCPv4 status')
   }
+}
+
+async function pollDhcpStatus() {
+  try {
+    dhcpStatus.value = await getDhcpServerStatus()
+  } catch { /* ignore poll errors */ }
 }
 
 async function refreshLeases() {
@@ -490,8 +482,13 @@ async function loadDhcp6() {
     dhcp6Form.pool_end = s.pool_end
     dhcp6Form.lease_time = s.lease_time || 3600
     dhcp6Form.search_domain = s.search_domain
-    dhcp6Dirty.value = false
   } catch { /* ignore if not configured */ }
+}
+
+async function pollDhcp6Status() {
+  try {
+    dhcp6Status.value = await getDhcp6ServerStatus()
+  } catch { /* ignore poll errors */ }
 }
 
 async function refreshLeases6() {
@@ -523,6 +520,37 @@ async function toggleDhcp() {
 
 async function saveDhcpPool() {
   lastError.value = ''
+
+  // Client-side range validation
+  const startIp = dhcpForm.pool_start.trim()
+  const endIp = dhcpForm.pool_end.trim()
+  if (startIp || endIp) {
+    const startN = ipToNum(startIp)
+    const endN = ipToNum(endIp)
+    if (startIp && startN === null) {
+      lastError.value = 'Pool start is not a valid IPv4 address.'
+      return
+    }
+    if (endIp && endN === null) {
+      lastError.value = 'Pool end is not a valid IPv4 address.'
+      return
+    }
+    if (startN !== null && endN !== null) {
+      if (startN >= endN) {
+        lastError.value = 'Pool start must be numerically less than pool end.'
+        return
+      }
+      if ((startN >>> 24) !== (endN >>> 24)) {
+        lastError.value = `Pool start (${startIp}) and end (${endIp}) are in different /8 networks. Use IPs in the same subnet.`
+        return
+      }
+    }
+  }
+  if (dhcpForm.gateway.trim() && ipToNum(dhcpForm.gateway.trim()) === null) {
+    lastError.value = 'Gateway is not a valid IPv4 address.'
+    return
+  }
+
   dhcpSaving.value = true
   try {
     const s = await putDhcpServerSettings({
@@ -540,7 +568,6 @@ async function saveDhcpPool() {
     dhcpForm.lease_time_seconds = s.lease_time_seconds || 86400
     dhcpForm.domain = s.domain
     dhcpForm.dns_server = s.dns_server
-    dhcpDirty.value = false
     flash()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to save DHCPv4 settings')
@@ -618,7 +645,6 @@ async function saveDhcp6Settings() {
     dhcp6Form.pool_end = s.pool_end
     dhcp6Form.lease_time = s.lease_time || 3600
     dhcp6Form.search_domain = s.search_domain
-    dhcp6Dirty.value = false
     flash()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to save DHCPv6 settings')
@@ -645,6 +671,14 @@ function flash() {
   const token = Date.now()
   savedAt.value = token
   window.setTimeout(() => { if (savedAt.value === token) savedAt.value = 0 }, 2000)
+}
+
+function ipToNum(ip: string): number | null {
+  const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (!m) return null
+  const octets = m.slice(1).map(Number)
+  if (octets.some(o => o > 255)) return null
+  return ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0
 }
 
 function errMsg(err: unknown, fallback: string): string {

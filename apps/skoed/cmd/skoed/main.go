@@ -385,6 +385,14 @@ func runDaemon(cfgPath string) {
 	app.SetDNSCache(dnsCache)
 	app.SetMetrics(prom)
 	app.SetMetricsRequireAuth(node.Node.API.Metrics.RequireAuth)
+
+	// M31 — backup scheduler. Started on every node; reads backup config from
+	// node-local bbolt. The scheduler is wired before the API server starts so
+	// the /trigger endpoint is available immediately.
+	backupSched := config.NewBackupScheduler(c.Store(), app.GetCfg, node.Node.DataDir)
+	backupSched.Start()
+	defer backupSched.Stop()
+	app.SetBackupScheduler(backupSched)
 	// M5.9.5 — public landing page + URL tester. Default ON; operator
 	// flips node.api.public_landing.enabled=false to revert to the
 	// admin-only posture (no unauthenticated surface beyond /health

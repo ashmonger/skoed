@@ -15,15 +15,16 @@
           </button>
           <div v-if="exportOpen"
                class="absolute right-0 top-full mt-1 z-10 card p-1 min-w-[160px]">
-            <a v-for="f in (['dnsmasq','kea','json'] as const)"
+            <button v-for="f in (['dnsmasq','kea','json'] as const)"
                :key="f"
-               class="block px-3 py-1.5 text-sm hover:bg-bg-hover rounded cursor-pointer text-fg"
-               :href="exportURL(f)"
-               :download="`skoed-reservations.${f === 'json' ? 'json' : f === 'kea' ? 'json' : 'conf'}`"
-               @click="exportOpen = false">
+               class="block w-full text-left px-3 py-1.5 text-sm hover:bg-bg-hover rounded text-fg"
+               @click="doExport(f)">
               {{ f }}
-            </a>
+            </button>
           </div>
+          <p v-if="exportError" class="absolute right-0 top-full mt-1 text-xs text-danger whitespace-nowrap bg-bg border border-border rounded px-2 py-1 z-10">
+            {{ exportError }}
+          </p>
         </div>
       </div>
     </div>
@@ -71,11 +72,28 @@
     <p v-if="loading && leases.length === 0" class="card p-6 text-sm text-fg-muted text-center">
       Loading lease snapshot…
     </p>
-    <p v-else-if="leases.length === 0"
-       class="card p-6 text-sm text-fg-muted text-center">
-      No leases in the cache. Either DHCP integration isn't configured on this node,
-      or the upstream source hasn't returned any leases yet.
-    </p>
+    <div v-else-if="leases.length === 0" class="card p-6 space-y-3">
+      <p class="text-sm text-fg-muted text-center">No DHCP leases found.</p>
+      <div class="border border-border rounded p-4 text-sm space-y-2">
+        <p class="font-medium text-fg-strong">How to populate this view</p>
+        <p class="text-fg-muted text-xs">
+          skoed can read leases from an upstream DHCP server or serve its own.
+          Choose one:
+        </p>
+        <ul class="text-xs text-fg-muted space-y-1 list-disc list-inside">
+          <li>
+            <span class="font-medium text-fg">Built-in DHCP server</span> — enable and configure it on the
+            <router-link class="text-accent hover:underline" :to="{ name: 'dhcp' }">DHCP page</router-link>.
+            Leases from the built-in server appear here automatically.
+          </li>
+          <li>
+            <span class="font-medium text-fg">External DHCP source</span> (dnsmasq, Kea, HTTP) — configure
+            <code class="font-mono bg-bg-input px-1 rounded">dhcp_integration.source</code> in
+            <code class="font-mono bg-bg-input px-1 rounded">node.yaml</code> on each node and restart.
+          </li>
+        </ul>
+      </div>
+    </div>
 
     <!-- Lease table -->
     <div v-else class="card overflow-hidden">
@@ -282,6 +300,7 @@ import {
   acknowledgeAnomaly, exportReservationsURL, getClientDetail,
   getClientDohStatusDetail, listAnomalies, listLeases,
 } from '@/api/endpoints'
+import { getToken } from '@/api/client'
 import type { FwRuleScope } from '@/api/endpoints'
 import type { Anomaly, AnomalyKind, ClientDetail, ClientDohStatusDetail, Lease } from '@/api/types'
 import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
@@ -292,6 +311,7 @@ const loading = ref(false)
 const search = ref('')
 const sortKey = ref<'ip' | 'hostname' | 'source'>('ip')
 const exportOpen = ref(false)
+const exportError = ref('')
 
 // M6 — per-row "Copy DoH-gap rules" overflow menu + modal scope.
 const openMenuIP = ref<string | null>(null)
@@ -404,8 +424,32 @@ function fmtExpiry(s: string): string {
   return `${Math.round(h / 24)}d`
 }
 
-function exportURL(f: 'dnsmasq' | 'kea' | 'json'): string {
-  return exportReservationsURL(f)
+async function doExport(f: 'dnsmasq' | 'kea' | 'json') {
+  exportOpen.value = false
+  exportError.value = ''
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  try {
+    const resp = await fetch(exportReservationsURL(f), { headers })
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}))
+      throw new Error(body.error || `Nothing to export (HTTP ${resp.status})`)
+    }
+    const blob = await resp.blob()
+    const ext = f === 'json' ? 'json' : f === 'kea' ? 'json' : 'conf'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `skoed-reservations.${ext}`
+    a.style.cssText = 'position:fixed;top:-100px;left:-100px'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 1000)
+  } catch (err) {
+    exportError.value = (err as Error).message ?? 'Export failed'
+    setTimeout(() => { exportError.value = '' }, 4000)
+  }
 }
 
 async function refresh() {

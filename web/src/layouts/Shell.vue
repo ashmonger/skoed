@@ -84,6 +84,10 @@
             <span v-if="health.version" class="hidden lg:inline-flex border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-muted">
               {{ health.version }}
             </span>
+            <span class="hidden lg:inline-flex border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-subtle"
+                  title="Build commit">
+              #{{ GIT_COMMIT }}
+            </span>
             <div class="hidden lg:block w-px h-4 bg-border mx-1" />
           </template>
           <button
@@ -126,6 +130,9 @@ import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 import { clusterHealth, clusterStatus } from '@/api/endpoints'
 import type { ClusterHealth } from '@/api/types'
+
+declare const __GIT_COMMIT__: string
+const GIT_COMMIT = __GIT_COMMIT__
 
 const theme = useThemeStore()
 const auth = useAuthStore()
