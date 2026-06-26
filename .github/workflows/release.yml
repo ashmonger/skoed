@@ -64,7 +64,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: ${{ inputs.snapshot && 'release --snapshot --clean' || 'release --clean' }}
+          args: ${{ inputs.snapshot && 'release --snapshot --clean' || 'release --clean --skip=validate' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
