@@ -73,7 +73,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M30.5 | Custom Filtering Rules (Regex + Exact) | ✅ | v0.2.5 | [note](demos/m30.5/DEMO_NOTE.md) · [report](demos/m30.5/test-report.html) | [custom-filtering-rules](specs/functional/custom-filtering-rules.feature) | [custom-rules](tests/acceptance/custom_rules_test.go) |
 | M31 | Backup Hardening | ✅ | — | [note](demos/m31/DEMO_NOTE.md) · [report](demos/m31/test-report.html) | [backup-hardening](specs/functional/backup-hardening.feature) | [backup-hardening](tests/acceptance/backup_hardening_test.go) |
 | M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
-| M33 | Block Page Enhancements | 🔄 | — | — | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | — |
+| M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
 | M34 | Certificate Management | ⬜ | — | — | — | — |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
