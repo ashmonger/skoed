@@ -32,6 +32,14 @@
 
 ## Validation
 
+### Web UI
+Settings page block page section:
+- `redirect_address_v6` field: sets IPv6 address returned for blocked AAAA queries; empty → NXDOMAIN
+
+Profiles page — new "Block page" tab per profile:
+- Title, message, contact email overrides (fallback to global when empty)
+- Bypass passcode: end-users enter this on the block page to pause filtering for a set duration
+
 ### Acceptance Tests (Proxmox host, go test direct)
 19/19 pass:
 - `TestBlockPagePerProfileContent` ✓
@@ -53,3 +61,9 @@
 - `TestBlockPageConfigGet` ✓
 - `TestBlockPageConfigPersisted` ✓
 - `TestBlockPageTitleInResponse` ✓
+
+### Enterprise Validation (Proxmox proxtest2, 2026-06-26)
+
+**19/19 PASS · 3.5s · Proxmox proxtest2 (16 CPUs, 62 GiB RAM) · [Full report](enterprise/test-report.html)**
+
+3-node Raft cluster: CT200 (skoed-1 leader), CT201 (skoed-2 follower), CT202 (skoed-3 follower) — Alpine Linux, all `in_sync` at commit_index=29. M33 binary built from rebased `feature/m33-block-page-enhancements` branch and deployed to cluster before test run. Tests run via `go test` directly on the Proxmox host against isolated per-test skoed instances (same harness as CI).
