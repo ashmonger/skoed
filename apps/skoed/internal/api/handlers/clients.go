@@ -258,11 +258,42 @@ func (h *Handler) ExportReservations(w http.ResponseWriter, r *http.Request) {
 
 // LeaseSnapshot is the test/debug endpoint exposed for the acceptance
 // harness. Returns the raw Lease snapshot (no Anomalies envelope).
+// Merges external DHCP manager leases with built-in server leases.
 func (h *Handler) LeaseSnapshot(w http.ResponseWriter, r *http.Request) {
-	mgr := h.app.GetDhcpMgr()
-	if mgr == nil {
-		writeJSON(w, http.StatusOK, []dhcp.Lease{})
-		return
+	// Built-in DHCP leases live only in-memory on the leader. Proxy to the
+	// leader so followers return complete data, same as DhcpLeases does.
+	cl := h.app.GetCluster()
+	if cl != nil && !cl.IsLeader() {
+		status, body, _, err := cl.ForwardWrite(r.Context(), http.MethodGet, r.URL.Path, nil, r.Header)
+		if err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			w.Write(body) //nolint:errcheck
+			return
+		}
+		// Leader unreachable — fall through to local data.
 	}
-	writeJSON(w, http.StatusOK, mgr.Snapshot())
+
+	var leases []dhcp.Lease
+
+	if mgr := h.app.GetDhcpMgr(); mgr != nil {
+		leases = mgr.Snapshot()
+	}
+
+	if srv := h.app.GetDhcpServer(); srv != nil {
+		for _, l4 := range srv.ActiveLeases() {
+			leases = append(leases, dhcp.Lease{
+				IP:       l4.IP,
+				MAC:      l4.MAC,
+				Hostname: l4.Hostname,
+				Source:   "builtin",
+				Origin:   dhcp.Origin(l4.Origin),
+			})
+		}
+	}
+
+	if leases == nil {
+		leases = []dhcp.Lease{}
+	}
+	writeJSON(w, http.StatusOK, leases)
 }
