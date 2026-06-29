@@ -191,7 +191,8 @@
               <th class="pb-1 pr-3 font-medium">MAC</th>
               <th class="pb-1 pr-3 font-medium">Hostname</th>
               <th class="pb-1 pr-3 font-medium">Expires</th>
-              <th class="pb-1 font-medium">Origin</th>
+              <th class="pb-1 pr-3 font-medium">Origin</th>
+              <th class="pb-1 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -201,11 +202,21 @@
               <td class="py-1.5 pr-3 font-mono text-xs">{{ l.mac }}</td>
               <td class="py-1.5 pr-3 text-xs">{{ l.hostname || '—' }}</td>
               <td class="py-1.5 pr-3 text-xs text-fg-muted">{{ formatExpiry(l.expires_at) }}</td>
-              <td class="py-1.5">
+              <td class="py-1.5 pr-3">
                 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
                       :class="l.origin === 'static' ? 'bg-accent/10 text-accent' : 'bg-fg-subtle/20 text-fg-muted'">
                   {{ l.origin }}
                 </span>
+              </td>
+              <td class="py-1.5 text-right">
+                <button
+                  v-if="!staticEntries.some(e => e.mac === l.mac)"
+                  class="btn-ghost text-xs"
+                  :disabled="pinningMAC === l.mac"
+                  title="Add to static assignments"
+                  @click="pinToStatic(l)">
+                  {{ pinningMAC === l.mac ? '…' : '+ Static' }}
+                </button>
               </td>
             </tr>
           </tbody>
@@ -383,6 +394,7 @@ const deletingMAC = ref('')
 
 const leases = ref<DhcpLease[]>([])
 const leasesLoading = ref(false)
+const pinningMAC = ref('')
 
 const dhcpUtilPct = computed(() => {
   if (!dhcpStatus.value || dhcpStatus.value.pool_total === 0) return 0
@@ -507,9 +519,28 @@ async function toggleDhcp() {
   dhcpToggling.value = true
   const next = !dhcpForm.enabled
   try {
-    const s = await putDhcpServerSettings({ enabled: next })
+    // When enabling, include current form values so the user doesn't need to
+    // click "Save" before the toggle — pool settings are committed atomically.
+    const payload: Record<string, unknown> = { enabled: next }
+    if (next) {
+      if (dhcpForm.pool_start) payload.pool_start = dhcpForm.pool_start
+      if (dhcpForm.pool_end) payload.pool_end = dhcpForm.pool_end
+      if (dhcpForm.gateway) payload.gateway = dhcpForm.gateway
+      if (dhcpForm.lease_time_seconds) payload.lease_time_seconds = dhcpForm.lease_time_seconds
+      if (dhcpForm.domain) payload.domain = dhcpForm.domain
+      if (dhcpForm.dns_server) payload.dns_server = dhcpForm.dns_server
+    }
+    const s = await putDhcpServerSettings(payload)
     dhcpStatus.value = s
     dhcpForm.enabled = s.enabled
+    if (next) {
+      dhcpForm.pool_start = s.pool_start
+      dhcpForm.pool_end = s.pool_end
+      dhcpForm.gateway = s.gateway
+      dhcpForm.lease_time_seconds = s.lease_time_seconds || 86400
+      dhcpForm.domain = s.domain
+      dhcpForm.dns_server = s.dns_server
+    }
     flash()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to toggle DHCPv4 server')
@@ -610,6 +641,18 @@ async function confirmDeleteStatic(mac: string) {
   }
 }
 
+async function pinToStatic(l: DhcpLease) {
+  pinningMAC.value = l.mac
+  try {
+    await createDhcpStaticAssignment({ mac: l.mac, ip: l.ip, hostname: l.hostname })
+    await refreshStaticEntries()
+  } catch (err) {
+    lastError.value = errMsg(err, `Failed to pin ${l.mac} as static`)
+  } finally {
+    pinningMAC.value = ''
+  }
+}
+
 // ─── DHCPv6 actions ────────────────────────────────────────────────────────
 
 async function toggleDhcp6() {
@@ -617,9 +660,24 @@ async function toggleDhcp6() {
   dhcp6Toggling.value = true
   const next = !dhcp6Form.enabled
   try {
-    const s = await putDhcp6ServerSettings({ enabled: next })
+    const payload: Record<string, unknown> = { enabled: next }
+    if (next) {
+      if (dhcp6Form.prefix) payload.prefix = dhcp6Form.prefix
+      if (dhcp6Form.pool_start) payload.pool_start = dhcp6Form.pool_start
+      if (dhcp6Form.pool_end) payload.pool_end = dhcp6Form.pool_end
+      if (dhcp6Form.lease_time) payload.lease_time = dhcp6Form.lease_time
+      if (dhcp6Form.search_domain) payload.search_domain = dhcp6Form.search_domain
+    }
+    const s = await putDhcp6ServerSettings(payload)
     dhcp6Status.value = s
     dhcp6Form.enabled = s.enabled
+    if (next) {
+      dhcp6Form.prefix = s.prefix
+      dhcp6Form.pool_start = s.pool_start
+      dhcp6Form.pool_end = s.pool_end
+      dhcp6Form.lease_time = s.lease_time || 3600
+      dhcp6Form.search_domain = s.search_domain
+    }
     flash()
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to toggle DHCPv6 server')
