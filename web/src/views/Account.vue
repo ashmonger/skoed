@@ -141,6 +141,9 @@
             <option value="monokai-solarized">Monokai Solarized</option>
             <option value="monokai-blue">Monokai Blue</option>
             <option value="monokai-pro">Monokai Pro</option>
+            <option value="pride">Progress Pride</option>
+            <option value="bi">Bi Pride</option>
+            <option value="trans">Trans Pride</option>
           </select>
         </div>
 
@@ -183,7 +186,7 @@ import { useThemeStore } from '@/stores/theme'
 import { changePassword } from '@/api/endpoints'
 
 type Mode = 'light' | 'dark'
-type Palette = 'lipgloss' | 'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro'
+type Palette = 'lipgloss' | 'monokai' | 'monokai-solarized' | 'monokai-blue' | 'monokai-pro' | 'pride' | 'bi' | 'trans'
 
 const auth = useAuthStore()
 const theme = useThemeStore()

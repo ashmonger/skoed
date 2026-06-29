@@ -337,6 +337,175 @@ html.dark[data-palette="lipgloss"] .bg-danger-subtle { background-color: #20202B
 html.dark[data-palette="lipgloss"] .bg-accent-subtle { background-color: #2D2042; color: #B5B2EF; }
 
 /* =========================================================================
+ * Palette: pride (Progress Pride Flag)
+ *   Rainbow arc (red→violet) drives the semantic slots. Accent = violet,
+ *   success = green, warning = orange, danger = red/pink. Dark bg is deep
+ *   indigo-black; light bg is warm white with a faint purple tint.
+ * ========================================================================= */
+
+html[data-palette="pride"]:not(.dark) { background-color: #FDF8FF; color-scheme: light; }
+html[data-palette="pride"]:not(.dark) body { color: #1E1040; }
+html[data-palette="pride"]:not(.dark) .bg-bg-canvas { background-color: #FDF8FF; }
+html[data-palette="pride"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-bg-hover { background-color: #F0E6FF; }
+html[data-palette="pride"]:not(.dark) .text-fg { color: #1E1040; }
+html[data-palette="pride"]:not(.dark) .text-fg-strong { color: #0D0820; }
+html[data-palette="pride"]:not(.dark) .text-fg-muted { color: #5E3A90; }
+html[data-palette="pride"]:not(.dark) .text-fg-subtle { color: #9878C0; }
+html[data-palette="pride"]:not(.dark) .border-border { border-color: #DDD0F8; }
+html[data-palette="pride"]:not(.dark) .text-accent { color: #7C2FE0; }
+html[data-palette="pride"]:not(.dark) .bg-accent { background-color: #7C2FE0; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-accent:hover { background-color: #621FC0; }
+html[data-palette="pride"]:not(.dark) .text-success { color: #1A8A00; }
+html[data-palette="pride"]:not(.dark) .bg-success { background-color: #1A8A00; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-success-subtle { background-color: #D8F5D0; color: #1A8A00; }
+html[data-palette="pride"]:not(.dark) .text-warning { color: #C05C00; }
+html[data-palette="pride"]:not(.dark) .bg-warning { background-color: #C05C00; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-warning-subtle { background-color: #FDECD8; color: #C05C00; }
+html[data-palette="pride"]:not(.dark) .text-danger { color: #CC1020; }
+html[data-palette="pride"]:not(.dark) .bg-danger { background-color: #CC1020; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-danger-subtle { background-color: #FDDDE0; color: #CC1020; }
+html[data-palette="pride"]:not(.dark) .bg-accent-subtle { background-color: #EEE0FF; color: #7C2FE0; }
+
+html.dark[data-palette="pride"] { background-color: #0E0820; color-scheme: dark; }
+html.dark[data-palette="pride"] body { color: #EFE0FF; }
+html.dark[data-palette="pride"] .bg-bg-canvas { background-color: #0E0820; }
+html.dark[data-palette="pride"] .bg-bg-card { background-color: #1A1234; }
+html.dark[data-palette="pride"] .bg-bg-input { background-color: #090614; }
+html.dark[data-palette="pride"] .bg-bg-hover { background-color: #261848; }
+html.dark[data-palette="pride"] .text-fg { color: #EFE0FF; }
+html.dark[data-palette="pride"] .text-fg-strong { color: #FFFFFF; }
+html.dark[data-palette="pride"] .text-fg-muted { color: #B090D8; }
+html.dark[data-palette="pride"] .text-fg-subtle { color: #6A4C90; }
+html.dark[data-palette="pride"] .border-border { border-color: #261848; }
+html.dark[data-palette="pride"] .text-accent { color: #C070FF; }
+html.dark[data-palette="pride"] .bg-accent { background-color: #9040F0; color: #FFFFFF; }
+html.dark[data-palette="pride"] .bg-accent:hover { background-color: #A858FF; }
+html.dark[data-palette="pride"] .text-success { color: #58E840; }
+html.dark[data-palette="pride"] .bg-success { background-color: #2EA820; color: #0E0820; }
+html.dark[data-palette="pride"] .bg-success-subtle { background-color: #1A1234; color: #58E840; }
+html.dark[data-palette="pride"] .text-warning { color: #FFB040; }
+html.dark[data-palette="pride"] .bg-warning { background-color: #E07800; color: #0E0820; }
+html.dark[data-palette="pride"] .bg-warning-subtle { background-color: #1A1234; color: #FFB040; }
+html.dark[data-palette="pride"] .text-danger { color: #FF5868; }
+html.dark[data-palette="pride"] .bg-danger { background-color: #E02030; color: #FFFFFF; }
+html.dark[data-palette="pride"] .bg-danger-subtle { background-color: #1A1234; color: #FF5868; }
+html.dark[data-palette="pride"] .bg-accent-subtle { background-color: #2A1650; color: #C070FF; }
+
+/* =========================================================================
+ * Palette: bi (Bisexual Flag)
+ *   Three stripes: magenta (#D60270), purple (#9B4F96), royal blue (#0038A8).
+ *   Accent = bi magenta, success = bi blue, dark bg = deep purple-midnight.
+ * ========================================================================= */
+
+html[data-palette="bi"]:not(.dark) { background-color: #FBF7FF; color-scheme: light; }
+html[data-palette="bi"]:not(.dark) body { color: #260540; }
+html[data-palette="bi"]:not(.dark) .bg-bg-canvas { background-color: #FBF7FF; }
+html[data-palette="bi"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-bg-hover { background-color: #F4E8FF; }
+html[data-palette="bi"]:not(.dark) .text-fg { color: #260540; }
+html[data-palette="bi"]:not(.dark) .text-fg-strong { color: #130228; }
+html[data-palette="bi"]:not(.dark) .text-fg-muted { color: #6E3080; }
+html[data-palette="bi"]:not(.dark) .text-fg-subtle { color: #A878B8; }
+html[data-palette="bi"]:not(.dark) .border-border { border-color: #E4CEF8; }
+html[data-palette="bi"]:not(.dark) .text-accent { color: #B8005E; }
+html[data-palette="bi"]:not(.dark) .bg-accent { background-color: #D60270; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-accent:hover { background-color: #A80058; }
+html[data-palette="bi"]:not(.dark) .text-success { color: #004EB0; }
+html[data-palette="bi"]:not(.dark) .bg-success { background-color: #0050B8; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-success-subtle { background-color: #D8E8FF; color: #004EB0; }
+html[data-palette="bi"]:not(.dark) .text-warning { color: #8B4A00; }
+html[data-palette="bi"]:not(.dark) .bg-warning { background-color: #A05800; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-warning-subtle { background-color: #FCECD8; color: #8B4A00; }
+html[data-palette="bi"]:not(.dark) .text-danger { color: #9B0060; }
+html[data-palette="bi"]:not(.dark) .bg-danger { background-color: #B00060; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-danger-subtle { background-color: #FCDAEE; color: #9B0060; }
+html[data-palette="bi"]:not(.dark) .bg-accent-subtle { background-color: #FADDEE; color: #B8005E; }
+
+html.dark[data-palette="bi"] { background-color: #100820; color-scheme: dark; }
+html.dark[data-palette="bi"] body { color: #F0D8FF; }
+html.dark[data-palette="bi"] .bg-bg-canvas { background-color: #100820; }
+html.dark[data-palette="bi"] .bg-bg-card { background-color: #1C0E34; }
+html.dark[data-palette="bi"] .bg-bg-input { background-color: #0A0618; }
+html.dark[data-palette="bi"] .bg-bg-hover { background-color: #281048; }
+html.dark[data-palette="bi"] .text-fg { color: #F0D8FF; }
+html.dark[data-palette="bi"] .text-fg-strong { color: #FFFFFF; }
+html.dark[data-palette="bi"] .text-fg-muted { color: #C090E0; }
+html.dark[data-palette="bi"] .text-fg-subtle { color: #7A4898; }
+html.dark[data-palette="bi"] .border-border { border-color: #281048; }
+html.dark[data-palette="bi"] .text-accent { color: #F060A8; }
+html.dark[data-palette="bi"] .bg-accent { background-color: #D60270; color: #FFFFFF; }
+html.dark[data-palette="bi"] .bg-accent:hover { background-color: #F03090; }
+html.dark[data-palette="bi"] .text-success { color: #4898F0; }
+html.dark[data-palette="bi"] .bg-success { background-color: #1868D0; color: #FFFFFF; }
+html.dark[data-palette="bi"] .bg-success-subtle { background-color: #1C0E34; color: #4898F0; }
+html.dark[data-palette="bi"] .text-warning { color: #FFB060; }
+html.dark[data-palette="bi"] .bg-warning { background-color: #C07000; color: #100820; }
+html.dark[data-palette="bi"] .bg-warning-subtle { background-color: #1C0E34; color: #FFB060; }
+html.dark[data-palette="bi"] .text-danger { color: #FF50A0; }
+html.dark[data-palette="bi"] .bg-danger { background-color: #C01870; color: #FFFFFF; }
+html.dark[data-palette="bi"] .bg-danger-subtle { background-color: #1C0E34; color: #FF50A0; }
+html.dark[data-palette="bi"] .bg-accent-subtle { background-color: #301248; color: #F060A8; }
+
+/* =========================================================================
+ * Palette: trans (Trans Flag)
+ *   Light blue (#55CDFC), pink (#F5A9B8), white. Soft and airy.
+ *   Accent = trans blue, danger = trans pink. Dark bg = deep midnight blue.
+ * ========================================================================= */
+
+html[data-palette="trans"]:not(.dark) { background-color: #F5FBFF; color-scheme: light; }
+html[data-palette="trans"]:not(.dark) body { color: #0E2A40; }
+html[data-palette="trans"]:not(.dark) .bg-bg-canvas { background-color: #F5FBFF; }
+html[data-palette="trans"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-bg-hover { background-color: #E4F5FF; }
+html[data-palette="trans"]:not(.dark) .text-fg { color: #0E2A40; }
+html[data-palette="trans"]:not(.dark) .text-fg-strong { color: #061828; }
+html[data-palette="trans"]:not(.dark) .text-fg-muted { color: #3A6888; }
+html[data-palette="trans"]:not(.dark) .text-fg-subtle { color: #7AAAC0; }
+html[data-palette="trans"]:not(.dark) .border-border { border-color: #C0E4F8; }
+html[data-palette="trans"]:not(.dark) .text-accent { color: #0090C8; }
+html[data-palette="trans"]:not(.dark) .bg-accent { background-color: #1AABDC; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-accent:hover { background-color: #0088B8; }
+html[data-palette="trans"]:not(.dark) .text-success { color: #1A8060; }
+html[data-palette="trans"]:not(.dark) .bg-success { background-color: #1A8060; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-success-subtle { background-color: #D0F0E8; color: #1A8060; }
+html[data-palette="trans"]:not(.dark) .text-warning { color: #B06000; }
+html[data-palette="trans"]:not(.dark) .bg-warning { background-color: #C07000; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-warning-subtle { background-color: #FEF0DC; color: #B06000; }
+html[data-palette="trans"]:not(.dark) .text-danger { color: #C0406A; }
+html[data-palette="trans"]:not(.dark) .bg-danger { background-color: #C84070; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-danger-subtle { background-color: #FDDEE7; color: #C0406A; }
+html[data-palette="trans"]:not(.dark) .bg-accent-subtle { background-color: #D8F0FC; color: #0090C8; }
+
+html.dark[data-palette="trans"] { background-color: #081828; color-scheme: dark; }
+html.dark[data-palette="trans"] body { color: #C8E8FF; }
+html.dark[data-palette="trans"] .bg-bg-canvas { background-color: #081828; }
+html.dark[data-palette="trans"] .bg-bg-card { background-color: #102038; }
+html.dark[data-palette="trans"] .bg-bg-input { background-color: #050F1C; }
+html.dark[data-palette="trans"] .bg-bg-hover { background-color: #183048; }
+html.dark[data-palette="trans"] .text-fg { color: #C8E8FF; }
+html.dark[data-palette="trans"] .text-fg-strong { color: #FFFFFF; }
+html.dark[data-palette="trans"] .text-fg-muted { color: #80B8D8; }
+html.dark[data-palette="trans"] .text-fg-subtle { color: #406880; }
+html.dark[data-palette="trans"] .border-border { border-color: #183048; }
+html.dark[data-palette="trans"] .text-accent { color: #55CDFC; }
+html.dark[data-palette="trans"] .bg-accent { background-color: #2AB0E0; color: #081828; }
+html.dark[data-palette="trans"] .bg-accent:hover { background-color: #55CDFC; }
+html.dark[data-palette="trans"] .text-success { color: #40D8A0; }
+html.dark[data-palette="trans"] .bg-success { background-color: #20A878; color: #081828; }
+html.dark[data-palette="trans"] .bg-success-subtle { background-color: #102038; color: #40D8A0; }
+html.dark[data-palette="trans"] .text-warning { color: #FFB84D; }
+html.dark[data-palette="trans"] .bg-warning { background-color: #C07800; color: #081828; }
+html.dark[data-palette="trans"] .bg-warning-subtle { background-color: #102038; color: #FFB84D; }
+html.dark[data-palette="trans"] .text-danger { color: #F5A9B8; }
+html.dark[data-palette="trans"] .bg-danger { background-color: #C84070; color: #FFFFFF; }
+html.dark[data-palette="trans"] .bg-danger-subtle { background-color: #102038; color: #F5A9B8; }
+html.dark[data-palette="trans"] .bg-accent-subtle { background-color: #0E2A40; color: #55CDFC; }
+
+/* =========================================================================
  * Hover bg overrides for dark palettes
  *
  * Tailwind compiles `hover:bg-bg-hover` to `.hover\:bg-bg-hover:hover`,
@@ -359,6 +528,9 @@ html.dark[data-palette="monokai"]            .hover\:bg-bg-hover:hover { backgro
 html.dark[data-palette="monokai-blue"]       .hover\:bg-bg-hover:hover { background-color: #213557; }
 html.dark[data-palette="monokai-pro"]        .hover\:bg-bg-hover:hover { background-color: #4A484C; }
 html.dark[data-palette="lipgloss"]           .hover\:bg-bg-hover:hover { background-color: #2D2D3D; }
+html.dark[data-palette="pride"]              .hover\:bg-bg-hover:hover { background-color: #261848; }
+html.dark[data-palette="bi"]                 .hover\:bg-bg-hover:hover { background-color: #281048; }
+html.dark[data-palette="trans"]              .hover\:bg-bg-hover:hover { background-color: #183048; }
 
 /* `hover:text-fg-strong` — same story: nav links bump to strong text on
  * hover. Without these overrides, dark mode falls back to the Tailwind
@@ -369,6 +541,9 @@ html.dark[data-palette="monokai"]            .hover\:text-fg-strong:hover { colo
 html.dark[data-palette="monokai-blue"]       .hover\:text-fg-strong:hover { color: #F1F5F9; }
 html.dark[data-palette="monokai-pro"]        .hover\:text-fg-strong:hover { color: #FFFFFF; }
 html.dark[data-palette="lipgloss"]           .hover\:text-fg-strong:hover { color: #FFFFFF; }
+html.dark[data-palette="pride"]              .hover\:text-fg-strong:hover { color: #FFFFFF; }
+html.dark[data-palette="bi"]                 .hover\:text-fg-strong:hover { color: #FFFFFF; }
+html.dark[data-palette="trans"]              .hover\:text-fg-strong:hover { color: #FFFFFF; }
 
 /* `hover:bg-accent-hover` — used by btn-primary. Tailwind compiles this
  * to a separate selector from `.bg-accent:hover`, so dark palettes also
@@ -379,19 +554,31 @@ html.dark[data-palette="monokai"]            .hover\:bg-accent-hover:hover { bac
 html.dark[data-palette="monokai-blue"]       .hover\:bg-accent-hover:hover { background-color: #4690E6; }
 html.dark[data-palette="monokai-pro"]        .hover\:bg-accent-hover:hover { background-color: #5BBDC8; }
 html.dark[data-palette="lipgloss"]           .hover\:bg-accent-hover:hover { background-color: #9B66FF; }
+html.dark[data-palette="pride"]              .hover\:bg-accent-hover:hover { background-color: #A858FF; }
+html.dark[data-palette="bi"]                 .hover\:bg-accent-hover:hover { background-color: #F03090; }
+html.dark[data-palette="trans"]              .hover\:bg-accent-hover:hover { background-color: #55CDFC; }
 
 /* Same overrides for the light non-default palettes. */
 html[data-palette="monokai"]:not(.dark)        .hover\:bg-bg-hover:hover { background-color: #ECEAD9; }
 html[data-palette="monokai-blue"]:not(.dark)   .hover\:bg-bg-hover:hover { background-color: #DEE6F1; }
 html[data-palette="monokai-pro"]:not(.dark)    .hover\:bg-bg-hover:hover { background-color: #F0E9DD; }
 html[data-palette="lipgloss"]:not(.dark)       .hover\:bg-bg-hover:hover { background-color: #F0EAF8; }
+html[data-palette="pride"]:not(.dark)          .hover\:bg-bg-hover:hover { background-color: #F0E6FF; }
+html[data-palette="bi"]:not(.dark)             .hover\:bg-bg-hover:hover { background-color: #F4E8FF; }
+html[data-palette="trans"]:not(.dark)          .hover\:bg-bg-hover:hover { background-color: #E4F5FF; }
 
 html[data-palette="monokai"]:not(.dark)        .hover\:text-fg-strong:hover { color: #272822; }
 html[data-palette="monokai-blue"]:not(.dark)   .hover\:text-fg-strong:hover { color: #1A2842; }
 html[data-palette="monokai-pro"]:not(.dark)    .hover\:text-fg-strong:hover { color: #29242A; }
 html[data-palette="lipgloss"]:not(.dark)       .hover\:text-fg-strong:hover { color: #1C1530; }
+html[data-palette="pride"]:not(.dark)          .hover\:text-fg-strong:hover { color: #0D0820; }
+html[data-palette="bi"]:not(.dark)             .hover\:text-fg-strong:hover { color: #130228; }
+html[data-palette="trans"]:not(.dark)          .hover\:text-fg-strong:hover { color: #061828; }
 
 html[data-palette="monokai"]:not(.dark)        .hover\:bg-accent-hover:hover { background-color: #0D5C6C; }
 html[data-palette="monokai-blue"]:not(.dark)   .hover\:bg-accent-hover:hover { background-color: #1D4FC4; }
 html[data-palette="monokai-pro"]:not(.dark)    .hover\:bg-accent-hover:hover { background-color: #167390; }
 html[data-palette="lipgloss"]:not(.dark)       .hover\:bg-accent-hover:hover { background-color: #6B36E0; }
+html[data-palette="pride"]:not(.dark)          .hover\:bg-accent-hover:hover { background-color: #621FC0; }
+html[data-palette="bi"]:not(.dark)             .hover\:bg-accent-hover:hover { background-color: #A80058; }
+html[data-palette="trans"]:not(.dark)          .hover\:bg-accent-hover:hover { background-color: #0088B8; }

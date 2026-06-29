@@ -237,9 +237,12 @@ const paletteLabel = computed(() => ({
   'monokai-solarized': 'Monokai Solarized',
   'monokai-blue': 'Monokai Blue',
   'monokai-pro': 'Monokai Pro',
+  'pride': 'Progress Pride',
+  'bi': 'Bi Pride',
+  'trans': 'Trans Pride',
 }[theme.palette] ?? theme.palette))
 
-const PALETTES = ['lipgloss', 'monokai', 'monokai-solarized', 'monokai-blue', 'monokai-pro'] as const
+const PALETTES = ['lipgloss', 'monokai', 'monokai-solarized', 'monokai-blue', 'monokai-pro', 'pride', 'bi', 'trans'] as const
 
 function cyclePalette() {
   const idx = PALETTES.indexOf(theme.palette as typeof PALETTES[number])
