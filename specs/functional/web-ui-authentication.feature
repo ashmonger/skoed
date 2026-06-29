@@ -7,7 +7,7 @@ Feature: Web UI authentication
     - DNS query processing (port 53) is never gated by authentication
     - Multi-user access control (roles, permissions) is out of scope for M1
     - OAuth, OIDC, or SSO integration is out of scope for M1
-    - Session token rotation and expiry policies are out of scope for M1 (basic auth per request is acceptable)
+    - Session token rotation and expiry policies are out of scope for M1 (configurable session timeout is addressed in M34.5)
 
   @fsid:FS-WebUiAuthUnauthenticatedRequestRejected
   Scenario: Unauthenticated request to management API is rejected
