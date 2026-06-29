@@ -76,6 +76,7 @@ type clusterNodeEntry struct {
 	LastContact string `json:"last_contact"` // RFC3339
 	CommitIndex uint64 `json:"commit_index"`
 	SyncState   string `json:"sync_state"` // in_sync | behind | unreachable
+	Version     string `json:"version,omitempty"`
 }
 
 type clusterStatusResp struct {
@@ -494,6 +495,7 @@ type clusterSelfResp struct {
 	Role        string `json:"role"`
 	RaftTerm    uint64 `json:"raft_term"`
 	CommitIndex uint64 `json:"commit_index"`
+	Version     string `json:"version,omitempty"`
 }
 
 // ClusterSelf handles GET /api/v1/cluster/self. It is intentionally minimal:
@@ -510,11 +512,13 @@ func (h *Handler) ClusterSelf(w http.ResponseWriter, r *http.Request) {
 	if c.Node().Node.ID == c.LeaderID() {
 		role = "leader"
 	}
+	version, _ := h.app.GetBuildVersion()
 	writeJSON(w, http.StatusOK, clusterSelfResp{
 		NodeID:      c.Node().Node.ID,
 		Role:        role,
 		RaftTerm:    c.Raft().CurrentTerm(),
 		CommitIndex: c.Raft().CommitIndex(),
+		Version:     version,
 	})
 }
 
@@ -538,6 +542,7 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 	leaderID := c.LeaderID()
 	localCommit := c.Raft().CommitIndex()
 	localID := c.Node().Node.ID
+	localVersion, _ := h.app.GetBuildVersion()
 
 	out := clusterStatusResp{
 		ClusterID: "",
@@ -591,6 +596,7 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case p.id == localID:
 			entry.SyncState = "in_sync"
+			entry.Version = localVersion
 		default:
 			r := results[p.id]
 			if !r.alive {
@@ -600,6 +606,7 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 				entry.SyncState = "unreachable"
 			} else {
 				entry.CommitIndex = r.commitIndex
+				entry.Version = r.version
 				if entry.CommitIndex < localCommit {
 					entry.SyncState = "behind"
 				} else {
@@ -623,6 +630,7 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 type peerProbeResult struct {
 	alive       bool
 	commitIndex uint64
+	version     string
 }
 
 // probeAllPeers fan-outs probePeer to every cluster member except localID
@@ -657,7 +665,7 @@ func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string
 			defer wg.Done()
 			r := probePeer(client, apiAddr, clusterSecret, raftHost)
 			mu.Lock()
-			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex}
+			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex, version: r.version}
 			mu.Unlock()
 		}()
 	}
@@ -674,6 +682,7 @@ func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string
 func probePeer(client *http.Client, apiAddr, clusterSecret string, raftHostFallback ...string) (out struct {
 	alive       bool
 	commitIndex uint64
+	version     string
 }) {
 	base := apiBase(apiAddr, raftHostFallback...)
 	req, err := http.NewRequest(http.MethodGet, base+"/api/v1/cluster/self", nil)
@@ -697,6 +706,7 @@ func probePeer(client *http.Client, apiAddr, clusterSecret string, raftHostFallb
 	}
 	out.alive = true
 	out.commitIndex = body.CommitIndex
+	out.version = body.Version
 	return
 }
 

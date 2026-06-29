@@ -63,6 +63,7 @@ export interface ClusterNode {
   last_contact: string
   commit_index: number
   sync_state: 'in_sync' | 'behind' | 'unreachable'
+  version?: string
 }
 
 export interface ClusterStatus {

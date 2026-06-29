@@ -55,6 +55,7 @@
             <th>Sync state</th>
             <th>Raft address</th>
             <th>API address</th>
+            <th>Version</th>
             <th class="text-right">Commit</th>
             <th>Last contact</th>
             <th class="text-right">Actions</th>
@@ -73,6 +74,7 @@
             </td>
             <td class="font-mono text-xs text-fg-muted">{{ n.raft_address }}</td>
             <td class="font-mono text-xs text-fg-muted">{{ nodeApiAddress(n) }}</td>
+            <td class="font-mono text-xs text-fg-muted">{{ n.version ?? '—' }}</td>
             <td class="text-right font-mono text-xs">{{ n.commit_index }}</td>
             <td class="text-fg-muted text-xs" :title="formatAbsolute(n.last_contact)">
               {{ formatRelative(n.last_contact) }}
@@ -91,7 +93,7 @@
             </td>
           </tr>
           <tr v-if="!loading && !(status?.nodes ?? []).length">
-            <td colspan="8" class="text-fg-muted text-center py-6">No nodes reported.</td>
+            <td colspan="9" class="text-fg-muted text-center py-6">No nodes reported.</td>
           </tr>
         </tbody>
       </table>
