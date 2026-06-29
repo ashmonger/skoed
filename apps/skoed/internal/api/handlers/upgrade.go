@@ -56,7 +56,7 @@ func (h *Handler) NodeUpgradeStart(w http.ResponseWriter, r *http.Request) {
 	if os.Getenv("SKOED_TEST_MODE") != "1" {
 		go func() {
 			time.Sleep(200 * time.Millisecond)
-			os.Exit(0)
+			os.Exit(1)
 		}()
 	}
 }
@@ -80,7 +80,7 @@ func (h *Handler) UpgradeCheck(w http.ResponseWriter, r *http.Request) {
 // UpgradeStart handles POST /api/v1/upgrade/start.
 // Requires the request to have reached the leader (LeaderForward wrapper).
 // Downloads the binary for the current arch, atomically replaces the
-// running executable, responds 202, then schedules os.Exit(0) so the
+// running executable, responds 202, then schedules os.Exit(1) so the
 // supervisor (systemd / OpenRC) restarts the process with the new binary.
 // In SKOED_TEST_MODE=1 the exit is skipped so the test process survives.
 //
@@ -139,12 +139,13 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 		"message":        "binary swap initiated; process will restart",
 	})
 
-	// Give the response time to flush, then exit so the supervisor
-	// restarts with the new binary. Skipped in test mode.
+	// Give the response time to flush, then exit so the supervisor (systemd
+	// Restart=on-failure) restarts with the new binary. Exit 1 is required:
+	// Restart=on-failure only triggers on non-zero exits. Skipped in test mode.
 	if os.Getenv("SKOED_TEST_MODE") != "1" {
 		go func() {
 			time.Sleep(200 * time.Millisecond)
-			os.Exit(0)
+			os.Exit(1)
 		}()
 	}
 }
