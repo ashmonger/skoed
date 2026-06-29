@@ -191,22 +191,31 @@
         </div>
       </template>
 
-      <!-- Progress / result card -->
-      <div v-if="upgradeStatusData && (upgradeStatusData.in_progress || upgradeStatusData.completed_nodes.length > 0 || upgradeStatusData.failed_node)"
-           class="rounded bg-bg-hover p-3 text-xs font-mono space-y-1">
-        <div v-if="upgradeStatusData.pending_nodes.length" class="text-fg-muted">
-          pending: {{ upgradeStatusData.pending_nodes.join(', ') }}
+      <!-- Live upgrade log — shown when upgrade is running or just completed -->
+      <div v-if="upgradeLogOpen" class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-fg-muted font-mono">
+            <span v-if="upgradeStatusData?.in_progress" class="text-warning">● upgrading…</span>
+            <span v-else-if="upgradeStatusData?.failed_node" class="text-danger">● failed on {{ upgradeStatusData.failed_node }}</span>
+            <span v-else-if="upgradeLogDone" class="text-success">● upgrade complete</span>
+            <span v-else>● waiting for log…</span>
+          </span>
+          <button class="btn-ghost !py-0.5 !px-2 text-xs"
+                  @click="upgradeLogOpen = false; if (closeUpgradeLog) { closeUpgradeLog(); closeUpgradeLog = undefined }">
+            close
+          </button>
         </div>
-        <div v-if="upgradeStatusData.completed_nodes.length" class="text-success">
-          done: {{ upgradeStatusData.completed_nodes.join(', ') }}
-        </div>
-        <div v-if="upgradeStatusData.failed_node" class="text-danger">
-          failed: {{ upgradeStatusData.failed_node }}
+        <div id="upgrade-log-box"
+             class="rounded bg-bg-canvas border border-border p-3 font-mono text-xs text-fg-muted overflow-y-auto max-h-52 space-y-0.5">
+          <div v-if="!upgradeLog.length" class="text-fg-subtle">Connecting…</div>
+          <div v-for="(line, i) in upgradeLog" :key="i"
+               :class="line.includes('FAIL') ? 'text-danger' : line.includes('OK') ? 'text-success' : ''">
+            {{ line }}
+          </div>
         </div>
       </div>
 
       <p v-if="rollingUpgradeError" class="text-sm text-danger">{{ rollingUpgradeError }}</p>
-      <p v-if="rollingUpgradeMsg" class="text-sm text-success">{{ rollingUpgradeMsg }}</p>
     </div>
 
     <!-- ─── Transfer leadership modal ───────────────────────────────────── -->
@@ -261,14 +270,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, h } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, h } from 'vue'
 import {
   ArrowPathIcon, ArrowsRightLeftIcon, ClipboardIcon, PlusIcon, TrashIcon,
 } from '@heroicons/vue/24/outline'
 import {
   clusterHealth, clusterStatus, createJoinToken,
   nodeSelfJoin, removeNode, transferLeadership,
-  rollingUpgradeApply, rollingUpgradeStatus, checkUpgrade,
+  rollingUpgradeApply, rollingUpgradeStatus, checkUpgrade, upgradeLogStream,
   type RollingUpgradeStatus, type UpgradeCheck,
 } from '@/api/endpoints'
 import type {
@@ -315,6 +324,10 @@ const rollingUpgradeError = ref('')
 const rollingUpgradeMsg = ref('')
 const upgradeStatusData = ref<RollingUpgradeStatus | null>(null)
 let upgradeStatusTimer: number | undefined
+const upgradeLog = ref<string[]>([])
+const upgradeLogOpen = ref(false)
+const upgradeLogDone = ref(false)
+let closeUpgradeLog: (() => void) | undefined
 
 // ─── Derived ─────────────────────────────────────────────────────────────
 
@@ -502,12 +515,31 @@ async function startRollingUpgrade() {
     return
   }
   rollingUpgrading.value = true
+  upgradeLog.value = []
+  upgradeLogDone.value = false
+  upgradeLogOpen.value = true
+
+  // Start SSE log stream before kicking off upgrade so we don't miss early lines.
+  if (closeUpgradeLog) closeUpgradeLog()
+  closeUpgradeLog = upgradeLogStream(
+    (line) => {
+      upgradeLog.value.push(line)
+      nextTick(() => {
+        const el = document.getElementById('upgrade-log-box')
+        if (el) el.scrollTop = el.scrollHeight
+      })
+    },
+    () => { upgradeLogDone.value = true },
+  )
+
   try {
     const result = await rollingUpgradeApply(assetURL)
     rollingUpgradeMsg.value = result.message
     pollUpgradeStatus()
   } catch (err) {
     rollingUpgradeError.value = errMsg(err, 'Failed to start rolling upgrade')
+    if (closeUpgradeLog) { closeUpgradeLog(); closeUpgradeLog = undefined }
+    upgradeLogOpen.value = false
   } finally {
     rollingUpgrading.value = false
   }
@@ -584,6 +616,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   if (upgradeStatusTimer) window.clearInterval(upgradeStatusTimer)
+  if (closeUpgradeLog) { closeUpgradeLog(); closeUpgradeLog = undefined }
   window.removeEventListener('keydown', onKey)
 })
 </script>

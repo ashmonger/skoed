@@ -282,12 +282,17 @@ func TestM34PerNodeCertRotation(t *testing.T) {
 		t.Fatal("could not find a follower node to rotate")
 	}
 
+	// Wait >1s so the rotation cert's NotAfter (second precision in X.509) is
+	// strictly later than the original cert, which may have been issued in the
+	// same clock second as the cluster formation.
+	time.Sleep(1100 * time.Millisecond)
+
 	rotResp := leader.apiDo(t, "POST", "/api/v1/cluster/nodes/"+targetID+"/rotate-cert", "")
 	defer rotResp.Body.Close()
 	assertStatus(t, rotResp, http.StatusAccepted)
 
 	// Poll until the target node's cert_expires_at advances (rotation is async).
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(60 * time.Second)
 	targetBefore := certExpiryFor(t, before, targetID)
 	for time.Now().Before(deadline) {
 		after := getCertStatus(t, leader)

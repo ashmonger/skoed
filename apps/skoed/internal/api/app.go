@@ -1015,6 +1015,7 @@ func (a *App) Router() http.Handler {
 		// M18 — rolling cluster upgrade orchestration.
 		r.Post("/api/v1/cluster/upgrade/apply", a.forward(h.ClusterUpgradeApply))
 		r.Get("/api/v1/cluster/upgrade/status", h.ClusterUpgradeStatus)
+		r.Get("/api/v1/cluster/upgrade/log", h.ClusterUpgradeLogStream)
 
 		// M5.9.7 — authenticated "would this domain be blocked?" tester.
 		// Read-only; doesn't forward to leader (every node has the same

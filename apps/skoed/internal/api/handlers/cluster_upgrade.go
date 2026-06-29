@@ -25,6 +25,18 @@ type rollingUpgradeState struct {
 	PendingNodes   []string `json:"pending_nodes"`
 	CompletedNodes []string `json:"completed_nodes"`
 	FailedNode     *string  `json:"failed_node"`
+	Log            []string `json:"log"`
+}
+
+// addUpgradeLogLine appends a timestamped log entry to the in-progress upgrade
+// state and also writes to the process logger. Safe to call concurrently.
+func addUpgradeLogLine(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("[rolling-upgrade] %s", msg)
+	ts := time.Now().Format("15:04:05")
+	upgradeMu.Lock()
+	upgradeState.Log = append(upgradeState.Log, ts+" "+msg)
+	upgradeMu.Unlock()
 }
 
 // ClusterUpgradeStatus handles GET /api/v1/cluster/upgrade/status.
@@ -38,8 +50,60 @@ func (h *Handler) ClusterUpgradeStatus(w http.ResponseWriter, r *http.Request) {
 	if snap.CompletedNodes == nil {
 		snap.CompletedNodes = []string{}
 	}
+	if snap.Log == nil {
+		snap.Log = []string{}
+	}
 	upgradeMu.Unlock()
 	writeJSON(w, http.StatusOK, snap)
+}
+
+// ClusterUpgradeLogStream handles GET /api/v1/cluster/upgrade/log.
+// Streams upgrade log lines as Server-Sent Events (text/event-stream).
+// Replays all buffered lines from the current (or most recent) upgrade run,
+// then sends new lines as they are appended. Sends "event: done" when the
+// upgrade completes so the client can stop listening.
+func (h *Handler) ClusterUpgradeLogStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	sent := 0
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			upgradeMu.Lock()
+			newLines := make([]string, len(upgradeState.Log[sent:]))
+			copy(newLines, upgradeState.Log[sent:])
+			inProgress := upgradeState.InProgress
+			total := len(upgradeState.Log)
+			upgradeMu.Unlock()
+
+			for _, line := range newLines {
+				fmt.Fprintf(w, "data: %s\n\n", line) //nolint:errcheck
+				sent++
+			}
+			if len(newLines) > 0 {
+				flusher.Flush()
+			}
+			// Signal completion once all lines have been sent and upgrade is done.
+			if !inProgress && sent >= total && total > 0 {
+				fmt.Fprintf(w, "event: done\ndata: {}\n\n") //nolint:errcheck
+				flusher.Flush()
+				return
+			}
+		}
+	}
 }
 
 // clusterUpgradeApplyRequest is the body for POST /api/v1/cluster/upgrade/apply.
@@ -105,6 +169,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		InProgress:     true,
 		PendingNodes:   pending,
 		CompletedNodes: []string{},
+		Log:            []string{},
 	}
 	upgradeMu.Unlock()
 
@@ -112,10 +177,12 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 	selfAPIAddr := cl.Node().Node.APIAddress
 
 	go func() {
+		addUpgradeLogLine("rolling upgrade started — %d peer(s) to upgrade before self", len(peers))
 		completedFirst := ""
 		for _, peer := range peers {
+			addUpgradeLogLine("upgrading %s (%s)…", peer.id, peer.apiAddr)
 			if err := upgradeNode(peer.apiAddr, req.URL, clusterSecret); err != nil {
-				log.Printf("[rolling-upgrade] upgradeNode(%s) failed: %v", peer.id, err)
+				addUpgradeLogLine("FAILED %s: %v", peer.id, err)
 				node := peer.id
 				upgradeMu.Lock()
 				upgradeState.InProgress = false
@@ -124,6 +191,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 				upgradeMu.Unlock()
 				return
 			}
+			addUpgradeLogLine("OK %s — node healthy", peer.id)
 			if completedFirst == "" {
 				completedFirst = peer.id
 			}
@@ -135,6 +203,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 
 		// Transfer leadership so this node (about to upgrade itself) steps down gracefully.
 		if completedFirst != "" {
+			addUpgradeLogLine("transferring leadership to %s before self-upgrade…", completedFirst)
 			_ = cl.TransferLeadership(completedFirst)
 			// Wait briefly for election to stabilise before self-upgrading.
 			time.Sleep(2 * time.Second)
@@ -142,7 +211,9 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 
 		// Upgrade self last: post to own API endpoint. In test mode UpgradeStart
 		// suppresses os.Exit so the goroutine completes normally.
+		addUpgradeLogLine("upgrading self (%s)…", selfID)
 		_ = upgradeNode(selfAPIAddr, req.URL, clusterSecret)
+		addUpgradeLogLine("OK %s — upgrade complete", selfID)
 
 		upgradeMu.Lock()
 		upgradeState.InProgress = false

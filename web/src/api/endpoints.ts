@@ -467,6 +467,7 @@ export interface RollingUpgradeStatus {
   pending_nodes: string[]
   completed_nodes: string[]
   failed_node: string | null
+  log: string[]
 }
 
 export function rollingUpgradeApply(url: string): Promise<{ accepted: boolean; message: string }> {
@@ -475,6 +476,20 @@ export function rollingUpgradeApply(url: string): Promise<{ accepted: boolean; m
 
 export function rollingUpgradeStatus(): Promise<RollingUpgradeStatus> {
   return getJSON('/api/v1/cluster/upgrade/status')
+}
+
+// upgradeLogStream opens an SSE connection to /api/v1/cluster/upgrade/log.
+// Calls onLine for each log line and onDone when the upgrade completes.
+// Returns a close() function the caller should invoke to disconnect.
+export function upgradeLogStream(
+  onLine: (line: string) => void,
+  onDone: () => void,
+): () => void {
+  const es = new EventSource('/api/v1/cluster/upgrade/log')
+  es.onmessage = (e) => onLine(e.data)
+  es.addEventListener('done', () => { onDone(); es.close() })
+  es.onerror = () => es.close()
+  return () => es.close()
 }
 
 // ─── M22 — Webhooks ──────────────────────────────────────────────────────
