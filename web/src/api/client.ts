@@ -8,6 +8,7 @@ const baseURL = ''
 // not browser close. The token is issued by POST /api/v1/auth/login and
 // revoked by DELETE /api/v1/auth/session.
 const TOKEN_KEY = 'skoed.token'
+const USER_KEY  = 'skoed.user'
 
 export function getToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY)
@@ -16,6 +17,15 @@ export function getToken(): string | null {
 export function setToken(token: string | null) {
   if (token) sessionStorage.setItem(TOKEN_KEY, token)
   else sessionStorage.removeItem(TOKEN_KEY)
+}
+
+export function getSavedUser(): string | null {
+  return sessionStorage.getItem(USER_KEY)
+}
+
+export function setSavedUser(user: string | null) {
+  if (user) sessionStorage.setItem(USER_KEY, user)
+  else sessionStorage.removeItem(USER_KEY)
 }
 
 export const api: AxiosInstance = axios.create({ baseURL, timeout: 15000 })
