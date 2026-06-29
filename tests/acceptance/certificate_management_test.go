@@ -69,35 +69,36 @@ func getCertStatus(t *testing.T, n *ClusterNode) m34CertStatusResp {
 	return s
 }
 
-// getTLSSettings decodes the tls field from GET /api/v1/settings.
+// getTLSSettings decodes the tls sub-object from GET /api/v1/settings.
 func getTLSSettings(t *testing.T, n *ClusterNode) m34TLSSettingsResp {
 	t.Helper()
 	resp := n.apiDo(t, "GET", "/api/v1/settings", "")
 	defer resp.Body.Close()
 	assertStatus(t, resp, http.StatusOK)
 	var wrapper struct {
-		TLS m34TLSSettingsResp `json:"tls"`
+		TLS *m34TLSSettingsResp `json:"tls"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
-		t.Fatalf("decode settings tls: %v", err)
+		t.Fatalf("decode settings: %v", err)
 	}
-	return wrapper.TLS
+	if wrapper.TLS == nil {
+		return m34TLSSettingsResp{}
+	}
+	return *wrapper.TLS
 }
 
-// putTLSSettings writes tls settings via PUT /api/v1/settings.
+// putTLSSettings writes tls settings via PUT /api/v1/settings/tls.
 func putTLSSettings(t *testing.T, n *ClusterNode, autoRenew bool, domains []string, email string, thresholdDays int) {
 	t.Helper()
 	payload := map[string]interface{}{
-		"tls": map[string]interface{}{
-			"auto_renew":             autoRenew,
-			"renewal_threshold_days": thresholdDays,
-			"acme": map[string]interface{}{
-				"domains": domains,
-				"email":   email,
-			},
+		"auto_renew":             autoRenew,
+		"renewal_threshold_days": thresholdDays,
+		"acme": map[string]interface{}{
+			"domains": domains,
+			"email":   email,
 		},
 	}
-	resp := n.apiDo(t, "PUT", "/api/v1/settings", mustJSON(t, payload))
+	resp := n.apiDo(t, "PUT", "/api/v1/settings/tls", mustJSON(t, payload))
 	defer resp.Body.Close()
 	assertStatus(t, resp, http.StatusOK)
 }
@@ -176,13 +177,14 @@ func TestM34AcmeAutoRenewalDisabledByDefault(t *testing.T) {
 func TestM34AcmeConfigPersisted(t *testing.T) {
 	t.Parallel()
 	c := startClusterMTLS(t, 1)
-	leaderIdx := 0
-	leader := c.nodes[leaderIdx]
+	leader := c.Leader(t)
 
 	putTLSSettings(t, leader, true, []string{"skoed.example.test"}, "ops@example.test", 30)
 
-	c.RestartNode(t, leaderIdx)
-	leader = c.nodes[leaderIdx]
+	// Kill then restart node 0.
+	c.KillNode(t, 0)
+	c.RestartNode(t, 0)
+	leader = c.Leader(t)
 
 	tls := getTLSSettings(t, leader)
 	if !tls.AutoRenew {

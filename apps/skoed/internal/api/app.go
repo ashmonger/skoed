@@ -702,6 +702,30 @@ func (a *App) RotateCerts(ctx context.Context) error {
 	return a.cluster.RotateCerts(ctx)
 }
 
+// GetTLSRenewConfig returns the cluster-wide TLS auto-renewal settings.
+func (a *App) GetTLSRenewConfig() (config.TLSRenewConfig, error) {
+	if a.cluster == nil {
+		return config.TLSRenewConfig{}, nil
+	}
+	return a.cluster.GetTLSRenewConfig()
+}
+
+// SetTLSRenewConfig persists TLS auto-renewal settings cluster-wide via Raft.
+func (a *App) SetTLSRenewConfig(cfg config.TLSRenewConfig) error {
+	if a.cluster == nil {
+		return fmt.Errorf("cluster not enabled")
+	}
+	return a.cluster.SetTLSRenewConfig(cfg)
+}
+
+// RotateNodeCert rotates the leaf cert for a single named node via Raft.
+func (a *App) RotateNodeCert(ctx context.Context, nodeID string) error {
+	if a.cluster == nil {
+		return fmt.Errorf("cluster not enabled")
+	}
+	return a.cluster.RotateNodeCert(ctx, nodeID)
+}
+
 // UpdateAuthConfig flushes the local auth.Store state through Raft so every
 // node sees the new credentials. Called after first-run setup and password
 // change.
@@ -1079,10 +1103,14 @@ func (a *App) Router() http.Handler {
 		})
 
 		// M20 (TS-ClusterSecurityHardening) — mTLS certificate status and rotation.
+		// M34 (TS-CertificateManagement) — per-node rotation + ACME renew check.
 		r.Group(func(r chi.Router) {
 			r.Use(a.RequireScope("cluster:admin"))
 			r.Get("/api/v1/cluster/certs/status", h.ClusterCertsStatus)
 			r.Post("/api/v1/cluster/certs/rotate", a.forward(h.ClusterCertsRotate))
+			r.Post("/api/v1/cluster/certs/renew-check", h.ClusterCertsRenewCheck)
+			r.Post("/api/v1/cluster/nodes/{node_id}/rotate-cert", a.forward(h.ClusterNodeRotateCert))
+			r.Put("/api/v1/settings/tls", a.forward(h.PutTLSSettings))
 		})
 
 		// Cluster endpoints — most write paths forwarded.
