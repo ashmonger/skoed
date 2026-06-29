@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -143,6 +144,7 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start skoed: %v", err)
 	}

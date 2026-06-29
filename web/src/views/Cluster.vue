@@ -159,18 +159,39 @@
     </div>
 
     <!-- ─── Rolling upgrade (M18, cluster mode only) ────────────────────── -->
-    <div v-if="health?.mode !== 'single-node'" class="card p-4 space-y-3">
+    <div v-if="health?.mode !== 'single-node' && (upgradeCheck?.upgrade_available || upgradeStatusData?.in_progress || upgradeStatusData?.completed_nodes.length || upgradeStatusData?.failed_node)"
+         class="card p-4 space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-fg-strong">Rolling cluster upgrade</h2>
-        <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">in progress</span>
+        <h2 class="text-sm font-semibold text-fg-strong">New version available</h2>
+        <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">upgrading…</span>
       </div>
-      <p class="text-sm text-fg-muted">
-        Upgrades all nodes sequentially — followers first, then the leader — without
-        losing quorum. Paste a <code class="font-mono text-xs">.tar.gz</code> URL
-        containing the new <code class="font-mono text-xs">skoed</code> binary.
-      </p>
 
-      <!-- Status card while in progress or after completion -->
+      <!-- Upgrade prompt — shown when no upgrade is running yet -->
+      <template v-if="upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress && !upgradeStatusData?.completed_nodes.length && !upgradeStatusData?.failed_node">
+        <p class="text-sm text-fg-muted">
+          skoed <span class="font-mono text-accent font-semibold">{{ upgradeCheck.available_version }}</span>
+          is available. All nodes will be upgraded sequentially — followers first, then the leader — without losing quorum.
+        </p>
+        <div class="flex items-center gap-3">
+          <button
+            class="btn-primary"
+            :disabled="rollingUpgrading"
+            @click="startRollingUpgrade">
+            {{ rollingUpgrading ? 'Starting…' : 'Upgrade cluster' }}
+          </button>
+          <a v-if="upgradeCheck.release_notes_url"
+             :href="upgradeCheck.release_notes_url"
+             target="_blank" rel="noopener"
+             class="text-xs text-accent hover:underline">
+            Release notes ↗
+          </a>
+          <span class="text-xs text-fg-subtle ml-auto">
+            Only the leader can start — followers forward automatically.
+          </span>
+        </div>
+      </template>
+
+      <!-- Progress / result card -->
       <div v-if="upgradeStatusData && (upgradeStatusData.in_progress || upgradeStatusData.completed_nodes.length > 0 || upgradeStatusData.failed_node)"
            class="rounded bg-bg-hover p-3 text-xs font-mono space-y-1">
         <div v-if="upgradeStatusData.pending_nodes.length" class="text-fg-muted">
@@ -186,24 +207,6 @@
 
       <p v-if="rollingUpgradeError" class="text-sm text-danger">{{ rollingUpgradeError }}</p>
       <p v-if="rollingUpgradeMsg" class="text-sm text-success">{{ rollingUpgradeMsg }}</p>
-
-      <div class="flex gap-2">
-        <input
-          v-model="rollingUpgradeURL"
-          type="url"
-          class="input flex-1 text-sm"
-          placeholder="https://github.com/…/skoed_linux_amd64.tar.gz"
-          :disabled="rollingUpgrading || upgradeStatusData?.in_progress" />
-        <button
-          class="btn-primary"
-          :disabled="rollingUpgrading || upgradeStatusData?.in_progress || !rollingUpgradeURL.trim()"
-          @click="startRollingUpgrade">
-          {{ rollingUpgrading ? 'Starting…' : 'Upgrade cluster' }}
-        </button>
-      </div>
-      <p class="text-xs text-fg-muted">
-        Only the leader can start the upgrade — followers forward the request automatically.
-      </p>
     </div>
 
     <!-- ─── Transfer leadership modal ───────────────────────────────────── -->
@@ -265,9 +268,9 @@ import {
 import {
   clusterHealth, clusterStatus, createJoinToken,
   nodeSelfJoin, removeNode, transferLeadership,
-  rollingUpgradeApply, rollingUpgradeStatus,
+  rollingUpgradeApply, rollingUpgradeStatus, checkUpgrade,
+  type RollingUpgradeStatus, type UpgradeCheck,
 } from '@/api/endpoints'
-import type { RollingUpgradeStatus } from '@/api/endpoints'
 import type {
   ClusterHealth, ClusterNode, ClusterStatus, JoinTokenResponse,
 } from '@/api/types'
@@ -306,7 +309,7 @@ const joinClusterError = ref('')
 const joinClusterSuccess = ref('')
 
 // ─── Rolling upgrade (M18) ────────────────────────────────────────────────────
-const rollingUpgradeURL = ref('')
+const upgradeCheck = ref<UpgradeCheck | null>(null)
 const rollingUpgrading = ref(false)
 const rollingUpgradeError = ref('')
 const rollingUpgradeMsg = ref('')
@@ -490,11 +493,18 @@ async function confirmRemove() {
 async function startRollingUpgrade() {
   rollingUpgradeError.value = ''
   rollingUpgradeMsg.value = ''
+  // Resolve the tar.gz URL for the current platform from the upgrade check.
+  const assets = upgradeCheck.value?.assets ?? {}
+  const arch = navigator.userAgent.includes('arm') || navigator.userAgent.includes('aarch64') ? 'arm64' : 'amd64'
+  const assetURL = assets[`linux_${arch}`] ?? assets['linux_amd64'] ?? ''
+  if (!assetURL) {
+    rollingUpgradeError.value = 'No download URL found for this platform — check GitHub releases manually.'
+    return
+  }
   rollingUpgrading.value = true
   try {
-    const result = await rollingUpgradeApply(rollingUpgradeURL.value.trim())
+    const result = await rollingUpgradeApply(assetURL)
     rollingUpgradeMsg.value = result.message
-    rollingUpgradeURL.value = ''
     pollUpgradeStatus()
   } catch (err) {
     rollingUpgradeError.value = errMsg(err, 'Failed to start rolling upgrade')
@@ -562,6 +572,8 @@ onMounted(async () => {
   await refresh()
   timer = window.setInterval(refresh, 5_000)
   window.addEventListener('keydown', onKey)
+  // Check for available upgrade from GitHub.
+  try { upgradeCheck.value = await checkUpgrade() } catch { /* ignore */ }
   // Restore upgrade status if a rolling upgrade was running before page load.
   try {
     const s = await rollingUpgradeStatus()
