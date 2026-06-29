@@ -337,6 +337,7 @@ export interface UpgradeCheck {
   release_notes_url: string
   published_at: string
   checked_at: string
+  assets?: Record<string, string>
 }
 
 export function checkUpgrade(): Promise<UpgradeCheck> {

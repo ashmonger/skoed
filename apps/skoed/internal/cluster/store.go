@@ -53,6 +53,12 @@ var (
 	// M31: scheduled backup configuration (key "settings"), entries (key "entry:{id}"),
 	// and last-backup raft index (key "last_raft_index").
 	bucketBackups = []byte("config_backups")
+	// M34: cluster-replicated TLS auto-renewal settings (single key "settings").
+	bucketTLSRenew = []byte("tls_renew")
+	// M34: per-node cert expiry timestamps (key = nodeID, value = RFC3339 time).
+	// Written by applyCertRotation and applyRotateNodeCert so the leader
+	// can aggregate all nodes' expiry dates without reading each node's disk.
+	bucketCertExpiry = []byte("cert_node_expiry")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -111,6 +117,8 @@ func (s *Store) init() error {
 			bucketDhcp6StaticAssns,
 			bucketDhcp6ServerLeases,
 			bucketBackups,
+			bucketTLSRenew,
+			bucketCertExpiry,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -582,6 +590,14 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
 			return err
 		}
+		// Store all nodes' cert expiry in this transaction so any node (including
+		// the leader) can aggregate the full cluster cert status via GetAllNodeCertExpiry.
+		// Must be done here (not inside applyCertRotation) to avoid a nested db.Update deadlock.
+		for nodeID, certs := range p.Nodes {
+			if expiry, err := parseCertExpiry(certs.CertPEM); err == nil {
+				_ = tx.Bucket(bucketCertExpiry).Put([]byte(nodeID), []byte(expiry.UTC().Format(time.RFC3339)))
+			}
+		}
 		return s.applyCertRotation(p)
 
 	case CmdWebhooksUpdate:
@@ -700,6 +716,31 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketSettings).Put([]byte("custom_rules"), []byte(p.Rules))
+
+	// M34 — TLS auto-renewal config.
+	case CmdTLSRenewConfigSet:
+		var p TLSRenewConfigSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Config)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketTLSRenew).Put([]byte("settings"), v)
+
+	// M34 — per-node cert rotation (without rotating the CA).
+	case CmdRotateNodeCert:
+		var p RotateNodeCertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		// Store new cert expiry for the targeted node in this transaction
+		// (runs on every node so the leader has full cert status).
+		if expiry, err := parseCertExpiry(p.CertPEM); err == nil {
+			_ = tx.Bucket(bucketCertExpiry).Put([]byte(p.NodeID), []byte(expiry.UTC().Format(time.RFC3339)))
+		}
+		return s.applyRotateNodeCert(p)
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -1314,17 +1355,12 @@ func (s *Store) AggregatesIter(fn func(HourAggregate) error) error {
 // disk, then hot-reloads the cert cache if one is wired. Called inside applyTx.
 func (s *Store) applyCertRotation(p CertRotationPayload) error {
 	if s.nodeID == "" {
-		// nodeID not wired (unit-test path without a full cluster); skip
-		// the disk write but don't fail the FSM apply.
 		return nil
 	}
 	nc, ok := p.Nodes[s.nodeID]
 	if !ok {
-		// This node's certs are not in the payload — skip silently.
-		// Could happen if the member list changed between generation and apply.
 		return nil
 	}
-	// db.Path() returns the bbolt file; derive data_dir from it.
 	dataDir := pathDir(s.db.Path())
 	paths := MtlsPaths(dataDir)
 
@@ -1340,12 +1376,81 @@ func (s *Store) applyCertRotation(p CertRotationPayload) error {
 
 	if s.certCache != nil {
 		if err := s.certCache.Update(p.CACertPEM, nc.CertPEM, nc.KeyPEM); err != nil {
-			// Log but don't fail the FSM apply — the certs are already on disk.
-			// On next restart the correct certs will be loaded.
 			_ = err
 		}
 	}
 	return nil
+}
+
+// applyRotateNodeCert writes a new leaf cert for one specific node.
+// Only the targeted node writes its cert to disk. The cert expiry is stored
+// in applyTx (inside the existing transaction) to avoid a nested db.Update deadlock.
+func (s *Store) applyRotateNodeCert(p RotateNodeCertPayload) error {
+	if s.nodeID != p.NodeID {
+		// Not our cert — nothing to write to disk.
+		return nil
+	}
+
+	dataDir := pathDir(s.db.Path())
+	paths := MtlsPaths(dataDir)
+
+	if err := os.WriteFile(paths.NodeCert, p.CertPEM, 0644); err != nil {
+		return fmt.Errorf("write node cert: %w", err)
+	}
+	if err := os.WriteFile(paths.NodeKey, p.KeyPEM, 0600); err != nil {
+		return fmt.Errorf("write node key: %w", err)
+	}
+
+	if s.certCache != nil {
+		caCertPEM := p.CACertPEM
+		if len(caCertPEM) == 0 {
+			// Fall back to reading from disk — the CA didn't change.
+			caCertPEM, _ = os.ReadFile(paths.CACertFile)
+		}
+		if err := s.certCache.Update(caCertPEM, p.CertPEM, p.KeyPEM); err != nil {
+			_ = err
+		}
+	}
+	return nil
+}
+
+// SetNodeCertExpiry stores this node's leaf cert expiry in bbolt so the
+// leader can read all nodes' expiry via GetAllNodeCertExpiry. Called at
+// startup after the initial cert is loaded.
+func (s *Store) SetNodeCertExpiry(nodeID string, expiry time.Time) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketCertExpiry).Put([]byte(nodeID), []byte(expiry.UTC().Format(time.RFC3339)))
+	})
+}
+
+// GetAllNodeCertExpiry returns the stored cert expiry for all nodes that have
+// reported one. Returns an empty map (never nil) when no data is stored.
+func (s *Store) GetAllNodeCertExpiry() map[string]time.Time {
+	out := make(map[string]time.Time)
+	_ = s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketCertExpiry).ForEach(func(k, v []byte) error {
+			t, err := time.Parse(time.RFC3339, string(v))
+			if err == nil {
+				out[string(k)] = t
+			}
+			return nil
+		})
+	})
+	return out
+}
+
+// GetTLSRenewConfig returns the cluster-wide TLS auto-renewal settings.
+// Returns a zero-value config (auto_renew=false) when not yet configured.
+func (s *Store) GetTLSRenewConfig() (config.TLSRenewConfig, error) {
+	var out config.TLSRenewConfig
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketTLSRenew).Get([]byte("settings"))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &out)
+	})
+	return out, err
 }
 
 // pathDir returns the directory component of a file path.

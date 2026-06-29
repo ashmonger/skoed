@@ -84,6 +84,14 @@
             <span v-if="health.version" class="hidden lg:inline-flex border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-muted">
               {{ health.version }}
             </span>
+            <button
+              v-if="upgradeAvailable"
+              class="hidden lg:inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors"
+              :title="`skoed ${upgradeAvailable.available_version} available — click to upgrade`"
+              @click="$router.push({ name: 'cluster' })"
+            >
+              ↑ {{ upgradeAvailable.available_version }}
+            </button>
             <span class="hidden lg:inline-flex border border-border bg-bg-canvas rounded px-2 py-0.5 font-mono text-xs text-fg-subtle"
                   title="Build commit">
               #{{ GIT_COMMIT }}
@@ -128,7 +136,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
-import { clusterHealth, clusterStatus } from '@/api/endpoints'
+import { clusterHealth, clusterStatus, checkUpgrade, type UpgradeCheck } from '@/api/endpoints'
 import type { ClusterHealth } from '@/api/types'
 
 declare const __GIT_COMMIT__: string
@@ -142,6 +150,7 @@ const router = useRouter()
 const sidebarOpen = ref(true)
 const health = ref<ClusterHealth | null>(null)
 const leaderId = ref<string | null>(null)
+const upgradeAvailable = ref<UpgradeCheck | null>(null)
 
 // Sidebar nav is grouped into thematic sections:
 //   Overview — the dashboard
@@ -253,12 +262,23 @@ async function refreshHealth() {
     }
   } catch { /* ignore */ }
 }
+async function refreshUpgrade() {
+  try {
+    const r = await checkUpgrade()
+    upgradeAvailable.value = r.upgrade_available ? r : null
+  } catch { /* ignore */ }
+}
+
 let healthTimer: ReturnType<typeof setInterval> | null = null
+let upgradeTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   await refreshHealth()
   healthTimer = setInterval(refreshHealth, 10_000)
+  await refreshUpgrade()
+  upgradeTimer = setInterval(refreshUpgrade, 3_600_000) // re-check every hour
 })
 onUnmounted(() => {
   if (healthTimer !== null) clearInterval(healthTimer)
+  if (upgradeTimer !== null) clearInterval(upgradeTimer)
 })
 </script>

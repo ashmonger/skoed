@@ -83,6 +83,15 @@ type AppState interface {
 	// RotateCerts triggers a cluster-wide mTLS certificate rotation (M20).
 	RotateCerts(ctx context.Context) error
 
+	// GetTLSRenewConfig returns the cluster-wide TLS auto-renewal settings (M34).
+	GetTLSRenewConfig() (config.TLSRenewConfig, error)
+
+	// SetTLSRenewConfig persists TLS auto-renewal settings cluster-wide via Raft (M34).
+	SetTLSRenewConfig(cfg config.TLSRenewConfig) error
+
+	// RotateNodeCert rotates the leaf cert for a single named node via Raft (M34).
+	RotateNodeCert(ctx context.Context, nodeID string) error
+
 	Dir() string
 
 	// GetBuildVersion returns the (version, commit) injected at link time.

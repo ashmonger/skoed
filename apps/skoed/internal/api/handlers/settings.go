@@ -16,6 +16,20 @@ type settingsResponse struct {
 	Filtering     filteringSettings     `json:"filtering"`
 	QueryLog      config.QueryLogConfig `json:"query_log"`
 	DNSCryptStamp string                `json:"dnscrypt_stamp,omitempty"` // M8: sdns:// URI
+	// M34: TLS auto-renewal settings (omitted when cluster has no TLS renew config).
+	TLS *tlsSettingsResp `json:"tls,omitempty"`
+}
+
+// tlsSettingsResp is the tls sub-object in the settings response.
+type tlsSettingsResp struct {
+	AutoRenew            bool            `json:"auto_renew"`
+	RenewalThresholdDays int             `json:"renewal_threshold_days"`
+	ACME                 acmeSettingsResp `json:"acme"`
+}
+
+type acmeSettingsResp struct {
+	Domains []string `json:"domains"`
+	Email   string   `json:"email"`
 }
 
 type filteringSettings struct {
@@ -32,6 +46,25 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		},
 		QueryLog:      cfg.QueryLog,
 		DNSCryptStamp: dnscryptStamp(h),
+	}
+	// M34: include TLS renew settings when a cluster is available.
+	if tlsCfg, err := h.app.GetTLSRenewConfig(); err == nil {
+		domains := tlsCfg.ACME.Domains
+		if domains == nil {
+			domains = []string{}
+		}
+		threshold := tlsCfg.RenewalThresholdDays
+		if threshold == 0 {
+			threshold = 30
+		}
+		resp.TLS = &tlsSettingsResp{
+			AutoRenew:            tlsCfg.AutoRenew,
+			RenewalThresholdDays: threshold,
+			ACME: acmeSettingsResp{
+				Domains: domains,
+				Email:   tlsCfg.ACME.Email,
+			},
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -216,6 +249,63 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		DNSCryptStamp: dnscryptStamp(h),
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// tlsSettingsPut is the body accepted by PUT /api/v1/settings/tls.
+type tlsSettingsPut struct {
+	AutoRenew            bool     `json:"auto_renew"`
+	RenewalThresholdDays int      `json:"renewal_threshold_days"`
+	ACME                 struct {
+		Domains []string `json:"domains"`
+		Email   string   `json:"email"`
+	} `json:"acme"`
+}
+
+// PutTLSSettings handles PUT /api/v1/settings/tls.
+// Persists TLS auto-renewal settings cluster-wide via Raft.
+func (h *Handler) PutTLSSettings(w http.ResponseWriter, r *http.Request) {
+	var body tlsSettingsPut
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	threshold := body.RenewalThresholdDays
+	if threshold == 0 {
+		threshold = 30
+	}
+	if threshold < 1 {
+		writeError(w, http.StatusBadRequest, "renewal_threshold_days must be >= 1")
+		return
+	}
+	domains := body.ACME.Domains
+	if domains == nil {
+		domains = []string{}
+	}
+	cfg := config.TLSRenewConfig{
+		AutoRenew:            body.AutoRenew,
+		RenewalThresholdDays: threshold,
+		ACME: config.ACMERenewConfig{
+			Domains: domains,
+			Email:   body.ACME.Email,
+		},
+	}
+	if err := h.app.SetTLSRenewConfig(cfg); err != nil {
+		writeError(w, http.StatusInternalServerError, "set tls renew config: "+err.Error())
+		return
+	}
+	saved, _ := h.app.GetTLSRenewConfig()
+	savedDomains := saved.ACME.Domains
+	if savedDomains == nil {
+		savedDomains = []string{}
+	}
+	writeJSON(w, http.StatusOK, tlsSettingsResp{
+		AutoRenew:            saved.AutoRenew,
+		RenewalThresholdDays: saved.RenewalThresholdDays,
+		ACME: acmeSettingsResp{
+			Domains: savedDomains,
+			Email:   saved.ACME.Email,
+		},
+	})
 }
 
 // Health handles GET /api/v1/health. No auth required.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sort"
 	"sync"
@@ -88,7 +89,11 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		if m.NodeID == selfID {
 			continue
 		}
-		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, m.APIAddress})
+		// Resolve wildcard bind address (0.0.0.0) to the peer's actual IP
+		// using its Raft address as fallback. Without this, connecting to
+		// 0.0.0.0:port on Linux routes to loopback and the leader upgrades
+		// itself instead of the peer.
+		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, resolvePeerAddr(m.APIAddress, m.RaftAddress)})
 	}
 	sort.Slice(peers, func(i, j int) bool { return peers[i].id < peers[j].id })
 
@@ -208,4 +213,20 @@ func removePeer(list []string, id string) []string {
 		}
 	}
 	return out
+}
+
+// resolvePeerAddr returns a connectable host:port for a cluster peer.
+// When the peer's API address is bound to 0.0.0.0 or ::, the host is
+// replaced with the IP extracted from the peer's Raft address.
+func resolvePeerAddr(apiAddr, raftAddr string) string {
+	host, port, err := net.SplitHostPort(apiAddr)
+	if err != nil {
+		return apiAddr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		if raftHost, _, rerr := net.SplitHostPort(raftAddr); rerr == nil && raftHost != "" {
+			return net.JoinHostPort(raftHost, port)
+		}
+	}
+	return apiAddr
 }

@@ -583,11 +583,22 @@ func runDaemon(cfgPath string) {
 	app.SetDohResolverScheduler(dohSched)
 	app.SetDohResolverStaleAfter(7 * 24 * time.Hour)
 
-	// M5.6 — release-feed checker. The feed URL comes from env in
-	// tests (SKOED_UPGRADE_FEED_URL) or — in a future iteration —
-	// from node.upgrade.feed_url in config.yaml. Empty URL disables
-	// the goroutine entirely.
+	// M5.6 — release-feed checker. Defaults to polling GitHub releases for
+	// "ashmonger/skoed". Override with SKOED_UPGRADE_FEED_URL (custom feed)
+	// or SKOED_UPGRADE_GITHUB_REPO (different repo). Set either to "-" to
+	// disable upgrade checks entirely.
 	feedURL := os.Getenv("SKOED_UPGRADE_FEED_URL")
+	githubRepo := os.Getenv("SKOED_UPGRADE_GITHUB_REPO")
+	if githubRepo == "" && feedURL == "" {
+		githubRepo = "ashmonger/skoed"
+	}
+	if feedURL == "-" {
+		feedURL = ""
+		githubRepo = ""
+	}
+	if githubRepo == "-" {
+		githubRepo = ""
+	}
 	upgradePoll := 6 * time.Hour
 	if os.Getenv("SKOED_TEST_MODE") == "1" {
 		upgradePoll = 500 * time.Millisecond
@@ -595,6 +606,7 @@ func runDaemon(cfgPath string) {
 	upgradeChk := upgrade.New(upgrade.Options{
 		CurrentVersion: version,
 		FeedURL:        feedURL,
+		GithubRepo:     githubRepo,
 		PollInterval:   upgradePoll,
 	})
 	upgradeChk.Start()

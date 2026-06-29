@@ -198,6 +198,20 @@ type TLSConfig struct {
 	KeyFile  string `yaml:"key_file,omitempty"  json:"key_file,omitempty"`
 }
 
+// TLSRenewConfig holds the cluster-replicated TLS auto-renewal settings (M34).
+// Stored in bbolt via Raft; controls the ACME background renewal job on every node.
+type TLSRenewConfig struct {
+	AutoRenew            bool           `yaml:"auto_renew"              json:"auto_renew"`
+	RenewalThresholdDays int            `yaml:"renewal_threshold_days"  json:"renewal_threshold_days"`
+	ACME                 ACMERenewConfig `yaml:"acme"                   json:"acme"`
+}
+
+// ACMERenewConfig holds ACME-specific fields within TLSRenewConfig.
+type ACMERenewConfig struct {
+	Domains []string `yaml:"domains" json:"domains"`
+	Email   string   `yaml:"email"   json:"email"`
+}
+
 type CacheConfig struct {
 	Enabled    bool `yaml:"enabled"     json:"enabled"`
 	MaxEntries int  `yaml:"max_entries" json:"max_entries"`

@@ -163,6 +163,11 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		c.mtlsLeafCert = leafCertPEM
 		c.mtlsLeafKey = leafKeyPEM
 		c.mtlsEnabled = true
+		// Seed this node's cert expiry at startup so CertStatus() can return
+		// per-node data before the first explicit cert rotation.
+		if expiry, perr := parseCertExpiry(leafCertPEM); perr == nil {
+			_ = store.SetNodeCertExpiry(node.Node.ID, expiry)
+		}
 	}
 
 	rn, err := newRaftNode(raftOptions{
@@ -840,6 +845,11 @@ func (c *Cluster) MintLeafForJoin(token, nodeID string) (caCert, leafCert, leafK
 	if ierr != nil {
 		return nil, nil, nil, fmt.Errorf("mint leaf for %s: %w", nodeID, ierr)
 	}
+	// Seed the new node's cert expiry on the leader so CertStatus() can report
+	// all enrolled nodes before the first explicit cert rotation.
+	if expiry, perr := parseCertExpiry(cert); perr == nil {
+		_ = c.store.SetNodeCertExpiry(nodeID, expiry)
+	}
 	return c.mtlsCA, cert, key, nil
 }
 
@@ -1069,41 +1079,57 @@ type NodeCertStatus struct {
 
 // SetCertCache wires the CertCache into the Cluster so RotateCerts can
 // hot-reload the local leaf cert after a rotation Raft apply.
+// Also records this node's initial cert expiry in bbolt so the leader
+// can aggregate all nodes' expiry via CertStatus().
 func (c *Cluster) SetCertCache(cc *CertCache) {
 	c.store.SetCertCache(cc, c.node.Node.ID)
+	// Populate initial expiry so CertStatus() works before the first rotation.
+	if expiry, err := cc.LeafExpiry(); err == nil {
+		_ = c.store.SetNodeCertExpiry(c.node.Node.ID, expiry)
+	}
 }
 
-// CertStatus returns the current certificate expiry from the cert cache.
-// Returns a zero CertsStatus when mTLS is disabled.
+// CertStatus returns the current certificate expiry from the cert cache and
+// the per-node expiry store. Returns a zero CertsStatus when mTLS is disabled.
 func (c *Cluster) CertStatus() CertsStatus {
 	if !c.mtlsEnabled {
 		return CertsStatus{}
 	}
-	var caExpiry, leafExpiry time.Time
+
+	var caExpiry time.Time
 	if cc := c.store.certCache; cc != nil {
 		if t, err := cc.CAExpiry(); err == nil {
 			caExpiry = t
 		}
-		if t, err := cc.LeafExpiry(); err == nil {
-			leafExpiry = t
-		}
-	} else {
-		if t, err := parseCertExpiry(c.mtlsCA); err == nil {
-			caExpiry = t
-		}
-		if t, err := parseCertExpiry(c.mtlsLeafCert); err == nil {
-			leafExpiry = t
-		}
+	} else if t, err := parseCertExpiry(c.mtlsCA); err == nil {
+		caExpiry = t
 	}
+
+	// Build per-node entries from the shared bbolt bucket so the leader
+	// can report all members, not just itself.
+	nodeExpiry := c.store.GetAllNodeCertExpiry()
+	var nodes []NodeCertStatus
+	for id, expiry := range nodeExpiry {
+		nodes = append(nodes, NodeCertStatus{
+			NodeID:        id,
+			CertExpiresAt: expiry,
+		})
+	}
+
+	// If no per-node data stored yet, fall back to local cert only.
+	if len(nodes) == 0 {
+		var leafExpiry time.Time
+		if cc := c.store.certCache; cc != nil {
+			leafExpiry, _ = cc.LeafExpiry()
+		} else {
+			leafExpiry, _ = parseCertExpiry(c.mtlsLeafCert)
+		}
+		nodes = []NodeCertStatus{{NodeID: c.node.Node.ID, CertExpiresAt: leafExpiry}}
+	}
+
 	return CertsStatus{
 		CAExpiresAt: caExpiry,
-		Nodes: []NodeCertStatus{
-			{
-				NodeID:          c.node.Node.ID,
-				CertExpiresAt:   leafExpiry,
-				RotationPending: false,
-			},
-		},
+		Nodes:       nodes,
 	}
 }
 
@@ -1173,6 +1199,65 @@ func (c *Cluster) RotateCerts(ctx context.Context) error {
 	}
 	return c.applyAsLeader(CmdCertRotation, payload, 15*time.Second)
 }
+
+// ─── M34: TLS auto-renewal config + per-node cert rotation ───────────────────
+
+// GetTLSRenewConfig returns the cluster-wide TLS auto-renewal settings.
+func (c *Cluster) GetTLSRenewConfig() (config.TLSRenewConfig, error) {
+	return c.store.GetTLSRenewConfig()
+}
+
+// SetTLSRenewConfig persists TLS auto-renewal settings cluster-wide via Raft.
+func (c *Cluster) SetTLSRenewConfig(cfg config.TLSRenewConfig) error {
+	return c.applyAsLeader(CmdTLSRenewConfigSet, TLSRenewConfigSetPayload{Config: cfg}, 10*time.Second)
+}
+
+// RotateNodeCert rotates the leaf cert for a single named node without
+// replacing the cluster CA. Must be called on the leader.
+func (c *Cluster) RotateNodeCert(ctx context.Context, nodeID string) error {
+	if err := c.requireLeader(); err != nil {
+		return err
+	}
+	if !c.mtlsEnabled {
+		return fmt.Errorf("mTLS is not enabled on this cluster")
+	}
+
+	// Validate the node is a known member.
+	members, err := c.store.Members()
+	if err != nil {
+		return fmt.Errorf("list members: %w", err)
+	}
+	found := false
+	for _, m := range members {
+		if m.NodeID == nodeID {
+			found = true
+			break
+		}
+	}
+	if !found && nodeID != c.node.Node.ID {
+		return ErrNodeNotFound
+	}
+
+	caKeyPEM, err := os.ReadFile(MtlsPaths(c.node.Node.DataDir).CAKeyFile)
+	if err != nil {
+		return fmt.Errorf("read CA key: %w", err)
+	}
+	certPEM, keyPEM, err := IssueLeafCert(c.mtlsCA, caKeyPEM, nodeID, nil)
+	if err != nil {
+		return fmt.Errorf("issue leaf cert: %w", err)
+	}
+
+	payload := RotateNodeCertPayload{
+		CACertPEM: c.mtlsCA,
+		NodeID:    nodeID,
+		CertPEM:   certPEM,
+		KeyPEM:    keyPEM,
+	}
+	return c.applyAsLeader(CmdRotateNodeCert, payload, 10*time.Second)
+}
+
+// ErrNodeNotFound is returned when a per-node operation targets an unknown node ID.
+var ErrNodeNotFound = fmt.Errorf("node not found")
 
 // generateFreshCA creates a new ECDSA P-256 CA cert+key without any
 // idempotency check (rotation always produces a new CA).

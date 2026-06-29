@@ -78,6 +78,9 @@ const (
 	CmdDhcp6StaticAssignmentDelete CommandKind = "dhcp6_server.static.delete"
 	CmdDhcp6ServerLeasesUpsert     CommandKind = "dhcp6_server.leases.upsert"
 	CmdDhcp6ServerLeaseDelete      CommandKind = "dhcp6_server.leases.delete"
+	// M34 — TLS auto-renewal config + per-node cert rotation.
+	CmdTLSRenewConfigSet CommandKind = "tls_renew.config.set"
+	CmdRotateNodeCert    CommandKind = "cert.node.rotate"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -426,4 +429,20 @@ type Dhcp6ServerLeaseDeletePayload struct {
 // CustomRulesSetPayload replaces the full cluster-wide custom rules text.
 type CustomRulesSetPayload struct {
 	Rules string `json:"rules"`
+}
+
+// ─── M34 payloads (TS-CertificateManagement) ─────────────────────────────────
+
+// TLSRenewConfigSetPayload replaces the cluster-wide TLS auto-renewal settings.
+type TLSRenewConfigSetPayload struct {
+	Config config.TLSRenewConfig `json:"config"`
+}
+
+// RotateNodeCertPayload carries a new leaf cert for a single node.
+// The CA cert is included so each node can update its CA trust store.
+type RotateNodeCertPayload struct {
+	CACertPEM []byte `json:"ca_cert_pem"`
+	NodeID    string `json:"node_id"`
+	CertPEM   []byte `json:"cert_pem"`
+	KeyPEM    []byte `json:"key_pem"`
 }

@@ -41,6 +41,7 @@ type CheckResult struct {
 type Checker struct {
 	currentVersion string
 	feedURL        string
+	githubRepo     string // non-empty → use GitHub releases API instead of feedURL
 	pollEvery      time.Duration
 	httpTimeout    time.Duration
 
@@ -55,7 +56,8 @@ type Checker struct {
 // Options bundles the wire-up knobs.
 type Options struct {
 	CurrentVersion string        // injected from main.go
-	FeedURL        string        // empty disables polling entirely
+	FeedURL        string        // explicit custom feed; takes priority over GithubRepo
+	GithubRepo     string        // "owner/repo" — auto-check GitHub releases when FeedURL is empty
 	PollInterval   time.Duration // default 6 h
 	HTTPTimeout    time.Duration // default 10 s
 }
@@ -71,14 +73,15 @@ func New(opts Options) *Checker {
 	return &Checker{
 		currentVersion: opts.CurrentVersion,
 		feedURL:        opts.FeedURL,
+		githubRepo:     opts.GithubRepo,
 		pollEvery:      opts.PollInterval,
 		httpTimeout:    opts.HTTPTimeout,
 	}
 }
 
-// Start spawns the polling goroutine. No-op when FeedURL is empty.
+// Start spawns the polling goroutine. No-op when neither FeedURL nor GithubRepo is set.
 func (c *Checker) Start() {
-	if c.feedURL == "" {
+	if c.feedURL == "" && c.githubRepo == "" {
 		return
 	}
 	if c.cancel != nil {
@@ -140,31 +143,124 @@ func (c *Checker) loop(ctx context.Context) {
 }
 
 func (c *Checker) pollOnce(ctx context.Context) {
-	client := &http.Client{Timeout: c.httpTimeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.feedURL, nil)
-	if err != nil {
-		return
+	var f *Feed
+	var err error
+	if c.githubRepo != "" && c.feedURL == "" {
+		f, err = fetchGitHubRelease(ctx, c.githubRepo, c.httpTimeout)
+	} else {
+		f, err = fetchFeed(ctx, c.feedURL, c.httpTimeout)
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if err != nil {
-		return
-	}
-	var f Feed
-	if err := json.Unmarshal(body, &f); err != nil {
+	if err != nil || f == nil {
 		return
 	}
 	c.mu.Lock()
-	c.feed = &f
+	c.feed = f
 	c.checkedAt = time.Now()
 	c.mu.Unlock()
+}
+
+func fetchFeed(ctx context.Context, feedURL string, timeout time.Duration) (*Feed, error) {
+	client := &http.Client{Timeout: timeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return nil, err
+	}
+	var f Feed
+	if err := json.Unmarshal(body, &f); err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+// githubRelease is the subset of the GitHub releases API response we care about.
+type githubRelease struct {
+	TagName     string `json:"tag_name"`
+	PublishedAt string `json:"published_at"`
+	HTMLURL     string `json:"html_url"`
+	Assets      []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+// fetchGitHubRelease queries the GitHub releases API and converts the response
+// to a Feed. Asset keys follow the goreleaser convention: "linux_amd64", etc.
+func fetchGitHubRelease(ctx context.Context, repo string, timeout time.Duration) (*Feed, error) {
+	url := "https://api.github.com/repos/" + repo + "/releases/latest"
+	client := &http.Client{Timeout: timeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("GitHub API: HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil, err
+	}
+	var rel githubRelease
+	if err := json.Unmarshal(body, &rel); err != nil {
+		return nil, err
+	}
+	f := &Feed{
+		Version:         strings.TrimPrefix(rel.TagName, "v"),
+		PublishedAt:     rel.PublishedAt,
+		ReleaseNotesURL: rel.HTMLURL,
+		Assets:          make(map[string]string),
+	}
+	// Map goreleaser asset names to AssetKey() keys ("linux_amd64", etc.).
+	// goreleaser names: "skoed_0.2.6_linux_amd64.tar.gz" → "linux_amd64"
+	// Strip the extension, then drop leading segments that aren't os_arch pairs.
+	for _, a := range rel.Assets {
+		key := assetKeyFromName(a.Name)
+		if key != "" {
+			f.Assets[key] = a.BrowserDownloadURL
+		}
+	}
+	return f, nil
+}
+
+// assetKeyFromName maps a goreleaser asset filename to the AssetKey() key
+// used by the upgrade handler (e.g. "linux_amd64"). It handles both:
+//   - "skoed_0.2.6_linux_amd64.tar.gz"  →  "linux_amd64"
+//   - "skoed_linux_amd64.tar.gz"         →  "linux_amd64"
+//
+// Only tar.gz archives are considered; other files (checksums, zip) are
+// skipped (empty string returned).
+func assetKeyFromName(filename string) string {
+	if !strings.HasSuffix(filename, ".tar.gz") {
+		return ""
+	}
+	name := strings.TrimSuffix(filename, ".tar.gz")
+	parts := strings.Split(name, "_")
+	// Walk from the end looking for a two-segment "os_arch" tail.
+	knownOS := map[string]bool{"linux": true, "darwin": true, "windows": true}
+	for i := len(parts) - 2; i >= 0; i-- {
+		if knownOS[parts[i]] {
+			return strings.Join(parts[i:], "_")
+		}
+	}
+	return ""
 }
 
 // isNewer reports whether candidate > current using a relaxed-semver
