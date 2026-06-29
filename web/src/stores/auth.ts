@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
-import { getToken, setToken, api } from '@/api/client'
+import { getToken, setToken, getSavedUser, setSavedUser, api } from '@/api/client'
 
 interface AuthState {
   user: string | null
@@ -10,7 +10,7 @@ interface AuthState {
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
-    user: getToken() ? '__session__' : null,
+    user: getToken() ? (getSavedUser() ?? '__session__') : null,
     ready: false,
     isSetup: false,
   }),
@@ -43,6 +43,7 @@ export const useAuthStore = defineStore('auth', {
         { timeout: 5000 },
       )
       setToken(resp.data.token)
+      setSavedUser(user)
       this.user = user
     },
     async setupFirstRun(user: string, pass: string) {
@@ -58,6 +59,7 @@ export const useAuthStore = defineStore('auth', {
         // Best-effort revocation; clear local state regardless.
       }
       setToken(null)
+      setSavedUser(null)
       this.user = null
     },
   },

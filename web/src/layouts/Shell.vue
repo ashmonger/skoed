@@ -1,5 +1,9 @@
 <template>
-  <div class="fixed inset-0 flex bg-bg-canvas">
+  <div class="fixed inset-0 flex flex-col bg-bg-canvas">
+    <!-- Flag ribbon — visible only when a pride palette is active -->
+    <div class="flag-ribbon flex-none" aria-hidden="true"></div>
+    <!-- Sidebar + main content row -->
+    <div class="flex flex-1 min-h-0">
     <!-- Sidebar (Pi-hole-inspired: persistent left nav with grouped sections) -->
     <aside
       class="w-60 shrink-0 border-r border-border bg-bg-card flex flex-col h-full"
@@ -120,6 +124,7 @@
         <RouterView />
       </main>
     </div>
+    </div><!-- end sidebar+content row -->
   </div>
 </template>
 
@@ -237,9 +242,12 @@ const paletteLabel = computed(() => ({
   'monokai-solarized': 'Monokai Solarized',
   'monokai-blue': 'Monokai Blue',
   'monokai-pro': 'Monokai Pro',
+  'pride': 'Progress Pride',
+  'bi': 'Bi Pride',
+  'trans': 'Trans Pride',
 }[theme.palette] ?? theme.palette))
 
-const PALETTES = ['lipgloss', 'monokai', 'monokai-solarized', 'monokai-blue', 'monokai-pro'] as const
+const PALETTES = ['lipgloss', 'monokai', 'monokai-solarized', 'monokai-blue', 'monokai-pro', 'pride', 'bi', 'trans'] as const
 
 function cyclePalette() {
   const idx = PALETTES.indexOf(theme.palette as typeof PALETTES[number])

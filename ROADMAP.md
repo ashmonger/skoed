@@ -1454,6 +1454,29 @@ Node certificate rotation:
 
 ---
 
+### Milestone 34.5 — Configurable Session Timeout
+
+**Outcome**: Administrators can control how long a web UI session stays valid before requiring re-authentication, so unattended consoles are protected and session lifetime matches organisational security policy.
+
+**Capabilities:**
+- **Configurable TTL in Settings**: the Settings page gains a "Session timeout" selector. Supported durations: 30 minutes, 1 hour, 4 hours, 8 hours (default), 24 hours, 7 days. The selected value is persisted in the cluster configuration and synced across nodes via Raft.
+- **JWT TTL enforcement**: sessions issued after a setting change use the new duration. The JWT `exp` claim is set to `issued_at + timeout`. On any authenticated request skoed validates `exp`; an expired token returns HTTP 401.
+- **Graceful expiry in the Web UI**: when the browser receives a 401 on any API call, it redirects the user to the login page with a short message indicating the session has expired.
+- **Existing sessions unaffected**: sessions created before the setting is changed keep their original `exp`; only new sessions use the updated timeout.
+- **Restart persistence**: the timeout setting is stored in the cluster configuration and reloaded on startup; new sessions after a restart respect the configured value.
+
+**Non-goals:**
+- Inactivity-based (idle) timeout — expiry is absolute from login time
+- Per-user or per-role timeout (single admin account)
+- API token lifetime (managed separately under M45)
+- Token rotation or sliding-window expiry
+- "Remember me" / keep-me-logged-in override
+- Forcing existing active sessions to expire immediately when the setting is changed
+
+**Dependencies:** M1 Web UI Authentication (JWT session model exists); M34 Certificate Management (Settings page architecture is the integration point).
+
+---
+
 ### Milestone 45 — API Token Enhancements
 
 **Outcome**: API tokens are safer in automated pipelines — they expire, are bound to a source IP, and carry a last-used timestamp so stale tokens can be identified and revoked.

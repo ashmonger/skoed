@@ -75,6 +75,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
 | M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
 | M34 | Certificate Management | ⬜ | — | — | — | — |
+| M34.5 | Configurable Session Timeout | ⬜ | — | — | [session-timeout](specs/functional/session-timeout.feature) | — |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
 | M37 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
