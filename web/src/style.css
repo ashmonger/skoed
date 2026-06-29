@@ -338,172 +338,213 @@ html.dark[data-palette="lipgloss"] .bg-accent-subtle { background-color: #2D2042
 
 /* =========================================================================
  * Palette: pride (Progress Pride Flag)
- *   Rainbow arc (red→violet) drives the semantic slots. Accent = violet,
- *   success = green, warning = orange, danger = red/pink. Dark bg is deep
- *   indigo-black; light bg is warm white with a faint purple tint.
+ *   Vivid rainbow semantic slots — electric violet accent, neon green, fire
+ *   orange, hard red. Dark bg is near-black indigo with colored card tint.
+ *   Light bg is clean white with vivid ink; borders carry a faint rainbow.
  * ========================================================================= */
 
-html[data-palette="pride"]:not(.dark) { background-color: #FDF8FF; color-scheme: light; }
-html[data-palette="pride"]:not(.dark) body { color: #1E1040; }
-html[data-palette="pride"]:not(.dark) .bg-bg-canvas { background-color: #FDF8FF; }
-html[data-palette="pride"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+/* Light: white canvas, pure black ink, flag-accurate violet/green/orange/red */
+html[data-palette="pride"]:not(.dark) { background-color: #FFFFFF; color-scheme: light; }
+html[data-palette="pride"]:not(.dark) body { color: #0A040C; }
+html[data-palette="pride"]:not(.dark) .bg-bg-canvas { background-color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-bg-card { background-color: #FAF5FF; }
 html[data-palette="pride"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
-html[data-palette="pride"]:not(.dark) .bg-bg-hover { background-color: #F0E6FF; }
-html[data-palette="pride"]:not(.dark) .text-fg { color: #1E1040; }
-html[data-palette="pride"]:not(.dark) .text-fg-strong { color: #0D0820; }
-html[data-palette="pride"]:not(.dark) .text-fg-muted { color: #5E3A90; }
-html[data-palette="pride"]:not(.dark) .text-fg-subtle { color: #9878C0; }
-html[data-palette="pride"]:not(.dark) .border-border { border-color: #DDD0F8; }
-html[data-palette="pride"]:not(.dark) .text-accent { color: #7C2FE0; }
-html[data-palette="pride"]:not(.dark) .bg-accent { background-color: #7C2FE0; color: #FFFFFF; }
-html[data-palette="pride"]:not(.dark) .bg-accent:hover { background-color: #621FC0; }
-html[data-palette="pride"]:not(.dark) .text-success { color: #1A8A00; }
-html[data-palette="pride"]:not(.dark) .bg-success { background-color: #1A8A00; color: #FFFFFF; }
-html[data-palette="pride"]:not(.dark) .bg-success-subtle { background-color: #D8F5D0; color: #1A8A00; }
-html[data-palette="pride"]:not(.dark) .text-warning { color: #C05C00; }
-html[data-palette="pride"]:not(.dark) .bg-warning { background-color: #C05C00; color: #FFFFFF; }
-html[data-palette="pride"]:not(.dark) .bg-warning-subtle { background-color: #FDECD8; color: #C05C00; }
-html[data-palette="pride"]:not(.dark) .text-danger { color: #CC1020; }
-html[data-palette="pride"]:not(.dark) .bg-danger { background-color: #CC1020; color: #FFFFFF; }
-html[data-palette="pride"]:not(.dark) .bg-danger-subtle { background-color: #FDDDE0; color: #CC1020; }
-html[data-palette="pride"]:not(.dark) .bg-accent-subtle { background-color: #EEE0FF; color: #7C2FE0; }
+html[data-palette="pride"]:not(.dark) .bg-bg-hover { background-color: #F0E0FF; }
+html[data-palette="pride"]:not(.dark) .text-fg { color: #0A040C; }
+html[data-palette="pride"]:not(.dark) .text-fg-strong { color: #000000; }
+html[data-palette="pride"]:not(.dark) .text-fg-muted { color: #4A0660; }
+html[data-palette="pride"]:not(.dark) .text-fg-subtle { color: #8C3CAC; }
+html[data-palette="pride"]:not(.dark) .border-border { border-color: #D4B0EC; }
+html[data-palette="pride"]:not(.dark) .text-accent { color: #750787; }
+html[data-palette="pride"]:not(.dark) .bg-accent { background-color: #750787; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-accent:hover { background-color: #5A0668; }
+html[data-palette="pride"]:not(.dark) .text-success { color: #006820; }
+html[data-palette="pride"]:not(.dark) .bg-success { background-color: #008026; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-success-subtle { background-color: #C8FFD8; color: #006020; }
+html[data-palette="pride"]:not(.dark) .text-warning { color: #A03800; }
+html[data-palette="pride"]:not(.dark) .bg-warning { background-color: #CC5200; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-warning-subtle { background-color: #FFE4C0; color: #A03800; }
+html[data-palette="pride"]:not(.dark) .text-danger { color: #B80000; }
+html[data-palette="pride"]:not(.dark) .bg-danger { background-color: #E40303; color: #FFFFFF; }
+html[data-palette="pride"]:not(.dark) .bg-danger-subtle { background-color: #FFD0D0; color: #B80000; }
+html[data-palette="pride"]:not(.dark) .bg-accent-subtle { background-color: #ECD8FF; color: #750787; }
 
-html.dark[data-palette="pride"] { background-color: #0E0820; color-scheme: dark; }
-html.dark[data-palette="pride"] body { color: #EFE0FF; }
-html.dark[data-palette="pride"] .bg-bg-canvas { background-color: #0E0820; }
-html.dark[data-palette="pride"] .bg-bg-card { background-color: #1A1234; }
-html.dark[data-palette="pride"] .bg-bg-input { background-color: #090614; }
-html.dark[data-palette="pride"] .bg-bg-hover { background-color: #261848; }
-html.dark[data-palette="pride"] .text-fg { color: #EFE0FF; }
+/* Dark: near-black base (flag black stripe), rainbow semantics from actual flag hex */
+html.dark[data-palette="pride"] { background-color: #080808; color-scheme: dark; }
+html.dark[data-palette="pride"] body { color: #F4EEFF; }
+html.dark[data-palette="pride"] .bg-bg-canvas { background-color: #080808; }
+html.dark[data-palette="pride"] .bg-bg-card { background-color: #110B1C; }
+html.dark[data-palette="pride"] .bg-bg-input { background-color: #040408; }
+html.dark[data-palette="pride"] .bg-bg-hover { background-color: #1C0E30; }
+html.dark[data-palette="pride"] .text-fg { color: #F4EEFF; }
 html.dark[data-palette="pride"] .text-fg-strong { color: #FFFFFF; }
-html.dark[data-palette="pride"] .text-fg-muted { color: #B090D8; }
-html.dark[data-palette="pride"] .text-fg-subtle { color: #6A4C90; }
-html.dark[data-palette="pride"] .border-border { border-color: #261848; }
-html.dark[data-palette="pride"] .text-accent { color: #C070FF; }
-html.dark[data-palette="pride"] .bg-accent { background-color: #9040F0; color: #FFFFFF; }
-html.dark[data-palette="pride"] .bg-accent:hover { background-color: #A858FF; }
-html.dark[data-palette="pride"] .text-success { color: #58E840; }
-html.dark[data-palette="pride"] .bg-success { background-color: #2EA820; color: #0E0820; }
-html.dark[data-palette="pride"] .bg-success-subtle { background-color: #1A1234; color: #58E840; }
-html.dark[data-palette="pride"] .text-warning { color: #FFB040; }
-html.dark[data-palette="pride"] .bg-warning { background-color: #E07800; color: #0E0820; }
-html.dark[data-palette="pride"] .bg-warning-subtle { background-color: #1A1234; color: #FFB040; }
-html.dark[data-palette="pride"] .text-danger { color: #FF5868; }
-html.dark[data-palette="pride"] .bg-danger { background-color: #E02030; color: #FFFFFF; }
-html.dark[data-palette="pride"] .bg-danger-subtle { background-color: #1A1234; color: #FF5868; }
-html.dark[data-palette="pride"] .bg-accent-subtle { background-color: #2A1650; color: #C070FF; }
+html.dark[data-palette="pride"] .text-fg-muted { color: #B878E8; }
+html.dark[data-palette="pride"] .text-fg-subtle { color: #603880; }
+html.dark[data-palette="pride"] .border-border { border-color: #220C38; }
+html.dark[data-palette="pride"] .text-accent { color: #CC50FF; }
+html.dark[data-palette="pride"] .bg-accent { background-color: #8B12BA; color: #FFFFFF; }
+html.dark[data-palette="pride"] .bg-accent:hover { background-color: #AA20D8; }
+html.dark[data-palette="pride"] .text-success { color: #00DD40; }
+html.dark[data-palette="pride"] .bg-success { background-color: #007822; color: #F4EEFF; }
+html.dark[data-palette="pride"] .bg-success-subtle { background-color: #03100A; color: #00DD40; }
+html.dark[data-palette="pride"] .text-warning { color: #FF8C00; }
+html.dark[data-palette="pride"] .bg-warning { background-color: #C05000; color: #F4EEFF; }
+html.dark[data-palette="pride"] .bg-warning-subtle { background-color: #180A00; color: #FF8C00; }
+html.dark[data-palette="pride"] .text-danger { color: #FF3030; }
+html.dark[data-palette="pride"] .bg-danger { background-color: #B80000; color: #FFFFFF; }
+html.dark[data-palette="pride"] .bg-danger-subtle { background-color: #180000; color: #FF3030; }
+html.dark[data-palette="pride"] .bg-accent-subtle { background-color: #1A0830; color: #CC50FF; }
+
+/* Flag ribbon — Progress Pride: Black, Brown, Red, Orange, Yellow, Green, Blue, Purple */
+.flag-ribbon { height: 0; width: 100%; }
+html[data-palette="pride"] .flag-ribbon,
+html[data-palette="bi"]    .flag-ribbon,
+html[data-palette="trans"] .flag-ribbon { height: 6px; }
+
+html[data-palette="pride"] .flag-ribbon {
+  background: linear-gradient(to right,
+    #000000 0% 12.5%,
+    #613915 12.5% 25%,
+    #E40303 25% 37.5%,
+    #FF8C00 37.5% 50%,
+    #FFED00 50% 62.5%,
+    #008026 62.5% 75%,
+    #004DFF 75% 87.5%,
+    #750787 87.5% 100%
+  );
+}
 
 /* =========================================================================
  * Palette: bi (Bisexual Flag)
- *   Three stripes: magenta (#D60270), purple (#9B4F96), royal blue (#0038A8).
- *   Accent = bi magenta, success = bi blue, dark bg = deep purple-midnight.
+ *   Vivid bi magenta (#D60270) dominant accent. Deep royal blue for success.
+ *   Near-black purple-midnight background in dark; clean white in light.
  * ========================================================================= */
 
-html[data-palette="bi"]:not(.dark) { background-color: #FBF7FF; color-scheme: light; }
-html[data-palette="bi"]:not(.dark) body { color: #260540; }
-html[data-palette="bi"]:not(.dark) .bg-bg-canvas { background-color: #FBF7FF; }
-html[data-palette="bi"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) { background-color: #FFFFFF; color-scheme: light; }
+html[data-palette="bi"]:not(.dark) body { color: #1A0030; }
+html[data-palette="bi"]:not(.dark) .bg-bg-canvas { background-color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-bg-card { background-color: #FBF4FF; }
 html[data-palette="bi"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
-html[data-palette="bi"]:not(.dark) .bg-bg-hover { background-color: #F4E8FF; }
-html[data-palette="bi"]:not(.dark) .text-fg { color: #260540; }
-html[data-palette="bi"]:not(.dark) .text-fg-strong { color: #130228; }
-html[data-palette="bi"]:not(.dark) .text-fg-muted { color: #6E3080; }
-html[data-palette="bi"]:not(.dark) .text-fg-subtle { color: #A878B8; }
-html[data-palette="bi"]:not(.dark) .border-border { border-color: #E4CEF8; }
-html[data-palette="bi"]:not(.dark) .text-accent { color: #B8005E; }
+html[data-palette="bi"]:not(.dark) .bg-bg-hover { background-color: #F5E0FF; }
+html[data-palette="bi"]:not(.dark) .text-fg { color: #1A0030; }
+html[data-palette="bi"]:not(.dark) .text-fg-strong { color: #0A0018; }
+html[data-palette="bi"]:not(.dark) .text-fg-muted { color: #601070; }
+html[data-palette="bi"]:not(.dark) .text-fg-subtle { color: #A050A8; }
+html[data-palette="bi"]:not(.dark) .border-border { border-color: #E0C0F0; }
+html[data-palette="bi"]:not(.dark) .text-accent { color: #C00068; }
 html[data-palette="bi"]:not(.dark) .bg-accent { background-color: #D60270; color: #FFFFFF; }
 html[data-palette="bi"]:not(.dark) .bg-accent:hover { background-color: #A80058; }
-html[data-palette="bi"]:not(.dark) .text-success { color: #004EB0; }
-html[data-palette="bi"]:not(.dark) .bg-success { background-color: #0050B8; color: #FFFFFF; }
-html[data-palette="bi"]:not(.dark) .bg-success-subtle { background-color: #D8E8FF; color: #004EB0; }
-html[data-palette="bi"]:not(.dark) .text-warning { color: #8B4A00; }
-html[data-palette="bi"]:not(.dark) .bg-warning { background-color: #A05800; color: #FFFFFF; }
-html[data-palette="bi"]:not(.dark) .bg-warning-subtle { background-color: #FCECD8; color: #8B4A00; }
-html[data-palette="bi"]:not(.dark) .text-danger { color: #9B0060; }
-html[data-palette="bi"]:not(.dark) .bg-danger { background-color: #B00060; color: #FFFFFF; }
-html[data-palette="bi"]:not(.dark) .bg-danger-subtle { background-color: #FCDAEE; color: #9B0060; }
-html[data-palette="bi"]:not(.dark) .bg-accent-subtle { background-color: #FADDEE; color: #B8005E; }
+html[data-palette="bi"]:not(.dark) .text-success { color: #003898; }
+html[data-palette="bi"]:not(.dark) .bg-success { background-color: #0038A8; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-success-subtle { background-color: #CCE0FF; color: #003898; }
+html[data-palette="bi"]:not(.dark) .text-warning { color: #884000; }
+html[data-palette="bi"]:not(.dark) .bg-warning { background-color: #A85000; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-warning-subtle { background-color: #FFEAD0; color: #884000; }
+html[data-palette="bi"]:not(.dark) .text-danger { color: #980050; }
+html[data-palette="bi"]:not(.dark) .bg-danger { background-color: #CC0065; color: #FFFFFF; }
+html[data-palette="bi"]:not(.dark) .bg-danger-subtle { background-color: #FFD0E8; color: #980050; }
+html[data-palette="bi"]:not(.dark) .bg-accent-subtle { background-color: #FFD8EE; color: #C00068; }
 
-html.dark[data-palette="bi"] { background-color: #100820; color-scheme: dark; }
-html.dark[data-palette="bi"] body { color: #F0D8FF; }
-html.dark[data-palette="bi"] .bg-bg-canvas { background-color: #100820; }
-html.dark[data-palette="bi"] .bg-bg-card { background-color: #1C0E34; }
-html.dark[data-palette="bi"] .bg-bg-input { background-color: #0A0618; }
-html.dark[data-palette="bi"] .bg-bg-hover { background-color: #281048; }
-html.dark[data-palette="bi"] .text-fg { color: #F0D8FF; }
+html.dark[data-palette="bi"] { background-color: #01091E; color-scheme: dark; }
+html.dark[data-palette="bi"] body { color: #D0E8FF; }
+html.dark[data-palette="bi"] .bg-bg-canvas { background-color: #01091E; }
+html.dark[data-palette="bi"] .bg-bg-card { background-color: #041528; }
+html.dark[data-palette="bi"] .bg-bg-input { background-color: #000810; }
+html.dark[data-palette="bi"] .bg-bg-hover { background-color: #082038; }
+html.dark[data-palette="bi"] .text-fg { color: #D0E8FF; }
 html.dark[data-palette="bi"] .text-fg-strong { color: #FFFFFF; }
-html.dark[data-palette="bi"] .text-fg-muted { color: #C090E0; }
-html.dark[data-palette="bi"] .text-fg-subtle { color: #7A4898; }
-html.dark[data-palette="bi"] .border-border { border-color: #281048; }
-html.dark[data-palette="bi"] .text-accent { color: #F060A8; }
+html.dark[data-palette="bi"] .text-fg-muted { color: #5880C8; }
+html.dark[data-palette="bi"] .text-fg-subtle { color: #2B4A72; }
+html.dark[data-palette="bi"] .border-border { border-color: #0A2040; }
+html.dark[data-palette="bi"] .text-accent { color: #FF50A8; }
 html.dark[data-palette="bi"] .bg-accent { background-color: #D60270; color: #FFFFFF; }
-html.dark[data-palette="bi"] .bg-accent:hover { background-color: #F03090; }
-html.dark[data-palette="bi"] .text-success { color: #4898F0; }
-html.dark[data-palette="bi"] .bg-success { background-color: #1868D0; color: #FFFFFF; }
-html.dark[data-palette="bi"] .bg-success-subtle { background-color: #1C0E34; color: #4898F0; }
-html.dark[data-palette="bi"] .text-warning { color: #FFB060; }
-html.dark[data-palette="bi"] .bg-warning { background-color: #C07000; color: #100820; }
-html.dark[data-palette="bi"] .bg-warning-subtle { background-color: #1C0E34; color: #FFB060; }
-html.dark[data-palette="bi"] .text-danger { color: #FF50A0; }
-html.dark[data-palette="bi"] .bg-danger { background-color: #C01870; color: #FFFFFF; }
-html.dark[data-palette="bi"] .bg-danger-subtle { background-color: #1C0E34; color: #FF50A0; }
-html.dark[data-palette="bi"] .bg-accent-subtle { background-color: #301248; color: #F060A8; }
+html.dark[data-palette="bi"] .bg-accent:hover { background-color: #FF0080; }
+html.dark[data-palette="bi"] .text-success { color: #5AAAFF; }
+html.dark[data-palette="bi"] .bg-success { background-color: #0038A8; color: #FFFFFF; }
+html.dark[data-palette="bi"] .bg-success-subtle { background-color: #001228; color: #5AAAFF; }
+html.dark[data-palette="bi"] .text-warning { color: #FFA040; }
+html.dark[data-palette="bi"] .bg-warning { background-color: #B86000; color: #D0E8FF; }
+html.dark[data-palette="bi"] .bg-warning-subtle { background-color: #1A0C00; color: #FFA040; }
+html.dark[data-palette="bi"] .text-danger { color: #FF60A8; }
+html.dark[data-palette="bi"] .bg-danger { background-color: #B00060; color: #FFFFFF; }
+html.dark[data-palette="bi"] .bg-danger-subtle { background-color: #180018; color: #FF60A8; }
+html.dark[data-palette="bi"] .bg-accent-subtle { background-color: #1C0838; color: #FF50A8; }
+
+/* Flag ribbon — Bisexual: Pink 40%, Purple 20%, Blue 40% */
+html[data-palette="bi"] .flag-ribbon {
+  background: linear-gradient(to right,
+    #D60270 0% 40%,
+    #9B4F96 40% 60%,
+    #0038A8 60% 100%
+  );
+}
 
 /* =========================================================================
- * Palette: trans (Trans Flag)
- *   Light blue (#55CDFC), pink (#F5A9B8), white. Soft and airy.
- *   Accent = trans blue, danger = trans pink. Dark bg = deep midnight blue.
+ * Palette: trans (Trans Pride Flag)
+ *   Electric cyan (#55CDFC) accent pops against near-black navy. Trans pink
+ *   (#F5A9B8) as danger. Clean white with vivid ink in light mode.
  * ========================================================================= */
 
-html[data-palette="trans"]:not(.dark) { background-color: #F5FBFF; color-scheme: light; }
-html[data-palette="trans"]:not(.dark) body { color: #0E2A40; }
-html[data-palette="trans"]:not(.dark) .bg-bg-canvas { background-color: #F5FBFF; }
+html[data-palette="trans"]:not(.dark) { background-color: #FFF5F7; color-scheme: light; }
+html[data-palette="trans"]:not(.dark) body { color: #280818; }
+html[data-palette="trans"]:not(.dark) .bg-bg-canvas { background-color: #FFF5F7; }
 html[data-palette="trans"]:not(.dark) .bg-bg-card { background-color: #FFFFFF; }
 html[data-palette="trans"]:not(.dark) .bg-bg-input { background-color: #FFFFFF; }
-html[data-palette="trans"]:not(.dark) .bg-bg-hover { background-color: #E4F5FF; }
-html[data-palette="trans"]:not(.dark) .text-fg { color: #0E2A40; }
-html[data-palette="trans"]:not(.dark) .text-fg-strong { color: #061828; }
-html[data-palette="trans"]:not(.dark) .text-fg-muted { color: #3A6888; }
-html[data-palette="trans"]:not(.dark) .text-fg-subtle { color: #7AAAC0; }
-html[data-palette="trans"]:not(.dark) .border-border { border-color: #C0E4F8; }
-html[data-palette="trans"]:not(.dark) .text-accent { color: #0090C8; }
-html[data-palette="trans"]:not(.dark) .bg-accent { background-color: #1AABDC; color: #FFFFFF; }
-html[data-palette="trans"]:not(.dark) .bg-accent:hover { background-color: #0088B8; }
-html[data-palette="trans"]:not(.dark) .text-success { color: #1A8060; }
-html[data-palette="trans"]:not(.dark) .bg-success { background-color: #1A8060; color: #FFFFFF; }
-html[data-palette="trans"]:not(.dark) .bg-success-subtle { background-color: #D0F0E8; color: #1A8060; }
-html[data-palette="trans"]:not(.dark) .text-warning { color: #B06000; }
-html[data-palette="trans"]:not(.dark) .bg-warning { background-color: #C07000; color: #FFFFFF; }
-html[data-palette="trans"]:not(.dark) .bg-warning-subtle { background-color: #FEF0DC; color: #B06000; }
-html[data-palette="trans"]:not(.dark) .text-danger { color: #C0406A; }
-html[data-palette="trans"]:not(.dark) .bg-danger { background-color: #C84070; color: #FFFFFF; }
-html[data-palette="trans"]:not(.dark) .bg-danger-subtle { background-color: #FDDEE7; color: #C0406A; }
-html[data-palette="trans"]:not(.dark) .bg-accent-subtle { background-color: #D8F0FC; color: #0090C8; }
+html[data-palette="trans"]:not(.dark) .bg-bg-hover { background-color: #FFE4EC; }
+html[data-palette="trans"]:not(.dark) .text-fg { color: #280818; }
+html[data-palette="trans"]:not(.dark) .text-fg-strong { color: #180410; }
+html[data-palette="trans"]:not(.dark) .text-fg-muted { color: #882050; }
+html[data-palette="trans"]:not(.dark) .text-fg-subtle { color: #C07090; }
+html[data-palette="trans"]:not(.dark) .border-border { border-color: #F0B8CC; }
+html[data-palette="trans"]:not(.dark) .text-accent { color: #C0205A; }
+html[data-palette="trans"]:not(.dark) .bg-accent { background-color: #D83070; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-accent:hover { background-color: #A81850; }
+html[data-palette="trans"]:not(.dark) .text-success { color: #007050; }
+html[data-palette="trans"]:not(.dark) .bg-success { background-color: #008860; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-success-subtle { background-color: #CCEFDF; color: #006040; }
+html[data-palette="trans"]:not(.dark) .text-warning { color: #A85000; }
+html[data-palette="trans"]:not(.dark) .bg-warning { background-color: #C86000; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-warning-subtle { background-color: #FFE8C8; color: #A04000; }
+html[data-palette="trans"]:not(.dark) .text-danger { color: #B82858; }
+html[data-palette="trans"]:not(.dark) .bg-danger { background-color: #CC2860; color: #FFFFFF; }
+html[data-palette="trans"]:not(.dark) .bg-danger-subtle { background-color: #FFD4E0; color: #B82858; }
+html[data-palette="trans"]:not(.dark) .bg-accent-subtle { background-color: #FFD8E8; color: #C0205A; }
 
-html.dark[data-palette="trans"] { background-color: #081828; color-scheme: dark; }
-html.dark[data-palette="trans"] body { color: #C8E8FF; }
-html.dark[data-palette="trans"] .bg-bg-canvas { background-color: #081828; }
-html.dark[data-palette="trans"] .bg-bg-card { background-color: #102038; }
-html.dark[data-palette="trans"] .bg-bg-input { background-color: #050F1C; }
-html.dark[data-palette="trans"] .bg-bg-hover { background-color: #183048; }
-html.dark[data-palette="trans"] .text-fg { color: #C8E8FF; }
+html.dark[data-palette="trans"] { background-color: #020C1C; color-scheme: dark; }
+html.dark[data-palette="trans"] body { color: #D0EEFF; }
+html.dark[data-palette="trans"] .bg-bg-canvas { background-color: #020C1C; }
+html.dark[data-palette="trans"] .bg-bg-card { background-color: #081828; }
+html.dark[data-palette="trans"] .bg-bg-input { background-color: #01060E; }
+html.dark[data-palette="trans"] .bg-bg-hover { background-color: #0E2438; }
+html.dark[data-palette="trans"] .text-fg { color: #D0EEFF; }
 html.dark[data-palette="trans"] .text-fg-strong { color: #FFFFFF; }
-html.dark[data-palette="trans"] .text-fg-muted { color: #80B8D8; }
-html.dark[data-palette="trans"] .text-fg-subtle { color: #406880; }
-html.dark[data-palette="trans"] .border-border { border-color: #183048; }
+html.dark[data-palette="trans"] .text-fg-muted { color: #70C0E8; }
+html.dark[data-palette="trans"] .text-fg-subtle { color: #305870; }
+html.dark[data-palette="trans"] .border-border { border-color: #0E2438; }
 html.dark[data-palette="trans"] .text-accent { color: #55CDFC; }
-html.dark[data-palette="trans"] .bg-accent { background-color: #2AB0E0; color: #081828; }
+html.dark[data-palette="trans"] .bg-accent { background-color: #0AABDD; color: #020C1C; }
 html.dark[data-palette="trans"] .bg-accent:hover { background-color: #55CDFC; }
-html.dark[data-palette="trans"] .text-success { color: #40D8A0; }
-html.dark[data-palette="trans"] .bg-success { background-color: #20A878; color: #081828; }
-html.dark[data-palette="trans"] .bg-success-subtle { background-color: #102038; color: #40D8A0; }
-html.dark[data-palette="trans"] .text-warning { color: #FFB84D; }
-html.dark[data-palette="trans"] .bg-warning { background-color: #C07800; color: #081828; }
-html.dark[data-palette="trans"] .bg-warning-subtle { background-color: #102038; color: #FFB84D; }
+html.dark[data-palette="trans"] .text-success { color: #00FFAA; }
+html.dark[data-palette="trans"] .bg-success { background-color: #00A870; color: #020C1C; }
+html.dark[data-palette="trans"] .bg-success-subtle { background-color: #001C10; color: #00FFAA; }
+html.dark[data-palette="trans"] .text-warning { color: #FFB840; }
+html.dark[data-palette="trans"] .bg-warning { background-color: #C07000; color: #D0EEFF; }
+html.dark[data-palette="trans"] .bg-warning-subtle { background-color: #1C0E00; color: #FFB840; }
 html.dark[data-palette="trans"] .text-danger { color: #F5A9B8; }
 html.dark[data-palette="trans"] .bg-danger { background-color: #C84070; color: #FFFFFF; }
-html.dark[data-palette="trans"] .bg-danger-subtle { background-color: #102038; color: #F5A9B8; }
-html.dark[data-palette="trans"] .bg-accent-subtle { background-color: #0E2A40; color: #55CDFC; }
+html.dark[data-palette="trans"] .bg-danger-subtle { background-color: #1C0010; color: #F5A9B8; }
+html.dark[data-palette="trans"] .bg-accent-subtle { background-color: #041428; color: #55CDFC; }
+
+/* Flag ribbon — Trans: Light Blue, Pink, White, Pink, Light Blue (each 20%) */
+html[data-palette="trans"] .flag-ribbon {
+  background: linear-gradient(to right,
+    #55CDFC 0% 20%,
+    #F5A9B8 20% 40%,
+    #FFFFFF 40% 60%,
+    #F5A9B8 60% 80%,
+    #55CDFC 80% 100%
+  );
+}
 
 /* =========================================================================
  * Hover bg overrides for dark palettes
