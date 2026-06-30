@@ -239,6 +239,10 @@ export function deleteSchedule(id: string): Promise<void> {
   return deleteRequest(`/api/v1/schedules/${encodeURIComponent(id)}`)
 }
 
+export function listScheduleBindings(id: string): Promise<ScheduleBinding[]> {
+  return getJSON(`/api/v1/schedules/${encodeURIComponent(id)}/bindings`)
+}
+
 export function addScheduleBinding(id: string, profile_id: string, blocklist_id: string): Promise<ScheduleBinding> {
   return postJSON(`/api/v1/schedules/${encodeURIComponent(id)}/bindings`, { profile_id, blocklist_id })
 }

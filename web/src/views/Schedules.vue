@@ -1,15 +1,4 @@
-<!--
-  Schedules.vue — M3 schedule management page.
-
-  Known M3.1 gap: the management API exposes addScheduleBinding /
-  deleteScheduleBinding but no "list bindings" endpoint. Bindings live in
-  the cluster snapshot (reachable only via /api/v1/config/export as YAML).
-  Rather than ship a browser-side YAML parser, this page keeps a
-  per-schedule in-memory list of bindings the operator has added/removed
-  during the current session. On reload the list starts empty until the
-  operator adds new ones. This is documented in ROADMAP.md as an M3.1 gap
-  and will be fixed when GET /api/v1/schedules/{id}/bindings lands.
--->
+<!-- Schedules.vue — M3 schedule management page. -->
 <template>
   <div class="space-y-4">
     <!-- Global error banner -->
@@ -89,26 +78,27 @@
                 <div class="space-y-3 p-2">
                   <p class="text-xs text-fg-muted">
                     Bindings attach this schedule to a (profile, blocklist) pair.
-                    Existing bindings are not listed (no server-side enumeration endpoint
-                    yet — known M3.1 gap); only ones added in this session are shown.
                   </p>
 
-                  <ul v-if="(bindings[s.id]?.length ?? 0) > 0" class="space-y-1">
-                    <li v-for="b in bindings[s.id]"
-                        :key="`${b.profile_id}|${b.blocklist_id}`"
-                        class="flex items-center gap-2 text-xs">
-                      <span class="badge-accent font-mono">{{ b.profile_id }}</span>
-                      <span class="text-fg-subtle">→</span>
-                      <span class="badge-accent font-mono">{{ b.blocklist_id }}</span>
-                      <button class="btn-ghost text-danger ml-auto !py-0 !px-1"
-                              title="Remove binding"
-                              :disabled="!!bindingRemoving[`${s.id}|${b.profile_id}|${b.blocklist_id}`]"
-                              @click="removeBinding(s.id, b.profile_id, b.blocklist_id)">
-                        <XMarkIcon class="h-3 w-3" />
-                      </button>
-                    </li>
-                  </ul>
-                  <p v-else class="text-xs text-fg-subtle">No bindings tracked in this session.</p>
+                  <p v-if="bindingsLoading[s.id]" class="text-xs text-fg-subtle">Loading…</p>
+                  <template v-else>
+                    <ul v-if="(bindings[s.id]?.length ?? 0) > 0" class="space-y-1">
+                      <li v-for="b in bindings[s.id]"
+                          :key="`${b.profile_id}|${b.blocklist_id}`"
+                          class="flex items-center gap-2 text-xs">
+                        <span class="badge-accent font-mono">{{ b.profile_id }}</span>
+                        <span class="text-fg-subtle">→</span>
+                        <span class="badge-accent font-mono">{{ b.blocklist_id }}</span>
+                        <button class="btn-ghost text-danger ml-auto !py-0 !px-1"
+                                title="Remove binding"
+                                :disabled="!!bindingRemoving[`${s.id}|${b.profile_id}|${b.blocklist_id}`]"
+                                @click="removeBinding(s.id, b.profile_id, b.blocklist_id)">
+                          <XMarkIcon class="h-3 w-3" />
+                        </button>
+                      </li>
+                    </ul>
+                    <p v-else class="text-xs text-fg-subtle">No bindings.</p>
+                  </template>
 
                   <form class="flex flex-wrap items-end gap-2"
                         @submit.prevent="submitBinding(s.id)">
@@ -289,7 +279,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import {
   addScheduleBinding, createSchedule, deleteSchedule, deleteScheduleBinding,
-  listBlocklists, listProfiles, listSchedules, updateSchedule,
+  listBlocklists, listProfiles, listScheduleBindings, listSchedules, updateSchedule,
 } from '@/api/endpoints'
 import type {
   Blocklist, Profile, Schedule, ScheduleBinding, ScheduleMode, TimeWindow,
@@ -335,9 +325,9 @@ const form = reactive<FormState>(emptyForm())
 const pendingDelete = ref<Schedule | null>(null)
 const deleting = ref(false)
 
-// Bindings: tracked locally per schedule because no list endpoint exists.
 const expandedId = ref<string | null>(null)
 const bindings = reactive<Record<string, ScheduleBinding[]>>({})
+const bindingsLoading = reactive<Record<string, boolean>>({})
 const bindingDraft = reactive<Record<string, { profile_id: string; blocklist_id: string }>>({})
 const bindingSubmitting = reactive<Record<string, boolean>>({})
 const bindingErrors = reactive<Record<string, string>>({})
@@ -401,10 +391,7 @@ async function refresh() {
     schedules.value = scheds
     profileOptions.value = profs
     blocklistOptions.value = bls
-    for (const s of scheds) {
-      if (!bindings[s.id]) bindings[s.id] = []
-      ensureBindingDraft(s.id)
-    }
+    for (const s of scheds) ensureBindingDraft(s.id)
     lastError.value = ''
   } catch (err) {
     lastError.value = errMsg(err, 'Failed to load schedules')
@@ -490,7 +477,6 @@ async function submitModal() {
     if (modalMode.value === 'create') {
       const created = await createSchedule(payload)
       schedules.value = [...schedules.value, created]
-      if (!bindings[created.id]) bindings[created.id] = []
       ensureBindingDraft(created.id)
     } else if (original.value) {
       const o = original.value
@@ -547,10 +533,22 @@ async function confirmDelete() {
 
 // ─── Bindings ────────────────────────────────────────────────────────────
 
-function toggleBindings(id: string) {
+async function toggleBindings(id: string) {
   ensureBindingDraft(id)
-  if (!bindings[id]) bindings[id] = []
-  expandedId.value = expandedId.value === id ? null : id
+  if (expandedId.value === id) {
+    expandedId.value = null
+    return
+  }
+  expandedId.value = id
+  if (bindings[id]) return  // already loaded
+  bindingsLoading[id] = true
+  try {
+    bindings[id] = await listScheduleBindings(id)
+  } catch {
+    bindings[id] = []
+  } finally {
+    bindingsLoading[id] = false
+  }
 }
 
 async function submitBinding(id: string) {

@@ -20,20 +20,25 @@ type customRuleSet struct {
 }
 
 // ParseCustomRules parses the admin-supplied rules text and returns a compiled
-// rule set. It returns an error on the first invalid regex, with the 1-based
+// rule set. It returns an error on the first invalid line, with the 1-based
 // line number included.
 //
-// Syntax (AdGuard Home compatible):
-//   - /regex/       → block domains matching regex
-//   - @@/regex/     → allow domains matching regex (overrides block rules + blocklists)
-//   - domain        → exact-domain block (also matches all sub-domains)
-//   - @@domain      → exact-domain allow
-//   - Empty lines and lines starting with # are ignored.
+// Supported syntax:
+//   - /regex/           → block domains matching regex (case-insensitive)
+//   - @@/regex/         → allow domains matching regex
+//   - domain            → exact-domain block (also matches all sub-domains)
+//   - @@domain          → exact-domain allow
+//   - ||domain^         → AdGuard domain-anchor syntax; equivalent to "domain"
+//   - @@||domain^       → AdGuard allow form; equivalent to "@@domain"
+//   - Empty lines and lines starting with # or ! (AdGuard comment) are ignored.
+//
+// Unsupported AdGuard modifiers ($client=, $important, $dnsrewrite=, …) are
+// rejected with a descriptive error. For per-client filtering use Profiles.
 func ParseCustomRules(text string) (customRuleSet, error) {
 	var rs customRuleSet
 	for i, raw := range strings.Split(text, "\n") {
 		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
 			continue
 		}
 		r, err := parseSingleRule(line)
@@ -51,6 +56,8 @@ func parseSingleRule(s string) (customRule, error) {
 		s = s[2:]
 	}
 	// Regex rule: surrounded by /.../ with at least one character inside.
+	// Checked before AdGuard anchor stripping so $ inside a regex pattern
+	// is never mistaken for a modifier separator.
 	if len(s) > 1 && s[0] == '/' && s[len(s)-1] == '/' {
 		pattern := s[1 : len(s)-1]
 		re, err := regexp.Compile("(?i)" + pattern)
@@ -59,12 +66,38 @@ func parseSingleRule(s string) (customRule, error) {
 		}
 		return customRule{isAllow: isAllow, isExact: false, re: re}, nil
 	}
+	// AdGuard domain-anchor prefix: ||domain → domain.
+	if strings.HasPrefix(s, "||") {
+		s = s[2:]
+	}
+	// AdGuard end-of-address anchor: ^ is the field separator between the
+	// domain and optional $modifiers. Strip ^ and any trailing | end anchor;
+	// reject anything else that follows (all $modifier= forms).
+	if i := strings.IndexByte(s, '^'); i >= 0 {
+		after := strings.TrimRight(s[i+1:], "|")
+		s = s[:i]
+		if after != "" {
+			return customRule{}, adguardModifierError(after)
+		}
+	}
+	// AdGuard $modifier syntax without ^ (e.g. domain$important).
+	if i := strings.IndexByte(s, '$'); i >= 0 {
+		return customRule{}, adguardModifierError(s[i:])
+	}
 	// Exact-domain rule. Normalise to apex (strip leading *. wildcard).
 	apex := strings.ToLower(strings.TrimPrefix(s, "*."))
 	if apex == "" {
 		return customRule{}, fmt.Errorf("empty domain after stripping wildcard prefix")
 	}
 	return customRule{isAllow: isAllow, isExact: true, apex: apex}, nil
+}
+
+// adguardModifierError returns a clear error for unsupported AdGuard $modifiers.
+func adguardModifierError(modifiers string) error {
+	if strings.Contains(modifiers, "$client=") || strings.Contains(modifiers, "$ctag=") {
+		return fmt.Errorf("modifier %q is not supported — for per-client filtering, assign the client to a profile and add the rule there", modifiers)
+	}
+	return fmt.Errorf("AdGuard modifier %q is not supported", modifiers)
 }
 
 // matchDomain reports whether the rule matches domain (direction-agnostic).
