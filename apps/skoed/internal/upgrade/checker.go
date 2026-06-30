@@ -103,6 +103,13 @@ func (c *Checker) Stop() {
 	c.cancel = nil
 }
 
+// Refresh triggers an immediate poll, blocking until it completes, then
+// returns the updated result. Used by the manual "Check for updates" button.
+func (c *Checker) Refresh() CheckResult {
+	c.pollOnce(context.Background())
+	return c.Latest()
+}
+
 // Latest returns a CheckResult reflecting the cached feed snapshot.
 // Safe to call before the first poll completes — both feed and time
 // fields will be zero.

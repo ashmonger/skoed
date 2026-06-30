@@ -345,7 +345,7 @@ export interface UpgradeCheck {
 }
 
 export function checkUpgrade(): Promise<UpgradeCheck> {
-  return getJSON('/api/v1/upgrade/check')
+  return getJSON('/api/v1/upgrade/check?force=true')
 }
 
 export function startUpgrade(): Promise<unknown> {

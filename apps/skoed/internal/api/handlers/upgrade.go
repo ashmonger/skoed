@@ -65,13 +65,20 @@ func (h *Handler) NodeUpgradeStart(w http.ResponseWriter, r *http.Request) {
 // Held by the App; nil when no FeedURL was configured.
 type UpgradeChecker interface {
 	Latest() upgrade.CheckResult
+	Refresh() upgrade.CheckResult
 }
 
 // UpgradeCheck handles GET /api/v1/upgrade/check.
+// When ?force=true is set it triggers a live fetch instead of returning
+// the cached snapshot — used by the manual "Check for updates" button.
 func (h *Handler) UpgradeCheck(w http.ResponseWriter, r *http.Request) {
 	chk := h.app.GetUpgradeChecker()
 	if chk == nil {
 		writeJSON(w, http.StatusOK, upgrade.CheckResult{})
+		return
+	}
+	if r.URL.Query().Get("force") == "true" {
+		writeJSON(w, http.StatusOK, chk.Refresh())
 		return
 	}
 	writeJSON(w, http.StatusOK, chk.Latest())
