@@ -1630,6 +1630,12 @@ Node certificate rotation:
 | Split-brain in multi-node | M2+ | Quorum health checks; Raft deferred |
 | Container image size creep | M1+ | CI gate: reject image builds > 100 MB |
 
+## Maybe one day
+
+Features that are coherent and potentially useful but have no committed milestone. No spec, no timeline. Revisit if demand or a clear use case emerges.
+
+- **HTTPS on the management API (M34.2)** — TLS on port 8443 for the web UI and API. Two sub-paths: BYOC (upload cert+key via `PUT /api/v1/settings/tls/cert`) and ACME DNS-01 auto-renewal (Cloudflare provider). Blocked by: cascading changes to inter-node HTTP calls, mTLS peer auth, and browser trust distribution on private networks. Low priority while the API is LAN-only.
+
 ## Non-goals (permanent)
 
 - Transparent proxy mode (L4 transparent proxy to redirect hardcoded-resolver clients)

@@ -942,6 +942,7 @@ func (a *App) Router() http.Handler {
 		// Settings
 		r.Get("/api/v1/settings", h.GetSettings)
 		r.Patch("/api/v1/settings", a.forward(h.UpdateSettings))
+		r.Post("/api/v1/settings/discover-upstreams", h.DiscoverUpstreams)
 
 		// Query log (per-node read; never forwarded)
 		r.Get("/api/v1/query-log", h.GetQueryLog)

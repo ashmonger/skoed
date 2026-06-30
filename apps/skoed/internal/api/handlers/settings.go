@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/skoed/skoed/internal/config"
 	dnsengine "github.com/skoed/skoed/internal/dns"
@@ -102,12 +105,13 @@ type settingsPatch struct {
 }
 
 type dnsPatch struct {
-	Mode              *string             `json:"mode"`
-	DNSSECMode        *string             `json:"dnssec_mode"`
-	UpstreamResolvers []string            `json:"upstream_resolvers"`
-	UpstreamTimeout   *int                `json:"upstream_timeout_seconds"`
-	TrustedSubnets    []string            `json:"trusted_subnets"`
-	Cache             *config.CacheConfig `json:"cache"`
+	Mode              *string               `json:"mode"`
+	DNSSECMode        *string               `json:"dnssec_mode"`
+	UpstreamResolvers []string              `json:"upstream_resolvers"`
+	UpstreamRoutes    []config.UpstreamRoute `json:"upstream_routes"`
+	UpstreamTimeout   *int                  `json:"upstream_timeout_seconds"`
+	TrustedSubnets    []string              `json:"trusted_subnets"`
+	Cache             *config.CacheConfig   `json:"cache"`
 }
 
 type filteringPatch struct {
@@ -162,6 +166,15 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 					normalised[i] = n
 				}
 				cfg.DNS.UpstreamResolvers = normalised
+				rebuildDNS = true
+			}
+			if d.UpstreamRoutes != nil {
+				for i, route := range d.UpstreamRoutes {
+					if err := config.ValidateUpstreamRoute(route); err != nil {
+						return &validationError{fmt.Sprintf("dns.upstream_routes[%d]: %s", i, err)}
+					}
+				}
+				cfg.DNS.UpstreamRoutes = d.UpstreamRoutes
 				rebuildDNS = true
 			}
 			if d.UpstreamTimeout != nil {
@@ -311,6 +324,41 @@ func (h *Handler) PutTLSSettings(w http.ResponseWriter, r *http.Request) {
 // Health handles GET /api/v1/health. No auth required.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DiscoverUpstreams handles POST /api/v1/settings/discover-upstreams.
+// It reads /etc/resolv.conf and returns nameserver entries as suggestions.
+// Nothing is applied automatically — the operator must PATCH /api/v1/settings
+// to use the suggestions.
+func (h *Handler) DiscoverUpstreams(w http.ResponseWriter, r *http.Request) {
+	resolvers := readResolvConf("/etc/resolv.conf")
+	writeJSON(w, http.StatusOK, map[string][]string{
+		"suggested_resolvers": resolvers,
+	})
+}
+
+// readResolvConf parses nameserver lines from a resolv.conf-format file.
+func readResolvConf(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var out []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if !strings.HasPrefix(line, "nameserver") {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		addr := net.JoinHostPort(parts[1], "53")
+		out = append(out, addr)
+	}
+	return out
 }
 
 // validationError is an internal sentinel for input validation failures.

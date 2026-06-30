@@ -176,12 +176,13 @@ func (w *ShadowWriter) writeOnce() {
 // into thinking DNS is disabled. upstream_timeout_seconds is omitempty so it
 // is absent when the default (3 s) is in effect.
 type shadowDNSConfig struct {
-	Mode              string             `yaml:"mode"`
-	DNSSECMode        string             `yaml:"dnssec_mode,omitempty"`
-	UpstreamResolvers []string           `yaml:"upstream_resolvers,omitempty"`
-	UpstreamTimeout   int                `yaml:"upstream_timeout_seconds,omitempty"`
-	TrustedSubnets    []string           `yaml:"trusted_subnets,omitempty"`
-	Cache             config.CacheConfig `yaml:"cache"`
+	Mode              string                `yaml:"mode"`
+	DNSSECMode        string                `yaml:"dnssec_mode,omitempty"`
+	UpstreamResolvers []string              `yaml:"upstream_resolvers,omitempty"`
+	UpstreamRoutes    []config.UpstreamRoute `yaml:"upstream_routes,omitempty"`
+	UpstreamTimeout   int                   `yaml:"upstream_timeout_seconds,omitempty"`
+	TrustedSubnets    []string              `yaml:"trusted_subnets,omitempty"`
+	Cache             config.CacheConfig    `yaml:"cache"`
 }
 
 // clusterSections mirrors the cluster-replicated fields of *config.Config.
@@ -238,6 +239,7 @@ func (w *ShadowWriter) snapshotAndWrite() error {
 				Mode:              snap.DNS.Mode,
 				DNSSECMode:        snap.DNS.DNSSECMode,
 				UpstreamResolvers: snap.DNS.UpstreamResolvers,
+				UpstreamRoutes:    snap.DNS.UpstreamRoutes,
 				UpstreamTimeout:   snap.DNS.UpstreamTimeout,
 				TrustedSubnets:    snap.DNS.TrustedSubnets,
 				Cache:             snap.DNS.Cache,

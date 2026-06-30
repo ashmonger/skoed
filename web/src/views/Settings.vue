@@ -55,6 +55,46 @@
                     @input="markDnsDirty" />
         </div>
 
+        <!-- M32: per-domain upstream routes -->
+        <div v-if="dnsForm.mode === 'forwarding'">
+          <div class="flex items-center justify-between mb-2">
+            <label class="label !mb-0">
+              Per-domain routes
+              <span class="text-fg-subtle font-normal">(optional)</span>
+            </label>
+            <button class="btn-secondary text-xs"
+                    type="button"
+                    @click="addRoute">
+              + Add route
+            </button>
+          </div>
+          <div v-if="dnsForm.routes.length === 0" class="text-xs text-fg-muted">
+            No routes configured. All queries use the upstream resolvers above.
+          </div>
+          <div v-for="(route, idx) in dnsForm.routes" :key="idx"
+               class="border border-border rounded-md p-3 space-y-2 mb-2">
+            <div class="flex items-center gap-2">
+              <input :id="`route-match-${idx}`"
+                     v-model="route.match"
+                     type="text"
+                     class="input font-mono text-xs flex-1"
+                     placeholder="*.corp.internal or api.example.com"
+                     @input="markDnsDirty" />
+              <button class="btn-ghost text-xs text-danger"
+                      type="button"
+                      @click="removeRoute(idx)">
+                Remove
+              </button>
+            </div>
+            <textarea :id="`route-resolvers-${idx}`"
+                      v-model="route.resolversText"
+                      rows="2"
+                      class="input font-mono text-xs"
+                      placeholder="10.0.0.1:53&#10;10.0.0.2:53"
+                      @input="markDnsDirty" />
+          </div>
+        </div>
+
         <div v-else>
           <label class="label" for="dns-trusted">
             Trusted subnets
@@ -533,7 +573,7 @@ import {
   getBackupSettings, putBackupSettings, listBackups, triggerBackup,
 } from '@/api/endpoints'
 import { api, getToken } from '@/api/client'
-import type { BackupEntry, BackupSettings, BlockPageConfig, DNSCacheStats, DNSConfig, Settings } from '@/api/types'
+import type { BackupEntry, BackupSettings, BlockPageConfig, DNSCacheStats, DNSConfig, Settings, UpstreamRoute } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -542,10 +582,16 @@ const loading = ref(true)
 const lastError = ref('')
 
 // Per-section forms mirror the loaded Settings; dirty flags enable Save buttons.
+interface RouteEntry {
+  match: string
+  resolversText: string
+}
+
 interface DnsForm {
   mode: 'forwarding' | 'recursive'
   upstreamsText: string
   trustedText: string
+  routes: RouteEntry[]
   timeout: number
   cacheEnabled: boolean
   cacheMax: number
@@ -562,6 +608,7 @@ interface QueryLogForm {
 
 const dnsForm = reactive<DnsForm>({
   mode: 'forwarding', upstreamsText: '', trustedText: '',
+  routes: [],
   timeout: 5, cacheEnabled: true, cacheMax: 10000,
 })
 const filteringForm = reactive<FilteringForm>({ policy: 'nxdomain' })
@@ -647,6 +694,10 @@ function applySettings(s: Settings) {
   dnsForm.mode = s.dns.mode
   dnsForm.upstreamsText = (s.dns.upstream_resolvers ?? []).join('\n')
   dnsForm.trustedText = (s.dns.trusted_subnets ?? []).join('\n')
+  dnsForm.routes = (s.dns.upstream_routes ?? []).map(r => ({
+    match: r.match,
+    resolversText: r.resolvers.join('\n'),
+  }))
   dnsForm.timeout = s.dns.upstream_timeout_seconds
   dnsForm.cacheEnabled = s.dns.cache.enabled
   dnsForm.cacheMax = s.dns.cache.max_entries
@@ -675,6 +726,8 @@ function applyBlockPage(bp: BlockPageConfig) {
 // ─── Dirty tracking ────────────────────────────────────────────────────────
 
 function markDnsDirty() { dnsDirty.value = true }
+function addRoute() { dnsForm.routes.push({ match: '', resolversText: '' }); markDnsDirty() }
+function removeRoute(idx: number) { dnsForm.routes.splice(idx, 1); markDnsDirty() }
 function markFilteringDirty() { filteringDirty.value = true }
 function markQueryLogDirty() { queryLogDirty.value = true }
 function markBlockPageDirty() { blockPageDirty.value = true }
@@ -703,6 +756,9 @@ async function saveDns() {
     } else {
       dns.trusted_subnets = parseLines(dnsForm.trustedText)
     }
+    dns.upstream_routes = dnsForm.routes
+      .filter(r => r.match.trim() !== '')
+      .map(r => ({ match: r.match.trim(), resolvers: parseLines(r.resolversText) }))
     const updated = await patchSettings({ dns })
     applySettings(updated)
     flashSaved(dnsSavedAt)

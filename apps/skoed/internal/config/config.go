@@ -171,14 +171,27 @@ type WebhookEndpoint struct {
 	Enabled bool     `yaml:"enabled" json:"enabled"`
 }
 
+// UpstreamRoute sends queries matching Match to the given Resolvers before
+// consulting the global UpstreamResolvers list. Routes are evaluated top-down;
+// the first match wins.
+//
+// Match syntax:
+//   - "*.suffix"  — any subdomain of suffix at any depth
+//   - "exact"     — the exact domain only (no subdomains)
+type UpstreamRoute struct {
+	Match     string   `yaml:"match"     json:"match"`
+	Resolvers []string `yaml:"resolvers" json:"resolvers"`
+}
+
 type DNSConfig struct {
-	Listen            ListenConfig `yaml:"listen"                      json:"listen"`
-	Mode              string       `yaml:"mode"                        json:"mode"`
-	DNSSECMode        string       `yaml:"dnssec_mode,omitempty"       json:"dnssec_mode,omitempty"` // "transparent" (default) | "validate"
-	UpstreamResolvers []string     `yaml:"upstream_resolvers,omitempty" json:"upstream_resolvers,omitempty"`
-	UpstreamTimeout   int          `yaml:"upstream_timeout_seconds"    json:"upstream_timeout_seconds"`
-	TrustedSubnets    []string     `yaml:"trusted_subnets,omitempty"   json:"trusted_subnets,omitempty"`
-	Cache             CacheConfig  `yaml:"cache"                       json:"cache"`
+	Listen            ListenConfig    `yaml:"listen"                       json:"listen"`
+	Mode              string          `yaml:"mode"                         json:"mode"`
+	DNSSECMode        string          `yaml:"dnssec_mode,omitempty"        json:"dnssec_mode,omitempty"` // "transparent" (default) | "validate"
+	UpstreamResolvers []string        `yaml:"upstream_resolvers,omitempty" json:"upstream_resolvers,omitempty"`
+	UpstreamRoutes    []UpstreamRoute `yaml:"upstream_routes,omitempty"    json:"upstream_routes,omitempty"`
+	UpstreamTimeout   int             `yaml:"upstream_timeout_seconds"     json:"upstream_timeout_seconds"`
+	TrustedSubnets    []string        `yaml:"trusted_subnets,omitempty"    json:"trusted_subnets,omitempty"`
+	Cache             CacheConfig     `yaml:"cache"                        json:"cache"`
 }
 
 type ListenConfig struct {
@@ -393,6 +406,30 @@ func (c *Config) Validate() error {
 	for i, u := range c.DNS.UpstreamResolvers {
 		if _, err := NormaliseUpstream(u); err != nil {
 			return fmt.Errorf("dns.upstream_resolvers[%d]: %w", i, err)
+		}
+	}
+	for i, r := range c.DNS.UpstreamRoutes {
+		if err := ValidateUpstreamRoute(r); err != nil {
+			return fmt.Errorf("dns.upstream_routes[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// ValidateUpstreamRoute checks that a single UpstreamRoute is well-formed.
+func ValidateUpstreamRoute(r UpstreamRoute) error {
+	if r.Match == "" {
+		return fmt.Errorf("match must not be empty")
+	}
+	if r.Match == "*" {
+		return fmt.Errorf("bare wildcard match %q is not allowed — use *.suffix to restrict the scope", r.Match)
+	}
+	if len(r.Resolvers) == 0 {
+		return fmt.Errorf("resolvers must not be empty")
+	}
+	for i, u := range r.Resolvers {
+		if _, err := NormaliseUpstream(u); err != nil {
+			return fmt.Errorf("resolvers[%d]: %w", i, err)
 		}
 	}
 	return nil
