@@ -56,7 +56,6 @@
             <th>Raft address</th>
             <th>API address</th>
             <th>Version</th>
-            <th class="text-right">Commit</th>
             <th>Last contact</th>
             <th class="text-right">Actions</th>
           </tr>
@@ -74,8 +73,9 @@
             </td>
             <td class="font-mono text-xs text-fg-muted">{{ n.raft_address }}</td>
             <td class="font-mono text-xs text-fg-muted">{{ nodeApiAddress(n) }}</td>
-            <td class="font-mono text-xs text-fg-muted">{{ n.version ?? '—' }}</td>
-            <td class="text-right font-mono text-xs">{{ n.commit_index }}</td>
+            <td class="font-mono text-xs text-fg-muted">
+              {{ n.version ?? '—' }}<span v-if="n.commit" class="text-fg-subtle"> · #{{ n.commit }}</span>
+            </td>
             <td class="text-fg-muted text-xs" :title="formatAbsolute(n.last_contact)">
               {{ formatRelative(n.last_contact) }}
             </td>
@@ -165,24 +165,24 @@
          class="card p-4 space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-fg-strong">Software update</h2>
-        <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">upgrading…</span>
-      </div>
-
-      <!-- Up-to-date / unchecked state — always show check button -->
-      <template v-if="!upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress && !upgradeStatusData?.completed_nodes.length && !upgradeStatusData?.failed_node">
-        <div class="flex items-center gap-3">
-          <button class="btn-secondary" :disabled="checkingUpgrade" @click="checkUpgradeManually">
+        <div class="flex items-center gap-2">
+          <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">upgrading…</span>
+          <button class="btn-secondary"
+                  :disabled="checkingUpgrade || !!upgradeStatusData?.in_progress"
+                  @click="checkUpgradeManually">
             {{ checkingUpgrade ? 'Checking…' : 'Check for updates' }}
           </button>
-          <span v-if="upgradeCheck !== null && !upgradeCheck.upgrade_available"
-                class="text-xs text-success">
-            Up to date
-          </span>
         </div>
-      </template>
+      </div>
 
-      <!-- Upgrade prompt — shown when no upgrade is running yet -->
-      <template v-if="upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress && !upgradeStatusData?.completed_nodes.length && !upgradeStatusData?.failed_node">
+      <!-- Up to date -->
+      <p v-if="upgradeCheck !== null && !upgradeCheck.upgrade_available"
+         class="text-xs text-success">
+        Up to date — you're running the latest release.
+      </p>
+
+      <!-- Upgrade available prompt -->
+      <template v-if="upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress">
         <p class="text-sm text-fg-muted">
           skoed <span class="font-mono text-accent font-semibold">{{ upgradeCheck.available_version }}</span>
           is available. All nodes will be upgraded sequentially — followers first, then the leader — without losing quorum.
@@ -200,9 +200,6 @@
              class="text-xs text-accent hover:underline">
             Release notes ↗
           </a>
-          <button class="btn-ghost text-xs" :disabled="checkingUpgrade" @click="checkUpgradeManually">
-            {{ checkingUpgrade ? 'Checking…' : 'Re-check' }}
-          </button>
           <span class="text-xs text-fg-subtle ml-auto">
             Only the leader can start — followers forward automatically.
           </span>
