@@ -34,8 +34,12 @@ func NewForwarder(cfg config.DNSConfig) *Forwarder {
 	if timeout <= 0 {
 		timeout = 3 * time.Second
 	}
-	fns := make([]upstreamFn, 0, len(cfg.UpstreamResolvers))
-	for _, u := range cfg.UpstreamResolvers {
+	return newForwarderFromResolvers(cfg.UpstreamResolvers, timeout)
+}
+
+func newForwarderFromResolvers(resolvers []string, timeout time.Duration) *Forwarder {
+	fns := make([]upstreamFn, 0, len(resolvers))
+	for _, u := range resolvers {
 		switch {
 		case strings.HasPrefix(u, "tls://"):
 			fns = append(fns, makeDotFn(u, timeout))
@@ -60,6 +64,36 @@ func (f *Forwarder) Forward(msg *dns.Msg) *dns.Msg {
 		return resp
 	}
 	return servfail(msg)
+}
+
+// ForwardWithRoutes checks routes top-down before the global upstream list.
+// The first route whose match covers the query domain is used; if none match,
+// the global upstream list is used.
+func (f *Forwarder) ForwardWithRoutes(msg *dns.Msg, routes []config.UpstreamRoute) *dns.Msg {
+	if len(routes) == 0 || len(msg.Question) == 0 {
+		return f.Forward(msg)
+	}
+	domain := strings.TrimSuffix(strings.ToLower(msg.Question[0].Name), ".")
+	for _, r := range routes {
+		if matchRoute(domain, r.Match) {
+			rf := newForwarderFromResolvers(r.Resolvers, f.timeout)
+			return rf.Forward(msg)
+		}
+	}
+	return f.Forward(msg)
+}
+
+// matchRoute reports whether domain is covered by the match pattern.
+// Patterns:
+//   - "*.suffix"  → domain ends with ".suffix" (any depth)
+//   - "exact"     → domain == exact (no subdomains)
+func matchRoute(domain, pattern string) bool {
+	pattern = strings.ToLower(strings.TrimSuffix(pattern, "."))
+	if strings.HasPrefix(pattern, "*.") {
+		suffix := pattern[1:] // ".suffix"
+		return strings.HasSuffix(domain, suffix)
+	}
+	return domain == pattern
 }
 
 // makePlainFn creates an upstreamFn for a plain UDP upstream (TCP fallback on truncation).

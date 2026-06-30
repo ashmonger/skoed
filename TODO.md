@@ -72,9 +72,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M30 | DHCP Persistence + DHCPv6 | ✅ | v0.2.5 | [note](demos/m30/DEMO_NOTE.md) · [report](demos/m30/test-report.html) | [dhcp-persistence](specs/functional/dhcp-persistence.feature) | [dhcp-persistence](tests/acceptance/dhcp_persistence_test.go) |
 | M30.5 | Custom Filtering Rules (Regex + Exact) | ✅ | v0.2.5 | [note](demos/m30.5/DEMO_NOTE.md) · [report](demos/m30.5/test-report.html) | [custom-filtering-rules](specs/functional/custom-filtering-rules.feature) | [custom-rules](tests/acceptance/custom_rules_test.go) |
 | M31 | Backup Hardening | ✅ | — | [note](demos/m31/DEMO_NOTE.md) · [report](demos/m31/test-report.html) | [backup-hardening](specs/functional/backup-hardening.feature) | [backup-hardening](tests/acceptance/backup_hardening_test.go) |
-| M32 | Per-Domain Upstream Routing | ⬜ | — | — | — | — |
+| M32 | Per-Domain Upstream Routing | ✅ | — | [note](demos/m32/DEMO_NOTE.md) | [per-domain-upstream-routing](specs/functional/per-domain-upstream-routing.feature) | [per-domain-upstream-routing](tests/acceptance/per_domain_upstream_routing_test.go) |
 | M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
-| M34 | Certificate Management | ⬜ | — | — | — | — |
+| M34 | Certificate Management | ✅ | v0.2.7-2 | [note](demos/m34/DEMO_NOTE.md) | [certificate-management](specs/functional/certificate-management.feature) | [certificate-management](tests/acceptance/certificate_management_test.go) |
 | M34.5 | Configurable Session Timeout | ⬜ | — | — | [session-timeout](specs/functional/session-timeout.feature) | — |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |

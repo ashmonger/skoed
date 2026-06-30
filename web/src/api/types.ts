@@ -128,10 +128,16 @@ export interface ClusterStats {
   top_clients: NameCount[]
 }
 
+export interface UpstreamRoute {
+  match: string
+  resolvers: string[]
+}
+
 export interface DNSConfig {
   listen: { port: number; ipv4: boolean; ipv6: boolean }
   mode: 'forwarding' | 'recursive'
   upstream_resolvers?: string[]
+  upstream_routes?: UpstreamRoute[]
   upstream_timeout_seconds: number
   trusted_subnets?: string[]
   cache: { enabled: boolean; max_entries: number }

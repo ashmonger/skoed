@@ -216,7 +216,7 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	if h.cfg.Mode == "recursive" && h.rec != nil {
 		resolved = h.rec.Resolve(req, clientIPStr)
 	} else if h.fwd != nil {
-		resolved = h.fwd.Forward(req)
+		resolved = h.fwd.ForwardWithRoutes(req, h.cfg.UpstreamRoutes)
 	} else {
 		resolved = servfail(r)
 	}

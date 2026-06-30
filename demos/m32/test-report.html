@@ -1,0 +1,480 @@
+<title>M32 — Per-Domain Upstream Routing · Proxmox Validation</title>
+<meta name="description" content="Proxmox 3-node cluster validation report for M32 per-domain upstream routing — 16/16 tests pass.">
+<style>
+  :root {
+    --ground:   #0d1117;
+    --surf:     #161b27;
+    --surf2:    #1e2535;
+    --border:   #253047;
+    --text:     #cdd8e8;
+    --muted:    #5d7491;
+    --subtle:   #3a4d63;
+    --accent:   #4f8ef7;
+    --pass:     #3fb950;
+    --fail:     #f85149;
+    --warn:     #d29922;
+    --mono:     ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
+    --sans:     system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 20px 80px;
+  }
+
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  /* ── Header ── */
+  .hdr {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+  .hdr-top {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .milestone-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 4px;
+    padding: 2px 7px;
+    text-transform: uppercase;
+  }
+  .hdr h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -.02em;
+    text-wrap: balance;
+  }
+  .hdr-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .hdr-meta span { display: flex; align-items: center; gap: 5px; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot-pass { background: var(--pass); }
+  .dot-fail { background: var(--fail); }
+  .dot-accent { background: var(--accent); }
+
+  /* ── Summary strip ── */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--border);
+  }
+  .stat {
+    background: var(--surf);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-num.pass { color: var(--pass); }
+  .stat-num.accent { color: var(--accent); }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  /* ── Section headers ── */
+  .section-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Test table ── */
+  .test-group { display: flex; flex-direction: column; gap: 2px; }
+
+  .test-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 0 14px;
+    align-items: baseline;
+    padding: 9px 14px;
+    background: var(--surf);
+    border-radius: 5px;
+    font-size: 13px;
+  }
+  .test-row:hover { background: var(--surf2); }
+
+  .test-status {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+  }
+  .test-status.pass { color: var(--pass); }
+  .test-status.fail { color: var(--fail); }
+
+  .test-name { color: var(--text); }
+  .test-name code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+
+  .test-detail {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* ── Environment table ── */
+  .env-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .env-cell {
+    background: var(--surf);
+    padding: 14px 18px;
+  }
+  .env-node {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .env-kv { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .env-kv b { color: var(--text); font-weight: 500; }
+
+  /* ── Incident block ── */
+  .incident {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 13px;
+  }
+  .incident-title {
+    font-weight: 600;
+    color: var(--warn);
+    margin-bottom: 6px;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .incident p { color: var(--muted); line-height: 1.7; }
+  .incident p b { color: var(--text); font-weight: 500; }
+
+  /* ── Screenshots ── */
+  .shots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .shots .shot-wide { grid-column: 1 / -1; }
+  .shot {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .shot img { width: 100%; display: block; }
+  .shot-cap {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Footer ── */
+  .footer {
+    font-size: 11px;
+    color: var(--subtle);
+    font-family: var(--mono);
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .shots { grid-template-columns: 1fr; }
+    .shots .shot-wide { grid-column: 1; }
+    .env-grid { grid-template-columns: 1fr; }
+    .summary { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-top">
+      <span class="milestone-id">M32</span>
+      <h1>Per-Domain Upstream Routing</h1>
+    </div>
+    <div class="hdr-meta">
+      <span><span class="dot dot-pass"></span>Proxmox validation — 3-node Raft cluster</span>
+      <span>2026-06-30</span>
+      <span>feature/m32-m34</span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div>
+    <div class="section-label">Result summary</div>
+    <div class="summary">
+      <div class="stat">
+        <span class="stat-num pass">16</span>
+        <span class="stat-label">Tests passed</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num pass">0</span>
+        <span class="stat-label">Failures</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num accent">3</span>
+        <span class="stat-label">Nodes validated</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num accent">1</span>
+        <span class="stat-label">Failover tested</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Environment -->
+  <div>
+    <div class="section-label">Cluster environment</div>
+    <div class="env-grid">
+      <div class="env-cell">
+        <div class="env-node">skoed-01</div>
+        <div class="env-kv">
+          <b>10.0.0.101</b><br>
+          role: follower<br>
+          sync: in_sync
+        </div>
+      </div>
+      <div class="env-cell">
+        <div class="env-node">skoed-02 ★</div>
+        <div class="env-kv">
+          <b>10.0.0.102</b><br>
+          role: leader (post-failover)<br>
+          sync: in_sync
+        </div>
+      </div>
+      <div class="env-cell">
+        <div class="env-node">skoed-03</div>
+        <div class="env-kv">
+          <b>10.0.0.103</b><br>
+          role: follower (rejoined)<br>
+          sync: in_sync
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Test results -->
+  <div>
+    <div class="section-label">Route CRUD &amp; replication</div>
+    <div class="test-group">
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">3 routes configured via PATCH /api/v1/settings <code>FS-UpstreamRouteCreate</code></span>
+        <span class="test-detail">3 routes</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Routes replicated — skoed-01 <code>FS-UpstreamRouteClusterReplicated</code></span>
+        <span class="test-detail">3 routes</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Routes replicated — skoed-02 <code>FS-UpstreamRouteClusterReplicated</code></span>
+        <span class="test-detail">3 routes</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Routes replicated — skoed-03 <code>FS-UpstreamRouteClusterReplicated</code></span>
+        <span class="test-detail">3 routes</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Shadow YAML persists routes on node restart <code>upstream_routes:</code></span>
+        <span class="test-detail">config.yaml</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">DNS resolution via routes</div>
+    <div class="test-group">
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Wildcard *.cloudflare.com → 1.1.1.1 resolves (skoed-01) <code>FS-UpstreamRouteWildcardResolution</code></span>
+        <span class="test-detail">104.18.28.7</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Wildcard *.cloudflare.com → 1.1.1.1 resolves (skoed-02) <code>FS-UpstreamRouteWildcardResolution</code></span>
+        <span class="test-detail">104.18.28.7</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Wildcard *.cloudflare.com → 1.1.1.1 resolves (skoed-03) <code>FS-UpstreamRouteWildcardResolution</code></span>
+        <span class="test-detail">104.18.28.7</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">*.example.org → 9.9.9.9 resolves on all 3 nodes <code>FS-UpstreamRouteWildcardDepth</code></span>
+        <span class="test-detail">104.20.26.136</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">No-match domain falls through to global upstream <code>FS-UpstreamRouteNoMatchFallsThrough</code></span>
+        <span class="test-detail">github.com → 8.8.8.8</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Top-down priority: wildcard fires before deeper exact match <code>FS-UpstreamRouteTopDownPriority</code></span>
+        <span class="test-detail">route[0] wins</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Validation &amp; discovery</div>
+    <div class="test-group">
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Bare * match rejected with 400 <code>FS-UpstreamRouteInvalidMatchRejected</code></span>
+        <span class="test-detail">HTTP 400</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Empty resolvers array rejected with 400 <code>FS-UpstreamRouteEmptyResolversRejected</code></span>
+        <span class="test-detail">HTTP 400</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">POST /api/v1/settings/discover-upstreams returns suggested_resolvers <code>FS-UpstreamDiscovery</code></span>
+        <span class="test-detail">200 OK</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Raft failover</div>
+    <div class="test-group">
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">blog.cloudflare.com still resolves via route after leader killed</span>
+        <span class="test-detail">104.18.28.7</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Global fallthrough (github.com) resolves after leader killed</span>
+        <span class="test-detail">140.82.121.3</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">New leader elected (skoed-02) within 5s</span>
+        <span class="test-detail">skoed-02</span>
+      </div>
+      <div class="test-row">
+        <span class="test-status pass">PASS</span>
+        <span class="test-name">Killed node (skoed-03) rejoined, in_sync, routes active</span>
+        <span class="test-detail">in_sync</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Investigation note -->
+  <div class="incident">
+    <div class="incident-title">Investigation note — cat:doh blocklist</div>
+    <p>
+      Initial test domains included <b>dns.quad9.net</b> (a DNS provider hostname), which returned NXDOMAIN.
+      Root cause: the active <b>cat:doh</b> blocklist (40 entries) correctly blocks DNS-over-HTTPS and
+      well-known resolver hostnames to prevent clients from bypassing filtering. This is expected behavior.
+      Tests were redesigned to use non-blocked domains (<b>blog.cloudflare.com</b>, <b>www.example.org</b>).
+      Routing and blocklist enforcement are independent and both functioning correctly.
+    </p>
+  </div>
+
+  <!-- Screenshots -->
+  <div>
+    <div class="section-label">Screenshots</div>
+    <div class="shots">
+      <div class="shot shot-wide">
+        <img src="ss-32-01-settings-dns-routes.png" alt="Settings page showing DNS forwarding mode with per-domain routes configured" loading="lazy">
+        <div class="shot-cap">ss-32-01 · Settings → DNS — per-domain routes configured (*.cloudflare.com, blog.cloudflare.com, *.example.org)</div>
+      </div>
+      <div class="shot">
+        <img src="ss-32-02-cluster-nodes-in-sync.png" alt="Cluster page showing all 3 nodes in_sync" loading="lazy">
+        <div class="shot-cap">ss-32-02 · Cluster — 3/3 in_sync after failover + rejoin</div>
+      </div>
+      <div class="shot">
+        <img src="ss-32-03-settings-routes-detail.png" alt="Settings DNS routes detail view" loading="lazy">
+        <div class="shot-cap">ss-32-03 · Settings — route list detail</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>skoed · M32 · Proxmox LXC · 3-node Raft</span>
+    <span>16 / 16 PASS · 0 FAIL · 2026-06-30</span>
+  </div>
+
+</div>

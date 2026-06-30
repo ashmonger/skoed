@@ -416,6 +416,15 @@ func (n *Node) apiDoBearer(t *testing.T, method, path, body, token string) *http
 	return resp
 }
 
+// mustParseIP4 parses an IPv4 string or panics. Used in DNS response assertions.
+func mustParseIP4(s string) net.IP {
+	ip := net.ParseIP(s).To4()
+	if ip == nil {
+		panic("mustParseIP4: invalid IPv4 " + s)
+	}
+	return ip
+}
+
 // mustJSON encodes v as JSON or fails the test.
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
@@ -504,13 +513,18 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 		Enabled    bool `yaml:"enabled"`
 		MaxEntries int  `yaml:"max_entries"`
 	}
+	type upstreamRoute struct {
+		Match     string   `yaml:"match"`
+		Resolvers []string `yaml:"resolvers"`
+	}
 	type dnsConfig struct {
-		Listen            listenConfig `yaml:"listen"`
-		Mode              string       `yaml:"mode"`
-		UpstreamResolvers []string     `yaml:"upstream_resolvers,omitempty"`
-		TrustedSubnets    []string     `yaml:"trusted_subnets,omitempty"`
-		UpstreamTimeout   int          `yaml:"upstream_timeout_seconds"`
-		Cache             cacheConfig  `yaml:"cache"`
+		Listen            listenConfig  `yaml:"listen"`
+		Mode              string        `yaml:"mode"`
+		UpstreamResolvers []string      `yaml:"upstream_resolvers,omitempty"`
+		UpstreamRoutes    []upstreamRoute `yaml:"upstream_routes,omitempty"`
+		TrustedSubnets    []string      `yaml:"trusted_subnets,omitempty"`
+		UpstreamTimeout   int           `yaml:"upstream_timeout_seconds"`
+		Cache             cacheConfig   `yaml:"cache"`
 	}
 	type blockPageConfig struct {
 		IP   string `yaml:"ip,omitempty"`
