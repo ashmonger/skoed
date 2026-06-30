@@ -446,18 +446,17 @@ func TestScheduleTimezoneIsNodeLocal(t *testing.T) {
 
 // ── Setup helpers ─────────────────────────────────────────────────────────
 
-// setUpstreamResolvers POSTs the runtime upstream-resolver list to the node's
-// settings API. The cluster harness writes a config.yaml with empty DNS
-// settings (no `upstream_resolvers`), so each schedule test must inject the
-// fake upstream at runtime.
+// setUpstreamResolvers PATCHes the node's DNS settings to forwarding mode with
+// the given upstream resolver. The cluster harness writes a config.yaml with no
+// dns.mode, so Defaults() now sets mode=recursive; this helper must also set
+// mode=forwarding so test queries reach the fake upstream, not the real internet.
 //
-// Endpoint: PATCH /api/v1/settings with {"dns":{"upstream_resolvers":[…]}}.
-// This is the same shape used by the M2 settings tests; if the implementation
-// hasn't surfaced this route yet, the test skips with "M3 impl pending".
+// Endpoint: PATCH /api/v1/settings with {"dns":{"mode":"forwarding","upstream_resolvers":[…]}}.
 func setUpstreamResolvers(t *testing.T, n *ClusterNode, upstream string) {
 	t.Helper()
 	body := map[string]any{
 		"dns": map[string]any{
+			"mode":               "forwarding",
 			"upstream_resolvers": []string{upstream},
 		},
 	}
