@@ -330,10 +330,17 @@ func (c *Config) Defaults() {
 		c.DNS.Listen.IPv6 = true
 	}
 	if c.DNS.Mode == "" {
-		c.DNS.Mode = "forwarding"
+		c.DNS.Mode = "recursive"
 	}
 	if c.DNS.UpstreamTimeout == 0 {
 		c.DNS.UpstreamTimeout = 3
+	}
+	// When forwarding mode is selected with no upstreams, fall back to
+	// privacy-first resolvers: Quad9 (non-profit, no-log, DNSSEC) and
+	// DNS0.eu (European, GDPR, no-log). Intentionally excludes Google
+	// and Cloudflare.
+	if c.DNS.Mode == "forwarding" && len(c.DNS.UpstreamResolvers) == 0 {
+		c.DNS.UpstreamResolvers = []string{"9.9.9.9", "149.112.112.112", "193.110.81.0", "185.253.5.0"}
 	}
 	if !c.DNS.Cache.Enabled && c.DNS.Cache.MaxEntries == 0 {
 		c.DNS.Cache.Enabled = true

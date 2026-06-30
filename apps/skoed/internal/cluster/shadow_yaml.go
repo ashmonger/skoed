@@ -17,7 +17,40 @@ const defaultShadowDebounce = 1 * time.Second
 
 // ShadowWriter mirrors bbolt state to <data_dir>/config.yaml after every FSM
 // apply so filesystem-level backup tools (PBS, restic) capture a coherent
-// human-readable M1-format snapshot of the replicated configuration.
+// human-readable snapshot of the replicated cluster configuration.
+//
+// # Two config files, two purposes
+//
+// A running skoed node owns two distinct config.yaml files:
+//
+//	/etc/skoed/config.yaml       — startup input, read once at boot, never
+//	                               written by skoed at runtime. Contains
+//	                               node-local settings (data_dir, api_address,
+//	                               peer_address, listen port, TLS/ACME, bootstrap
+//	                               token). Must be hand-edited by the operator.
+//	                               The cluster sections it carries (dns, filtering,
+//	                               auth…) are only used on first boot to seed
+//	                               bbolt; after that they become stale.
+//
+//	<data_dir>/config.yaml       — shadow output, rewritten after every Raft
+//	  (typically                   apply. Contains the live cluster-replicated
+//	   /var/lib/skoed/            settings (auth, dns, filtering, schedules,
+//	   config.yaml)               dhcp…) as a human-readable backup. Node-local
+//	                               settings (listen addresses, api/peer ports)
+//	                               are NOT written here; they remain in
+//	                               /etc/skoed/config.yaml on each node.
+//
+// Changing a setting via the UI/API updates bbolt via Raft, which triggers
+// the shadow writer to update /var/lib/skoed/config.yaml. The /etc/ file is
+// never touched. To inspect or back up the live cluster configuration, read
+// /var/lib/skoed/config.yaml on any in-sync node.
+//
+// Future: dns.listen already lives in config.DNSConfig (Raft-replicated).
+// Making it the authoritative source for all nodes — configured once via the
+// UI and applied cluster-wide — is the right long-term direction. It requires
+// an API endpoint, a UI section, and per-node DNS listener restart on Raft
+// apply. Until then each node reads its listen config from node.dns.listen in
+// /etc/skoed/config.yaml.
 //
 // Writes are debounced: a burst of applies within the debounce window collapses
 // into a single write reflecting the latest committed state. Failed writes are
@@ -136,19 +169,34 @@ func (w *ShadowWriter) writeOnce() {
 	}
 }
 
+// shadowDNSConfig is the DNS shape written to config.yaml by the shadow writer.
+// It deliberately omits Listen: listen addresses are node-local (they live in
+// node.dns.listen) and are never replicated via Raft. Writing a zeroed listen
+// block (port:0, ipv4:false, ipv6:false) to the file confuses human readers
+// into thinking DNS is disabled. upstream_timeout_seconds is omitempty so it
+// is absent when the default (3 s) is in effect.
+type shadowDNSConfig struct {
+	Mode              string             `yaml:"mode"`
+	DNSSECMode        string             `yaml:"dnssec_mode,omitempty"`
+	UpstreamResolvers []string           `yaml:"upstream_resolvers,omitempty"`
+	UpstreamTimeout   int                `yaml:"upstream_timeout_seconds,omitempty"`
+	TrustedSubnets    []string           `yaml:"trusted_subnets,omitempty"`
+	Cache             config.CacheConfig `yaml:"cache"`
+}
+
 // clusterSections mirrors the cluster-replicated fields of *config.Config.
-// We deliberately omit `version` (the doc carries `schema_version` at root)
-// AND `api` (the API port moved to `node.api_address` in M2 and is no
-// longer cluster-replicated — it's node-local).
+// Sections are sorted alphabetically; filtering is last because it can be large
+// (blocklists with inline domains). We deliberately omit `version` (the doc
+// carries `schema_version` at root) AND `api` (node-local since M2).
 type clusterSections struct {
-	DNS              config.DNSConfig          `yaml:"dns"`
-	Filtering        config.FilteringConfig     `yaml:"filtering"`
-	LocalDNS         config.LocalDNSConfig      `yaml:"local_dns"`
-	QueryLog         config.QueryLogConfig      `yaml:"query_log"`
-	Auth             config.AuthConfig          `yaml:"auth"`
-	Schedules        []config.Schedule         `yaml:"schedules,omitempty"`
-	ScheduleBindings []config.ScheduleBinding  `yaml:"schedule_bindings,omitempty"`
+	Auth             config.AuthConfig         `yaml:"auth"`
 	DHCPServer       config.DHCPServerConfig   `yaml:"dhcp_server,omitempty"`
+	DNS              shadowDNSConfig           `yaml:"dns"`
+	LocalDNS         config.LocalDNSConfig     `yaml:"local_dns"`
+	QueryLog         config.QueryLogConfig     `yaml:"query_log"`
+	ScheduleBindings []config.ScheduleBinding  `yaml:"schedule_bindings,omitempty"`
+	Schedules        []config.Schedule         `yaml:"schedules,omitempty"`
+	Filtering        config.FilteringConfig    `yaml:"filtering"`
 }
 
 // shadowDoc is the on-disk merged YAML shape: a node-local section, an
@@ -166,17 +214,35 @@ func (w *ShadowWriter) snapshotAndWrite() error {
 	if err != nil {
 		return fmt.Errorf("snapshot store: %w", err)
 	}
-	// Node-local DNS listen is never replicated; defensively zero it on the
-	// snapshot copy in case a future store change ever leaks it through.
-	snap.DNS.Listen = config.ListenConfig{}
+
+	// block_page is only started when policy is "redirect"; omit the section
+	// for other policies so port 8053 does not falsely imply a running server.
+	filtering := snap.Filtering
+	if filtering.BlockPolicy != "redirect" {
+		filtering.BlockPage = config.BlockPageConfig{}
+	}
+	// Strip runtime refresh state — these track scheduler outcomes and belong
+	// in status endpoints, not in a config backup that users may hand-edit.
+	for i := range filtering.Blocklists {
+		filtering.Blocklists[i].LastRefreshAt = ""
+		filtering.Blocklists[i].LastRefreshStatus = ""
+		filtering.Blocklists[i].LastRefreshError = ""
+	}
 
 	node := w.cluster.Node()
 	doc := shadowDoc{
 		SchemaVersion: 1,
 		Node:          node.Node,
 		clusterSections: clusterSections{
-			DNS:              snap.DNS,
-			Filtering:        snap.Filtering,
+			DNS: shadowDNSConfig{
+				Mode:              snap.DNS.Mode,
+				DNSSECMode:        snap.DNS.DNSSECMode,
+				UpstreamResolvers: snap.DNS.UpstreamResolvers,
+				UpstreamTimeout:   snap.DNS.UpstreamTimeout,
+				TrustedSubnets:    snap.DNS.TrustedSubnets,
+				Cache:             snap.DNS.Cache,
+			},
+			Filtering:        filtering,
 			LocalDNS:         snap.LocalDNS,
 			QueryLog:         snap.QueryLog,
 			Auth:             snap.Auth,
