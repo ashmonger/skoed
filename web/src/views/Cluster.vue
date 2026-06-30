@@ -161,12 +161,25 @@
     </div>
 
     <!-- ─── Rolling upgrade (M18, cluster mode only) ────────────────────── -->
-    <div v-if="health?.mode !== 'single-node' && (upgradeCheck?.upgrade_available || upgradeStatusData?.in_progress || upgradeStatusData?.completed_nodes.length || upgradeStatusData?.failed_node)"
+    <div v-if="health?.mode !== 'single-node'"
          class="card p-4 space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-fg-strong">New version available</h2>
+        <h2 class="text-sm font-semibold text-fg-strong">Software update</h2>
         <span v-if="upgradeStatusData?.in_progress" class="badge-warning text-xs">upgrading…</span>
       </div>
+
+      <!-- Up-to-date / unchecked state — always show check button -->
+      <template v-if="!upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress && !upgradeStatusData?.completed_nodes.length && !upgradeStatusData?.failed_node">
+        <div class="flex items-center gap-3">
+          <button class="btn-secondary" :disabled="checkingUpgrade" @click="checkUpgradeManually">
+            {{ checkingUpgrade ? 'Checking…' : 'Check for updates' }}
+          </button>
+          <span v-if="upgradeCheck !== null && !upgradeCheck.upgrade_available"
+                class="text-xs text-success">
+            Up to date
+          </span>
+        </div>
+      </template>
 
       <!-- Upgrade prompt — shown when no upgrade is running yet -->
       <template v-if="upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress && !upgradeStatusData?.completed_nodes.length && !upgradeStatusData?.failed_node">
@@ -187,6 +200,9 @@
              class="text-xs text-accent hover:underline">
             Release notes ↗
           </a>
+          <button class="btn-ghost text-xs" :disabled="checkingUpgrade" @click="checkUpgradeManually">
+            {{ checkingUpgrade ? 'Checking…' : 'Re-check' }}
+          </button>
           <span class="text-xs text-fg-subtle ml-auto">
             Only the leader can start — followers forward automatically.
           </span>
@@ -321,6 +337,7 @@ const joinClusterSuccess = ref('')
 
 // ─── Rolling upgrade (M18) ────────────────────────────────────────────────────
 const upgradeCheck = ref<UpgradeCheck | null>(null)
+const checkingUpgrade = ref(false)
 const rollingUpgrading = ref(false)
 const rollingUpgradeError = ref('')
 const rollingUpgradeMsg = ref('')
@@ -504,6 +521,12 @@ async function confirmRemove() {
 }
 
 // ─── Rolling upgrade ─────────────────────────────────────────────────────
+
+async function checkUpgradeManually() {
+  checkingUpgrade.value = true
+  try { upgradeCheck.value = await checkUpgrade() } catch { /* ignore */ }
+  finally { checkingUpgrade.value = false }
+}
 
 async function startRollingUpgrade() {
   rollingUpgradeError.value = ''
