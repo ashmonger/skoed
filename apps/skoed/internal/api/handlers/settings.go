@@ -21,6 +21,13 @@ type settingsResponse struct {
 	DNSCryptStamp string                `json:"dnscrypt_stamp,omitempty"` // M8: sdns:// URI
 	// M34: TLS auto-renewal settings (omitted when cluster has no TLS renew config).
 	TLS *tlsSettingsResp `json:"tls,omitempty"`
+	// M34.5: session timeout settings.
+	Auth authSettingsResp `json:"auth"`
+}
+
+// authSettingsResp is the auth sub-object in the settings response.
+type authSettingsResp struct {
+	SessionTimeoutSeconds int `json:"session_timeout_seconds"`
 }
 
 // tlsSettingsResp is the tls sub-object in the settings response.
@@ -42,6 +49,10 @@ type filteringSettings struct {
 // GetSettings handles GET /api/v1/settings.
 func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := h.app.GetCfg()
+	sessionTimeout := cfg.Auth.SessionTimeoutSeconds
+	if sessionTimeout == 0 {
+		sessionTimeout = 28800 // 8-hour default
+	}
 	resp := settingsResponse{
 		DNS: cfg.DNS,
 		Filtering: filteringSettings{
@@ -49,6 +60,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		},
 		QueryLog:      cfg.QueryLog,
 		DNSCryptStamp: dnscryptStamp(h),
+		Auth:          authSettingsResp{SessionTimeoutSeconds: sessionTimeout},
 	}
 	// M34: include TLS renew settings when a cluster is available.
 	if tlsCfg, err := h.app.GetTLSRenewConfig(); err == nil {
@@ -99,9 +111,14 @@ func dnscryptStamp(h *Handler) string {
 // settingsPatch is the body accepted by PATCH /api/v1/settings.
 // All fields are optional; only present fields are applied.
 type settingsPatch struct {
-	DNS      *dnsPatch      `json:"dns"`
+	DNS       *dnsPatch       `json:"dns"`
 	Filtering *filteringPatch `json:"filtering"`
 	QueryLog  *queryLogPatch  `json:"query_log"`
+	Auth      *authPatch      `json:"auth"`
+}
+
+type authPatch struct {
+	SessionTimeoutSeconds *int `json:"session_timeout_seconds"`
 }
 
 type dnsPatch struct {
@@ -220,6 +237,16 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 				cfg.QueryLog.MaxEntries = *q.MaxEntries
 				newMaxEntries = *q.MaxEntries
 				updateQueryLog = true
+			}
+		}
+		if patch.Auth != nil {
+			a := patch.Auth
+			if a.SessionTimeoutSeconds != nil {
+				v := *a.SessionTimeoutSeconds
+				if v <= 0 || v > 604800 {
+					return &validationError{"auth.session_timeout_seconds must be between 1 and 604800"}
+				}
+				cfg.Auth.SessionTimeoutSeconds = v
 			}
 		}
 		return nil

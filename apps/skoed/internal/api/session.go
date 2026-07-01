@@ -5,7 +5,16 @@ import (
 	"time"
 )
 
-const sessionTTL = 8 * time.Hour
+const defaultSessionTTL = 8 * time.Hour
+
+// sessionTTLFromSeconds converts a configured seconds value to a duration.
+// A zero or negative value falls back to the default 8-hour TTL.
+func sessionTTLFromSeconds(s int) time.Duration {
+	if s <= 0 {
+		return defaultSessionTTL
+	}
+	return time.Duration(s) * time.Second
+}
 
 type sessionEntry struct {
 	username  string
@@ -21,10 +30,10 @@ func newSessionStore() *sessionStore {
 	return &sessionStore{entries: make(map[string]sessionEntry)}
 }
 
-func (s *sessionStore) create(token, username string) {
+func (s *sessionStore) create(token, username string, ttl time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.entries[token] = sessionEntry{username: username, expiresAt: time.Now().Add(sessionTTL)}
+	s.entries[token] = sessionEntry{username: username, expiresAt: time.Now().Add(ttl)}
 }
 
 func (s *sessionStore) lookup(token string) (username string, ok bool) {

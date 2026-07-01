@@ -93,7 +93,7 @@
 
 ## Security Boundaries
 
-- The management API requires authentication (basic auth in Milestone 1; token-based auth in later milestones).
+- The management API requires authentication (Bearer token session auth); sessions have a configurable TTL (1 s – 7 d, default 8 h) enforced on every request.
 - The sync API requires a valid join token or mutual TLS; unauthenticated sync requests are rejected.
 - Root DNS recursive resolution is restricted to clients within configured trusted subnets (prevents DNS amplification).
 - Configuration files are local; no data is sent to external services.
@@ -128,3 +128,4 @@
 | DNS amplification via root resolver | Restrict recursive resolution to trusted client subnets | — |
 | Blocklist scale (millions of domains) | In-memory radix trie or bloom filter for O(1) lookup | Evaluated at Milestone 1 implementation |
 | Single point of failure if primary down | Replicas continue serving DNS independently; write operations blocked until primary recovers | Active-active (any-write) deferred |
+| Raft log replay on restart slows startup | `SnapshotThreshold=64` ensures snapshots are taken frequently; restarts replay at most 64 entries (<1 s) instead of the full log | — |

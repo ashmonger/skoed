@@ -143,10 +143,15 @@ export interface DNSConfig {
   cache: { enabled: boolean; max_entries: number }
 }
 
+export interface AuthSettings {
+  session_timeout_seconds: number
+}
+
 export interface Settings {
   dns: DNSConfig
   filtering: { block_policy: 'nxdomain' | 'null' | 'nodata' | 'redirect' }
   query_log: { max_entries: number; aggregate_retention_days: number }
+  auth: AuthSettings
 }
 
 // M26 — block page config (M33 adds redirect_address_v6)
@@ -436,4 +441,24 @@ export interface Dhcp6Lease {
 // M30.5 — Custom filtering rules (TS-CustomRules).
 export interface CustomRules {
   rules: string
+}
+
+// M35.5 — Named device registry (TS-DeviceRegistry).
+export interface Device {
+  id: string
+  name: string
+  profile_id: string
+  macs?: string[]
+  ips?: string[]
+  hostnames?: string[]
+  client_ids?: string[]
+}
+
+export interface DeviceCreate {
+  name: string
+  profile_id: string
+  macs?: string[]
+  ips?: string[]
+  hostnames?: string[]
+  client_ids?: string[]
 }

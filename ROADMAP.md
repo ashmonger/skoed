@@ -1375,6 +1375,37 @@ Node certificate rotation:
 
 ---
 
+### Milestone 35.5 — Named Device Registry
+
+**Outcome**: Operators define a device once by name and associate all of its network identifiers (MACs, IPs, client IDs, hostnames) with it. Profile assignment references the device name, not raw addresses — so a machine with two NICs is configured in one place, and replacing a NIC or changing an IP requires a single edit rather than hunting through every profile.
+
+**Capabilities:**
+- **Device resource**: a new `Device` entity with `id`, `name` (human-readable, e.g. "Jeremy's PC"), and a list of identifiers: `macs`, `ips`, `client_ids`, `hostnames`. Stored cluster-wide via Raft.
+- **Profile assignment by device**: `ClientDeviceIDs []string` field on `Profile` — the highest-priority tier above ClientID/MAC/hostname. When a client matches any identifier of a linked device, the device's profile wins (short-circuit, same exclusive semantics as MAC/ClientID today).
+- **Device API**:
+  - `GET /api/v1/devices` — list all devices
+  - `POST /api/v1/devices` — create a device
+  - `GET /api/v1/devices/{id}` — get device detail (name, identifiers, linked profile)
+  - `PATCH /api/v1/devices/{id}` — update name or identifiers
+  - `DELETE /api/v1/devices/{id}` — remove device (profile retains its other selectors)
+- **Profile API extension**: `PATCH /api/v1/profiles/{id}` gains a `client_device_ids` field (list of device IDs).
+- **Web UI — Devices replaces Clients in the Filtering nav**: the "Clients" entry in the filtering sidebar (`Shell.vue`) is renamed to "Devices" and its route (`/filtering/clients` → `/filtering/devices`) points to the new Devices view. The existing `Clients.vue` view is replaced.
+- **Devices table**: unified view merging the device registry with live DHCP lease data. Columns: device name (linked to device detail, blank if unregistered), IP(s), hostname, MAC(s), client-id, source (DHCP static / DHCP dynamic / manual), lease expiry, registered (yes/no — whether the client has a device record). Sortable and filterable by profile, source, and registered state.
+- **Unregistered clients**: clients seen in DHCP leases or query log but not yet in the device registry appear in the table with a "Register" quick-action button, pre-filling the MACs and IPs from the lease.
+- **Device detail / edit page**: shows all identifiers (editable), linked profile (dropdown), device name. Adding a new MAC or IP to a registered device takes effect immediately for profile matching.
+- **Web UI — Profile assignment**: the profile editor gains a "Devices" tab alongside the existing IP/MAC/CIDR tabs. Select from the device list or create inline.
+- **Query log enrichment**: query log entries include `device_name` when the client IP resolves to a known device.
+
+**Non-goals:**
+- Device groups / hierarchies (a device belongs to one profile; group-level overrides are out of scope)
+- Automatic device discovery / fingerprinting (manual registration only)
+- Cross-cluster device sharing (devices are cluster-local)
+- Device-level allowlists or blocklist overrides (profile is still the unit of policy)
+
+**Dependencies:** M3 Per-Client Profiles (profile model and matching engine exist); M23.5 DHCP Server (lease data enriches device view, optional).
+
+---
+
 ### Milestone 35 — Filtering Pause Enhancements
 
 **Outcome**: Operators and trusted users can pause filtering at finer granularity (per client IP, not just per profile), receive a notification when a pause expires, and manage pauses from the Web UI without using the API directly.
@@ -1473,7 +1504,11 @@ Node certificate rotation:
 - "Remember me" / keep-me-logged-in override
 - Forcing existing active sessions to expire immediately when the setting is changed
 
+**Infrastructure note:** During M34.5 validation an operational constraint was discovered and fixed: hashicorp/raft v1.7.3 does not persist `lastApplied` to disk. With the default `SnapshotThreshold=8192`, clusters with fewer than 8192 committed log entries never take a snapshot and must replay the full Raft log on every restart (~30 s for a 663-entry log). This caused `session_timeout_seconds` to appear reset (API served stale mid-replay values before all entries were applied). Fix: `SnapshotThreshold=64` and `SnapshotInterval=30 s` — restarts now complete in under 2 seconds. This fix is transparent to operators and applies cluster-wide.
+
 **Dependencies:** M1 Web UI Authentication (JWT session model exists); M34 Certificate Management (Settings page architecture is the integration point).
+
+**Status:** Shipped — 2026-06-30. Branch: `feature/m345-session-timeout`. 19/19 Proxmox validation checks pass.
 
 ---
 

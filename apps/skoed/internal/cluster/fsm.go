@@ -80,7 +80,9 @@ func (f *fsm) Restore(snap io.ReadCloser) error {
 		return err
 	}
 	f.store.db = newDB
-	return nil
+	// Re-run bucket init so any buckets added since the snapshot was taken
+	// are present in the restored database (backwards-compatible migration).
+	return f.store.init()
 }
 
 // snapshot is the raft.FSMSnapshot implementation. Persist runs while raft

@@ -168,6 +168,12 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			ident.Hostname = host
 		}
 	}
+	// M35.5: in test mode, allow overriding MAC via EDNS0 code 65501 so
+	// acceptance tests can exercise device-registry MAC matching without
+	// a live DHCP source.
+	if testMAC := extractTestMAC(r); testMAC != "" {
+		ident.MAC = testMAC
+	}
 	if target, ok := filter.SafeSearchRewrite(name, fe.SafeSearchProvidersForClientID(clientIP, ident)); ok && (qtype == dns.TypeA || qtype == dns.TypeAAAA) {
 		resp := h.buildSafeSearchResponse(r, q, target)
 		_ = w.WriteMsg(resp)
@@ -287,6 +293,23 @@ func (h *Handler) resolveClient(w dns.ResponseWriter, r *dns.Msg) (string, net.I
 		}
 	}
 	return clientIPStr, clientIP
+}
+
+// extractTestMAC reads EDNS0 LOCAL option code 65501 from r when
+// SKOED_TEST_MODE=1. Used by acceptance tests that inject a fake MAC
+// into DNS queries for device-registry matching.
+func extractTestMAC(r *dns.Msg) string {
+	if os.Getenv("SKOED_TEST_MODE") != "1" {
+		return ""
+	}
+	if opt := r.IsEdns0(); opt != nil {
+		for _, o := range opt.Option {
+			if loc, ok := o.(*dns.EDNS0_LOCAL); ok && loc.Code == 65501 {
+				return string(loc.Data)
+			}
+		}
+	}
+	return ""
 }
 
 // buildSafeSearchResponse emits a CNAME pointing the queried name at the

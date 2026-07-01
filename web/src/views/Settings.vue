@@ -371,6 +371,47 @@
       </section>
 
       <!-- ─── Audit log link (M5.2) ─────────────────────────────────────── -->
+      <!-- ─── Session timeout section (M34.5) ─────────────────────────────── -->
+      <section class="card p-5 space-y-4">
+        <header class="flex items-center gap-2">
+          <ShieldCheckIcon class="h-5 w-5 text-accent" />
+          <h2 class="text-base font-semibold text-fg-strong">Session timeout</h2>
+        </header>
+
+        <p class="text-sm text-fg-muted">
+          Controls how long a web UI login session remains valid before re-authentication
+          is required. Applies to new sessions only — active sessions keep their original expiry.
+        </p>
+
+        <p v-if="sessionTimeoutError" class="text-sm text-danger">{{ sessionTimeoutError }}</p>
+
+        <div>
+          <label class="label" for="session-timeout">Timeout duration</label>
+          <select id="session-timeout"
+                  v-model="sessionTimeoutForm.seconds"
+                  class="input w-48"
+                  @change="markSessionTimeoutDirty">
+            <option :value="1800">30 minutes</option>
+            <option :value="3600">1 hour</option>
+            <option :value="14400">4 hours</option>
+            <option :value="28800">8 hours (default)</option>
+            <option :value="86400">24 hours</option>
+            <option :value="604800">7 days</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button class="btn-primary"
+                  :disabled="!sessionTimeoutDirty || sessionTimeoutSaving"
+                  @click="saveSessionTimeout">
+            {{ sessionTimeoutSaving ? 'Saving…' : 'Save' }}
+          </button>
+          <span v-if="sessionTimeoutSavedAt && Date.now() - sessionTimeoutSavedAt < 4000"
+                class="text-xs text-success">Saved</span>
+        </div>
+      </section>
+
+      <!-- ─── Audit log section ─────────────────────────────────────────── -->
       <section class="card p-5">
         <header class="flex items-center gap-2">
           <DocumentTextIcon class="h-5 w-5 text-accent" />
@@ -573,7 +614,7 @@ import {
   getBackupSettings, putBackupSettings, listBackups, triggerBackup,
 } from '@/api/endpoints'
 import { api, getToken } from '@/api/client'
-import type { BackupEntry, BackupSettings, BlockPageConfig, DNSCacheStats, DNSConfig, Settings, UpstreamRoute } from '@/api/types'
+import type { AuthSettings, BackupEntry, BackupSettings, BlockPageConfig, DNSCacheStats, DNSConfig, Settings, UpstreamRoute } from '@/api/types'
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -629,6 +670,14 @@ const queryLogError = ref('')
 const dnsSavedAt = ref(0)
 const filteringSavedAt = ref(0)
 const queryLogSavedAt = ref(0)
+
+// M34.5 — session timeout
+interface SessionTimeoutForm { seconds: number }
+const sessionTimeoutForm = reactive<SessionTimeoutForm>({ seconds: 28800 })
+const sessionTimeoutDirty = ref(false)
+const sessionTimeoutSaving = ref(false)
+const sessionTimeoutError = ref('')
+const sessionTimeoutSavedAt = ref(0)
 
 // M26/M33 — block page config (M33 adds redirect_address_v6)
 const blockPageForm = reactive<BlockPageConfig>({
@@ -711,6 +760,10 @@ function applySettings(s: Settings) {
   queryLogForm.maxEntries = s.query_log.max_entries
   queryLogForm.retentionDays = s.query_log.aggregate_retention_days
   queryLogDirty.value = false
+
+  // Session timeout form
+  sessionTimeoutForm.seconds = s.auth?.session_timeout_seconds ?? 28800
+  sessionTimeoutDirty.value = false
 }
 
 function applyBlockPage(bp: BlockPageConfig) {
@@ -731,6 +784,7 @@ function removeRoute(idx: number) { dnsForm.routes.splice(idx, 1); markDnsDirty(
 function markFilteringDirty() { filteringDirty.value = true }
 function markQueryLogDirty() { queryLogDirty.value = true }
 function markBlockPageDirty() { blockPageDirty.value = true }
+function markSessionTimeoutDirty() { sessionTimeoutDirty.value = true }
 
 // ─── Saves ─────────────────────────────────────────────────────────────────
 
@@ -801,6 +855,22 @@ async function saveQueryLog() {
     queryLogError.value = errMsg(err, 'Failed to save query log settings')
   } finally {
     queryLogSaving.value = false
+  }
+}
+
+async function saveSessionTimeout() {
+  sessionTimeoutError.value = ''
+  sessionTimeoutSaving.value = true
+  try {
+    const updated = await patchSettings({
+      auth: { session_timeout_seconds: sessionTimeoutForm.seconds },
+    })
+    applySettings(updated)
+    flashSaved(sessionTimeoutSavedAt)
+  } catch (err) {
+    sessionTimeoutError.value = errMsg(err, 'Failed to save session timeout')
+  } finally {
+    sessionTimeoutSaving.value = false
   }
 }
 

@@ -81,6 +81,9 @@ const (
 	// M34 — TLS auto-renewal config + per-node cert rotation.
 	CmdTLSRenewConfigSet CommandKind = "tls_renew.config.set"
 	CmdRotateNodeCert    CommandKind = "cert.node.rotate"
+	// M35.5 — named device registry.
+	CmdDeviceUpsert CommandKind = "device.upsert"
+	CmdDeviceDelete CommandKind = "device.delete"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -146,8 +149,9 @@ type FilteringPatch struct {
 }
 
 type AuthSetCredentialsPayload struct {
-	Username     string `json:"username"`
-	PasswordHash string `json:"password_hash"`
+	Username              string `json:"username"`
+	PasswordHash          string `json:"password_hash"`
+	SessionTimeoutSeconds int    `json:"session_timeout_seconds,omitempty"`
 }
 
 type TokenCreatePayload struct {
@@ -445,4 +449,14 @@ type RotateNodeCertPayload struct {
 	NodeID    string `json:"node_id"`
 	CertPEM   []byte `json:"cert_pem"`
 	KeyPEM    []byte `json:"key_pem"`
+}
+
+// ─── M35.5 payloads (TS-DeviceRegistry) ──────────────────────────────────────
+
+type DeviceUpsertPayload struct {
+	Device config.Device `json:"device"`
+}
+
+type DeviceDeletePayload struct {
+	ID string `json:"id"`
 }

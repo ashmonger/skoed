@@ -1437,3 +1437,15 @@ func (c *Cluster) GetBackupConfig() (config.BackupConfig, error) {
 func (c *Cluster) SetBackupConfig(cfg config.BackupConfig) error {
 	return c.store.SetBackupConfig(cfg)
 }
+
+// ─── M35.5 — named device registry ───────────────────────────────────────────
+
+// UpsertDevice creates or replaces a device by ID via Raft.
+func (c *Cluster) UpsertDevice(d config.Device) error {
+	return c.applyAsLeader(CmdDeviceUpsert, DeviceUpsertPayload{Device: d}, 0)
+}
+
+// DeleteDevice removes a device by ID via Raft.
+func (c *Cluster) DeleteDevice(id string) error {
+	return c.applyAsLeader(CmdDeviceDelete, DeviceDeletePayload{ID: id}, 0)
+}

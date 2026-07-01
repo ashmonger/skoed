@@ -39,6 +39,8 @@ type Config struct {
 	Webhooks  []WebhookEndpoint   `yaml:"webhooks,omitempty" json:"webhooks,omitempty"`
 	// M23.5 — built-in DHCP server (leader-owned).
 	DHCPServer DHCPServerConfig `yaml:"dhcp_server,omitempty" json:"dhcp_server,omitempty"`
+	// M35.5 — named device registry.
+	Devices []Device `yaml:"devices,omitempty" json:"devices,omitempty"`
 }
 
 // BackupConfig configures the scheduled backup feature (M31).
@@ -128,6 +130,19 @@ type Profile struct {
 
 	// M33: per-profile block page content overrides. Nil means use global defaults.
 	BlockPage *ProfileBlockPageConfig `yaml:"block_page,omitempty" json:"block_page,omitempty"`
+}
+
+// Device groups multiple network identifiers (MACs, IPs, hostnames, client-ids)
+// that represent a single physical or virtual machine. It binds them to one
+// profile; the device registry is evaluated before all profile selectors.
+type Device struct {
+	ID        string   `yaml:"id"                  json:"id"`
+	Name      string   `yaml:"name"                json:"name"`
+	ProfileID string   `yaml:"profile_id"          json:"profile_id"`
+	MACs      []string `yaml:"macs,omitempty"      json:"macs,omitempty"`
+	IPs       []string `yaml:"ips,omitempty"       json:"ips,omitempty"`
+	Hostnames []string `yaml:"hostnames,omitempty" json:"hostnames,omitempty"`
+	ClientIDs []string `yaml:"client_ids,omitempty" json:"client_ids,omitempty"`
 }
 
 // Schedule defines time-of-day / day-of-week windows that gate when a
@@ -326,8 +341,9 @@ type QueryLogConfig struct {
 }
 
 type AuthConfig struct {
-	Username     string `yaml:"username"`
-	PasswordHash string `yaml:"password_hash"` // bcrypt hash; empty = first-run pending
+	Username             string `yaml:"username"`
+	PasswordHash         string `yaml:"password_hash"`          // bcrypt hash; empty = first-run pending
+	SessionTimeoutSeconds int   `yaml:"session_timeout_seconds,omitempty" json:"session_timeout_seconds,omitempty"`
 }
 
 // Defaults fills in zero values with sensible defaults.
