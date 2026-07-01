@@ -59,6 +59,8 @@ var (
 	// Written by applyCertRotation and applyRotateNodeCert so the leader
 	// can aggregate all nodes' expiry dates without reading each node's disk.
 	bucketCertExpiry = []byte("cert_node_expiry")
+	// M35.5: named device registry (key = device.ID, value = JSON device).
+	bucketDevices = []byte("config_devices")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -119,6 +121,7 @@ func (s *Store) init() error {
 			bucketBackups,
 			bucketTLSRenew,
 			bucketCertExpiry,
+			bucketDevices,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -741,6 +744,25 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			_ = tx.Bucket(bucketCertExpiry).Put([]byte(p.NodeID), []byte(expiry.UTC().Format(time.RFC3339)))
 		}
 		return s.applyRotateNodeCert(p)
+
+	// M35.5 — named device registry.
+	case CmdDeviceUpsert:
+		var p DeviceUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.Device)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDevices).Put([]byte(p.Device.ID), v)
+
+	case CmdDeviceDelete:
+		var p DeviceDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketDevices).Delete([]byte(p.ID))
 	}
 	return fmt.Errorf("unknown command kind %q", cmd.Kind)
 }
@@ -983,8 +1005,9 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 
 	// Auth.
 	auth := AuthSetCredentialsPayload{
-		Username:     c.Auth.Username,
-		PasswordHash: c.Auth.PasswordHash,
+		Username:              c.Auth.Username,
+		PasswordHash:          c.Auth.PasswordHash,
+		SessionTimeoutSeconds: c.Auth.SessionTimeoutSeconds,
 	}
 	av, err := json.Marshal(auth)
 	if err != nil {
@@ -1092,6 +1115,7 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			}
 			out.Auth.Username = a.Username
 			out.Auth.PasswordHash = a.PasswordHash
+			out.Auth.SessionTimeoutSeconds = a.SessionTimeoutSeconds
 		}
 
 		// Profiles.
@@ -1169,6 +1193,21 @@ func (s *Store) Snapshot() (*config.Config, error) {
 		}); err != nil {
 			return err
 		}
+
+		// M35.5 — named device registry.
+		if b := tx.Bucket(bucketDevices); b != nil {
+			if err := b.ForEach(func(_, v []byte) error {
+				var d config.Device
+				if err := json.Unmarshal(v, &d); err != nil {
+					return err
+				}
+				out.Devices = append(out.Devices, d)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		sort.Slice(out.Devices, func(i, j int) bool { return out.Devices[i].Name < out.Devices[j].Name })
 
 		out.Version = config.SchemaVersion
 		return nil

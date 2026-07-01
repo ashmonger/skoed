@@ -98,6 +98,12 @@ type Engine struct {
 	// ..., or "" when no lease exists).
 	leaseOriginFn func(ip string) string
 
+	// M35.5 (TS-DeviceRegistry): optional device-registry lookup. When non-nil,
+	// it is evaluated first (tier 0), before all profile selectors. If a device
+	// matches any of the supplied identifiers, its ProfileID is returned immediately.
+	// Returns profileID and matched=true, or ("", false) when no device matches.
+	deviceLookupFn func(mac, ip, hostname, clientID string) (profileID string, matched bool)
+
 	// M13: pause deadlines, replicated via Raft through config.PauseState.
 	globalPauseUntil      time.Time
 	globalPauseProfileIDs map[string]bool // nil/empty = all profiles; non-empty = only those IDs
@@ -284,6 +290,16 @@ func (e *Engine) SetLeaseOriginLookup(fn func(ip string) string) {
 	e.mu.Unlock()
 }
 
+// SetDeviceLookup wires the M35.5 named device registry lookup (tier 0).
+// fn receives the known identifiers for the current client and returns the
+// profile ID to use if a device matches, plus a boolean indicating a match.
+// Short-circuits all profile selectors when matched. Safe to call concurrently.
+func (e *Engine) SetDeviceLookup(fn func(mac, ip, hostname, clientID string) (profileID string, matched bool)) {
+	e.mu.Lock()
+	e.deviceLookupFn = fn
+	e.mu.Unlock()
+}
+
 // ClientIdentity bundles the optional M3.6 identity fields for a query.
 // All fields can be empty; the engine falls back to IP-only matching.
 type ClientIdentity struct {
@@ -467,6 +483,13 @@ func (e *Engine) profilesMatchingLocked(ip net.IP) []string {
 }
 
 func (e *Engine) profilesMatchingLockedWithIdentity(ip net.IP, id ClientIdentity) []string {
+	// M35.5 (TS-DeviceRegistry): tier 0 — device registry lookup short-circuits
+	// all profile selectors. Evaluated before ClientID/MAC/hostname/IP tiers.
+	if e.deviceLookupFn != nil {
+		if profileID, matched := e.deviceLookupFn(id.MAC, ip.String(), id.Hostname, id.ClientID); matched {
+			return []string{profileID}
+		}
+	}
 	// M3.6: priority lookup (Client-ID > MAC > hostname > IP/CIDR).
 	if id.ClientID != "" {
 		for _, p := range e.profiles {

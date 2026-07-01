@@ -3,7 +3,7 @@ import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './cli
 import type {
   Anomaly, APIToken, APITokenMinted, AuditPage, BackupEntry, BackupSettings, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
-  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, CustomRules, DNSCacheStats,
+  ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, CustomRules, Device, DeviceCreate, DNSCacheStats,
   Dhcp6Lease, Dhcp6ServerStatus, DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, ProfileBlockPage, QueryLogPage, Schedule,
   ScheduleBinding, Settings, WebhookEndpoint,
@@ -639,4 +639,27 @@ export function triggerBackup(): Promise<{ created: boolean }> {
 
 export function patchProfileBlockPage(profileId: string, bp: ProfileBlockPage): Promise<Profile> {
   return patchJSON(`/api/v1/profiles/${profileId}`, { block_page: bp })
+}
+
+// ─── M35.5: Named device registry (TS-DeviceRegistry) ────────────────────
+
+export function listDevices(q?: string): Promise<Device[]> {
+  const url = q ? `/api/v1/devices?q=${encodeURIComponent(q)}` : '/api/v1/devices'
+  return getJSON(url)
+}
+
+export function getDevice(id: string): Promise<Device> {
+  return getJSON(`/api/v1/devices/${encodeURIComponent(id)}`)
+}
+
+export function createDevice(d: DeviceCreate): Promise<Device> {
+  return postJSON('/api/v1/devices', d)
+}
+
+export function updateDevice(id: string, patch: Partial<DeviceCreate>): Promise<Device> {
+  return patchJSON(`/api/v1/devices/${encodeURIComponent(id)}`, patch)
+}
+
+export function deleteDevice(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/devices/${encodeURIComponent(id)}`)
 }

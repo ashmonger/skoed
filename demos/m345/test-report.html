@@ -1,0 +1,612 @@
+<title>M34.5 Session Timeout — Validation Report</title>
+<meta name="description" content="Proxmox 3-node cluster validation for M34.5 Configurable Session Timeout. 19/19 checks pass.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #21262d;
+    --border2:  #30363d;
+    --pass:     #3fb950;
+    --fail:     #f85149;
+    --warn:     #d29922;
+    --info:     #79c0ff;
+    --text:     #c9d1d9;
+    --muted:    #6e7681;
+    --head:     #e6edf3;
+    --mono:     "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans:     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  html { font-size: 14px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .wrap {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.75rem;
+  }
+
+  .report-header .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .report-header h1 {
+    font-family: var(--sans);
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--head);
+    text-wrap: balance;
+    line-height: 1.3;
+  }
+
+  .report-header .meta {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .report-header .meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+  .summary-box {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+  }
+
+  .total-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: color-mix(in srgb, var(--pass) 12%, transparent);
+    color: var(--pass);
+    border: 1px solid color-mix(in srgb, var(--pass) 30%, transparent);
+  }
+
+  .total-pill.fail {
+    background: color-mix(in srgb, var(--fail) 12%, transparent);
+    color: var(--fail);
+    border-color: color-mix(in srgb, var(--fail) 30%, transparent);
+  }
+
+  .duration-tag {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  /* ── Env Strip ── */
+  .env-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .env-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.65rem 0.9rem;
+  }
+
+  .env-card .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .env-card .value {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--head);
+  }
+
+  /* ── Section ── */
+  .section {
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Test Table ── */
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+
+  .test-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0.4rem 0.7rem;
+    border-bottom: 1px solid var(--border2);
+    font-weight: 500;
+  }
+
+  .test-table th:last-child { text-align: right; }
+
+  .test-table td {
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .test-table tr:last-child td { border-bottom: none; }
+
+  .test-table tr:hover td { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+
+  .test-table .check-id {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .test-table .desc { color: var(--text); line-height: 1.45; }
+
+  .test-table .detail {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+
+  .test-table .status-cell {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .badge.pass {
+    background: color-mix(in srgb, var(--pass) 10%, transparent);
+    color: var(--pass);
+    border: 1px solid color-mix(in srgb, var(--pass) 25%, transparent);
+  }
+
+  .badge.fail {
+    background: color-mix(in srgb, var(--fail) 10%, transparent);
+    color: var(--fail);
+    border: 1px solid color-mix(in srgb, var(--fail) 25%, transparent);
+  }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot.pass { background: var(--pass); }
+  .dot.fail { background: var(--fail); }
+
+  /* ── Node Status ── */
+  .node-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.7rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .node-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .node-card .node-name {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--head);
+    margin-bottom: 0.15rem;
+  }
+
+  .node-card .node-role {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .node-stat { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+  .node-stat strong { color: var(--text); font-weight: 500; }
+
+  /* ── Fix Note ── */
+  .fix-note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--info);
+    border-radius: 3px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .fix-note .fix-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--info);
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+  }
+
+  .fix-note p { font-size: 0.84rem; line-height: 1.6; color: var(--text); }
+  .fix-note code {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--info);
+    background: color-mix(in srgb, var(--info) 8%, transparent);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+  }
+
+  /* ── Progress bar ── */
+  .progress-bar-wrap { margin-bottom: 1.75rem; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+  .progress-track {
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--pass);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  @media (max-width: 600px) {
+    .report-header { flex-direction: column; }
+    .summary-box { align-items: flex-start; }
+    .node-grid { grid-template-columns: 1fr; }
+    .env-strip { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill { transition: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="report-header">
+    <div>
+      <div class="eyebrow">skoed · milestone 34.5</div>
+      <h1>Configurable Session Timeout — Validation Report</h1>
+      <div class="meta">
+        <span>Proxmox 3-node Raft cluster</span>
+        <span>2026-06-30</span>
+        <span>branch: feature/m345-session-timeout</span>
+      </div>
+    </div>
+    <div class="summary-box">
+      <div class="total-pill">
+        <span class="dot pass"></span>19 / 19 PASS
+      </div>
+      <div class="duration-tag">0 failures · 0 skipped</div>
+    </div>
+  </header>
+
+  <!-- Progress -->
+  <div class="progress-bar-wrap">
+    <div class="progress-label">
+      <span>Test coverage</span>
+      <span>100%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" style="width:100%"></div>
+    </div>
+  </div>
+
+  <!-- Environment -->
+  <div class="section">
+    <div class="section-title">Environment</div>
+    <div class="env-strip">
+      <div class="env-card">
+        <div class="label">Cluster</div>
+        <div class="value">3-node Raft</div>
+      </div>
+      <div class="env-card">
+        <div class="label">Topology</div>
+        <div class="value">CT201 · CT202 · CT203</div>
+      </div>
+      <div class="env-card">
+        <div class="label">Binary</div>
+        <div class="value">skoed_deploy (32.9 MB)</div>
+      </div>
+      <div class="env-card">
+        <div class="label">Build flag</div>
+        <div class="value">CGO_ENABLED=0</div>
+      </div>
+      <div class="env-card">
+        <div class="label">SnapshotThreshold</div>
+        <div class="value">64 (was 8192)</div>
+      </div>
+      <div class="env-card">
+        <div class="label">SnapshotInterval</div>
+        <div class="value">30 s</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Node Status -->
+  <div class="section">
+    <div class="section-title">Node State (post-validation)</div>
+    <div class="node-grid">
+      <div class="node-card">
+        <div class="node-name">skoed-01</div>
+        <div class="node-role">Leader · CT201 · 10.0.0.101</div>
+        <div class="node-stat"><strong>commit_index</strong> synced</div>
+        <div class="node-stat"><strong>snapshot</strong> taken ✓</div>
+        <div class="node-stat"><strong>restart</strong> &lt;2 s cold start</div>
+      </div>
+      <div class="node-card">
+        <div class="node-name">skoed-02</div>
+        <div class="node-role">Follower · CT202 · 10.0.0.102</div>
+        <div class="node-stat"><strong>commit_index</strong> synced</div>
+        <div class="node-stat"><strong>snapshot</strong> taken ✓</div>
+        <div class="node-stat"><strong>restart</strong> &lt;2 s cold start</div>
+      </div>
+      <div class="node-card">
+        <div class="node-name">skoed-03</div>
+        <div class="node-role">Follower · CT203 · 10.0.0.103</div>
+        <div class="node-stat"><strong>commit_index</strong> synced</div>
+        <div class="node-stat"><strong>snapshot</strong> taken ✓</div>
+        <div class="node-stat"><strong>restart</strong> &lt;2 s cold start</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fix Note -->
+  <div class="fix-note">
+    <div class="fix-title">Root Cause &amp; Fix Applied</div>
+    <p>hashicorp/raft v1.7.3 does not persist <code>lastApplied</code> to disk. With the default <code>SnapshotThreshold=8192</code> and only ~663 log entries, no snapshot was ever taken — causing a full 30-second log replay on every restart. The API served stale mid-replay values when polled at T+8 s. Fix: <code>SnapshotThreshold=64</code> + <code>SnapshotInterval=30s</code> in <code>cluster/raft.go</code>. After the first snapshot is taken, restarts replay ≤64 entries (near-instant). All three nodes confirmed snapshotted before this test run.</p>
+  </div>
+
+  <!-- Checks: API Behaviour -->
+  <div class="section">
+    <div class="section-title">API Behaviour</div>
+    <div style="overflow-x:auto">
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Description</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="check-id">CHK-01</td>
+          <td>
+            <div class="desc">Default value is 28800 (8 hours)</div>
+            <div class="detail">GET /api/v1/settings → auth.session_timeout_seconds</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-02</td>
+          <td>
+            <div class="desc">PATCH sets session_timeout_seconds to 3600</div>
+            <div class="detail">PATCH /api/v1/settings {"auth":{"session_timeout_seconds":3600}}</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-05</td>
+          <td>
+            <div class="desc">Validation rejects 0</div>
+            <div class="detail">HTTP 400 · "must be between 1 and 604800"</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-06</td>
+          <td>
+            <div class="desc">Validation rejects 604801</div>
+            <div class="detail">HTTP 400 · exceeds 7-day maximum</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-07a–f</td>
+          <td>
+            <div class="desc">All 6 preset values accepted</div>
+            <div class="detail">1800 · 3600 · 14400 · 28800 · 86400 · 604800 — all HTTP 200</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS ×6</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Checks: Session Expiry -->
+  <div class="section">
+    <div class="section-title">Session Expiry Enforcement</div>
+    <div style="overflow-x:auto">
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Description</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="check-id">CHK-04a</td>
+          <td>
+            <div class="desc">Token valid immediately after login</div>
+            <div class="detail">Set timeout=5 s → login → GET settings → HTTP 200</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-04b</td>
+          <td>
+            <div class="desc">Token expires after 5-second timeout</div>
+            <div class="detail">Sleep 7 s → GET settings with same token → HTTP 401</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Checks: Cluster -->
+  <div class="section">
+    <div class="section-title">Cluster Replication &amp; Follower Forwarding</div>
+    <div style="overflow-x:auto">
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Description</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="check-id">CHK-03a</td>
+          <td>
+            <div class="desc">Value replicated to node 102</div>
+            <div class="detail">After PATCH on leader, GET on skoed-02 → 3600</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-03b</td>
+          <td>
+            <div class="desc">Value replicated to node 103</div>
+            <div class="detail">After PATCH on leader, GET on skoed-03 → 3600</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-08a</td>
+          <td>
+            <div class="desc">PATCH on follower succeeds (forwarded to leader)</div>
+            <div class="detail">PATCH to skoed-02 → HTTP 200</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-08b</td>
+          <td>
+            <div class="desc">Forwarded write visible on leader</div>
+            <div class="detail">After follower PATCH of 5555, GET on skoed-01 → 5555</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Checks: Restart Persistence -->
+  <div class="section">
+    <div class="section-title">Restart Persistence</div>
+    <div style="overflow-x:auto">
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Description</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="check-id">CHK-09a</td>
+          <td>
+            <div class="desc">skoed-01 (leader) persists session_timeout=7777 after restart</div>
+            <div class="detail">systemctl restart skoed → back online in &lt;2 s → GET → 7777</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-09b</td>
+          <td>
+            <div class="desc">skoed-02 (follower) persists session_timeout=7777 after restart</div>
+            <div class="detail">systemctl restart skoed → back online in &lt;2 s → GET → 7777</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+        <tr>
+          <td class="check-id">CHK-09c</td>
+          <td>
+            <div class="desc">skoed-03 (follower) persists session_timeout=7777 after restart</div>
+            <div class="detail">systemctl restart skoed → back online in &lt;2 s → GET → 7777</div>
+          </td>
+          <td class="status-cell"><span class="badge pass"><span class="dot pass"></span>PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+</div>

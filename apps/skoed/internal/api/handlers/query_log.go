@@ -21,6 +21,9 @@ type queryLogEntry struct {
 	ClientID       string    `json:"client_id,omitempty"`
 	PauseActive    bool      `json:"pause_active,omitempty"`
 	DnssecStatus   string    `json:"dnssec_status,omitempty"` // M21: "ok", "bogus", "insecure", "indeterminate"
+	// M35.5 (TS-DeviceRegistry): name of the registered device that matched
+	// the client, if any. Omitted for unregistered clients.
+	DeviceName string `json:"device_name,omitempty"`
 }
 
 type queryLogResponse struct {
@@ -51,6 +54,16 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 	ql := h.app.GetQueryLog()
 	entries, total := ql.Query(client, outcome, limit, offset)
 
+	// M35.5 (TS-DeviceRegistry): build IP→device name index for enrichment.
+	deviceByIP := map[string]string{}
+	if cfg := h.app.GetCfg(); cfg != nil {
+		for _, d := range cfg.Devices {
+			for _, ip := range d.IPs {
+				deviceByIP[ip] = d.Name
+			}
+		}
+	}
+
 	result := make([]queryLogEntry, len(entries))
 	for i, e := range entries {
 		result[i] = queryLogEntry{
@@ -68,6 +81,7 @@ func (h *Handler) GetQueryLog(w http.ResponseWriter, r *http.Request) {
 			ClientID:       e.ClientID,
 			PauseActive:    e.PauseActive,
 			DnssecStatus:   e.DnssecStatus,
+			DeviceName:     deviceByIP[e.Client],
 		}
 	}
 

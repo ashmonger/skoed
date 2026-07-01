@@ -89,6 +89,7 @@
 
 ## Change log
 
+- 2026-06-30: M34.5 (Configurable Session Timeout) shipped. `SnapshotThreshold=64` / `SnapshotInterval=30s` infrastructure fix applied to `internal/cluster/raft.go` — eliminates 30-second full log replay on restart caused by hashicorp/raft v1.7.3 not persisting `lastApplied`. 19/19 Proxmox checks pass. Operational plan from M11 onward is tracked in `TODO.md` (per-milestone task sections), not here.
 - 2026-05-29: Initial plan created for Milestone 1.
 - 2026-05-29: Milestone 1 complete; plan updated for Milestone 2.
 - 2026-05-29: Replication core pivoted from SSE-pull to hashicorp/raft + bbolt; source of truth moved from YAML to bbolt; query log aggregates added via Raft; manual + quorum failover obsoleted.

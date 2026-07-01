@@ -32,7 +32,7 @@
 
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-IMG="golang:1.25-alpine"
+IMG="golang:1.26-alpine"
 
 GOMOD_VOL="${SKOED_GOMOD_VOLUME:-skoed-gomod-cache}"
 GOBUILD_VOL="${SKOED_GOBUILD_VOLUME:-skoed-gobuild-cache}"

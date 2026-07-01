@@ -196,6 +196,44 @@ func (a *App) wireLeaseOriginLookup() {
 	})
 }
 
+// wireDeviceLookup wires the M35.5 named-device-registry lookup into the
+// filter engine using the devices in the provided config snapshot.
+func (a *App) wireDeviceLookup(snap *config.Config) {
+	a.cfgMu.RLock()
+	eng := a.filterEng
+	a.cfgMu.RUnlock()
+	if eng == nil || snap == nil {
+		return
+	}
+	devices := snap.Devices
+	eng.SetDeviceLookup(func(mac, ip, hostname, clientID string) (string, bool) {
+		macLower := strings.ToLower(mac)
+		for _, d := range devices {
+			for _, m := range d.MACs {
+				if strings.ToLower(m) == macLower && macLower != "" {
+					return d.ProfileID, true
+				}
+			}
+			for _, dip := range d.IPs {
+				if dip == ip && ip != "" {
+					return d.ProfileID, true
+				}
+			}
+			for _, hn := range d.Hostnames {
+				if strings.EqualFold(hn, hostname) && hostname != "" {
+					return d.ProfileID, true
+				}
+			}
+			for _, cid := range d.ClientIDs {
+				if cid == clientID && clientID != "" {
+					return d.ProfileID, true
+				}
+			}
+		}
+		return "", false
+	})
+}
+
 // dhcpSourceURL returns the node-local DHCP URL (best-effort). Used
 // only for the LeasesSource.SourceURL surface; safe to return "" when
 // the connector exposes nothing useful.
@@ -504,6 +542,7 @@ func NewApp(
 	if snap, err := c.Store().Snapshot(); err == nil {
 		a.cfg = snap
 		a.filterEng = filter.NewProfiled(snap)
+		a.wireDeviceLookup(snap)
 	} else {
 		a.cfg = &config.Config{}
 		a.filterEng = filter.New(config.FilteringConfig{})
@@ -544,6 +583,10 @@ func (a *App) onApply() {
 	// M6.5 (TS-BlockDyn): re-wire the lease origin lookup every time the
 	// engine is rebuilt so block_dynamic_clients profiles resolve correctly.
 	a.wireLeaseOriginLookup()
+
+	// M35.5 (TS-DeviceRegistry): re-wire the device lookup every time the
+	// engine is rebuilt so device-profile matches stay current.
+	a.wireDeviceLookup(snap)
 
 	// M7 (TS-ApiToken): keep the in-memory token cache in sync with bbolt.
 	a.rebuildTokenCache()
@@ -623,7 +666,11 @@ func (a *App) RebuildDNSFromCfg() error {
 func (a *App) GetAuth() *auth.Store { return a.authStore }
 
 // CreateSession stores a node-local session token issued by POST /api/v1/auth/login.
-func (a *App) CreateSession(rawToken, username string) { a.sessions.create(rawToken, username) }
+// The TTL is read from the current cluster config (auth.session_timeout_seconds).
+func (a *App) CreateSession(rawToken, username string) {
+	ttl := sessionTTLFromSeconds(a.GetCfg().Auth.SessionTimeoutSeconds)
+	a.sessions.create(rawToken, username, ttl)
+}
 
 // DeleteSession removes a session token (logout).
 func (a *App) DeleteSession(rawToken string) { a.sessions.delete(rawToken) }
@@ -1048,6 +1095,13 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/clients/{ip}", h.GetClient)
 		// M6.5 — ARP/NDP cross-check (TS-ArpCheck).
 		r.Get("/api/v1/clients/{ip}/arp-state", h.GetClientArpState)
+
+		// M35.5 — named device registry (TS-DeviceRegistry).
+		r.Get("/api/v1/devices", h.ListDevices)
+		r.Post("/api/v1/devices", a.forward(h.CreateDevice))
+		r.Get("/api/v1/devices/{id}", h.GetDevice)
+		r.Patch("/api/v1/devices/{id}", a.forward(h.UpdateDevice))
+		r.Delete("/api/v1/devices/{id}", a.forward(h.DeleteDevice))
 
 		// M6.5 — Raft-replicated DHCP lease cache (TS-LeaseRepl).
 		// Reads are served locally from bbolt on every node; the body

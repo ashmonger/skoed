@@ -75,8 +75,9 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M32 | Per-Domain Upstream Routing | ✅ | — | [note](demos/m32/DEMO_NOTE.md) | [per-domain-upstream-routing](specs/functional/per-domain-upstream-routing.feature) | [per-domain-upstream-routing](tests/acceptance/per_domain_upstream_routing_test.go) |
 | M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
 | M34 | Certificate Management | ✅ | v0.2.7-2 | [note](demos/m34/DEMO_NOTE.md) | [certificate-management](specs/functional/certificate-management.feature) | [certificate-management](tests/acceptance/certificate_management_test.go) |
-| M34.5 | Configurable Session Timeout | ⬜ | — | — | [session-timeout](specs/functional/session-timeout.feature) | — |
+| M34.5 | Configurable Session Timeout | ✅ | — | [note](demos/m345/DEMO_NOTE.md) · [report](demos/m345/test-report.html) | [session-timeout](specs/functional/session-timeout.feature) | [session-timeout](tests/acceptance/session_timeout_test.go) |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
+| M35.5 | Named Device Registry | ✅ | — | [note](demos/m355/DEMO_NOTE.md) · [report](demos/m355/test-report.html) | [device-registry](specs/functional/named-device-registry.feature) | [device-registry](tests/acceptance/device_registry_test.go) |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
 | M37 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
 | M38 | Per-Profile DNSSEC Policy | ⬜ | — | — | — | — |
@@ -331,6 +332,83 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M18 — 7 screenshots in `demos/m18/` — 2026-06-18
 - [x] M18 — UoR demo validation — 2026-06-18
 - [x] M18 — merge to master + tag v0.1.5 — 2026-06-18
+
+---
+
+## M34.5 tasks — Configurable Session Timeout (branch: `feature/m345-session-timeout`)
+
+**Scope (UoR-approved):** Configurable web UI session TTL from 30 min to 7 days, persisted cluster-wide via Raft, with expiry enforcement on every authenticated request.
+
+### M34.5 specs
+- [x] M34.5 — functional spec: `specs/functional/session-timeout.feature` (6 FSIDs) — 2026-06-30
+- [x] M34.5 — UoR validates functional spec — 2026-06-30
+- [x] M34.5 — technical spec: `specs/technical/session-timeout.md` (TS-SessionTimeout) — 2026-06-30
+- [x] M34.5 — technical spec: `auth.session_timeout_seconds` added to Settings schema in `specs/technical/management-api.openapi.yaml` — 2026-06-30
+- [x] M34.5 — UoR validates technical spec — 2026-06-30
+
+### M34.5 tests
+- [x] M34.5 — acceptance tests: `tests/acceptance/session_timeout_test.go` (10 tests covering all 6 FSIDs) — 2026-06-30
+- [x] M34.5 — UoR validates acceptance tests — 2026-06-30
+
+### M34.5 implementation
+- [x] M34.5 — `SessionTimeoutSeconds` field in `AuthConfig` (`internal/config/config.go`) — 2026-06-30
+- [x] M34.5 — `CmdAuthSetCredentials` payload extended (`internal/cluster/commands.go`) — 2026-06-30
+- [x] M34.5 — `importM1Config` writes `SessionTimeoutSeconds` through Raft (`internal/cluster/store.go`) — 2026-06-30
+- [x] M34.5 — `GetSettings` returns `auth.session_timeout_seconds` with default-for-zero (28800) (`handlers/settings.go`) — 2026-06-30
+- [x] M34.5 — `UpdateSettings` PATCH validates 1–604800 range and persists via Raft — 2026-06-30
+- [x] M34.5 — `CreateSession` reads TTL from live config at login time (`internal/api/app.go`, `internal/api/session.go`) — 2026-06-30
+- [x] M34.5 — `sessionTTLFromSeconds` helper + `defaultSessionTTL=8h` (`internal/api/session.go`) — 2026-06-30
+- [x] M34.5 — Settings.vue: session timeout selector (6 presets: 30m/1h/4h/8h/24h/7d) + save — 2026-06-30
+- [x] M34.5 — `AuthSettings` interface in `web/src/api/types.ts` — 2026-06-30
+- [x] M34.5 — Infrastructure fix: `SnapshotThreshold=64` + `SnapshotInterval=30s` in `internal/cluster/raft.go` (root cause: default 8192 threshold prevented snapshots, causing 30-second full log replay on restart) — 2026-06-30
+
+### M34.5 validation
+- [x] M34.5 — all acceptance tests green — 2026-06-30
+- [x] M34.5 — refactoring phase — implementation clean; debug logging removed from store.go — 2026-06-30
+- [x] M34.5 — Proxmox 3-node cluster validation: 19/19 checks pass (default, PATCH, expiry enforcement, validation, replication, follower forwarding, restart persistence all 3 nodes) — 2026-06-30
+- [x] M34.5 — screenshots: `demos/m345/ss-345-0[1-4]-*.png` — 2026-06-30
+- [x] M34.5 — test report: `demos/m345/test-report.html` — 2026-06-30
+- [x] M34.5 — demo note: `demos/m345/DEMO_NOTE.md` — 2026-06-30
+- [ ] M34.5 — UoR demo validation
+- [ ] M34.5 — merge to master + tag release
+
+---
+
+## M35.5 tasks — Named Device Registry (branch: `feature/m35.5-named-device-registry`)
+
+**Scope (UoR-approved):** Device entity (name, profile, MACs, IPs, hostnames, client-IDs) stored in bbolt `config_devices`; Raft-replicated CRUD; Tier 0 DNS filtering priority; query log enrichment; Devices Web UI replacing Clients page.
+
+### M35.5 specs
+- [x] M35.5 — functional spec: `specs/functional/named-device-registry.feature` (9 FSIDs) — 2026-07-01
+- [x] M35.5 — UoR validates functional spec — 2026-07-01
+- [x] M35.5 — technical spec: `specs/technical/named-device-registry.md` (TS-NamedDeviceRegistry) + OpenAPI devices endpoints — 2026-07-01
+- [x] M35.5 — UoR validates technical spec — 2026-07-01
+
+### M35.5 tests
+- [x] M35.5 — acceptance tests: `tests/acceptance/device_registry_test.go` (9 tests covering all 9 FSIDs) — 2026-07-01
+- [x] M35.5 — UoR validates acceptance tests — 2026-07-01
+
+### M35.5 implementation
+- [x] M35.5 — `Device` struct in `internal/config/config.go` — 2026-07-01
+- [x] M35.5 — `CmdDeviceUpsert` / `CmdDeviceDelete` Raft commands (`internal/cluster/commands.go`) — 2026-07-01
+- [x] M35.5 — `bucketDevices` bbolt bucket + CRUD methods in `internal/cluster/store.go` — 2026-07-01
+- [x] M35.5 — Tier 0 device match in DNS handler (`internal/dns/handler.go`): IP, EDNS0 MAC (option 65501), hostname, client-ID — 2026-07-01
+- [x] M35.5 — Query log enrichment: `device_name`, `device_id`, `match_source:"device_registry"` — 2026-07-01
+- [x] M35.5 — REST handlers: `GET/POST /api/v1/devices`, `GET/PUT/DELETE /api/v1/devices/:id` (`handlers/devices.go`) — 2026-07-01
+- [x] M35.5 — Router wiring in `internal/api/router.go` — 2026-07-01
+- [x] M35.5 — `Devices.vue` side-panel UI replacing Clients page — 2026-07-01
+- [x] M35.5 — Forward-compatibility fix: `fsm.Restore()` calls `store.init()` to re-create missing buckets after snapshot restore — 2026-07-01
+- [x] M35.5 — Nil-guard on `bucketDevices` in `Snapshot()` — 2026-07-01
+
+### M35.5 validation
+- [x] M35.5 — all 9 acceptance tests green (Docker harness) — 2026-07-01
+- [x] M35.5 — refactoring phase complete — implementation clean — 2026-07-01
+- [x] M35.5 — Proxmox 3-node cluster validation: 17/17 checks pass (CRUD, replication, DNS Tier 0, query log, snapshot restore, rolling upgrade, UI) — 2026-07-01
+- [x] M35.5 — screenshots: `demos/m355/ss-355-0[1-4]-*.png` — 2026-07-01
+- [x] M35.5 — test report: `demos/m355/test-report.html` — 2026-07-01
+- [x] M35.5 — demo note: `demos/m355/DEMO_NOTE.md` — 2026-07-01
+- [ ] M35.5 — UoR demo validation
+- [ ] M35.5 — merge to master
 
 ---
 

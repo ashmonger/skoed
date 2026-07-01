@@ -88,6 +88,13 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 
 	cfg := raft.DefaultConfig()
 	cfg.LocalID = raft.ServerID(opts.NodeID)
+	// Lower the snapshot threshold so restarts replay at most ~64 entries
+	// instead of thousands. A snapshot is taken when commitIndex exceeds
+	// snapshotIndex by more than SnapshotThreshold. Default is 8192 which
+	// means nodes with fewer than 8192 entries never snapshot and must
+	// replay the entire log on every restart.
+	cfg.SnapshotThreshold = 64
+	cfg.SnapshotInterval = 30 * time.Second
 	if opts.Logger != nil {
 		cfg.LogOutput = opts.Logger
 	} else {

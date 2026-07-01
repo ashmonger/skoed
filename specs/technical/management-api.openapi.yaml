@@ -104,6 +104,103 @@ components:
 
   schemas:
 
+    Device:
+      type: object
+      required: [id, name, profile_id]
+      properties:
+        id:
+          type: string
+          description: URL-safe slug generated from name
+        name:
+          type: string
+          maxLength: 64
+          description: Human-readable device name, unique across all devices
+        profile_id:
+          type: string
+          description: ID of the profile to apply when this device is matched
+        macs:
+          type: array
+          items:
+            type: string
+          description: MAC addresses (aa:bb:cc:dd:ee:ff format)
+        ips:
+          type: array
+          items:
+            type: string
+          description: IPv4 or IPv6 addresses
+        hostnames:
+          type: array
+          items:
+            type: string
+          description: Hostnames (exact match)
+        client_ids:
+          type: array
+          items:
+            type: string
+          description: DHCP client identifiers
+
+    DeviceCreate:
+      type: object
+      required: [name, profile_id]
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        profile_id:
+          type: string
+        macs:
+          type: array
+          items:
+            type: string
+        ips:
+          type: array
+          items:
+            type: string
+        hostnames:
+          type: array
+          items:
+            type: string
+        client_ids:
+          type: array
+          items:
+            type: string
+
+    DevicePatch:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        profile_id:
+          type: string
+        macs:
+          type: array
+          items:
+            type: string
+          description: Full replacement array for MACs
+        ips:
+          type: array
+          items:
+            type: string
+          description: Full replacement array for IPs
+        hostnames:
+          type: array
+          items:
+            type: string
+          description: Full replacement array for hostnames
+        client_ids:
+          type: array
+          items:
+            type: string
+          description: Full replacement array for client IDs
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
     FilterPauseRequest:
       type: object
       required: [duration_seconds]
@@ -283,6 +380,73 @@ components:
               type: integer
               minimum: 1
               maximum: 1000000
+        auth:
+          type: object
+          description: Authentication and session settings.
+          properties:
+            session_timeout_seconds:
+              type: integer
+              minimum: 1
+              maximum: 604800
+              default: 28800
+              description: >
+                How long a web UI session remains valid after login, in seconds.
+                Applies to new sessions only — existing sessions keep their
+                original expiry. Default: 28800 (8 hours). Maximum: 604800 (7 days).
+                Preset options in the web UI: 1800 (30 min), 3600 (1 h), 14400 (4 h),
+                28800 (8 h), 86400 (24 h), 604800 (7 d).
+
+    # SettingsPatch is the request body for PATCH /api/v1/settings.
+    # All fields are optional; omitted fields are left unchanged.
+    SettingsPatch:
+      type: object
+      properties:
+        dns:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [forwarding, recursive]
+            upstream_resolvers:
+              type: array
+              items:
+                type: string
+            upstream_timeout_seconds:
+              type: integer
+              minimum: 1
+              maximum: 30
+            trusted_subnets:
+              type: array
+              items:
+                type: string
+            cache:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                max_entries:
+                  type: integer
+        filtering:
+          type: object
+          properties:
+            block_policy:
+              type: string
+              enum: [nxdomain, "null", nodata]
+        query_log:
+          type: object
+          properties:
+            max_entries:
+              type: integer
+              minimum: 1
+              maximum: 1000000
+        auth:
+          type: object
+          properties:
+            session_timeout_seconds:
+              type: integer
+              minimum: 1
+              maximum: 604800
+              description: New session TTL in seconds (1–604800). Applies to sessions created after the change.
 
     Error:
       type: object
@@ -918,6 +1082,10 @@ paths:
     get:
       summary: Get current settings
       operationId: getSettings
+      x-tsid: TS-Settings
+      x-fsid-links:
+        - FS-SessionTimeoutViewCurrentSetting
+        - FS-SessionTimeoutDefaultApplied
       responses:
         "200":
           description: Current settings
@@ -931,12 +1099,17 @@ paths:
     patch:
       summary: Update settings
       operationId: updateSettings
+      x-tsid: TS-Settings
+      x-fsid-links:
+        - FS-SessionTimeoutSetCustomDuration
+        - FS-SessionTimeoutExistingSessionsUnaffected
+        - FS-SessionTimeoutPersistsAcrossRestart
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Settings"
+              $ref: "#/components/schemas/SettingsPatch"
       responses:
         "200":
           description: Updated settings
@@ -1883,6 +2056,149 @@ paths:
                   failed_node:
                     type: string
                     nullable: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/devices:
+    get:
+      summary: List all registered devices
+      x-tsid: TS-DeviceRegistry
+      x-fsid-links: [FS-DevicesViewShowsUnifiedTable]
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive substring filter on name, hostname, MAC, or IP
+      responses:
+        "200":
+          description: List of registered devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Register a new named device
+      x-tsid: TS-DeviceRegistry
+      x-fsid-links: [FS-DeviceRegistryCreate, FS-DeviceRegistryNameUnique]
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCreate"
+      responses:
+        "201":
+          description: Device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: Validation error (empty name, invalid MAC, unknown profile_id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device name already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/devices/{id}:
+    get:
+      summary: Get a device by ID
+      x-tsid: TS-DeviceRegistry
+      x-fsid-links: [FS-DeviceRegistryCreate]
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404":
+          description: Device not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      summary: Update a device
+      x-tsid: TS-DeviceRegistry
+      x-fsid-links: [FS-DeviceRegistryUpdate]
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevicePatch"
+      responses:
+        "200":
+          description: Updated device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      summary: Delete a device
+      x-tsid: TS-DeviceRegistry
+      x-fsid-links: [FS-DeviceRegistryDelete]
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Device deleted
+        "404":
+          description: Device not found
         "401":
           $ref: "#/components/responses/Unauthorized"
 
