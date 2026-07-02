@@ -40,6 +40,8 @@ export interface QueryLogEntry {
   outcome: 'forwarded' | 'blocked' | 'local' | 'cached'
   blocklist_id?: string
   node_id?: string
+  dnssec_status?: 'secure' | 'insecure' | 'bogus' | 'indeterminate'
+  dnssec_error?: string
 }
 
 export interface QueryLogPage {

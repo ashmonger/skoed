@@ -11,6 +11,7 @@ require (
 require (
 	github.com/AdguardTeam/golibs v0.32.7 // indirect
 	github.com/ameshkov/dnscrypt/v2 v2.4.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect
 	golang.org/x/crypto v0.51.0 // indirect

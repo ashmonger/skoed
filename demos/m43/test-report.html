@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>M43 Test Report — DNSSEC Detail on Query Stream</title>
+<meta name="description" content="Acceptance test results for M43: dnssec_status/dnssec_error on SSE events, dnssec_status filter, paginated log fields, Web UI DNSSEC column.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #22d3ee;
+  --pass: #22c55e; --fail: #ef4444; --skip: #f59e0b;
+  --pass-bg: #052e16; --fail-bg: #2d0707; --skip-bg: #1c1500;
+  font-size: 15px;
+}
+body { background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,sans-serif; line-height: 1.6; min-height: 100vh; }
+.page { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+.header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+.milestone-tag { font-family: ui-monospace,monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); background: color-mix(in srgb,var(--accent) 12%,transparent); border: 1px solid color-mix(in srgb,var(--accent) 30%,transparent); padding: 0.2em 0.6em; border-radius: 4px; display: inline-block; margin-bottom: 0.75rem; }
+h1 { font-size: 1.5rem; font-weight: 600; text-wrap: balance; margin-bottom: 0.35rem; }
+.subtitle { color: var(--muted); font-size: 0.9rem; }
+.summary { display: flex; gap: 1rem; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; align-items: center; }
+.stat { display: flex; align-items: baseline; gap: 0.4rem; }
+.stat-num { font-family: ui-monospace,monospace; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-label { font-size: 0.8rem; color: var(--muted); }
+.stat-pass .stat-num { color: var(--pass); }
+.stat-fail .stat-num { color: var(--fail); }
+.stat-total .stat-num { color: var(--text); }
+.divider { width: 1px; height: 2rem; background: var(--border); }
+.verdict { margin-left: auto; padding: 0.3em 0.9em; border-radius: 6px; font-weight: 700; font-size: 0.85rem; font-family: ui-monospace,monospace; letter-spacing: 0.05em; text-transform: uppercase; }
+.verdict-pass { background: var(--pass-bg); color: var(--pass); border: 1px solid color-mix(in srgb,var(--pass) 30%,transparent); }
+.section-title { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-family: ui-monospace,monospace; margin-bottom: 0.75rem; }
+.test-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 2rem; font-size: 0.875rem; }
+.test-table thead th { background: color-mix(in srgb,var(--border) 50%,var(--surface)); padding: 0.6rem 1rem; text-align: left; font-family: ui-monospace,monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.test-table tbody tr { border-top: 1px solid var(--border); }
+.test-table tbody tr:first-child { border-top: none; }
+.test-table td { padding: 0.65rem 1rem; vertical-align: middle; }
+.test-name { font-family: ui-monospace,monospace; font-size: 0.82rem; }
+.test-fsid { font-family: ui-monospace,monospace; font-size: 0.72rem; color: var(--accent); opacity: 0.75; }
+.test-desc { font-size: 0.82rem; color: var(--muted); max-width: 38ch; }
+.test-dur { font-family: ui-monospace,monospace; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.chip { display: inline-flex; align-items: center; gap: 0.3em; font-family: ui-monospace,monospace; font-size: 0.72rem; font-weight: 600; padding: 0.18em 0.55em; border-radius: 4px; white-space: nowrap; letter-spacing: 0.04em; }
+.chip-pass { background: var(--pass-bg); color: var(--pass); }
+.chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.validation-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+.validation-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+.v-pass::before { content: '✓'; color: var(--pass); font-weight: 700; font-family: monospace; }
+footer { border-top: 1px solid var(--border); padding-top: 1rem; color: var(--muted); font-size: 0.78rem; font-family: ui-monospace,monospace; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="header">
+    <div class="milestone-tag">M43</div>
+    <h1>DNSSEC Detail on Query Stream</h1>
+    <p class="subtitle">dnssec_status / dnssec_error fields · ?dnssec_status= filter · paginated log · Web UI DNSSEC column</p>
+  </header>
+
+  <div class="summary">
+    <div class="stat stat-pass"><span class="stat-num">4</span><span class="stat-label">passed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-fail"><span class="stat-num">0</span><span class="stat-label">failed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-total"><span class="stat-num">4</span><span class="stat-label">acceptance tests</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-total"><span class="stat-num">4</span><span class="stat-label">cluster checks</span></div>
+    <div class="verdict verdict-pass">All green</div>
+  </div>
+
+  <p class="section-title">Acceptance Tests</p>
+  <div style="overflow-x:auto; margin-bottom:2rem;">
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>FSID</th>
+          <th>Description</th>
+          <th>Duration</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="test-name">TestDnssecStatusFilterSuppressesNonMatching</td>
+          <td class="test-fsid">FS-DnssecStatusFilterOnStream</td>
+          <td class="test-desc">?dnssec_status=bogus suppresses transparent-mode events</td>
+          <td class="test-dur">5.10s</td>
+          <td><span class="chip chip-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="test-name">TestDnssecStatusAbsentInTransparentMode</td>
+          <td class="test-fsid">FS-DnssecStatusOmittedWhenDisabled</td>
+          <td class="test-desc">dnssec_status key absent/empty in transparent DNSSEC mode</td>
+          <td class="test-dur">2.42s</td>
+          <td><span class="chip chip-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="test-name">TestDnssecStatusInPaginatedLog</td>
+          <td class="test-fsid">FS-DnssecStatusInPaginatedLog</td>
+          <td class="test-desc">GET /api/v1/query-log returns valid entry schema with dnssec fields</td>
+          <td class="test-dur">2.52s</td>
+          <td><span class="chip chip-pass">PASS</span></td>
+        </tr>
+        <tr>
+          <td class="test-name">TestDnssecModeConfigurable (M38 regression)</td>
+          <td class="test-fsid">FS-DnssecModeConfigurable</td>
+          <td class="test-desc">M38 DNSSEC mode setting still works after M43 additions</td>
+          <td class="test-dur">1.48s</td>
+          <td><span class="chip chip-pass">PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="section-title">Proxmox 3-node Cluster Validation</p>
+  <div class="validation-grid">
+    <div class="validation-item v-pass">?dnssec_status=bogus filter suppresses non-bogus events on skoed-01</div>
+    <div class="validation-item v-pass">paginated log schema valid (no crash on dnssec fields)</div>
+    <div class="validation-item v-pass">node_id field present on all SSE events (single-node stream)</div>
+    <div class="validation-item v-pass">all 3 nodes healthy after deployment</div>
+  </div>
+
+  <footer>
+    <span>Branch: feature/m41-m43</span>
+    <span>Binary: v0.3.4</span>
+    <span>Cluster: 3-node Raft (10.0.0.101–103)</span>
+    <span>Date: 2026-07-02</span>
+  </footer>
+
+</div>
+</body>
+</html>

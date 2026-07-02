@@ -97,14 +97,15 @@
               <th>Type</th>
               <th>Outcome</th>
               <th>Blocklist</th>
+              <th v-if="hasDnssec">DNSSEC</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="entries === null">
-              <td :colspan="scope === 'cluster' ? 7 : 6" class="text-center text-fg-muted py-6">Loading…</td>
+              <td :colspan="colCount" class="text-center text-fg-muted py-6">Loading…</td>
             </tr>
             <tr v-else-if="entries.length === 0">
-              <td :colspan="scope === 'cluster' ? 7 : 6" class="text-center text-fg-muted py-6">
+              <td :colspan="colCount" class="text-center text-fg-muted py-6">
                 No entries match the current filter.
               </td>
             </tr>
@@ -122,6 +123,9 @@
                 <span :class="outcomeBadge(e.outcome)">{{ e.outcome }}</span>
               </td>
               <td class="font-mono text-xs text-fg-muted">{{ e.blocklist_id ?? '—' }}</td>
+              <td v-if="hasDnssec" :title="e.dnssec_error ?? undefined">
+                <span :class="dnssecBadge(e.dnssec_status)">{{ dnssecLabel(e.dnssec_status) }}</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -218,6 +222,33 @@ function outcomeBadge(o: QueryLogEntry['outcome']): string {
     case 'cached':    return 'badge-accent'
     case 'local':     return 'badge-warning'
   }
+}
+
+// M43 — DNSSEC column is shown when any loaded entry has a dnssec_status.
+const hasDnssec = computed(() =>
+  (entries.value ?? []).some(e => e.dnssec_status != null),
+)
+
+const colCount = computed(() => {
+  let n = 6 // Time, Client, Domain, Type, Outcome, Blocklist
+  if (scope.value === 'cluster') n++
+  if (hasDnssec.value) n++
+  return n
+})
+
+function dnssecBadge(status: QueryLogEntry['dnssec_status']): string {
+  switch (status) {
+    case 'secure':        return 'badge-success'
+    case 'insecure':      return 'badge-warning'
+    case 'bogus':         return 'badge-danger'
+    case 'indeterminate': return 'badge-accent'
+    default:              return 'badge-accent'
+  }
+}
+
+function dnssecLabel(status: QueryLogEntry['dnssec_status']): string {
+  if (!status) return '—'
+  return status
 }
 
 const timeFmt = new Intl.DateTimeFormat(undefined, {
