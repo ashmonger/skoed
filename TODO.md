@@ -78,14 +78,14 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M34.5 | Configurable Session Timeout | ✅ | — | [note](demos/m345/DEMO_NOTE.md) · [report](demos/m345/test-report.html) | [session-timeout](specs/functional/session-timeout.feature) | [session-timeout](tests/acceptance/session_timeout_test.go) |
 | M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
 | M35.5 | Named Device Registry | ✅ | — | [note](demos/m355/DEMO_NOTE.md) · [report](demos/m355/test-report.html) | [device-registry](specs/functional/named-device-registry.feature) | [device-registry](tests/acceptance/device_registry_test.go) |
-| M36 | Allowlist Scheduling + Per-Entry Metadata | ⬜ | — | — | — | — |
-| M37 | Schedule Binding Web UI + Bulk Operations | ⬜ | — | — | — | — |
-| M38 | Per-Profile DNSSEC Policy | ⬜ | — | — | — | — |
-| M39 | Prometheus Histograms + Grafana | ⬜ | — | — | — | — |
+| M36 | Allowlist Scheduling + Per-Entry Metadata | ✅ | v0.3.3 | [note](demos/m36/DEMO_NOTE.md) · [report](demos/m36/test-report.html) | — | — |
+| M37 | Schedule Binding Web UI + Bulk Operations | ✅ | v0.3.3 | [note](demos/m37/DEMO_NOTE.md) · [report](demos/m37/test-report.html) | — | — |
+| M38 | Per-Profile DNSSEC Policy | ✅ | v0.3.3 | [note](demos/m38/DEMO_NOTE.md) · [report](demos/m38/test-report.html) | — | — |
+| M39 | Prometheus Histograms + Grafana | ✅ | v0.3.3 | [note](demos/m39/DEMO_NOTE.md) · [report](demos/m39/test-report.html) | — | — |
 | M40 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
-| M41 | Cluster-wide Live Query Stream | ⬜ | — | — | — | — |
-| M42 | Query Log Stream Enhancements (Backfill + WebSocket) | ⬜ | — | — | — | — |
-| M43 | DNSSEC Detail on Query Stream | ⬜ | — | — | — | — |
+| M41 | Cluster-wide Live Query Stream | ✅ | v0.3.4 | [note](demos/m41/DEMO_NOTE.md) · [report](demos/m41/test-report.html) | [cluster-stream](specs/functional/cluster-wide-live-query-stream.feature) | [cluster-stream](tests/acceptance/cluster_wide_stream_test.go) |
+| M42 | Query Log Stream Enhancements (Backfill + WebSocket) | ✅ | v0.3.4 | [note](demos/m42/DEMO_NOTE.md) · [report](demos/m42/test-report.html) | [stream-enh](specs/functional/query-log-stream-enhancements.feature) | [stream-enh](tests/acceptance/query_log_stream_enhancements_test.go) |
+| M43 | DNSSEC Detail on Query Stream | ✅ | v0.3.4 | [note](demos/m43/DEMO_NOTE.md) · [report](demos/m43/test-report.html) | [dnssec-stream](specs/functional/dnssec-detail-query-stream.feature) | [dnssec-stream](tests/acceptance/dnssec_detail_stream_test.go) |
 | M44 | Webhook Reliability | ⬜ | — | — | — | — |
 | M45 | API Token Enhancements | ⬜ | — | — | — | — |
 | M46 | High-Cardinality Metrics | ⬜ | — | — | — | — |

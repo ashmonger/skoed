@@ -1143,7 +1143,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 39 — Prometheus Histograms + Grafana Dashboard
+### Milestone 39 — Prometheus Histograms + Grafana Dashboard ✅ shipped v0.3.3
 
 **Outcome**: Operators gain p50/p95/p99 DNS query latency visibility and per-upstream resolver latency breakdowns via Prometheus histograms, plus a bundled Grafana dashboard JSON they can import with one click.
 
@@ -1336,7 +1336,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 36 — Allowlist Scheduling + Per-Entry Metadata
+### Milestone 36 — Allowlist Scheduling + Per-Entry Metadata ✅ shipped v0.3.3
 
 **Outcome**: Operators can set allowlist entries that expire automatically, are visible only during specific hours, or carry notes for auditing — matching the time-based capabilities already available for blocklists.
 
@@ -1355,7 +1355,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 37 — Schedule Binding Web UI + Bulk Operations
+### Milestone 37 — Schedule Binding Web UI + Bulk Operations ✅ shipped v0.3.3
 
 **Outcome**: Operators can manage schedule bindings entirely from the Web UI without touching the API directly, and can apply a schedule to multiple profile–blocklist pairs in a single action.
 
@@ -1552,7 +1552,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 38 — Per-Profile DNSSEC Policy
+### Milestone 38 — Per-Profile DNSSEC Policy ✅ shipped v0.3.3
 
 **Outcome**: Operators can enforce strict DNSSEC validation for high-security profiles (e.g., corporate devices) while leaving validation off for profiles where it causes compatibility issues (e.g., IoT), without changing the cluster-wide default.
 
