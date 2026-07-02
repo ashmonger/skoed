@@ -11,6 +11,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AllowlistEntry is a rich allowlist record introduced by M36. It supersedes the
+// plain-string allowlist on Profile and FilteringConfig. Fields beyond Domain are
+// all optional; an entry with no expiry, note, or schedule behaves like the old
+// plain-string entry it replaces.
+type AllowlistEntry struct {
+	Domain     string     `yaml:"domain"                json:"domain"`
+	ExpiresAt  *time.Time `yaml:"expires_at,omitempty"  json:"expires_at,omitempty"`
+	Note       string     `yaml:"note,omitempty"        json:"note,omitempty"`
+	ScheduleID string     `yaml:"schedule_id,omitempty" json:"schedule_id,omitempty"`
+}
+
+// SharedAllowlist is a named, cross-profile allowlist. Changes propagate
+// instantly to all linked profiles via the filter engine rebuild triggered
+// on each Raft apply.
+type SharedAllowlist struct {
+	ID       string           `yaml:"id"                 json:"id"`
+	Name     string           `yaml:"name"               json:"name"`
+	Entries  []AllowlistEntry `yaml:"entries,omitempty"  json:"entries,omitempty"`
+	Profiles []string         `yaml:"profiles,omitempty" json:"profiles,omitempty"` // profile IDs this list is linked to
+}
+
 // PauseState is stored in bbolt and replicated via Raft. ResumesAt is the
 // wall-clock deadline; if time.Now().Before(ResumesAt) the pause is active.
 // ProfileIDs restricts the pause to specific profiles; empty means all profiles.
@@ -108,7 +129,11 @@ type Profile struct {
 	ID          string   `yaml:"id"           json:"id"`
 	Name        string   `yaml:"name"         json:"name"`
 	Blocklists  []string `yaml:"blocklists,omitempty"   json:"blocklists,omitempty"`
-	Allowlist   []string `yaml:"allowlist,omitempty"    json:"allowlist,omitempty"`
+	// Allowlist is the legacy plain-string allowlist (pre-M36). Retained for
+	// backward-compatible YAML unmarshalling; the engine merges both fields.
+	Allowlist        []string         `yaml:"allowlist,omitempty"         json:"allowlist,omitempty"`
+	// M36: rich allowlist entries with optional expiry, note, and schedule.
+	AllowlistEntries []AllowlistEntry `yaml:"allowlist_entries,omitempty" json:"allowlist_entries,omitempty"`
 	SafeSearch  []string `yaml:"safesearch,omitempty"   json:"safesearch,omitempty"`
 	ClientIPs   []string `yaml:"client_ips,omitempty"   json:"client_ips,omitempty"`
 	ClientCIDRs []string `yaml:"client_cidrs,omitempty" json:"client_cidrs,omitempty"`
@@ -130,6 +155,13 @@ type Profile struct {
 
 	// M33: per-profile block page content overrides. Nil means use global defaults.
 	BlockPage *ProfileBlockPageConfig `yaml:"block_page,omitempty" json:"block_page,omitempty"`
+
+	// M38: per-profile DNSSEC validation mode.
+	// "inherit" (default) — use the cluster-wide dns.dnssec_mode.
+	// "validate"          — enforce DNSSEC; bogus answers become SERVFAIL.
+	// "transparent"       — pass responses without validation.
+	// Empty string is treated as "inherit".
+	DnssecMode string `yaml:"dnssec_mode,omitempty" json:"dnssec_mode,omitempty"`
 }
 
 // Device groups multiple network identifiers (MACs, IPs, hostnames, client-ids)
@@ -272,7 +304,12 @@ type ProfileBlockPageConfig struct {
 type FilteringConfig struct {
 	BlockPolicy     string          `yaml:"block_policy"` // "nxdomain" | "null" | "nodata" | "redirect"
 	Blocklists      []Blocklist     `yaml:"blocklists,omitempty"`
-	Allowlist       []string        `yaml:"allowlist,omitempty"`
+	// Allowlist is the legacy plain-string global allowlist (pre-M36).
+	Allowlist            []string         `yaml:"allowlist,omitempty"`
+	// M36: rich global allowlist entries.
+	AllowlistEntries     []AllowlistEntry `yaml:"allowlist_entries,omitempty" json:"allowlist_entries,omitempty"`
+	// M36: named, cross-profile shared allowlists.
+	SharedAllowlists     []SharedAllowlist `yaml:"shared_allowlists,omitempty" json:"shared_allowlists,omitempty"`
 	PauseMaxSeconds int             `yaml:"pause_max_seconds,omitempty" json:"pause_max_seconds,omitempty"` // 0 = feature disabled; absent = 86400
 	GlobalPause     *PauseState     `yaml:"global_pause,omitempty"      json:"global_pause,omitempty"`
 	BlockPage       BlockPageConfig `yaml:"block_page,omitempty"        json:"block_page,omitempty"`

@@ -53,6 +53,61 @@ func newDomainSet(entries []string) domainSet {
 	return ds
 }
 
+// scheduledAllowEntry is a per-schedule bucket of allowed domains. The allow
+// only applies when scheduleActive(schedule, now) is true (M36).
+type scheduledAllowEntry struct {
+	set        domainSet
+	scheduleID string
+}
+
+// splitAllowlistEntries divides AllowlistEntries into static (domainSet) and
+// schedule-gated ([]scheduledAllowEntry) parts. Entries whose ExpiresAt has
+// already passed are dropped entirely.
+func splitAllowlistEntries(entries []config.AllowlistEntry, now time.Time) (domainSet, []scheduledAllowEntry) {
+	static := domainSet{apices: make(map[string]struct{})}
+	bySchedule := map[string]*scheduledAllowEntry{}
+	for _, e := range entries {
+		if e.ExpiresAt != nil && !now.Before(*e.ExpiresAt) {
+			continue // expired
+		}
+		d := strings.ToLower(strings.TrimPrefix(e.Domain, "*."))
+		if d == "" {
+			continue
+		}
+		if e.ScheduleID == "" {
+			static.apices[d] = struct{}{}
+		} else {
+			if _, ok := bySchedule[e.ScheduleID]; !ok {
+				bySchedule[e.ScheduleID] = &scheduledAllowEntry{
+					scheduleID: e.ScheduleID,
+					set:        domainSet{apices: make(map[string]struct{})},
+				}
+			}
+			bySchedule[e.ScheduleID].set.apices[d] = struct{}{}
+		}
+	}
+	sched := make([]scheduledAllowEntry, 0, len(bySchedule))
+	for _, se := range bySchedule {
+		sched = append(sched, *se)
+	}
+	return static, sched
+}
+
+// checkScheduledAllowlist returns true if any scheduled entry's schedule is
+// currently active and the domain matches.
+func checkScheduledAllowlist(entries []scheduledAllowEntry, schedules []config.Schedule, domain string, now time.Time) bool {
+	for i := range entries {
+		if !entries[i].set.matches(domain) {
+			continue
+		}
+		s := findSchedule(schedules, entries[i].scheduleID)
+		if s != nil && scheduleActive(s, now) {
+			return true
+		}
+	}
+	return false
+}
+
 // matches returns true if domain equals or is a subdomain of any registered apex.
 // It strips one DNS label at a time, so the check is O(label-depth) map lookups.
 func (ds *domainSet) matches(domain string) bool {
@@ -75,10 +130,19 @@ type blocklistEntry struct {
 	managed bool
 }
 
+// sharedAllowEntry is the engine-internal form of a config.SharedAllowlist (M36).
+type sharedAllowEntry struct {
+	static     domainSet
+	scheduled  []scheduledAllowEntry
+	profileIDs map[string]struct{}
+}
+
 type Engine struct {
 	mu           sync.RWMutex
 	globalPolicy BlockPolicy
 	allowlist    domainSet
+	// M36: schedule-gated global allowlist entries.
+	scheduledAllowlist []scheduledAllowEntry
 	blocklists   []blocklistEntry
 	// M30.5 — cluster-wide custom rules (allow > block; checked before allowlist).
 	customRules  customRuleSet
@@ -87,6 +151,8 @@ type Engine struct {
 	profiles  []profileEntry
 	schedules []config.Schedule
 	bindings  []config.ScheduleBinding
+	// M36: shared allowlists (cross-profile).
+	sharedAllowlists []sharedAllowEntry
 
 	// blocklistByID lets profile evaluation locate a blocklist's set
 	// without an O(N) linear walk per query.
@@ -115,6 +181,8 @@ type profileEntry struct {
 	id          string
 	blocklists  []string // ids
 	allowlist   domainSet
+	// M36: schedule-gated per-profile allowlist entries.
+	scheduledAllowlist []scheduledAllowEntry
 	safesearch  []string
 	clientIPs   []net.IP
 	clientCIDRs []*net.IPNet
@@ -125,6 +193,8 @@ type profileEntry struct {
 	// M6.5 (TS-BlockDyn): when true this profile matches any client
 	// whose DHCP lease Origin is exactly "dhcp_dynamic".
 	blockDynamicClients bool
+	// M38: per-profile DNSSEC mode. "" or "inherit" → use global default.
+	dnssecMode string
 }
 
 func parsePolicy(s string) BlockPolicy {
@@ -191,10 +261,19 @@ func detectFormat(lines []string) string {
 }
 
 func New(cfg config.FilteringConfig) *Engine {
+	staticSet, scheduled := splitAllowlistEntries(cfg.AllowlistEntries, Now())
+	// Merge legacy plain-string allowlist into the static set.
+	for _, d := range cfg.Allowlist {
+		d = strings.ToLower(strings.TrimPrefix(d, "*."))
+		if d != "" {
+			staticSet.apices[d] = struct{}{}
+		}
+	}
 	e := &Engine{
-		globalPolicy:  parsePolicy(cfg.BlockPolicy),
-		allowlist:     newDomainSet(cfg.Allowlist),
-		blocklistByID: map[string]*blocklistEntry{},
+		globalPolicy:       parsePolicy(cfg.BlockPolicy),
+		allowlist:          staticSet,
+		scheduledAllowlist: scheduled,
+		blocklistByID:      map[string]*blocklistEntry{},
 	}
 	if cfg.CustomRules != "" {
 		if rs, err := ParseCustomRules(cfg.CustomRules); err == nil {
@@ -239,12 +318,22 @@ func New(cfg config.FilteringConfig) *Engine {
 func NewProfiled(cfg *config.Config) *Engine {
 	e := New(cfg.Filtering)
 	e.profiles = make([]profileEntry, 0, len(cfg.Profiles))
+	now := Now()
 	for _, p := range cfg.Profiles {
+		staticSet, sched := splitAllowlistEntries(p.AllowlistEntries, now)
+		// Merge legacy plain-string per-profile allowlist.
+		for _, d := range p.Allowlist {
+			d = strings.ToLower(strings.TrimPrefix(d, "*."))
+			if d != "" {
+				staticSet.apices[d] = struct{}{}
+			}
+		}
 		pe := profileEntry{
-			id:         p.ID,
-			blocklists: append([]string(nil), p.Blocklists...),
-			allowlist:  newDomainSet(p.Allowlist),
-			safesearch: append([]string(nil), p.SafeSearch...),
+			id:                 p.ID,
+			blocklists:         append([]string(nil), p.Blocklists...),
+			allowlist:          staticSet,
+			scheduledAllowlist: sched,
+			safesearch:         append([]string(nil), p.SafeSearch...),
 		}
 		for _, s := range p.ClientIPs {
 			if ip := net.ParseIP(s); ip != nil {
@@ -266,10 +355,25 @@ func NewProfiled(cfg *config.Config) *Engine {
 			pe.clientHostnames = append(pe.clientHostnames, s)
 		}
 		pe.blockDynamicClients = p.BlockDynamicClients
+		pe.dnssecMode = p.DnssecMode
 		e.profiles = append(e.profiles, pe)
 	}
 	e.schedules = append([]config.Schedule(nil), cfg.Schedules...)
 	e.bindings = append([]config.ScheduleBinding(nil), cfg.Bindings...)
+
+	// M36: build shared allowlist index.
+	for _, sal := range cfg.Filtering.SharedAllowlists {
+		staticSet, sched := splitAllowlistEntries(sal.Entries, now)
+		pids := make(map[string]struct{}, len(sal.Profiles))
+		for _, pid := range sal.Profiles {
+			pids[pid] = struct{}{}
+		}
+		e.sharedAllowlists = append(e.sharedAllowlists, sharedAllowEntry{
+			static:     staticSet,
+			scheduled:  sched,
+			profileIDs: pids,
+		})
+	}
 
 	e.profilePauseUntil = make(map[string]time.Time, len(cfg.Profiles))
 	for _, p := range cfg.Profiles {
@@ -378,8 +482,12 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 		return Result{Disposition: Block, BlocklistID: "custom_rule"}
 	}
 
-	// Global allowlist (legacy / non-profile) always wins first.
+	// Global allowlist (static) always wins first.
 	if e.allowlist.matches(domain) {
+		return Result{Disposition: Allow}
+	}
+	// Global scheduled allowlist (M36): allow if schedule is currently active.
+	if checkScheduledAllowlist(e.scheduledAllowlist, e.schedules, domain, now) {
 		return Result{Disposition: Allow}
 	}
 
@@ -388,8 +496,28 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 	// Profile-level allowlists (any matching profile allows → allow).
 	for _, pid := range matched {
 		p := e.findProfile(pid)
-		if p != nil && p.allowlist.matches(domain) {
-			return Result{Disposition: Allow}
+		if p != nil {
+			if p.allowlist.matches(domain) {
+				return Result{Disposition: Allow}
+			}
+			if checkScheduledAllowlist(p.scheduledAllowlist, e.schedules, domain, now) {
+				return Result{Disposition: Allow}
+			}
+		}
+	}
+	// M36: shared allowlists that apply to any matched profile.
+	for i := range e.sharedAllowlists {
+		sal := &e.sharedAllowlists[i]
+		for _, pid := range matched {
+			if _, ok := sal.profileIDs[pid]; ok {
+				if sal.static.matches(domain) {
+					return Result{Disposition: Allow}
+				}
+				if checkScheduledAllowlist(sal.scheduled, e.schedules, domain, now) {
+					return Result{Disposition: Allow}
+				}
+				break // checked this sal for matched profiles; move to next sal
+			}
 		}
 	}
 
@@ -620,6 +748,9 @@ func (e *Engine) Evaluate(domain string) Result {
 	if e.allowlist.matches(domain) {
 		return Result{Disposition: Allow}
 	}
+	if checkScheduledAllowlist(e.scheduledAllowlist, e.schedules, domain, Now()) {
+		return Result{Disposition: Allow}
+	}
 
 	for _, bl := range e.blocklists {
 		if bl.set.matches(domain) {
@@ -639,4 +770,23 @@ func (e *Engine) EffectivePolicy(r Result) BlockPolicy {
 		return r.Policy
 	}
 	return e.globalPolicy
+}
+
+// DNSSECModeForClient returns the effective DNSSEC mode for the given client.
+// It looks up the first matched profile; if that profile has a non-inherit
+// dnssec_mode it is returned directly, otherwise the provided globalDefault
+// is returned. Callers pass the cluster-wide dns.dnssec_mode as globalDefault.
+func (e *Engine) DNSSECModeForClient(clientIP net.IP, id ClientIdentity, globalDefault string) string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	profileIDs := e.profilesMatchingLockedWithIdentity(clientIP, id)
+	for _, pid := range profileIDs {
+		if pe := e.findProfile(pid); pe != nil {
+			switch pe.dnssecMode {
+			case "validate", "transparent":
+				return pe.dnssecMode
+			}
+		}
+	}
+	return globalDefault
 }

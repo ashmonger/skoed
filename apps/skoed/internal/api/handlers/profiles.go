@@ -69,7 +69,9 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		ClientCIDRs         []string                        `json:"client_cidrs"`
 		BlockDynamicClients *bool                           `json:"block_dynamic_clients"`
 		// M33: per-profile block page overrides.
-		BlockPage           *config.ProfileBlockPageConfig  `json:"block_page"`
+		BlockPage  *config.ProfileBlockPageConfig `json:"block_page"`
+		// M38: per-profile DNSSEC mode override.
+		DnssecMode *string `json:"dnssec_mode"`
 	}
 	if !decodeJSON(w, r, &patch) {
 		return
@@ -115,6 +117,15 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if patch.BlockPage != nil {
 		updated.BlockPage = patch.BlockPage
+	}
+	if patch.DnssecMode != nil {
+		switch *patch.DnssecMode {
+		case "", "inherit", "validate", "transparent":
+			updated.DnssecMode = *patch.DnssecMode
+		default:
+			writeError(w, http.StatusBadRequest, "dnssec_mode must be '', 'inherit', 'validate', or 'transparent'")
+			return
+		}
 	}
 	if h.app.GetCluster() == nil {
 		writeError(w, http.StatusServiceUnavailable, "cluster not available")

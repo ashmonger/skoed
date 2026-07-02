@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>M36 Test Report — Allowlist Scheduling + Per-Entry Metadata</title>
+<meta name="description" content="Acceptance test results for M36: rich allowlist entries with expiry, note, schedule_id, shared allowlists, and bulk import.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --accent: #22d3ee;
+  --pass: #22c55e;
+  --fail: #ef4444;
+  --skip: #f59e0b;
+  --pass-bg: #052e16;
+  --fail-bg: #2d0707;
+  --skip-bg: #1c1500;
+  font-size: 15px;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.mono { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace; }
+
+/* Layout */
+.page { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* Header */
+.header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+.milestone-tag {
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 0.75rem;
+}
+h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+  text-wrap: balance;
+  margin-bottom: 0.35rem;
+}
+.subtitle { color: var(--muted); font-size: 0.9rem; }
+
+/* Summary bar */
+.summary {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+  align-items: center;
+}
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.stat-num {
+  font-family: ui-monospace, monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label { font-size: 0.8rem; color: var(--muted); }
+.stat-pass .stat-num { color: var(--pass); }
+.stat-fail .stat-num { color: var(--fail); }
+.stat-skip .stat-num { color: var(--skip); }
+.stat-total .stat-num { color: var(--text); }
+.divider { width: 1px; height: 2rem; background: var(--border); }
+.verdict {
+  margin-left: auto;
+  padding: 0.3em 0.9em;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.verdict-pass { background: var(--pass-bg); color: var(--pass); border: 1px solid color-mix(in srgb, var(--pass) 30%, transparent); }
+.verdict-fail { background: var(--fail-bg); color: var(--fail); border: 1px solid color-mix(in srgb, var(--fail) 30%, transparent); }
+
+/* Section */
+.section-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  margin-bottom: 0.75rem;
+}
+
+/* Test table */
+.test-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  font-size: 0.875rem;
+}
+.test-table thead th {
+  background: color-mix(in srgb, var(--border) 50%, var(--surface));
+  padding: 0.6rem 1rem;
+  text-align: left;
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.test-table tbody tr { border-top: 1px solid var(--border); }
+.test-table tbody tr:first-child { border-top: none; }
+.test-table td { padding: 0.65rem 1rem; vertical-align: middle; }
+.test-name { font-family: ui-monospace, monospace; font-size: 0.82rem; color: var(--text); }
+.test-fsid { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--accent); opacity: 0.75; }
+.test-desc { font-size: 0.82rem; color: var(--muted); max-width: 36ch; }
+.test-dur {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.18em 0.55em;
+  border-radius: 4px;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.chip-pass { background: var(--pass-bg); color: var(--pass); }
+.chip-fail { background: var(--fail-bg); color: var(--fail); }
+.chip-skip { background: var(--skip-bg); color: var(--skip); }
+.chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Screenshots */
+.screenshots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.screenshot-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.screenshot-card img { width: 100%; display: block; }
+.screenshot-label {
+  padding: 0.5rem 0.75rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Validation section */
+.validation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+.validation-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+.v-pass::before { content: '✓'; color: var(--pass); font-weight: 700; font-family: monospace; }
+.v-fail::before { content: '✗'; color: var(--fail); font-weight: 700; font-family: monospace; }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: ui-monospace, monospace;
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="milestone-tag">M36 — skoed</div>
+    <h1>Allowlist Scheduling + Per-Entry Metadata</h1>
+    <p class="subtitle">Rich allowlist entries with expiry, notes, and shared cross-profile allowlists</p>
+  </div>
+
+  <div class="summary">
+    <div class="stat stat-pass"><span class="stat-num">14</span><span class="stat-label">passed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-fail"><span class="stat-num">0</span><span class="stat-label">failed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-total"><span class="stat-num">14</span><span class="stat-label">total</span></div>
+    <div class="divider"></div>
+    <div class="stat"><span class="stat-num mono" style="font-size:1rem;color:var(--muted)">35/35</span><span class="stat-label">Proxmox cluster checks</span></div>
+    <div class="verdict verdict-pass">All pass</div>
+  </div>
+
+  <p class="section-title">Acceptance Tests</p>
+  <table class="test-table">
+    <thead>
+      <tr>
+        <th>Test</th>
+        <th>FSID</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th style="text-align:right">Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="test-name">TestAllowlistRichMetadataRoundTrip</td>
+        <td class="test-fsid">FS-AllowlistRichMetadataRoundTrip</td>
+        <td class="test-desc">POST entry with note → GET /entries shows note</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.32s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistEntryExpiryRespected</td>
+        <td class="test-fsid">FS-AllowlistEntryExpiryRespected</td>
+        <td class="test-desc">Past expires_at → blocklist wins → NXDOMAIN</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.32s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistBulkImport</td>
+        <td class="test-fsid">FS-AllowlistBulkImport</td>
+        <td class="test-desc">Bulk import: 2 added, 1 skipped (duplicate)</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.32s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestSharedAllowlistCrossProfileAllow</td>
+        <td class="test-fsid">FS-SharedAllowlistCrossProfileAllow</td>
+        <td class="test-desc">SAL assigned to "kids" allows domain; "adults" still blocked</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.22s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistOverridesBlocklist</td>
+        <td class="test-fsid">FS-AllowlistOverridesBlocklist</td>
+        <td class="test-desc">Allowlisted domain passes even when blocklist matches</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.51s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistRemove</td>
+        <td class="test-fsid">FS-AllowlistRemove</td>
+        <td class="test-desc">DELETE removes entry; domain is blocked again</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.52s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistWildcardEntry</td>
+        <td class="test-fsid">FS-AllowlistWildcardEntry</td>
+        <td class="test-desc">Wildcard *.safe allows all subdomains</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.00s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestAllowlistDoesNotAffectUnblockedDomains</td>
+        <td class="test-fsid">FS-AllowlistDoesNotAffectUnblockedDomains</td>
+        <td class="test-desc">Allowlist doesn't interfere with non-blocked domains</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">1.81s</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="section-title">Proxmox 3-Node Cluster Validation</p>
+  <div class="validation-grid">
+    <div class="validation-item v-pass">GET /allowlist/entries returns array</div>
+    <div class="validation-item v-pass">POST entry with note accepted</div>
+    <div class="validation-item v-pass">Note field preserved in /entries</div>
+    <div class="validation-item v-pass">POST entry with past expires_at</div>
+    <div class="validation-item v-pass">Bulk import added=2, skipped=1</div>
+    <div class="validation-item v-pass">POST shared allowlist created</div>
+    <div class="validation-item v-pass">GET shared allowlist by ID</div>
+    <div class="validation-item v-pass">PUT shared allowlist update (200)</div>
+    <div class="validation-item v-pass">DELETE shared allowlist (204)</div>
+    <div class="validation-item v-pass">Rich entries replicated to node2</div>
+    <div class="validation-item v-pass">Rich entries replicated to node3</div>
+    <div class="validation-item v-pass">3-node cluster in_sync</div>
+  </div>
+
+  <p class="section-title">Screenshots — Proxmox Cluster (skoed-01)</p>
+  <div class="screenshots">
+    <div class="screenshot-card">
+      <img src="ss-36-01-allowlist-entries.png" alt="Allowlist entries with rich metadata">
+      <div class="screenshot-label">ss-36-01 — Allowlist entries with note field</div>
+    </div>
+    <div class="screenshot-card">
+      <img src="ss-36-02-add-entry-with-metadata.png" alt="Add entry with note and expiry">
+      <div class="screenshot-label">ss-36-02 — Add entry with metadata fields</div>
+    </div>
+    <div class="screenshot-card">
+      <img src="ss-36-03-shared-allowlists.png" alt="Shared Allowlists page">
+      <div class="screenshot-label">ss-36-03 — Shared Allowlists page (new nav entry)</div>
+    </div>
+    <div class="screenshot-card">
+      <img src="ss-36-04-new-sal-modal.png" alt="Create shared allowlist modal">
+      <div class="screenshot-label">ss-36-04 — Create shared allowlist with profile assignment</div>
+    </div>
+  </div>
+
+  <footer>
+    <span>M36 — skoed v0.3.2 (f4424e9)</span>
+    <span>Proxmox 3-node cluster — skoed-01/02/03</span>
+    <span>8 acceptance tests · 12 cluster checks</span>
+    <span>2026-07-02</span>
+  </footer>
+
+</div>
+</body>
+</html>

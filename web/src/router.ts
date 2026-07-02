@@ -20,6 +20,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'dashboard', component: () => import('./views/Dashboard.vue') },
       { path: 'blocklists', name: 'blocklists', component: () => import('./views/Blocklists.vue') },
       { path: 'allowlist', name: 'allowlist', component: () => import('./views/Allowlist.vue') },
+      { path: 'shared-allowlists', name: 'shared-allowlists', component: () => import('./views/SharedAllowlists.vue') },
       { path: 'local-dns', name: 'local-dns', component: () => import('./views/LocalDNS.vue') },
       { path: 'clients', name: 'clients', component: () => import('./views/Clients.vue') },
       { path: 'devices', name: 'devices', component: () => import('./views/Devices.vue') },

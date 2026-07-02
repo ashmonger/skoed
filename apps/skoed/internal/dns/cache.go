@@ -12,8 +12,9 @@ import (
 const defaultCacheTTL = 60 * time.Second
 
 type cacheKey struct {
-	Name  string
-	Qtype uint16
+	Name       string
+	Qtype      uint16
+	DnssecMode string // M38: isolates validated vs non-validated answers
 }
 
 type cacheEntry struct {

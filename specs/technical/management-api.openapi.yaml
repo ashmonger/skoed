@@ -448,13 +448,6 @@ components:
               maximum: 604800
               description: New session TTL in seconds (1–604800). Applies to sessions created after the change.
 
-    Error:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
-
     # --- M2 cluster schemas ---
 
     LeaderRedirect:

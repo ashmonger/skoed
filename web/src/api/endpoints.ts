@@ -1,12 +1,12 @@
 // Typed wrappers per resource. Views call these; never axios directly.
 import { api, deleteRequest, getJSON, patchJSON, postJSON, putJSON } from './client'
 import type {
-  Anomaly, APIToken, APITokenMinted, AuditPage, BackupEntry, BackupSettings, BlockPageConfig, Blocklist, BlocklistSource, Category,
+  AllowlistEntry, Anomaly, APIToken, APITokenMinted, AuditPage, BackupEntry, BackupSettings, BlockPageConfig, Blocklist, BlocklistSource, Category,
   ClientDetail, ClientDohStatus, ClientDohStatusDetail, ClientRecord,
   ClusterHealth, ClusterSelf, ClusterStats, ClusterStatus, CustomRules, Device, DeviceCreate, DNSCacheStats,
   Dhcp6Lease, Dhcp6ServerStatus, DhcpLease, DhcpServerStatus, DhcpStaticAssignment,
   JoinTokenResponse, Lease, LocalDNSEntry, PauseState, Profile, ProfileBlockPage, QueryLogPage, Schedule,
-  ScheduleBinding, Settings, WebhookEndpoint,
+  ScheduleBinding, Settings, SharedAllowlist, WebhookEndpoint,
 } from './types'
 
 // ─── Auth ────────────────────────────────────────────────────────────────
@@ -97,6 +97,40 @@ export function addAllowlist(domain: string): Promise<void> {
 
 export function removeAllowlist(domain: string): Promise<void> {
   return deleteRequest(`/api/v1/allowlist/${encodeURIComponent(domain)}`)
+}
+
+// M36 — rich allowlist entries, bulk import, shared allowlists
+
+export function listAllowlistEntries(): Promise<AllowlistEntry[]> {
+  return getJSON('/api/v1/allowlist/entries')
+}
+
+export function addAllowlistRich(entry: { domain: string; expires_at?: number; note?: string; schedule_id?: string }): Promise<AllowlistEntry> {
+  return postJSON('/api/v1/allowlist', entry)
+}
+
+export function importAllowlist(entries: Array<{ domain: string; expires_at?: number; note?: string; schedule_id?: string }>): Promise<{ added: number; skipped: number }> {
+  return postJSON('/api/v1/allowlist/import', entries)
+}
+
+export function listSharedAllowlists(): Promise<SharedAllowlist[]> {
+  return getJSON('/api/v1/shared-allowlists')
+}
+
+export function getSharedAllowlist(id: string): Promise<SharedAllowlist> {
+  return getJSON(`/api/v1/shared-allowlists/${encodeURIComponent(id)}`)
+}
+
+export function createSharedAllowlist(sal: SharedAllowlist): Promise<SharedAllowlist> {
+  return postJSON('/api/v1/shared-allowlists', sal)
+}
+
+export function updateSharedAllowlist(id: string, sal: SharedAllowlist): Promise<SharedAllowlist> {
+  return putJSON(`/api/v1/shared-allowlists/${encodeURIComponent(id)}`, sal)
+}
+
+export function deleteSharedAllowlist(id: string): Promise<void> {
+  return deleteRequest(`/api/v1/shared-allowlists/${encodeURIComponent(id)}`)
 }
 
 // Per-profile allowlist

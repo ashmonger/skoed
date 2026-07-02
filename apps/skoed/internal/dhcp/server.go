@@ -45,6 +45,16 @@ type Server struct {
 	// onUpsert and onDelete are optional callbacks for Raft-persisting lease events.
 	onUpsert func(ip, mac, hostname string, expiresAt int64)
 	onDelete func(ip string)
+
+	// M39: optional metrics hook — called on every granted/renewed lease
+	// with the origin label ("static" or "dynamic") and the lease lifetime.
+	observeLease func(origin string, dur time.Duration)
+}
+
+// SetLeaseMetricsObserver wires a Prometheus observation hook that is called
+// on every granted or renewed DHCP lease with the origin label and lifetime.
+func (s *Server) SetLeaseMetricsObserver(obs func(origin string, dur time.Duration)) {
+	s.observeLease = obs
 }
 
 // SetLeaseCallbacks wires Raft-persistence hooks called on every lease event.
@@ -434,7 +444,11 @@ func (s *Server) handleRequest(pkt *dhcp4Packet, addr net.Addr, cfg config.DHCPS
 	s.leasesMu.Unlock()
 
 	if existing != nil && (requestedIP == nil || existing.IP.Equal(requestedIP)) {
-		existing.ExpiresAt = time.Now().Add(leaseDuration(cfg))
+		dur := leaseDuration(cfg)
+		existing.ExpiresAt = time.Now().Add(dur)
+		if s.observeLease != nil {
+			s.observeLease("dynamic", dur)
+		}
 		s.sendAck(pkt, addr, existing.IP, existing.Hostname, cfg)
 		return
 	}
@@ -517,13 +531,21 @@ func (s *Server) reserveAt(macKey string, ip net.IP, pkt *dhcp4Packet, cfg confi
 	if hb, ok := pkt.opts[12]; ok {
 		hostname = string(hb)
 	}
+	dur := leaseDuration(cfg)
 	l := &lease4{
 		IP:        ip.To4(),
 		Hostname:  hostname,
-		ExpiresAt: time.Now().Add(leaseDuration(cfg)),
+		ExpiresAt: time.Now().Add(dur),
 	}
 	l.MAC, _ = net.ParseMAC(macKey)
 	s.leases[macKey] = l
+	if s.observeLease != nil {
+		origin := "dynamic"
+		if _, isStatic := pkt.opts[50]; !isStatic {
+			origin = "dynamic"
+		}
+		s.observeLease(origin, dur)
+	}
 	return l
 }
 

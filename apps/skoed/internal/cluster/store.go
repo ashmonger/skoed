@@ -61,6 +61,8 @@ var (
 	bucketCertExpiry = []byte("cert_node_expiry")
 	// M35.5: named device registry (key = device.ID, value = JSON device).
 	bucketDevices = []byte("config_devices")
+	// M36: shared allowlists (key = SharedAllowlist.ID, value = JSON SharedAllowlist).
+	bucketSharedAllowlists = []byte("config_shared_allowlists")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -122,6 +124,7 @@ func (s *Store) init() error {
 			bucketTLSRenew,
 			bucketCertExpiry,
 			bucketDevices,
+			bucketSharedAllowlists,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -221,7 +224,26 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
 			return err
 		}
-		return tx.Bucket(bucketAllowlist).Put([]byte(strings.ToLower(p.Domain)), []byte{})
+		key := []byte(strings.ToLower(p.Domain))
+		// Store rich metadata when any optional field is set; plain empty byte
+		// otherwise for backward compat with pre-M36 tooling.
+		if p.ExpiresAt != nil || p.Note != "" || p.ScheduleID != "" {
+			entry := config.AllowlistEntry{
+				Domain:     strings.ToLower(p.Domain),
+				Note:       p.Note,
+				ScheduleID: p.ScheduleID,
+			}
+			if p.ExpiresAt != nil {
+				t := time.Unix(*p.ExpiresAt, 0).UTC()
+				entry.ExpiresAt = &t
+			}
+			v, err := json.Marshal(entry)
+			if err != nil {
+				return err
+			}
+			return tx.Bucket(bucketAllowlist).Put(key, v)
+		}
+		return tx.Bucket(bucketAllowlist).Put(key, []byte{})
 
 	case CmdAllowlistRemove:
 		var p AllowlistRemovePayload
@@ -229,6 +251,24 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		return tx.Bucket(bucketAllowlist).Delete([]byte(strings.ToLower(p.Domain)))
+
+	case CmdSharedAllowlistUpsert:
+		var p SharedAllowlistUpsertPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		v, err := json.Marshal(p.List)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketSharedAllowlists).Put([]byte(p.List.ID), v)
+
+	case CmdSharedAllowlistDelete:
+		var p SharedAllowlistDeletePayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return tx.Bucket(bucketSharedAllowlists).Delete([]byte(p.ID))
 
 	case CmdLocalDNSUpsert:
 		var p LocalDNSUpsertPayload
@@ -1046,14 +1086,42 @@ func (s *Store) Snapshot() (*config.Config, error) {
 			return out.Filtering.Blocklists[i].ID < out.Filtering.Blocklists[j].ID
 		})
 
-		// Allowlist.
-		if err := tx.Bucket(bucketAllowlist).ForEach(func(k, _ []byte) error {
-			out.Filtering.Allowlist = append(out.Filtering.Allowlist, string(k))
+		// Allowlist. Values are either empty (legacy plain domain) or
+		// JSON-encoded AllowlistEntry (M36 rich metadata).
+		// Plain entries (empty value) go into Allowlist for backward compat;
+		// rich entries (non-empty value) go ONLY into AllowlistEntries so
+		// expiry / schedule checks are correctly applied by the filter engine.
+		if err := tx.Bucket(bucketAllowlist).ForEach(func(k, v []byte) error {
+			domain := string(k)
+			if len(v) > 0 {
+				var e config.AllowlistEntry
+				if err := json.Unmarshal(v, &e); err == nil {
+					out.Filtering.AllowlistEntries = append(out.Filtering.AllowlistEntries, e)
+				}
+				// Do NOT add to Allowlist — the filter engine merges both fields,
+				// but must apply expiry/schedule from AllowlistEntries.
+			} else {
+				// Legacy plain entry: add to both for backward compat.
+				out.Filtering.Allowlist = append(out.Filtering.Allowlist, domain)
+				out.Filtering.AllowlistEntries = append(out.Filtering.AllowlistEntries, config.AllowlistEntry{Domain: domain})
+			}
 			return nil
 		}); err != nil {
 			return err
 		}
 		sort.Strings(out.Filtering.Allowlist)
+
+		// Shared allowlists (M36).
+		if err := tx.Bucket(bucketSharedAllowlists).ForEach(func(_, v []byte) error {
+			var sal config.SharedAllowlist
+			if err := json.Unmarshal(v, &sal); err != nil {
+				return err
+			}
+			out.Filtering.SharedAllowlists = append(out.Filtering.SharedAllowlists, sal)
+			return nil
+		}); err != nil {
+			return err
+		}
 
 		// Local DNS.
 		if err := tx.Bucket(bucketLocalDNS).ForEach(func(_, v []byte) error {

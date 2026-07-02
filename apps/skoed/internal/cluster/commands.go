@@ -20,6 +20,8 @@ const (
 	CmdBlocklistSetEnabled  CommandKind = "blocklist.set_enabled"
 	CmdAllowlistAdd         CommandKind = "allowlist.add"
 	CmdAllowlistRemove      CommandKind = "allowlist.remove"
+	CmdSharedAllowlistUpsert CommandKind = "shared_allowlist.upsert" // M36
+	CmdSharedAllowlistDelete CommandKind = "shared_allowlist.delete" // M36
 	CmdLocalDNSUpsert       CommandKind = "local_dns.upsert"
 	CmdLocalDNSDelete       CommandKind = "local_dns.delete"
 	CmdSettingsPatch        CommandKind = "settings.patch"
@@ -122,11 +124,29 @@ type BlocklistSetEnabledPayload struct {
 }
 
 type AllowlistAddPayload struct {
+	// Domain is always required.
 	Domain string `json:"domain"`
+	// M36: optional per-entry metadata.
+	ExpiresAt  *int64 `json:"expires_at,omitempty"`  // Unix seconds; nil = no expiry
+	Note       string `json:"note,omitempty"`
+	ScheduleID string `json:"schedule_id,omitempty"`
+	// ProfileID, if set, targets a per-profile allowlist; empty = global allowlist.
+	ProfileID string `json:"profile_id,omitempty"`
 }
 
 type AllowlistRemovePayload struct {
-	Domain string `json:"domain"`
+	Domain    string `json:"domain"`
+	ProfileID string `json:"profile_id,omitempty"` // empty = global allowlist
+}
+
+// SharedAllowlistUpsertPayload carries a full SharedAllowlist for Raft replication (M36).
+type SharedAllowlistUpsertPayload struct {
+	List config.SharedAllowlist `json:"list"`
+}
+
+// SharedAllowlistDeletePayload removes a shared allowlist by ID (M36).
+type SharedAllowlistDeletePayload struct {
+	ID string `json:"id"`
 }
 
 type LocalDNSUpsertPayload struct {

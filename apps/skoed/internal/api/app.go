@@ -975,6 +975,14 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/allowlist", h.GetAllowlist)
 		r.Post("/api/v1/allowlist", a.forward(h.AddAllowlistEntry))
 		r.Delete("/api/v1/allowlist/{domain}", a.forward(h.DeleteAllowlistEntry))
+		// M36 — rich allowlist entries + bulk import + shared allowlists.
+		r.Get("/api/v1/allowlist/entries", h.GetAllowlistEntries)
+		r.Post("/api/v1/allowlist/import", a.forward(h.ImportAllowlist))
+		r.Get("/api/v1/shared-allowlists", h.ListSharedAllowlists)
+		r.Post("/api/v1/shared-allowlists", a.forward(h.CreateSharedAllowlist))
+		r.Get("/api/v1/shared-allowlists/{id}", h.GetSharedAllowlist)
+		r.Put("/api/v1/shared-allowlists/{id}", a.forward(h.UpdateSharedAllowlist))
+		r.Delete("/api/v1/shared-allowlists/{id}", a.forward(h.DeleteSharedAllowlist))
 
 		// M30.5 — Custom filtering rules (TS-CustomRules).
 		r.Get("/api/v1/custom-rules", h.GetCustomRules)
@@ -1023,6 +1031,7 @@ func (a *App) Router() http.Handler {
 
 		// Per-profile allowlist
 		r.Get("/api/v1/profiles/{id}/allowlist", h.GetProfileAllowlist)
+		r.Get("/api/v1/profiles/{id}/allowlist/entries", h.GetProfileAllowlistEntries) // M36 rich
 		r.Post("/api/v1/profiles/{id}/allowlist", a.forward(h.AddProfileAllowlistEntry))
 		r.Put("/api/v1/profiles/{id}/allowlist", a.forward(h.ReplaceProfileAllowlist))
 		r.Delete("/api/v1/profiles/{id}/allowlist/{domain}", a.forward(h.DeleteProfileAllowlistEntry))
