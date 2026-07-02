@@ -372,14 +372,29 @@ func (c *Cluster) SetBlocklistEnabled(id string, enabled bool) error {
 	return c.applyAsLeader(CmdBlocklistSetEnabled, BlocklistSetEnabledPayload{ID: id, Enabled: enabled}, 0)
 }
 
-// AddAllowlistEntry adds a domain to the allowlist.
+// AddAllowlistEntry adds a plain domain to the allowlist (backward compat).
 func (c *Cluster) AddAllowlistEntry(domain string) error {
 	return c.applyAsLeader(CmdAllowlistAdd, AllowlistAddPayload{Domain: domain}, 0)
+}
+
+// AddAllowlistEntryRich adds a domain with optional expiry, note, and schedule.
+func (c *Cluster) AddAllowlistEntryRich(p AllowlistAddPayload) error {
+	return c.applyAsLeader(CmdAllowlistAdd, p, 0)
 }
 
 // RemoveAllowlistEntry removes a domain from the allowlist.
 func (c *Cluster) RemoveAllowlistEntry(domain string) error {
 	return c.applyAsLeader(CmdAllowlistRemove, AllowlistRemovePayload{Domain: domain}, 0)
+}
+
+// UpsertSharedAllowlist creates or replaces a shared allowlist.
+func (c *Cluster) UpsertSharedAllowlist(sal config.SharedAllowlist) error {
+	return c.applyAsLeader(CmdSharedAllowlistUpsert, SharedAllowlistUpsertPayload{List: sal}, 0)
+}
+
+// DeleteSharedAllowlist removes a shared allowlist by ID.
+func (c *Cluster) DeleteSharedAllowlist(id string) error {
+	return c.applyAsLeader(CmdSharedAllowlistDelete, SharedAllowlistDeletePayload{ID: id}, 0)
 }
 
 // UpsertLocalDNS commits a local DNS entry.

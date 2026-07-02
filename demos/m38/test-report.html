@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>M38 Test Report — Per-Profile DNSSEC Policy</title>
+<meta name="description" content="Acceptance test results for M38: per-profile DNSSEC mode override with validate/transparent/inherit options and cache key isolation.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #22d3ee;
+  --pass: #22c55e; --fail: #ef4444; --skip: #f59e0b;
+  --pass-bg: #052e16; --fail-bg: #2d0707; --skip-bg: #1c1500;
+  font-size: 15px;
+}
+body { background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,sans-serif; line-height: 1.6; min-height: 100vh; }
+.page { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+.header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
+.milestone-tag { font-family: ui-monospace,monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); background: color-mix(in srgb,var(--accent) 12%,transparent); border: 1px solid color-mix(in srgb,var(--accent) 30%,transparent); padding: 0.2em 0.6em; border-radius: 4px; display: inline-block; margin-bottom: 0.75rem; }
+h1 { font-size: 1.5rem; font-weight: 600; text-wrap: balance; margin-bottom: 0.35rem; }
+.subtitle { color: var(--muted); font-size: 0.9rem; }
+.summary { display: flex; gap: 1rem; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; align-items: center; }
+.stat { display: flex; align-items: baseline; gap: 0.4rem; }
+.stat-num { font-family: ui-monospace,monospace; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-label { font-size: 0.8rem; color: var(--muted); }
+.stat-pass .stat-num { color: var(--pass); }
+.stat-fail .stat-num { color: var(--fail); }
+.stat-total .stat-num { color: var(--text); }
+.divider { width: 1px; height: 2rem; background: var(--border); }
+.verdict { margin-left: auto; padding: 0.3em 0.9em; border-radius: 6px; font-weight: 700; font-size: 0.85rem; font-family: ui-monospace,monospace; letter-spacing: 0.05em; text-transform: uppercase; }
+.verdict-pass { background: var(--pass-bg); color: var(--pass); border: 1px solid color-mix(in srgb,var(--pass) 30%,transparent); }
+.section-title { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-family: ui-monospace,monospace; margin-bottom: 0.75rem; }
+.test-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 2rem; font-size: 0.875rem; }
+.test-table thead th { background: color-mix(in srgb,var(--border) 50%,var(--surface)); padding: 0.6rem 1rem; text-align: left; font-family: ui-monospace,monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.test-table tbody tr { border-top: 1px solid var(--border); }
+.test-table tbody tr:first-child { border-top: none; }
+.test-table td { padding: 0.65rem 1rem; vertical-align: middle; }
+.test-name { font-family: ui-monospace,monospace; font-size: 0.82rem; }
+.test-fsid { font-family: ui-monospace,monospace; font-size: 0.72rem; color: var(--accent); opacity: 0.75; }
+.test-desc { font-size: 0.82rem; color: var(--muted); max-width: 36ch; }
+.test-dur { font-family: ui-monospace,monospace; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.chip { display: inline-flex; align-items: center; gap: 0.3em; font-family: ui-monospace,monospace; font-size: 0.72rem; font-weight: 600; padding: 0.18em 0.55em; border-radius: 4px; white-space: nowrap; letter-spacing: 0.04em; }
+.chip-pass { background: var(--pass-bg); color: var(--pass); }
+.chip-fail { background: var(--fail-bg); color: var(--fail); }
+.chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.screenshots { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 1rem; margin-bottom: 2rem; }
+.screenshot-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.screenshot-card img { width: 100%; display: block; }
+.screenshot-label { padding: 0.5rem 0.75rem; font-family: ui-monospace,monospace; font-size: 0.72rem; color: var(--muted); }
+.validation-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+.validation-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+.v-pass::before { content: '✓'; color: var(--pass); font-weight: 700; font-family: monospace; }
+footer { border-top: 1px solid var(--border); padding-top: 1rem; color: var(--muted); font-size: 0.78rem; font-family: ui-monospace,monospace; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="milestone-tag">M38 — skoed</div>
+    <h1>Per-Profile DNSSEC Policy</h1>
+    <p class="subtitle">Each profile can inherit, validate, or transparently pass DNSSEC — with cache isolation per mode</p>
+  </div>
+
+  <div class="summary">
+    <div class="stat stat-pass"><span class="stat-num">7</span><span class="stat-label">passed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-fail"><span class="stat-num">0</span><span class="stat-label">failed</span></div>
+    <div class="divider"></div>
+    <div class="stat stat-total"><span class="stat-num">7</span><span class="stat-label">total</span></div>
+    <div class="divider"></div>
+    <div class="stat"><span class="stat-num mono" style="font-size:1rem;color:var(--muted)">6/6</span><span class="stat-label">Proxmox cluster checks</span></div>
+    <div class="verdict verdict-pass">All pass</div>
+  </div>
+
+  <p class="section-title">Acceptance Tests</p>
+  <table class="test-table">
+    <thead>
+      <tr>
+        <th>Test</th>
+        <th>FSID</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th style="text-align:right">Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="test-name">TestDnssecModeConfigurable</td>
+        <td class="test-fsid">FS-DnssecModeConfigurable</td>
+        <td class="test-desc">Global DNSSEC mode roundtrips via PATCH /settings</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.1s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestDnssecValidateBogusReturnsServfail</td>
+        <td class="test-fsid">FS-DnssecValidateBogusServfail</td>
+        <td class="test-desc">validate mode + bogus AD=0+RRSIG → SERVFAIL</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.3s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestDnssecValidateOkPassthrough</td>
+        <td class="test-fsid">FS-DnssecValidateOkPassthrough</td>
+        <td class="test-desc">validate + AD=1 → NOERROR + dnssec_status=ok</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.2s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestDnssecValidateInsecurePassthrough</td>
+        <td class="test-fsid">FS-DnssecValidateInsecurePassthrough</td>
+        <td class="test-desc">validate + no RRSIG → NOERROR + status=insecure</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.2s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestPerProfileDnssecInherit</td>
+        <td class="test-fsid">FS-PerProfileDnssecInherit</td>
+        <td class="test-desc">Profile inherit → uses global transparent → bogus passes</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">1.93s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestPerProfileDnssecValidate</td>
+        <td class="test-fsid">FS-PerProfileDnssecValidate</td>
+        <td class="test-desc">Profile validate overrides global transparent → SERVFAIL</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">1.92s</td>
+      </tr>
+      <tr>
+        <td class="test-name">TestPerProfileDnssecTransparent</td>
+        <td class="test-fsid">FS-PerProfileDnssecTransparent</td>
+        <td class="test-desc">Profile transparent overrides global validate → NOERROR</td>
+        <td><span class="chip chip-pass">PASS</span></td>
+        <td class="test-dur">2.42s</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="section-title">Proxmox 3-Node Cluster Validation</p>
+  <div class="validation-grid">
+    <div class="validation-item v-pass">PATCH global dnssec_mode=validate</div>
+    <div class="validation-item v-pass">POST profile with dnssec_mode</div>
+    <div class="validation-item v-pass">GET profile preserves dnssec_mode</div>
+    <div class="validation-item v-pass">PATCH profile dnssec_mode=transparent</div>
+    <div class="validation-item v-pass">Profile dnssec_mode replicated to node2</div>
+    <div class="validation-item v-pass">Profile dnssec_mode replicated to node3</div>
+  </div>
+
+  <p class="section-title">Screenshots — Proxmox Cluster (skoed-01)</p>
+  <div class="screenshots">
+    <div class="screenshot-card">
+      <img src="ss-38-01-settings-dnssec-mode.png" alt="Settings page showing global DNSSEC mode">
+      <div class="screenshot-label">ss-38-01 — Settings: global dnssec_mode dropdown</div>
+    </div>
+    <div class="screenshot-card">
+      <img src="ss-38-02-profiles-list.png" alt="Profiles list">
+      <div class="screenshot-label">ss-38-02 — Profiles page</div>
+    </div>
+    <div class="screenshot-card">
+      <img src="ss-38-02-profiles-with-dnssec.png" alt="Profiles with DNSSEC settings">
+      <div class="screenshot-label">ss-38-03 — Profile edit with DNSSEC mode field</div>
+    </div>
+  </div>
+
+  <footer>
+    <span>M38 — skoed v0.3.2 (f4424e9)</span>
+    <span>Proxmox 3-node cluster — skoed-01/02/03</span>
+    <span>7 acceptance tests · 6 cluster checks</span>
+    <span>2026-07-02</span>
+  </footer>
+
+</div>
+</body>
+</html>

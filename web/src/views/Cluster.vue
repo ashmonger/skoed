@@ -176,16 +176,22 @@
       </div>
 
       <!-- Up to date -->
-      <p v-if="upgradeCheck !== null && !upgradeCheck.upgrade_available"
+      <p v-if="upgradeCheck !== null && !upgradeNeeded"
          class="text-xs text-success">
         Up to date — you're running the latest release.
       </p>
 
       <!-- Upgrade available prompt -->
-      <template v-if="upgradeCheck?.upgrade_available && !upgradeStatusData?.in_progress">
+      <template v-if="upgradeNeeded && upgradeCheck">
         <p class="text-sm text-fg-muted">
           skoed <span class="font-mono text-accent font-semibold">{{ upgradeCheck.available_version }}</span>
-          is available. All nodes will be upgraded sequentially — followers first, then the leader — without losing quorum.
+          is available.
+          <template v-if="anyPeerBehind && !upgradeCheck.upgrade_available">
+            Some nodes are running an older version — rolling upgrade will bring all nodes up to date.
+          </template>
+          <template v-else>
+            All nodes will be upgraded sequentially — followers first, then the leader — without losing quorum.
+          </template>
         </p>
         <div class="flex items-center gap-3">
           <button
@@ -346,6 +352,29 @@ const upgradeLogDone = ref(false)
 let closeUpgradeLog: (() => void) | undefined
 
 // ─── Derived ─────────────────────────────────────────────────────────────
+
+// True when any cluster member runs a version older than the latest GitHub
+// release — even if the local leader is already current. Enables the
+// "Upgrade cluster" button in the mixed-version case.
+const anyPeerBehind = computed(() => {
+  const available = upgradeCheck.value?.available_version
+  if (!available || !status.value?.nodes?.length) return false
+  const clean = (v: string) => v.replace(/^v/, '')
+  const parse = (v: string): number[] => clean(v).split('.').map(Number)
+  const lt = (a: string, b: string) => {
+    const av = parse(a), bv = parse(b)
+    for (let i = 0; i < 3; i++) {
+      if ((av[i] ?? 0) < (bv[i] ?? 0)) return true
+      if ((av[i] ?? 0) > (bv[i] ?? 0)) return false
+    }
+    return false
+  }
+  return status.value.nodes.some(n => n.version && lt(n.version, available))
+})
+
+const upgradeNeeded = computed(() =>
+  (upgradeCheck.value?.upgrade_available || anyPeerBehind.value) && !upgradeStatusData.value?.in_progress
+)
 
 const memberStr = computed(() => {
   if (!health.value) return '—'
@@ -533,7 +562,7 @@ async function startRollingUpgrade() {
   const arch = navigator.userAgent.includes('arm') || navigator.userAgent.includes('aarch64') ? 'arm64' : 'amd64'
   const assetURL = assets[`linux_${arch}`] ?? assets['linux_amd64'] ?? ''
   if (!assetURL) {
-    rollingUpgradeError.value = 'No download URL found for this platform — check GitHub releases manually.'
+    rollingUpgradeError.value = `No download URL found for ${upgradeCheck.value?.available_version ?? 'latest'} — click "Check for updates" first, then try again.`
     return
   }
   rollingUpgrading.value = true

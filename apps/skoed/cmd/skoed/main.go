@@ -74,23 +74,26 @@ func buildDNSHandler(cfg *config.Config, getEng func() *filter.Engine, queryLog 
 	}
 
 	var observe func(string, time.Duration)
+	var observeUpstream func(string, time.Duration)
 	if m != nil {
 		observe = m.ObserveQuery
+		observeUpstream = m.ObserveUpstreamQuery
 	}
 
 	return dnsengine.NewHandler(dnsengine.HandlerConfig{
-		DNSCfg:        cfg.DNS,
-		FilterEngine:  getEng,
-		LocalResolver: localRes,
-		Forwarder:     fwd,
-		Recursor:      rec,
-		Cache:         cache,
-		QueryLog:      queryLog,
-		DhcpLookup:    dhcpLookup,
-		ObserveQuery:  observe,
-		OnDeviceNew:   onDeviceNew,
-		BlockPageIP:   getBlockPageIP,
-		BlockPageV6:   getBlockPageV6,
+		DNSCfg:               cfg.DNS,
+		FilterEngine:         getEng,
+		LocalResolver:        localRes,
+		Forwarder:            fwd,
+		Recursor:             rec,
+		Cache:                cache,
+		QueryLog:             queryLog,
+		DhcpLookup:           dhcpLookup,
+		ObserveQuery:         observe,
+		ObserveUpstreamQuery: observeUpstream,
+		OnDeviceNew:          onDeviceNew,
+		BlockPageIP:          getBlockPageIP,
+		BlockPageV6:          getBlockPageV6,
 	})
 }
 
@@ -437,6 +440,9 @@ func runDaemon(cfgPath string) {
 		}
 		dnsListenAddr := fmt.Sprintf("127.0.0.1:%d", snap.DNS.Listen.Port)
 		dhcpSrv = dhcp.NewServer(dhcpCfg, dnsListenAddr)
+		if prom != nil {
+			dhcpSrv.SetLeaseMetricsObserver(prom.ObserveDhcpLeaseDuration)
+		}
 		dhcpSrv.SetLeaseCallbacks(
 			func(ip, mac, hostname string, expiresAt int64) {
 				if err := c.PersistDhcpLease(ip, mac, hostname, expiresAt); err != nil {

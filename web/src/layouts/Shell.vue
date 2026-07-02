@@ -137,7 +137,7 @@ import {
   UserCircleIcon, Bars3Icon, SunIcon, MoonIcon,
   ArrowRightStartOnRectangleIcon, UsersIcon, ClockIcon, TagIcon,
   DevicePhoneMobileIcon, CodeBracketIcon, BeakerIcon,
-  BellAlertIcon, KeyIcon, ServerIcon, PencilSquareIcon,
+  BellAlertIcon, KeyIcon, ServerIcon, PencilSquareIcon, RectangleGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -176,6 +176,7 @@ const nav: Array<{
     items: [
       { name: 'blocklists', label: 'Blocklists', icon: NoSymbolIcon },
       { name: 'allowlist',  label: 'Allowlist',  icon: CheckBadgeIcon },
+      { name: 'shared-allowlists', label: 'Shared Allowlists', icon: RectangleGroupIcon },
       { name: 'local-dns',  label: 'Local DNS',  icon: ServerStackIcon },
       { name: 'devices',    label: 'Devices',    icon: DevicePhoneMobileIcon },
       { name: 'profiles',   label: 'Profiles',   icon: UsersIcon },
@@ -218,6 +219,7 @@ const titles: Record<string, string> = {
   dashboard: 'Dashboard',
   blocklists: 'Blocklists',
   allowlist: 'Allowlist',
+  'shared-allowlists': 'Shared Allowlists',
   'local-dns': 'Local DNS',
   devices: 'Devices',
   profiles: 'Profiles',

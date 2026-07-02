@@ -213,6 +213,24 @@ export interface Profile {
   client_hostnames?: string[]
   // M33: per-profile block page overrides
   block_page?: ProfileBlockPage
+  // M38: per-profile DNSSEC mode. "" | "inherit" | "validate" | "transparent"
+  dnssec_mode?: string
+}
+
+// M36 — rich allowlist entry with optional expiry, note, and schedule binding.
+export interface AllowlistEntry {
+  domain: string
+  expires_at?: string  // RFC3339 or null
+  note?: string
+  schedule_id?: string
+}
+
+// M36 — shared (cross-profile) allowlist.
+export interface SharedAllowlist {
+  id: string
+  name: string
+  entries?: AllowlistEntry[]
+  profiles?: string[]  // profile IDs this list applies to
 }
 
 export type ScheduleMode = 'block_only_inside' | 'allow_only_inside'

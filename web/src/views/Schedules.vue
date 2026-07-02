@@ -190,6 +190,62 @@
           </div>
         </div>
 
+        <!-- M37: Template presets -->
+        <div>
+          <span class="label">Presets</span>
+          <div class="flex flex-wrap gap-2 text-xs">
+            <button type="button" class="btn-secondary !py-1 !text-xs"
+                    @click="applyPreset('weekdays')">Weekdays 00:00–24:00</button>
+            <button type="button" class="btn-secondary !py-1 !text-xs"
+                    @click="applyPreset('weekends')">Weekends 00:00–24:00</button>
+            <button type="button" class="btn-secondary !py-1 !text-xs"
+                    @click="applyPreset('bedtime')">Bedtime 21:00–07:00</button>
+            <button type="button" class="btn-secondary !py-1 !text-xs"
+                    @click="applyPreset('school')">School Hours 08:00–15:00</button>
+            <button type="button" class="btn-secondary !py-1 !text-xs"
+                    @click="applyPreset('allweek')">All week 00:00–24:00</button>
+          </div>
+        </div>
+
+        <!-- M37: Visual 7×24 grid editor -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="label !mb-0">Visual editor</span>
+            <span class="text-xs text-fg-muted">Click or drag to toggle hour slots</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="text-[9px] w-full border-collapse"
+                   @mouseup="stopDrag()" @mouseleave="stopDrag()">
+              <thead>
+                <tr>
+                  <th class="pr-1 text-right text-fg-muted w-5">h</th>
+                  <th v-for="d in DAYS" :key="d"
+                      class="text-center text-fg-muted font-medium pb-0.5" style="min-width:24px">
+                    {{ d.slice(0,2) }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="h in 24" :key="h - 1">
+                  <td class="pr-1 text-right text-fg-muted">{{ String(h - 1).padStart(2,'0') }}</td>
+                  <td v-for="d in DAYS" :key="d"
+                      :class="[
+                        'border border-border/30 select-none',
+                        isDragging ? 'cursor-crosshair' : 'cursor-pointer',
+                        gridCellActive(d, h - 1) ? 'bg-accent/60' : 'bg-bg hover:bg-accent/20'
+                      ]"
+                      style="height:10px"
+                      @mousedown.prevent="startDrag(d, h - 1)"
+                      @mouseover="doDrag(d, h - 1)" />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs text-fg-muted mt-1">
+            Blue = active hours. Changes sync to the windows list below.
+          </p>
+        </div>
+
         <div>
           <div class="flex items-center justify-between mb-1">
             <span class="label !mb-0">Windows</span>
@@ -333,6 +389,10 @@ const bindingSubmitting = reactive<Record<string, boolean>>({})
 const bindingErrors = reactive<Record<string, string>>({})
 const bindingRemoving = reactive<Record<string, boolean>>({})
 
+// Grid drag state
+const isDragging = ref(false)
+const dragMode = ref(true) // true = activating cells, false = deactivating
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function modeLabel(m: ScheduleMode): string {
@@ -437,6 +497,150 @@ function addWindow() {
 
 function removeWindow(idx: number) {
   form.windows.splice(idx, 1)
+}
+
+// ─── M37: Template presets ────────────────────────────────────────────────────
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const
+const WEEKEND_DAYS = ['Sat', 'Sun'] as const
+
+const PRESETS: Record<string, { windows: Array<{ days: string[]; start: string; end: string }> }> = {
+  weekdays:  { windows: [{ days: [...WEEKDAYS],      start: '00:00', end: '23:59' }] },
+  weekends:  { windows: [{ days: [...WEEKEND_DAYS],  start: '00:00', end: '23:59' }] },
+  bedtime:   { windows: [{ days: [...DAYS],          start: '21:00', end: '07:00' }] },
+  school:    { windows: [{ days: [...WEEKDAYS],      start: '08:00', end: '15:00' }] },
+  allweek:   { windows: [{ days: [...DAYS],          start: '00:00', end: '23:59' }] },
+}
+
+function applyPreset(name: string) {
+  const preset = PRESETS[name]
+  if (!preset) return
+  form.windows = preset.windows.map(w => ({ days: [...w.days], start: w.start, end: w.end }))
+}
+
+// ─── M37: Visual 7×24 grid ────────────────────────────────────────────────────
+
+function parseHHMM(s: string): number {
+  const [h, m] = s.split(':').map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
+
+function gridCellActive(day: string, hour: number): boolean {
+  // Check if the given day+hour falls inside any window.
+  const curMin = hour * 60
+  for (const w of form.windows) {
+    if (!w.days.includes(day)) continue
+    const s = parseHHMM(w.start)
+    const e = parseHHMM(w.end)
+    if (s === e) continue
+    if (s < e) {
+      if (curMin >= s && curMin < e) return true
+    } else {
+      // Wraps midnight
+      if (curMin >= s || curMin < e) return true
+    }
+  }
+  return false
+}
+
+function toggleGridCell(day: string, hour: number) {
+  const wasActive = gridCellActive(day, hour)
+  if (wasActive) {
+    // Remove this hour from all windows that cover it for this day.
+    const newWindows: typeof form.windows = []
+    for (const w of form.windows) {
+      if (!w.days.includes(day)) { newWindows.push(w); continue }
+      const s = parseHHMM(w.start)
+      const e = parseHHMM(w.end)
+      // If this single-day window covers the hour, split or remove.
+      const windowStart = s
+      const windowEnd = e === 0 ? 24 * 60 : e
+      if (hour * 60 >= windowStart && hour * 60 < windowEnd) {
+        // Remove this day from the window; create sub-windows if needed.
+        const otherDays = w.days.filter(d => d !== day)
+        if (otherDays.length > 0) {
+          newWindows.push({ days: otherDays, start: w.start, end: w.end })
+        }
+        // Add back the same window for this day without the toggled hour.
+        if (hour * 60 > windowStart) {
+          newWindows.push({ days: [day], start: w.start, end: `${String(hour).padStart(2,'0')}:00` })
+        }
+        const afterHour = hour + 1
+        if (afterHour * 60 < windowEnd) {
+          newWindows.push({ days: [day], start: `${String(afterHour).padStart(2,'0')}:00`, end: w.end })
+        }
+      } else {
+        newWindows.push(w)
+      }
+    }
+    form.windows = newWindows
+  } else {
+    // Activate: add or extend a window for this day+hour.
+    const start = `${String(hour).padStart(2,'0')}:00`
+    const end = hour === 23 ? '23:59' : `${String(hour + 1).padStart(2,'0')}:00`
+    // Try merging with an adjacent window for the same day.
+    let merged = false
+    for (const w of form.windows) {
+      if (!w.days.includes(day) || w.days.length > 1) continue
+      if (w.end === start) { w.end = end; merged = true; break }
+      if (w.start === end) { w.start = start; merged = true; break }
+    }
+    if (!merged) form.windows.push({ days: [day], start, end })
+  }
+}
+
+function setGridCell(day: string, hour: number, active: boolean) {
+  if (gridCellActive(day, hour) !== active) toggleGridCell(day, hour)
+}
+
+// After a drag, rebuild form.windows from the active-hour set so that
+// any fragmentation caused by fast mouse movement (skipped mouseover events)
+// is resolved into the minimal set of contiguous windows.
+function consolidateWindows() {
+  const activeHours: Record<string, Set<number>> = {}
+  for (const w of form.windows) {
+    const startMin = parseHHMM(w.start)
+    const endMinNorm = w.end === '23:59' ? 24 * 60 : parseHHMM(w.end)
+    for (const d of w.days) {
+      if (!activeHours[d]) activeHours[d] = new Set()
+      for (let min = startMin; min < endMinNorm; min += 60) activeHours[d].add(min / 60)
+    }
+  }
+  const result: TimeWindow[] = []
+  for (const [d, hours] of Object.entries(activeHours)) {
+    const sorted = [...hours].sort((a, b) => a - b)
+    let i = 0
+    while (i < sorted.length) {
+      const startH = sorted[i]
+      let endH = startH + 1
+      while (i + 1 < sorted.length && sorted[i + 1] === endH) { i++; endH++ }
+      result.push({
+        days: [d],
+        start: `${String(startH).padStart(2, '0')}:00`,
+        end: endH > 23 ? '23:59' : `${String(endH).padStart(2, '0')}:00`,
+      })
+      i++
+    }
+  }
+  form.windows = result
+}
+
+function startDrag(day: string, hour: number) {
+  isDragging.value = true
+  dragMode.value = !gridCellActive(day, hour)
+  setGridCell(day, hour, dragMode.value)
+}
+
+function doDrag(day: string, hour: number) {
+  if (!isDragging.value) return
+  setGridCell(day, hour, dragMode.value)
+}
+
+function stopDrag() {
+  if (isDragging.value) {
+    isDragging.value = false
+    consolidateWindows()
+  }
 }
 
 async function submitModal() {
@@ -555,6 +759,17 @@ async function submitBinding(id: string) {
   const draft = bindingDraft[id]
   if (!draft?.profile_id || !draft?.blocklist_id) return
   bindingErrors[id] = ''
+
+  // M37: conflict validation — check if this (profile, blocklist) pair is already
+  // bound to *another* schedule. Multiple bindings for the same pair create confusing
+  // overlap behaviour; warn the operator before allowing it.
+  const conflictScheduleId = checkBindingConflict(id, draft.profile_id, draft.blocklist_id)
+  if (conflictScheduleId) {
+    const cs = schedules.value.find(s => s.id === conflictScheduleId)
+    bindingErrors[id] = `Conflict: this profile+blocklist pair is already bound to schedule "${cs?.name ?? conflictScheduleId}". Multiple bindings can cause unexpected interactions.`
+    return
+  }
+
   bindingSubmitting[id] = true
   try {
     const created = await addScheduleBinding(id, draft.profile_id, draft.blocklist_id)
@@ -570,6 +785,20 @@ async function submitBinding(id: string) {
   } finally {
     bindingSubmitting[id] = false
   }
+}
+
+// M37: check if (profileId, blocklistId) is already bound to a different schedule.
+// Returns the conflicting schedule ID, or null if clean.
+function checkBindingConflict(currentScheduleId: string, profileId: string, blocklistId: string): string | null {
+  for (const [sid, bs] of Object.entries(bindings)) {
+    if (sid === currentScheduleId) continue
+    for (const b of (bs || [])) {
+      if (b.profile_id === profileId && b.blocklist_id === blocklistId) {
+        return sid
+      }
+    }
+  }
+  return null
 }
 
 async function removeBinding(id: string, profile_id: string, blocklist_id: string) {
@@ -607,8 +836,10 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => {
   refresh()
   window.addEventListener('keydown', onKey)
+  window.addEventListener('mouseup', stopDrag)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
+  window.removeEventListener('mouseup', stopDrag)
 })
 </script>

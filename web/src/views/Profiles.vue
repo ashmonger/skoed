@@ -177,6 +177,19 @@
               {{ allowlistAdding ? 'Adding…' : 'Add' }}
             </button>
           </div>
+          <!-- M36: optional metadata row -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="label text-xs" for="pf-al-note">Note (optional)</label>
+              <input id="pf-al-note" v-model="allowlistAddNote" type="text"
+                     class="input text-xs" placeholder="e.g. Homework access" :disabled="allowlistAdding" />
+            </div>
+            <div>
+              <label class="label text-xs" for="pf-al-expires">Expires at (optional)</label>
+              <input id="pf-al-expires" v-model="allowlistAddExpires" type="datetime-local"
+                     class="input text-xs" :disabled="allowlistAdding" />
+            </div>
+          </div>
 
           <!-- Entry list -->
           <div v-if="allowlistLoading" class="text-sm text-fg-muted py-4 text-center">Loading…</div>
@@ -379,6 +392,24 @@
           </div>
         </details>
 
+        <!-- M38 — DNSSEC per-profile policy -->
+        <details class="space-y-2">
+          <summary class="cursor-pointer text-sm text-fg-muted hover:text-fg-strong">
+            DNSSEC validation
+          </summary>
+          <div class="pt-2">
+            <label class="label" for="pf-dnssec">DNSSEC mode</label>
+            <select id="pf-dnssec" v-model="form.dnssecMode" class="input w-full">
+              <option value="">Inherit (use cluster default)</option>
+              <option value="validate">Validate — enforce DNSSEC; bogus responses become SERVFAIL</option>
+              <option value="transparent">Transparent — pass without validation</option>
+            </select>
+            <p class="text-xs text-fg-muted mt-1">
+              Overrides the cluster-wide DNSSEC setting for clients matched to this profile.
+            </p>
+          </div>
+        </details>
+
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" class="btn-secondary" @click="closeModal">Cancel</button>
           <button type="submit" class="btn-primary" :disabled="submitting">
@@ -512,7 +543,7 @@ import {
   patchProfileBlockPage, removeProfileAllowlist, setProfilePause, updateProfile,
 } from '@/api/endpoints'
 import type { FwRuleScope } from '@/api/endpoints'
-import type { Blocklist, PauseState, Profile, ProfileBlockPage } from '@/api/types'
+import type { AllowlistEntry, Blocklist, PauseState, Profile, ProfileBlockPage } from '@/api/types'
 import FirewallRulesModal from '@/components/FirewallRulesModal.vue'
 
 // ─── Constants ───────────────────────────────────────────────────────────
@@ -545,6 +576,7 @@ interface FormState {
   clientIdsText: string
   clientMacsText: string
   clientHostnamesText: string
+  dnssecMode: string // M38: "" | "inherit" | "validate" | "transparent"
 }
 
 const emptyForm = (): FormState => ({
@@ -558,6 +590,7 @@ const emptyForm = (): FormState => ({
   clientIdsText: '',
   clientMacsText: '',
   clientHostnamesText: '',
+  dnssecMode: '',
 })
 const form = reactive<FormState>(emptyForm())
 
@@ -574,6 +607,8 @@ const allowlistEntries = ref<string[]>([])
 const allowlistLoading = ref(false)
 const allowlistError = ref('')
 const allowlistAddInput = ref('')
+const allowlistAddNote = ref('')
+const allowlistAddExpires = ref('')
 const allowlistAdding = ref(false)
 const allowlistDeleting = ref<string | null>(null)
 
@@ -637,9 +672,20 @@ async function submitAllowlistAdd() {
   allowlistError.value = ''
   allowlistAdding.value = true
   try {
+    // M36: pass note/expires_at if provided.
+    const note = allowlistAddNote.value.trim()
+    const expiresStr = allowlistAddExpires.value
+    const payload: { domain: string; note?: string; expires_at?: number } = { domain }
+    if (note) payload.note = note
+    if (expiresStr) {
+      const ts = Math.floor(new Date(expiresStr).getTime() / 1000)
+      if (!isNaN(ts)) payload.expires_at = ts
+    }
     await addProfileAllowlist(original.value.id, domain)
     allowlistEntries.value = await listProfileAllowlist(original.value.id)
     allowlistAddInput.value = ''
+    allowlistAddNote.value = ''
+    allowlistAddExpires.value = ''
     // Keep the profile list and Settings-tab textarea in sync.
     const idx = profiles.value.findIndex(p => p.id === original.value!.id)
     if (idx >= 0) profiles.value[idx] = { ...profiles.value[idx], allowlist: [...allowlistEntries.value] }
@@ -824,6 +870,7 @@ function openEdit(p: Profile) {
   form.clientIdsText = (p.client_ids ?? []).join('\n')
   form.clientMacsText = (p.client_macs ?? []).join('\n')
   form.clientHostnamesText = (p.client_hostnames ?? []).join('\n')
+  form.dnssecMode = p.dnssec_mode ?? ''
   // M33 — block page overrides
   blockPageTabForm.title = p.block_page?.title ?? ''
   blockPageTabForm.message = p.block_page?.message ?? ''
@@ -887,6 +934,7 @@ async function submitModal() {
         client_ids: clientIds,
         client_macs: clientMacs,
         client_hostnames: clientHostnames,
+        ...(form.dnssecMode ? { dnssec_mode: form.dnssecMode } : {}),
       }
       const created = await createProfile(payload)
       profiles.value = [...profiles.value, created]
@@ -903,6 +951,7 @@ async function submitModal() {
       if (!arraysEqual(clientIds, o.client_ids ?? [])) patch.client_ids = clientIds
       if (!arraysEqual(clientMacs, o.client_macs ?? [])) patch.client_macs = clientMacs
       if (!arraysEqual(clientHostnames, o.client_hostnames ?? [])) patch.client_hostnames = clientHostnames
+      if (form.dnssecMode !== (o.dnssec_mode ?? '')) patch.dnssec_mode = form.dnssecMode || undefined
 
       if (Object.keys(patch).length === 0) {
         showModal.value = false

@@ -22,8 +22,10 @@ type upstreamFn func(*dns.Msg) (*dns.Msg, error)
 
 // Forwarder sends DNS queries to a list of upstream resolvers with fallback.
 type Forwarder struct {
-	fns     []upstreamFn
-	timeout time.Duration
+	fns      []upstreamFn
+	urls     []string // resolved URL/addr for each fn — used by the optional observer
+	timeout  time.Duration
+	observer func(upstream string, dur time.Duration) // M39: per-upstream latency hook
 }
 
 // NewForwarder creates a Forwarder from the DNS config.
@@ -39,7 +41,9 @@ func NewForwarder(cfg config.DNSConfig) *Forwarder {
 
 func newForwarderFromResolvers(resolvers []string, timeout time.Duration) *Forwarder {
 	fns := make([]upstreamFn, 0, len(resolvers))
+	urls := make([]string, 0, len(resolvers))
 	for _, u := range resolvers {
+		urls = append(urls, upstreamLabel(u))
 		switch {
 		case strings.HasPrefix(u, "tls://"):
 			fns = append(fns, makeDotFn(u, timeout))
@@ -49,15 +53,62 @@ func newForwarderFromResolvers(resolvers []string, timeout time.Duration) *Forwa
 			fns = append(fns, makePlainFn(u, timeout))
 		}
 	}
-	return &Forwarder{fns: fns, timeout: timeout}
+	return &Forwarder{fns: fns, urls: urls, timeout: timeout}
+}
+
+// upstreamLabel returns scheme+host from a resolver URL, stripping credentials,
+// paths, and query params so Prometheus labels stay low-cardinality.
+func upstreamLabel(raw string) string {
+	// Plain host:port — return as-is.
+	if !strings.Contains(raw, "://") {
+		h, _, err := net.SplitHostPort(raw)
+		if err != nil {
+			return raw
+		}
+		return h
+	}
+	// tls:// or https:// — keep scheme+host only.
+	rest := raw
+	scheme := ""
+	if i := strings.Index(rest, "://"); i >= 0 {
+		scheme = rest[:i+3]
+		rest = rest[i+3:]
+	}
+	// strip path/query
+	if i := strings.IndexAny(rest, "/?@"); i >= 0 {
+		// if @ present it's credentials — take the part after
+		if at := strings.IndexByte(rest, '@'); at >= 0 && at < i {
+			rest = rest[at+1:]
+		} else {
+			rest = rest[:i]
+		}
+	}
+	return scheme + rest
+}
+
+// WithObserver returns a shallow copy of f with the given per-upstream latency
+// observer set. The observer is called after every upstream attempt (success
+// or failure) with the upstream label and the round-trip duration.
+func (f *Forwarder) WithObserver(obs func(upstream string, dur time.Duration)) *Forwarder {
+	c := *f
+	c.observer = obs
+	return &c
 }
 
 // Forward sends msg to the upstream list in order and returns the first
 // successful response. Falls back on transport/connection errors. Returns
 // SERVFAIL when all upstreams fail.
 func (f *Forwarder) Forward(msg *dns.Msg) *dns.Msg {
-	for _, fn := range f.fns {
+	for i, fn := range f.fns {
+		start := time.Now()
 		resp, err := fn(msg)
+		if f.observer != nil {
+			label := ""
+			if i < len(f.urls) {
+				label = f.urls[i]
+			}
+			f.observer(label, time.Since(start))
+		}
 		if err != nil {
 			continue
 		}
@@ -77,6 +128,7 @@ func (f *Forwarder) ForwardWithRoutes(msg *dns.Msg, routes []config.UpstreamRout
 	for _, r := range routes {
 		if matchRoute(domain, r.Match) {
 			rf := newForwarderFromResolvers(r.Resolvers, f.timeout)
+			rf.observer = f.observer
 			return rf.Forward(msg)
 		}
 	}

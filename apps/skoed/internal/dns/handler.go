@@ -32,6 +32,9 @@ type HandlerConfig struct {
 	// "-doh"/"-dot" transport suffix) and wall-clock elapsed time. nil
 	// disables metrics observation cleanly — useful for unit tests.
 	ObserveQuery func(outcome string, elapsed time.Duration)
+	// M39: optional per-upstream latency hook. When non-nil, forwarded to
+	// the Forwarder via WithObserver so every upstream attempt is timed.
+	ObserveUpstreamQuery func(upstream string, elapsed time.Duration)
 	// M22: optional device-new notification hook. When non-nil, called for
 	// every query whose client IP is not recognised by the DHCP lookup.
 	// The dispatcher deduplicates within a 10-minute window.
@@ -62,11 +65,15 @@ type Handler struct {
 
 // NewHandler constructs a Handler from the provided configuration.
 func NewHandler(cfg HandlerConfig) *Handler {
+	fwd := cfg.Forwarder
+	if fwd != nil && cfg.ObserveUpstreamQuery != nil {
+		fwd = fwd.WithObserver(cfg.ObserveUpstreamQuery)
+	}
 	return &Handler{
 		cfg:         cfg.DNSCfg,
 		fe:          cfg.FilterEngine,
 		lr:          cfg.LocalResolver,
-		fwd:         cfg.Forwarder,
+		fwd:         fwd,
 		rec:         cfg.Recursor,
 		ch:          cfg.Cache,
 		ql:          cfg.QueryLog,
@@ -199,8 +206,13 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 
-	// Serve from cache before hitting upstream.
-	key := cacheKey{Name: q.Name, Qtype: qtype}
+	// M38: determine the effective DNSSEC mode for this client (per-profile overrides
+	// the cluster-wide default; empty/"inherit" falls back to the global setting).
+	effectiveDnssec := fe.DNSSECModeForClient(clientIP, ident, h.cfg.DNSSECMode)
+
+	// Serve from cache before hitting upstream. Cache key includes the DNSSEC
+	// mode so validated and non-validated answers are stored separately.
+	key := cacheKey{Name: q.Name, Qtype: qtype, DnssecMode: effectiveDnssec}
 	if h.ch != nil && h.cfg.Cache.Enabled {
 		if cached, ok := h.ch.get(key); ok {
 			cached.SetReply(r)
@@ -210,9 +222,9 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
-	// M21: in validate mode, set the DO bit so upstream returns DNSSEC records.
+	// M21/M38: in validate mode, set the DO bit so upstream returns DNSSEC records.
 	req := r
-	if h.cfg.DNSSECMode == "validate" {
+	if effectiveDnssec == "validate" {
 		req = r.Copy()
 		req.SetEdns0(4096, true)
 	}
@@ -231,9 +243,9 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		resolved = servfail(r)
 	}
 
-	// M21: classify DNSSEC status and replace BOGUS responses with SERVFAIL.
+	// M21/M38: classify DNSSEC status and replace BOGUS responses with SERVFAIL.
 	dnssecStatus := ""
-	if h.cfg.DNSSECMode == "validate" {
+	if effectiveDnssec == "validate" {
 		dnssecStatus, resolved = classifyDNSSEC(r, resolved)
 	}
 

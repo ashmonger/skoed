@@ -124,8 +124,10 @@ type Metrics struct {
 	reg *prometheus.Registry
 
 	// DNS counters — observed from the handler on every query.
-	dnsQueriesTotal *prometheus.CounterVec
-	dnsQueryDur     *prometheus.HistogramVec
+	dnsQueriesTotal    *prometheus.CounterVec
+	dnsQueryDur        *prometheus.HistogramVec
+	dnsUpstreamDur     *prometheus.HistogramVec // M39: per-upstream resolver latency
+	dhcpLeaseDur       *prometheus.HistogramVec // M39: DHCP lease-grant duration
 
 	// Cache counters/gauges are populated via CollectorFunc so we never
 	// have to mirror them — the cache itself is the source of truth.
@@ -178,12 +180,27 @@ func New(opts Options) *Metrics {
 	}, []string{"outcome", "transport"})
 	reg.MustRegister(dnsQueriesTotal)
 
+	// M39: finer-grained buckets (1ms–2s) cover the full DNS tail latency range.
 	dnsQueryDur := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "skoed_dns_query_duration_seconds",
 		Help:    "Wall-clock time to answer a DNS query, by outcome.",
-		Buckets: []float64{0.001, 0.01, 0.1, 1, 5},
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
 	}, []string{"outcome"})
 	reg.MustRegister(dnsQueryDur)
+
+	dnsUpstreamDur := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "skoed_dns_upstream_duration_seconds",
+		Help:    "Round-trip latency for upstream resolver calls, labelled by scheme+host.",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
+	}, []string{"upstream"})
+	reg.MustRegister(dnsUpstreamDur)
+
+	dhcpLeaseDur := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "skoed_dhcp_lease_duration_seconds",
+		Help:    "Configured lifetime of DHCP leases granted, by origin.",
+		Buckets: prometheus.LinearBuckets(3600, 3600, 12), // 1h–12h
+	}, []string{"origin"})
+	reg.MustRegister(dhcpLeaseDur)
 
 	auditEventsTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "skoed_audit_events_total",
@@ -233,6 +250,8 @@ func New(opts Options) *Metrics {
 		reg:                reg,
 		dnsQueriesTotal:    dnsQueriesTotal,
 		dnsQueryDur:        dnsQueryDur,
+		dnsUpstreamDur:     dnsUpstreamDur,
+		dhcpLeaseDur:       dhcpLeaseDur,
 		auditEventsTotal:   auditEventsTotal,
 		testDomainTotal:    testDomainTotal,
 		firewallRulesTotal: firewallRulesTotal,
@@ -250,6 +269,24 @@ func (m *Metrics) ObserveTestDomain(surface, verdict string) {
 		return
 	}
 	m.testDomainTotal.WithLabelValues(surface, verdict).Inc()
+}
+
+// ObserveUpstreamQuery records one upstream resolver call duration.
+// upstream is the scheme+host label (no credentials or paths).
+func (m *Metrics) ObserveUpstreamQuery(upstream string, dur time.Duration) {
+	if m == nil || m.dnsUpstreamDur == nil {
+		return
+	}
+	m.dnsUpstreamDur.WithLabelValues(upstream).Observe(dur.Seconds())
+}
+
+// ObserveDhcpLeaseDuration records the configured lifetime of a granted DHCP lease.
+// origin should be "static" or "dynamic".
+func (m *Metrics) ObserveDhcpLeaseDuration(origin string, dur time.Duration) {
+	if m == nil || m.dhcpLeaseDur == nil {
+		return
+	}
+	m.dhcpLeaseDur.WithLabelValues(origin).Observe(dur.Seconds())
 }
 
 // ObserveFirewallRulesGenerated bumps the M6 firewall-rule generator
