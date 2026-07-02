@@ -1031,6 +1031,15 @@ func (c *Cluster) MembersFromRaftConfig() []raft.Server {
 	return c.raft.Configuration().Servers
 }
 
+// MemberAPIURL resolves a member's routable HTTP base URL.
+// When the stored api_address is bound to 0.0.0.0 (the common case for
+// single-interface nodes), the host part of raft_address is used as fallback,
+// because the Raft address always carries the actual inter-node IP.
+func (c *Cluster) MemberAPIURL(m Member) string {
+	raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
+	return apiBaseURL(m.APIAddress, raftHost)
+}
+
 // ─── M13: Filtering pause (TS-FilterPause) ───────────────────────────────────
 
 // SetGlobalPause replicates a global filtering pause deadline through Raft.

@@ -1226,7 +1226,7 @@ Node certificate rotation:
 
 **Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M23 Skoed4Phone (shares PWA infrastructure with the companion app).
 
-### Milestone 41 — Cluster-wide Live Query Stream
+### Milestone 41 — Cluster-wide Live Query Stream ✅ shipped v0.3.4
 
 **Outcome**: An admin opens a single SSE connection to any cluster node and receives real-time DNS query events from all nodes in the Raft cluster, not just the node they connected to.
 
@@ -1247,7 +1247,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 42 — Query Log Stream Enhancements (Backfill + WebSocket)
+### Milestone 42 — Query Log Stream Enhancements (Backfill + WebSocket) ✅ shipped v0.3.4
 
 **Outcome**: The live query stream is more useful in two operational scenarios: (1) operators connecting mid-session see recent context immediately; (2) operators in corporate environments where SSE is stripped by reverse proxies can use a WebSocket transport instead.
 
@@ -1274,7 +1274,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 43 — DNSSEC Detail on Query Stream
+### Milestone 43 — DNSSEC Detail on Query Stream ✅ shipped v0.3.4
 
 **Outcome**: Each query log entry and SSE stream event exposes the DNSSEC validation outcome so operators can distinguish between validated, insecure, and bogus responses in the live stream without consulting the resolver logs separately.
 

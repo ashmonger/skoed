@@ -34,8 +34,10 @@ type Entry struct {
 	ClientHostname string `json:",omitempty"`
 	ClientMAC      string `json:",omitempty"`
 	ClientID       string `json:",omitempty"`
-	// M21 — DNSSEC validation status. "ok", "bogus", "insecure", "indeterminate", or "" (transparent mode).
+	// M21 — DNSSEC validation status. "secure", "bogus", "insecure", "indeterminate", or "" (transparent mode).
 	DnssecStatus string `json:"dnssec_status,omitempty"`
+	// M43 — present only when DnssecStatus == "bogus"; describes the validation failure.
+	DnssecError string `json:"dnssec_error,omitempty"`
 }
 
 // newEntryID generates a random 16-byte hex string for use as an entry ID.
@@ -171,6 +173,21 @@ func (l *QueryLog) Query(client, outcome string, limit, offset int) (entries []E
 	}
 
 	return matched, total
+}
+
+// Snapshot returns the last n entries in chronological order (oldest first).
+// If n <= 0 or n > current length, all entries are returned.
+// Used by the backfill feature (M42) to replay recent history on stream connect.
+func (l *QueryLog) Snapshot(n int) []Entry {
+	l.mu.Lock()
+	snap := make([]Entry, len(l.entries))
+	copy(snap, l.entries)
+	l.mu.Unlock()
+
+	if n <= 0 || n >= len(snap) {
+		return snap
+	}
+	return snap[len(snap)-n:]
 }
 
 // SetMaxEntries updates the retention limit. If the log currently holds more

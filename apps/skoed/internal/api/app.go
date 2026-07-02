@@ -1001,7 +1001,8 @@ func (a *App) Router() http.Handler {
 
 		// Query log (per-node read; never forwarded)
 		r.Get("/api/v1/query-log", h.GetQueryLog)
-		r.Get("/api/v1/query-log/stream", h.StreamQueryLog) // M29: SSE live stream
+		r.Get("/api/v1/query-log/stream", h.StreamQueryLog) // M29/M41/M42/M43: SSE live stream
+			r.Get("/api/v1/query-log/ws", h.StreamQueryLogWS)   // M42: WebSocket transport
 
 		// Config export/import (M1) and M31 backup hardening
 		r.Get("/api/v1/config/export", h.ExportConfig)
