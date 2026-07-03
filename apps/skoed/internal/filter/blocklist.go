@@ -8,10 +8,17 @@ import (
 	"time"
 
 	"github.com/skoed/skoed/internal/filter/parsers"
+	"github.com/skoed/skoed/internal/netguard"
 )
 
+// maxBlocklistBytes bounds a downloaded blocklist so a hostile or compromised
+// list server cannot exhaust memory on the node.
+const maxBlocklistBytes = 64 << 20 // 64 MiB
+
 func Download(url, format string, timeout time.Duration) ([]string, error) {
-	client := &http.Client{Timeout: timeout}
+	// SSRF-guarded client: operator-supplied URLs must not reach internal /
+	// loopback / cloud-metadata endpoints. Enforced at dial time.
+	client := netguard.Client(timeout)
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", url, err)
@@ -22,11 +29,12 @@ func Download(url, format string, timeout time.Duration) ([]string, error) {
 		return nil, fmt.Errorf("fetch %s: unexpected status %d", url, resp.StatusCode)
 	}
 
+	body := io.LimitReader(resp.Body, maxBlocklistBytes)
 	if format == "auto" || format == "" {
-		return downloadAutoDetect(resp.Body)
+		return downloadAutoDetect(body)
 	}
 
-	return parseByFormat(resp.Body, format)
+	return parseByFormat(body, format)
 }
 
 func downloadAutoDetect(body io.Reader) ([]string, error) {

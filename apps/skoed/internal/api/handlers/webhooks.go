@@ -22,13 +22,17 @@ type WebhookHandlers struct{ app WebhookApp }
 // NewWebhookHandlers creates a WebhookHandlers for the given app.
 func NewWebhookHandlers(app WebhookApp) *WebhookHandlers { return &WebhookHandlers{app: app} }
 
-// ListWebhooks handles GET /api/v1/webhooks.
+// ListWebhooks handles GET /api/v1/webhooks. The HMAC signing secret is
+// redacted from the response — it is a credential that would let a reader
+// forge signed payloads to the receiver, so it is never echoed back.
 func (h *WebhookHandlers) ListWebhooks(w http.ResponseWriter, r *http.Request) {
 	eps := h.app.GetWebhooks()
-	if eps == nil {
-		eps = []config.WebhookEndpoint{}
+	out := make([]config.WebhookEndpoint, len(eps))
+	copy(out, eps)
+	for i := range out {
+		out[i].Secret = ""
 	}
-	writeJSON(w, http.StatusOK, eps)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // UpsertWebhook handles POST /api/v1/webhooks. If the body contains an existing
@@ -54,6 +58,12 @@ func (h *WebhookHandlers) UpsertWebhook(w http.ResponseWriter, r *http.Request) 
 	found := false
 	for i, e := range eps {
 		if e.ID == ep.ID {
+			// Preserve the existing secret when the caller omits it (the UI
+			// never receives the secret back via ListWebhooks, so a plain edit
+			// would otherwise wipe it).
+			if ep.Secret == "" {
+				ep.Secret = e.Secret
+			}
 			eps[i] = ep
 			found = true
 			break
@@ -67,7 +77,10 @@ func (h *WebhookHandlers) UpsertWebhook(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, ep)
+	// Redact the secret in the response too.
+	resp := ep
+	resp.Secret = ""
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // DeleteWebhook handles DELETE /api/v1/webhooks/{id}.

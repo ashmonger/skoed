@@ -174,6 +174,8 @@ type Engine struct {
 	globalPauseUntil      time.Time
 	globalPauseProfileIDs map[string]bool // nil/empty = all profiles; non-empty = only those IDs
 	profilePauseUntil     map[string]time.Time
+	// M35: per-profile, per-client pause. When non-nil, only listed IPs are paused.
+	profilePauseClientIPs map[string][]net.IP
 }
 
 // profileEntry is the engine-internal, pre-parsed form of a config.Profile.
@@ -376,9 +378,19 @@ func NewProfiled(cfg *config.Config) *Engine {
 	}
 
 	e.profilePauseUntil = make(map[string]time.Time, len(cfg.Profiles))
+	e.profilePauseClientIPs = make(map[string][]net.IP)
 	for _, p := range cfg.Profiles {
 		if p.Pause != nil {
 			e.profilePauseUntil[p.ID] = p.Pause.ResumesAt
+			if len(p.Pause.ClientIPs) > 0 {
+				parsed := make([]net.IP, 0, len(p.Pause.ClientIPs))
+				for _, s := range p.Pause.ClientIPs {
+					if ip := net.ParseIP(s); ip != nil {
+						parsed = append(parsed, ip)
+					}
+				}
+				e.profilePauseClientIPs[p.ID] = parsed
+			}
 		}
 	}
 
@@ -527,7 +539,21 @@ func (e *Engine) EvaluateForClientID(domain string, clientIP net.IP, id ClientId
 		// Check per-profile pause and global pause targeting specific profiles.
 		profileIsPaused := false
 		if until, ok := e.profilePauseUntil[pid]; ok && !until.IsZero() && now.Before(until) {
-			profileIsPaused = true
+			// M35: if per-client IPs are configured, pause ONLY for those clients.
+			// The map holds an entry exactly when the pause was scoped to specific
+			// IPs, so a present-but-empty list means "no client matched" (fail
+			// closed) — never "pause everyone", which would silently disable
+			// filtering for the whole profile.
+			if ips, hasPerClient := e.profilePauseClientIPs[pid]; hasPerClient {
+				for _, pausedIP := range ips {
+					if pausedIP.Equal(clientIP) {
+						profileIsPaused = true
+						break
+					}
+				}
+			} else {
+				profileIsPaused = true
+			}
 		}
 		if !profileIsPaused && !e.globalPauseUntil.IsZero() && now.Before(e.globalPauseUntil) && e.globalPauseProfileIDs[pid] {
 			profileIsPaused = true

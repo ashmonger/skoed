@@ -808,8 +808,9 @@ func (a *App) ClearGlobalPause() error {
 }
 
 // SetProfilePause replicates a per-profile pause deadline through the cluster.
-func (a *App) SetProfilePause(id string, resumesAt time.Time, reason string) error {
-	return a.cluster.SetProfilePause(id, resumesAt, reason)
+// clientIPs (M35) restricts the pause to specific IPs; nil/empty means all clients.
+func (a *App) SetProfilePause(id string, resumesAt time.Time, reason string, clientIPs []string) error {
+	return a.cluster.SetProfilePause(id, resumesAt, reason, clientIPs)
 }
 
 // ClearProfilePause removes the per-profile pause through the cluster.
@@ -835,6 +836,23 @@ func (a *App) PauseMaxSeconds() int {
 		return 86400
 	}
 	return cfg.Filtering.PauseMaxSeconds
+}
+
+// ─── M35: pause history + new-dynamic-client alert ────────────────────────────
+
+// GetPauseHistory returns the pause history for a profile (up to 50 entries).
+func (a *App) GetPauseHistory(profileID string) ([]config.PauseHistoryEntry, error) {
+	return a.cluster.GetPauseHistory(profileID)
+}
+
+// GetNewDynamicClients returns undismissed new-dynamic-client alert entries.
+func (a *App) GetNewDynamicClients() ([]cluster.NewDynamicClientEntry, error) {
+	return a.cluster.GetNewDynamicClients()
+}
+
+// DismissNewDynamicClient removes a client IP from the new-dynamic alert list.
+func (a *App) DismissNewDynamicClient(clientIP string) error {
+	return a.cluster.DismissNewDynamicClient(clientIP)
 }
 
 // ─── M22: webhook management ─────────────────────────────────────────────────
@@ -1041,6 +1059,10 @@ func (a *App) Router() http.Handler {
 		r.Get("/api/v1/profiles/{id}/pause", ph.GetProfilePause)
 		r.Post("/api/v1/profiles/{id}/pause", a.forward(ph.SetProfilePause))
 		r.Delete("/api/v1/profiles/{id}/pause", a.forward(ph.ClearProfilePause))
+		// M35 — Pause history + new-dynamic-client alerts
+		r.Get("/api/v1/profiles/{id}/pause/history", ph.GetPauseHistory)
+		r.Get("/api/v1/clients/new-dynamic", ph.GetNewDynamicClients)
+		r.Post("/api/v1/clients/new-dynamic/dismiss", a.forward(ph.DismissNewDynamicClient))
 
 		// M3 — Schedules
 		r.Get("/api/v1/schedules", h.ListSchedules)

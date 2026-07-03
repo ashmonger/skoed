@@ -5,6 +5,28 @@ import (
 	"strings"
 )
 
+// sanitizeNodeActor bounds a forwarding node's self-reported identity to a safe
+// identifier so it cannot pollute the audit log. Non-identifier characters are
+// dropped; an empty or over-long value becomes a clear placeholder.
+func sanitizeNodeActor(s string) string {
+	if len(s) > 64 {
+		s = s[:64]
+	}
+	clean := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '_', r == '.':
+			return r
+		default:
+			return -1
+		}
+	}, s)
+	if clean == "" {
+		return "unknown"
+	}
+	return clean
+}
+
 // Auth returns a middleware that accepts a Bearer token — either a session
 // token issued by POST /api/v1/auth/login (node-local, 8 h TTL) or an M7
 // API token issued by POST /api/v1/tokens.
@@ -37,8 +59,11 @@ func (a *App) Auth(next http.Handler) http.Handler {
 		if cs := r.Header.Get("X-Cluster-Secret"); cs != "" {
 			if a.cluster.ValidateClusterSecret(cs) {
 				p := &Principal{
-					Kind:   "node",
-					ID:     r.Header.Get("X-Served-By"),
+					Kind: "node",
+					// X-Served-By is a client-supplied header; sanitize it so a
+					// secret-holder cannot inject an arbitrary/empty/forged actor
+					// string into the audit log (log-injection / non-repudiation).
+					ID:     sanitizeNodeActor(r.Header.Get("X-Served-By")),
 					Scopes: []string{"read", "write", "cluster:admin"},
 				}
 				next.ServeHTTP(w, withPrincipal(r, p))

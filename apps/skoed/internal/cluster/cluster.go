@@ -1054,13 +1054,48 @@ func (c *Cluster) ClearGlobalPause() error {
 }
 
 // SetProfilePause replicates a per-profile filtering pause deadline through Raft.
-func (c *Cluster) SetProfilePause(profileID string, resumesAt time.Time, reason string) error {
-	return c.applyAsLeader(CmdProfilePauseSet, ProfilePauseSetPayload{ProfileID: profileID, ResumesAt: resumesAt, Reason: reason}, 0)
+// clientIPs (M35) restricts the pause to specific IPs within the profile; nil/empty means all clients.
+func (c *Cluster) SetProfilePause(profileID string, resumesAt time.Time, reason string, clientIPs []string) error {
+	return c.applyAsLeader(CmdProfilePauseSet, ProfilePauseSetPayload{
+		ProfileID: profileID,
+		StartedAt: time.Now().UTC(),
+		ResumesAt: resumesAt,
+		Reason:    reason,
+		ClientIPs: clientIPs,
+	}, 0)
 }
 
 // ClearProfilePause removes the per-profile filtering pause through Raft.
 func (c *Cluster) ClearProfilePause(profileID string) error {
-	return c.applyAsLeader(CmdProfilePauseClear, ProfilePauseClearPayload{ProfileID: profileID}, 0)
+	return c.applyAsLeader(CmdProfilePauseClear, ProfilePauseClearPayload{
+		ProfileID: profileID,
+		EndedAt:   time.Now().UTC(),
+	}, 0)
+}
+
+// GetPauseHistory returns the pause history for a profile (up to 50 entries).
+func (c *Cluster) GetPauseHistory(profileID string) ([]config.PauseHistoryEntry, error) {
+	return c.store.GetPauseHistory(profileID)
+}
+
+// GetNewDynamicClients returns all undismissed new-dynamic client entries.
+func (c *Cluster) GetNewDynamicClients() ([]NewDynamicClientEntry, error) {
+	return c.store.GetNewDynamicClients()
+}
+
+// TrackNewDynamicClient records an IP in the new-dynamic-client alert list (local, not Raft).
+func (c *Cluster) TrackNewDynamicClient(clientIP string, firstSeen time.Time) {
+	if err := c.store.TrackNewDynamicClient(clientIP, firstSeen); err != nil {
+		// best-effort — don't log noise on every query
+		_ = err
+	}
+}
+
+// DismissNewDynamicClient dismisses an IP from the new-dynamic alert list via
+// Raft. The dismissal is a replicated tombstone (not a delete) so that local
+// per-node tracking cannot resurrect the entry on the next DNS query.
+func (c *Cluster) DismissNewDynamicClient(clientIP string) error {
+	return c.applyAsLeader(CmdNewDynamicClientDismiss, NewDynamicClientDismissPayload{ClientIP: clientIP, DismissedAt: time.Now().UTC()}, 0)
 }
 
 // GetGlobalPause reads the current global pause state from bbolt (local read, no Raft).

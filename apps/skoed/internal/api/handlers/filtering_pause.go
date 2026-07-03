@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
+	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
 )
 
@@ -12,12 +14,15 @@ import (
 type FilteringPauseApp interface {
 	SetGlobalPause(resumesAt time.Time, reason string, profileIDs []string) error
 	ClearGlobalPause() error
-	SetProfilePause(id string, resumesAt time.Time, reason string) error
+	SetProfilePause(id string, resumesAt time.Time, reason string, clientIPs []string) error
 	ClearProfilePause(id string) error
 	GetGlobalPause() *config.PauseState
 	GetProfilePause(id string) *config.PauseState
+	GetPauseHistory(profileID string) ([]config.PauseHistoryEntry, error)
 	PauseMaxSeconds() int
 	GetCfg() *config.Config
+	GetNewDynamicClients() ([]cluster.NewDynamicClientEntry, error)
+	DismissNewDynamicClient(clientIP string) error
 }
 
 // pauseRequest is the body accepted by POST .../pause.
@@ -26,6 +31,8 @@ type pauseRequest struct {
 	Reason          string   `json:"reason,omitempty"`
 	// ProfileIDs restricts the pause to specific profiles. Absent or empty means all profiles.
 	ProfileIDs      []string `json:"profile_ids,omitempty"`
+	// ClientIPs (M35) restricts a per-profile pause to specific client IPs only.
+	ClientIPs       []string `json:"client_ips,omitempty"`
 }
 
 // pauseResponse is the body returned for an active pause.
@@ -34,13 +41,14 @@ type pauseResponse struct {
 	ResumesAt  time.Time `json:"resumes_at,omitempty"`
 	Reason     string    `json:"reason,omitempty"`
 	ProfileIDs []string  `json:"profile_ids,omitempty"`
+	ClientIPs  []string  `json:"client_ips,omitempty"`
 }
 
 func pauseStateResponse(ps *config.PauseState) pauseResponse {
 	if ps == nil || !time.Now().Before(ps.ResumesAt) {
 		return pauseResponse{Active: false}
 	}
-	return pauseResponse{Active: true, ResumesAt: ps.ResumesAt, Reason: ps.Reason, ProfileIDs: ps.ProfileIDs}
+	return pauseResponse{Active: true, ResumesAt: ps.ResumesAt, Reason: ps.Reason, ProfileIDs: ps.ProfileIDs, ClientIPs: ps.ClientIPs}
 }
 
 func validatePauseDuration(w http.ResponseWriter, n, maxSeconds int) bool {
@@ -135,12 +143,22 @@ func (h *FilteringPauseHandlers) SetProfilePause(w http.ResponseWriter, r *http.
 	if !validatePauseDuration(w, req.DurationSeconds, h.app.PauseMaxSeconds()) {
 		return
 	}
+	// Validate per-client IPs up front. An unparseable entry that silently
+	// dropped through would scope the pause to nobody in the engine (fail
+	// closed), but rejecting here gives the caller a clear error instead of a
+	// pause that quietly protects no one.
+	for _, ip := range req.ClientIPs {
+		if net.ParseIP(ip) == nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid client_ip: %q", ip))
+			return
+		}
+	}
 	resumesAt := time.Now().Add(time.Duration(req.DurationSeconds) * time.Second)
-	if err := h.app.SetProfilePause(id, resumesAt, req.Reason); err != nil {
+	if err := h.app.SetProfilePause(id, resumesAt, req.Reason, req.ClientIPs); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, pauseResponse{Active: true, ResumesAt: resumesAt, Reason: req.Reason})
+	writeJSON(w, http.StatusOK, pauseResponse{Active: true, ResumesAt: resumesAt, Reason: req.Reason, ClientIPs: req.ClientIPs})
 }
 
 // ClearProfilePause handles DELETE /api/v1/profiles/{id}/pause.
@@ -156,6 +174,56 @@ func (h *FilteringPauseHandlers) ClearProfilePause(w http.ResponseWriter, r *htt
 		return
 	}
 	if err := h.app.ClearProfilePause(id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetPauseHistory handles GET /api/v1/profiles/{id}/pause/history.
+func (h *FilteringPauseHandlers) GetPauseHistory(w http.ResponseWriter, r *http.Request) {
+	id := urlParam(r, "id")
+	if !profileExistsInCfg(h.app.GetCfg(), id) {
+		writeError(w, http.StatusNotFound, "profile not found")
+		return
+	}
+	entries, err := h.app.GetPauseHistory(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if entries == nil {
+		entries = []config.PauseHistoryEntry{}
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
+// GetNewDynamicClients handles GET /api/v1/clients/new-dynamic.
+func (h *FilteringPauseHandlers) GetNewDynamicClients(w http.ResponseWriter, r *http.Request) {
+	clients, err := h.app.GetNewDynamicClients()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if clients == nil {
+		clients = []cluster.NewDynamicClientEntry{}
+	}
+	writeJSON(w, http.StatusOK, clients)
+}
+
+// DismissNewDynamicClient handles POST /api/v1/clients/new-dynamic/dismiss.
+func (h *FilteringPauseHandlers) DismissNewDynamicClient(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ClientIP string `json:"client_ip"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.ClientIP == "" {
+		writeError(w, http.StatusBadRequest, "client_ip is required")
+		return
+	}
+	if err := h.app.DismissNewDynamicClient(req.ClientIP); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

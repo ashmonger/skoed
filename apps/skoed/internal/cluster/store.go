@@ -63,6 +63,10 @@ var (
 	bucketDevices = []byte("config_devices")
 	// M36: shared allowlists (key = SharedAllowlist.ID, value = JSON SharedAllowlist).
 	bucketSharedAllowlists = []byte("config_shared_allowlists")
+	// M35: pause history per profile (key = profile_id, value = JSON []PauseHistoryEntry capped at 50).
+	bucketPauseHistory = []byte("pause_history")
+	// M35: new-dynamic-client alert list (key = client_ip, value = JSON {first_seen, dismissed}).
+	bucketNewDynamicClients = []byte("new_dynamic_clients")
 )
 
 // AuditRetention is the cutoff for the lazy trim that runs on every
@@ -125,6 +129,8 @@ func (s *Store) init() error {
 			bucketCertExpiry,
 			bucketDevices,
 			bucketSharedAllowlists,
+			bucketPauseHistory,
+			bucketNewDynamicClients,
 		}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
@@ -329,6 +335,18 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		var existing TokenCreatePayload
 		if err := json.Unmarshal(v, &existing); err != nil {
 			return err
+		}
+		// Authoritative single-use enforcement: FSM Apply is serialized across
+		// the whole cluster, so rejecting an already-consumed token HERE (rather
+		// than only in EnrollNode's pre-read) closes the check-then-consume race
+		// where two concurrent joins both pass the pre-read and reuse one token.
+		if existing.ConsumedUnix != 0 {
+			return fmt.Errorf("token already consumed")
+		}
+		// Deterministic expiry check using the payload-supplied timestamp
+		// (never time.Now() inside Apply).
+		if existing.ExpiresUnix != 0 && p.ConsumedAt > existing.ExpiresUnix {
+			return fmt.Errorf("token expired")
 		}
 		// Mark consumed (don't delete) so a later validation distinguishes
 		// "consumed" from "never existed". A pruner sweeps these out later
@@ -601,12 +619,25 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		if err := json.Unmarshal(v, &prof); err != nil {
 			return err
 		}
-		prof.Pause = &config.PauseState{ResumesAt: p.ResumesAt, Reason: p.Reason}
+		prof.Pause = &config.PauseState{ResumesAt: p.ResumesAt, Reason: p.Reason, ClientIPs: p.ClientIPs}
 		nv, err := json.Marshal(prof)
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv)
+		if err := tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv); err != nil {
+			return err
+		}
+		// Append history entry (started_at).
+		scope := "profile"
+		if len(p.ClientIPs) > 0 {
+			scope = "per-client"
+		}
+		return appendPauseHistory(tx, p.ProfileID, config.PauseHistoryEntry{
+			StartedAt: p.StartedAt,
+			Scope:     scope,
+			Reason:    p.Reason,
+			ClientIPs: p.ClientIPs,
+		})
 
 	case CmdProfilePauseClear:
 		var p ProfilePauseClearPayload
@@ -621,12 +652,49 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		if err := json.Unmarshal(v, &prof); err != nil {
 			return err
 		}
+		// Close the most-recent open history entry before clearing the pause.
+		// EndedAt comes from the command payload (captured once by the leader) so
+		// every node writes an identical timestamp — reading time.Now() here would
+		// diverge the replicated FSM state across nodes.
+		if err := closePauseHistoryEntry(tx, p.ProfileID, p.EndedAt); err != nil {
+			return err
+		}
 		prof.Pause = nil
 		nv, err := json.Marshal(prof)
 		if err != nil {
 			return err
 		}
 		return tx.Bucket(bucketProfiles).Put([]byte(p.ProfileID), nv)
+
+	case CmdPauseHistoryAppend:
+		var p PauseHistoryAppendPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return appendPauseHistory(tx, p.ProfileID, p.Entry)
+
+	case CmdNewDynamicClientDismiss:
+		var p NewDynamicClientDismissPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		// Write a replicated tombstone instead of deleting: local per-node
+		// tracking (TrackNewDynamicClient) fires on every DNS query and would
+		// re-insert a deleted IP within seconds. The tombstone makes tracking
+		// skip the IP permanently. DismissedAt comes from the payload so all
+		// nodes store an identical value (FSM determinism).
+		bkt := tx.Bucket(bucketNewDynamicClients)
+		e := NewDynamicClientEntry{ClientIP: p.ClientIP}
+		if v := bkt.Get([]byte(p.ClientIP)); v != nil {
+			_ = json.Unmarshal(v, &e) // preserve FirstSeen if present
+		}
+		e.Dismissed = true
+		e.DismissedAt = p.DismissedAt
+		nv, err := json.Marshal(e)
+		if err != nil {
+			return err
+		}
+		return bkt.Put([]byte(p.ClientIP), nv)
 
 	case CmdCertRotation:
 		var p CertRotationPayload
@@ -1785,4 +1853,126 @@ func (s *Store) SetBackupLastHash(hash string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(bucketBackups).Put([]byte("last_content_hash"), []byte(hash))
 	})
+}
+
+// ─── M35: Pause history + new-dynamic-client helpers ─────────────────────────
+
+const pauseHistoryCap = 50
+
+// appendPauseHistory appends an entry to the pause history for profileID inside
+// the given Raft transaction. Entries are stored as a JSON array capped at
+// pauseHistoryCap (most-recent-first after rotation).
+func appendPauseHistory(tx *bolt.Tx, profileID string, entry config.PauseHistoryEntry) error {
+	bkt := tx.Bucket(bucketPauseHistory)
+	key := []byte(profileID)
+	var entries []config.PauseHistoryEntry
+	if v := bkt.Get(key); v != nil {
+		if err := json.Unmarshal(v, &entries); err != nil {
+			entries = nil // corrupt data: start fresh
+		}
+	}
+	// Prepend new entry (most-recent first).
+	entries = append([]config.PauseHistoryEntry{entry}, entries...)
+	if len(entries) > pauseHistoryCap {
+		entries = entries[:pauseHistoryCap]
+	}
+	v, err := json.Marshal(entries)
+	if err != nil {
+		return err
+	}
+	return bkt.Put(key, v)
+}
+
+// closePauseHistoryEntry sets EndedAt on the most-recent open entry for
+// profileID (one with a zero EndedAt). No-op when no open entry exists.
+// endedAt MUST be a value captured in the Raft command payload, never a
+// locally-read clock — this function runs inside FSM Apply on every node and a
+// per-node clock read would diverge the replicated state.
+func closePauseHistoryEntry(tx *bolt.Tx, profileID string, endedAt time.Time) error {
+	bkt := tx.Bucket(bucketPauseHistory)
+	key := []byte(profileID)
+	v := bkt.Get(key)
+	if v == nil {
+		return nil
+	}
+	var entries []config.PauseHistoryEntry
+	if err := json.Unmarshal(v, &entries); err != nil {
+		return nil // corrupt: skip
+	}
+	if endedAt.IsZero() {
+		endedAt = time.Now().UTC() // defensive fallback; leaders always supply a value
+	}
+	for i := range entries {
+		if entries[i].EndedAt.IsZero() {
+			entries[i].EndedAt = endedAt
+			break
+		}
+	}
+	nv, err := json.Marshal(entries)
+	if err != nil {
+		return err
+	}
+	return bkt.Put(key, nv)
+}
+
+// GetPauseHistory returns the stored pause history for a profile (up to 50 entries).
+// Returns nil, nil when no history exists.
+func (s *Store) GetPauseHistory(profileID string) ([]config.PauseHistoryEntry, error) {
+	var entries []config.PauseHistoryEntry
+	err := s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(bucketPauseHistory).Get([]byte(profileID))
+		if v == nil {
+			return nil
+		}
+		return json.Unmarshal(v, &entries)
+	})
+	return entries, err
+}
+
+// NewDynamicClientEntry records a client IP first seen in the new-dynamic list.
+// Dismissed entries are kept as tombstones (not deleted) so that local per-node
+// tracking cannot resurrect a dismissed IP on its next DNS query.
+type NewDynamicClientEntry struct {
+	ClientIP    string    `json:"client_ip"`
+	FirstSeen   time.Time `json:"first_seen"`
+	Dismissed   bool      `json:"dismissed,omitempty"`
+	DismissedAt time.Time `json:"dismissed_at,omitempty"`
+}
+
+// TrackNewDynamicClient records an IP in the new-dynamic-client list unless an
+// entry already exists (tracked or dismissed). A dismissed tombstone is never
+// overwritten, so a dismissed alert stays dismissed even under continuous
+// traffic. Thread-safe (direct bbolt Update outside of Raft, because this is
+// fire-and-forget per-node tracking, not replicated config state).
+func (s *Store) TrackNewDynamicClient(clientIP string, firstSeen time.Time) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(bucketNewDynamicClients)
+		if bkt.Get([]byte(clientIP)) != nil {
+			return nil // already tracked or dismissed — do not resurrect
+		}
+		v, err := json.Marshal(NewDynamicClientEntry{ClientIP: clientIP, FirstSeen: firstSeen})
+		if err != nil {
+			return err
+		}
+		return bkt.Put([]byte(clientIP), v)
+	})
+}
+
+// GetNewDynamicClients returns all undismissed new-dynamic client entries.
+func (s *Store) GetNewDynamicClients() ([]NewDynamicClientEntry, error) {
+	var out []NewDynamicClientEntry
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketNewDynamicClients).ForEach(func(_, v []byte) error {
+			var e NewDynamicClientEntry
+			if err := json.Unmarshal(v, &e); err != nil {
+				return nil // skip corrupt entry
+			}
+			if e.Dismissed {
+				return nil // tombstone — hidden from the alert list
+			}
+			out = append(out, e)
+			return nil
+		})
+	})
+	return out, err
 }

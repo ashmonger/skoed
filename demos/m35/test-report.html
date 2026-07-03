@@ -1,0 +1,658 @@
+<title>M35 Test Report — Filtering Pause Enhancements</title>
+<meta name="description" content="Acceptance test results for M35: per-client pause, pause history, expiry webhook, new-dynamic client alert. 33/33 checks pass.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0e14;
+    --surface:  #141720;
+    --surface2: #1b1f2e;
+    --border:   #252a3a;
+    --border2:  #1e2232;
+    --txt:      #d0d6ea;
+    --muted:    #636d8c;
+    --accent:   #5875e8;
+    --accent-d: #3a56c8;
+    --pass:     #2da863;
+    --pass-bg:  #0e2718;
+    --fail:     #cc4444;
+    --fail-bg:  #2a0e0e;
+    --warn:     #b88a30;
+    --badge:    #2c2547;
+    --badge-t:  #9080cc;
+    --mono: ui-monospace, 'Cascadia Code', 'Menlo', monospace;
+    --sans: system-ui, -apple-system, sans-serif;
+    --r: 4px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px 64px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .header-left { display: flex; flex-direction: column; gap: 4px; }
+  .milestone-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(88,117,232,.12);
+    border: 1px solid rgba(88,117,232,.25);
+    border-radius: var(--r);
+    padding: 2px 7px;
+    display: inline-block;
+    width: fit-content;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--txt);
+    letter-spacing: -.01em;
+  }
+  .meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .meta span::before { content: ''; }
+
+  /* ── Summary strip ── */
+  .summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 14px;
+    flex: 1;
+    min-width: 160px;
+  }
+  .chip-num {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--pass);
+    line-height: 1;
+  }
+  .chip-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .chip-title { font-size: 12px; font-weight: 600; color: var(--txt); }
+  .chip-sub   { font-size: 11px; color: var(--muted); }
+  .chip-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--pass);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* ── Section ── */
+  .section { margin-bottom: 24px; }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--border2);
+    margin-bottom: 2px;
+  }
+  .section-head h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--pass);
+    background: var(--pass-bg);
+    border: 1px solid rgba(45,168,99,.2);
+    border-radius: 10px;
+    padding: 1px 8px;
+    margin-left: auto;
+  }
+
+  /* ── Test rows ── */
+  .test-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: var(--r);
+    transition: background .1s;
+  }
+  .test-row:hover { background: var(--surface2); }
+  .test-row + .test-row { border-top: 1px solid var(--border2); }
+
+  .status-icon {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-icon.pass { background: var(--pass-bg); border: 1.5px solid var(--pass); }
+  .status-icon.fail { background: var(--fail-bg); border: 1.5px solid var(--fail); }
+  .status-icon svg { width: 9px; height: 9px; }
+
+  .test-name {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--txt);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .test-name .fn-name { color: var(--txt); }
+  .test-name .fn-prefix { color: var(--muted); }
+
+  .fsid-badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--badge-t);
+    background: var(--badge);
+    border-radius: 3px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Proxmox table ── */
+  .prox-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .prox-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .prox-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--border2);
+    vertical-align: middle;
+  }
+  .prox-table tr:last-child td { border-bottom: none; }
+  .prox-table tr:hover td { background: var(--surface2); }
+  .prox-table td:first-child { width: 28px; }
+  .prox-table .check-name { font-family: var(--mono); color: var(--txt); }
+  .prox-table .check-node { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .pass-txt  { color: var(--pass); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .fail-txt  { color: var(--fail); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+
+  /* ── Environment block ── */
+  .env-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px 24px;
+    font-size: 12px;
+  }
+  .env-item { display: flex; flex-direction: column; gap: 2px; }
+  .env-key  { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .env-val  { font-family: var(--mono); color: var(--txt); }
+  .env-val.ok { color: var(--pass); }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 36px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  footer span { font-family: var(--mono); }
+
+  /* ── Duration badges ── */
+  .dur {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    background: var(--surface2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+</style>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <span class="milestone-tag">M35</span>
+    <h1>Filtering Pause Enhancements</h1>
+    <div class="meta">
+      <span>2026-07-02</span>
+      <span>skoed v0.3.5-dev · commit 0e0b3c7</span>
+      <span>branch feature/m35-filtering-pause-enhancements</span>
+    </div>
+  </div>
+</div>
+
+<!-- Summary chips -->
+<div class="summary">
+  <div class="chip">
+    <span class="chip-num">10</span>
+    <div class="chip-label">
+      <span class="chip-title">Local Acceptance</span>
+      <span class="chip-sub">10 tests · 7.4s</span>
+    </div>
+    <span class="chip-dot"></span>
+  </div>
+  <div class="chip">
+    <span class="chip-num">14</span>
+    <div class="chip-label">
+      <span class="chip-title">Proxmox Functional</span>
+      <span class="chip-sub">3-node live cluster</span>
+    </div>
+    <span class="chip-dot"></span>
+  </div>
+  <div class="chip">
+    <span class="chip-num">9</span>
+    <div class="chip-label">
+      <span class="chip-title">Proxmox Replication</span>
+      <span class="chip-sub">Raft consistency checks</span>
+    </div>
+    <span class="chip-dot"></span>
+  </div>
+</div>
+
+<!-- Local acceptance tests -->
+<div class="section">
+  <div class="section-head">
+    <h2>Local Acceptance Tests</h2>
+    <span class="section-count">10 / 10 pass</span>
+  </div>
+
+  <!-- FS-PerClientPauseActivates -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PerClientPauseActivates</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">1.80s</span>
+      <span class="fsid-badge">FS-PerClientPauseActivates</span>
+    </div>
+  </div>
+
+  <!-- FS-PerClientPauseStateVisible -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PerClientPauseStateVisible</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">1.80s</span>
+      <span class="fsid-badge">FS-PerClientPauseStateVisible</span>
+    </div>
+  </div>
+
+  <!-- FS-PerClientPauseCancelledEarly -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PerClientPauseCancelledEarly</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">1.90s</span>
+      <span class="fsid-badge">FS-PerClientPauseCancelledEarly</span>
+    </div>
+  </div>
+
+  <!-- FS-PerClientPauseOtherClientsUnaffected -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PerClientPauseOtherClientsUnaffected</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">2.20s</span>
+      <span class="fsid-badge">FS-PerClientPauseOtherClientsUnaffected</span>
+    </div>
+  </div>
+
+  <!-- FS-PauseHistoryRecorded -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PauseHistoryRecorded</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">2.39s</span>
+      <span class="fsid-badge">FS-PauseHistoryRecorded</span>
+    </div>
+  </div>
+
+  <!-- FS-PauseHistoryCappedAt50 -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PauseHistoryCappedAt50</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">2.08s</span>
+      <span class="fsid-badge">FS-PauseHistoryCappedAt50</span>
+    </div>
+  </div>
+
+  <!-- FS-PauseHistoryNotFoundForUnknownProfile -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PauseHistoryNotFoundForUnknownProfile</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">1.87s</span>
+      <span class="fsid-badge">FS-PauseHistoryNotFoundForUnknownProfile</span>
+    </div>
+  </div>
+
+  <!-- FS-PauseExpiryWebhookFired -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">PauseExpiryWebhookFired</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">7.25s</span>
+      <span class="fsid-badge">FS-PauseExpiryWebhookFired</span>
+    </div>
+  </div>
+
+  <!-- FS-NewDynamicClientAlertEndpoint -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">NewDynamicClientAlertEndpoint</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">2.38s</span>
+      <span class="fsid-badge">FS-NewDynamicClientAlertEndpoint</span>
+    </div>
+  </div>
+
+  <!-- FS-NewDynamicClientAlertDismissed -->
+  <div class="test-row">
+    <div class="status-icon pass">
+      <svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="test-name"><span class="fn-prefix">Test</span><span class="fn-name">NewDynamicClientAlertDismissed</span></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="dur">1.67s</span>
+      <span class="fsid-badge">FS-NewDynamicClientAlertDismissed</span>
+    </div>
+  </div>
+</div>
+
+<!-- Proxmox functional checks -->
+<div class="section">
+  <div class="section-head">
+    <h2>Proxmox Functional Checks</h2>
+    <span class="section-count">14 / 14 pass</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="prox-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Check</th>
+          <th>Node</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">create-profile</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">per-client-pause-set-active</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">per-client-pause-set-client-ips</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">per-client-pause-get-active</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">per-client-pause-get-client-ips</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-started-at</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-per-client-scope</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-client-ips</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-cancel-204</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-cancelled-inactive</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-ended-at</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-404-unknown</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">new-dynamic-clients-returns-array</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">pause-history-4-entries</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Proxmox replication checks -->
+<div class="section">
+  <div class="section-head">
+    <h2>Proxmox Replication Checks</h2>
+    <span class="section-count">9 / 9 pass</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="prox-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Check</th>
+          <th>Node</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-leader-active</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-leader-client-ips</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-follower1-active</td>
+          <td class="check-node">skoed-02 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-follower1-ips</td>
+          <td class="check-node">skoed-02 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-follower2-active</td>
+          <td class="check-node">skoed-03 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">replication-follower2-ips</td>
+          <td class="check-node">skoed-03 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">history-leader-entry</td>
+          <td class="check-node">skoed-01 (leader)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">history-follower1-entry</td>
+          <td class="check-node">skoed-02 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+        <tr>
+          <td><div class="status-icon pass" style="margin:0 auto;"><svg viewBox="0 0 10 10" fill="none"><polyline points="1.5,5.5 4,8 8.5,2" stroke="#2da863" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div></td>
+          <td class="check-name">history-follower2-entry</td>
+          <td class="check-node">skoed-03 (follower)</td>
+          <td class="pass-txt">PASS</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Environment -->
+<div class="section">
+  <div class="section-head">
+    <h2>Environment</h2>
+  </div>
+  <div class="env-block">
+    <div class="env-item">
+      <span class="env-key">Binary</span>
+      <span class="env-val">skoed v0.3.5-dev</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Commit</span>
+      <span class="env-val">0e0b3c7</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Go</span>
+      <span class="env-val">go1.26.1 · CGO_ENABLED=0</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Cluster</span>
+      <span class="env-val ok">3 nodes · all in_sync</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Leader</span>
+      <span class="env-val">skoed-01 (raft term 97)</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Test Run</span>
+      <span class="env-val">2026-07-02 · 7.4s local</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">Branch</span>
+      <span class="env-val">feature/m35-filtering-pause-enhancements</span>
+    </div>
+    <div class="env-item">
+      <span class="env-key">FSIDs covered</span>
+      <span class="env-val ok">10 / 10</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>skoed M35 — Filtering Pause Enhancements</span>
+  <span>33 / 33 checks pass · 2026-07-02</span>
+</footer>

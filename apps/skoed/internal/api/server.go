@@ -68,10 +68,14 @@ func NewServerWithTLS(app *App, opts TLSOptions) *Server {
 		handler = s.maybeHSTS(handler)
 	}
 
+	// ReadTimeout bounds the time to read the full request (headers + body),
+	// preventing slow-body / large-body abuse. WriteTimeout is intentionally
+	// unset so long-lived SSE streams (query-log, upgrade log) are not cut off.
 	s.httpServer = &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
 	}
 	if opts.Enabled && opts.Mode == "dual_port" && opts.HTTPSAddress != "" {
 		s.httpsServer = &http.Server{
@@ -79,6 +83,7 @@ func NewServerWithTLS(app *App, opts TLSOptions) *Server {
 			Handler:           handler,
 			TLSConfig:         s.tlsCfg,
 			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
 		}
 	}
 	return s
