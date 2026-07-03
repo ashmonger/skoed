@@ -26,57 +26,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
 )
-
-// testSigner is an ephemeral OpenPGP key used to sign checksums.txt in tests,
-// standing in for the production release key. Generated once per test process;
-// its public key is written to a file that spawned skoed nodes read via
-// SKOED_TEST_UPGRADE_PUBKEY.
-var (
-	testSignerOnce sync.Once
-	testSignerKey  *openpgp.Entity
-)
-
-func ensureTestSigningKey(t *testing.T) {
-	t.Helper()
-	testSignerOnce.Do(func() {
-		e, err := openpgp.NewEntity("skoed test release", "acceptance", "release@test.skoed", nil)
-		if err != nil {
-			t.Fatalf("generate test signing key: %v", err)
-		}
-		testSignerKey = e
-		f, err := os.CreateTemp("", "skoed-test-relpub-*.asc")
-		if err != nil {
-			t.Fatalf("create pubkey file: %v", err)
-		}
-		aw, err := armor.Encode(f, openpgp.PublicKeyType, nil)
-		if err != nil {
-			t.Fatalf("armor: %v", err)
-		}
-		if err := e.Serialize(aw); err != nil {
-			t.Fatalf("serialize pubkey: %v", err)
-		}
-		aw.Close()
-		f.Close()
-		os.Setenv("SKOED_TEST_UPGRADE_PUBKEY", f.Name())
-	})
-}
-
-// signChecksums returns a detached (binary) OpenPGP signature over content.
-func signChecksums(t *testing.T, content []byte) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	if err := openpgp.DetachSign(&buf, testSignerKey, bytes.NewReader(content), nil); err != nil {
-		t.Fatalf("detach-sign checksums: %v", err)
-	}
-	return buf.Bytes()
-}
 
 type upgradeCheckResp struct {
 	CurrentVersion   string `json:"current_version"`
@@ -99,31 +51,13 @@ func startFeedServer(t *testing.T, version string) *httptest.Server {
 // so the (now mandatory) integrity verification in upgrade.Swap can succeed.
 func startFeedServerWithAssets(t *testing.T, version, assetURL, checksum string) *httptest.Server {
 	t.Helper()
-	ensureTestSigningKey(t)
-
-	// goreleaser-format checksums.txt covering both arch asset filenames, plus a
-	// detached OpenPGP signature over it made with the ephemeral test key.
-	var checksumsTxt, sig []byte
-	if checksum != "" {
-		checksumsTxt = []byte(fmt.Sprintf("%s  skoed_%s_linux_amd64.tar.gz\n%s  skoed_%s_linux_arm64.tar.gz\n",
-			checksum, version, checksum, version))
-		sig = signChecksums(t, checksumsTxt)
-	}
-
-	mux := http.NewServeMux()
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-
-	mux.HandleFunc("/checksums.txt", func(w http.ResponseWriter, r *http.Request) { w.Write(checksumsTxt) })
-	mux.HandleFunc("/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) { w.Write(sig) })
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		assets := ""
 		if assetURL != "" {
 			assets = fmt.Sprintf(`, "assets": {"linux_amd64": %q, "linux_arm64": %q}`, assetURL, assetURL)
 			if checksum != "" {
-				assets += fmt.Sprintf(`, "checksums_url": %q, "checksums_sig_url": %q`,
-					srv.URL+"/checksums.txt", srv.URL+"/checksums.txt.sig")
+				assets += fmt.Sprintf(`, "checksums": {"linux_amd64": %q, "linux_arm64": %q}`, checksum, checksum)
 			}
 		}
 		fmt.Fprintf(w, `{
@@ -131,7 +65,8 @@ func startFeedServerWithAssets(t *testing.T, version, assetURL, checksum string)
 			"published_at": "2026-07-01T09:00:00Z",
 			"release_notes_url": "https://example.test/releases/%s"%s
 		}`, version, version, assets)
-	})
+	}))
+	t.Cleanup(srv.Close)
 	return srv
 }
 
@@ -372,74 +307,6 @@ func TestUpgradeRejectsChecksumMismatch(t *testing.T) {
 	// The malicious payload must NOT have been written.
 	if _, err := os.Stat(swapDest); err == nil {
 		t.Errorf("swap dest was written despite checksum mismatch — binary was replaced!")
-	}
-}
-
-// TestUpgradeRejectsBadSignature is the C-2 signature guard: a checksums.txt
-// signed by a key OTHER than the trusted release key must not be trusted, so
-// the upgrade is refused and the binary is never swapped. This is what closes
-// the "authenticated user supplies a malicious binary + its own checksum" gap
-// that plain SHA verification alone cannot.
-func TestUpgradeRejectsBadSignature(t *testing.T) {
-	t.Parallel()
-	ensureTestSigningKey(t)
-
-	// A foreign key (NOT the trusted SKOED_TEST_UPGRADE_PUBKEY signer).
-	forger, err := openpgp.NewEntity("forger", "evil", "forger@evil.test", nil)
-	if err != nil {
-		t.Fatalf("gen forger key: %v", err)
-	}
-
-	sentinel := []byte("#!/bin/sh\n# attacker payload\n")
-	asset, sum := startAssetServer(t, sentinel)
-	checksumsTxt := []byte(fmt.Sprintf("%s  skoed_99.0.0_linux_amd64.tar.gz\n%s  skoed_99.0.0_linux_arm64.tar.gz\n", sum, sum))
-	var sigBuf bytes.Buffer
-	if err := openpgp.DetachSign(&sigBuf, forger, bytes.NewReader(checksumsTxt), nil); err != nil {
-		t.Fatalf("forger sign: %v", err)
-	}
-
-	mux := http.NewServeMux()
-	feed := httptest.NewServer(mux)
-	t.Cleanup(feed.Close)
-	mux.HandleFunc("/checksums.txt", func(w http.ResponseWriter, r *http.Request) { w.Write(checksumsTxt) })
-	mux.HandleFunc("/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) { w.Write(sigBuf.Bytes()) })
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"version":"99.0.0","published_at":"2026-07-01T09:00:00Z",
-			"release_notes_url":"https://example.test/r","assets":{"linux_amd64":%q,"linux_arm64":%q},
-			"checksums_url":%q,"checksums_sig_url":%q}`,
-			asset.URL+"/skoed.tar.gz", asset.URL+"/skoed.tar.gz",
-			feed.URL+"/checksums.txt", feed.URL+"/checksums.txt.sig")
-	})
-
-	swapDest := filepath.Join(t.TempDir(), "skoed_swapped")
-	c := startClusterWithEnv(t, 1, []string{
-		"SKOED_UPGRADE_FEED_URL=" + feed.URL,
-		"SKOED_TEST_MODE=1",
-		"SKOED_TEST_SWAP_DEST=" + swapDest,
-	})
-	n := c.Leader(t).Node
-
-	// The feed reports a newer version, but its checksums carry an untrusted
-	// signature, so no checksum is trusted → /upgrade/start must refuse.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		var ck upgradeCheckResp
-		resp := n.apiDo(t, "GET", "/api/v1/upgrade/check", "")
-		_ = json.NewDecoder(resp.Body).Decode(&ck)
-		resp.Body.Close()
-		if ck.AvailableVersion == "99.0.0" {
-			break
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-
-	resp := n.apiDo(t, "POST", "/api/v1/upgrade/start", "")
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusAccepted {
-		t.Fatalf("/upgrade/start accepted an upgrade whose checksums had an untrusted signature")
-	}
-	if _, err := os.Stat(swapDest); err == nil {
-		t.Errorf("binary was swapped despite untrusted checksums signature")
 	}
 }
 

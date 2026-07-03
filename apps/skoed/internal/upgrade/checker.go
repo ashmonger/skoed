@@ -24,16 +24,15 @@ type Feed struct {
 	ReleaseNotesURL string            `json:"release_notes_url"`
 	Assets          map[string]string `json:"assets"`
 	// Checksums maps each asset key (e.g. "linux_amd64") to the hex SHA-256 of
-	// its tar.gz. Populated only from a SIGNED checksums file (see
-	// ChecksumsURL/ChecksumsSigURL) whose OpenPGP signature verifies against the
-	// embedded release key. Required for the upgrade to proceed — Swap refuses
-	// an asset without a verified checksum.
+	// its tar.gz. Required for the upgrade to proceed — Swap refuses an asset
+	// without a checksum. Sourced from the goreleaser checksums.txt on the
+	// GitHub release (ChecksumsURL) or inline in a custom feed. Authenticity
+	// rests on the GitHub-hosted build + HTTPS transport; the checksum protects
+	// integrity of the downloaded artifact.
 	Checksums map[string]string `json:"checksums,omitempty"`
-	// ChecksumsURL / ChecksumsSigURL point at a goreleaser checksums.txt and its
-	// detached OpenPGP signature. When both are set, the signature is verified
-	// against the embedded release key before any checksum is trusted.
-	ChecksumsURL    string `json:"checksums_url,omitempty"`
-	ChecksumsSigURL string `json:"checksums_sig_url,omitempty"`
+	// ChecksumsURL points at a goreleaser checksums.txt. When set, it overrides
+	// any inline Checksums.
+	ChecksumsURL string `json:"checksums_url,omitempty"`
 }
 
 // CheckResult is the shape returned by /api/v1/upgrade/check.
@@ -201,13 +200,9 @@ func fetchFeed(ctx context.Context, feedURL string, timeout time.Duration) (*Fee
 	if err := json.Unmarshal(body, &f); err != nil {
 		return nil, err
 	}
-	// If the feed references a signed checksums file, verify it and use only
-	// those checksums. Any inline "checksums" in the feed JSON are discarded —
-	// unsigned checksums are not a trust anchor.
-	if f.ChecksumsURL != "" && f.ChecksumsSigURL != "" {
-		f.Checksums = loadSignedChecksums(ctx, f.ChecksumsURL, f.ChecksumsSigURL, timeout)
-	} else {
-		f.Checksums = nil
+	// A checksums.txt URL (goreleaser) overrides any inline checksums.
+	if f.ChecksumsURL != "" {
+		f.Checksums = loadChecksums(ctx, f.ChecksumsURL, timeout)
 	}
 	return &f, nil
 }
@@ -260,15 +255,10 @@ func fetchGitHubRelease(ctx context.Context, repo string, timeout time.Duration)
 	// Map goreleaser asset names to AssetKey() keys ("linux_amd64", etc.).
 	// goreleaser names: "skoed_0.2.6_linux_amd64.tar.gz" → "linux_amd64"
 	// Strip the extension, then drop leading segments that aren't os_arch pairs.
-	var checksumsURL, checksumsSigURL string
+	var checksumsURL string
 	for _, a := range rel.Assets {
-		switch {
-		case a.Name == "checksums.txt" || strings.HasSuffix(a.Name, "_checksums.txt"):
+		if a.Name == "checksums.txt" || strings.HasSuffix(a.Name, "_checksums.txt") {
 			checksumsURL = a.BrowserDownloadURL
-			continue
-		case a.Name == "checksums.txt.sig" || a.Name == "checksums.txt.asc" ||
-			strings.HasSuffix(a.Name, "_checksums.txt.sig") || strings.HasSuffix(a.Name, "_checksums.txt.asc"):
-			checksumsSigURL = a.BrowserDownloadURL
 			continue
 		}
 		key := assetKeyFromName(a.Name)
@@ -277,28 +267,19 @@ func fetchGitHubRelease(ctx context.Context, repo string, timeout time.Duration)
 		}
 	}
 	f.ChecksumsURL = checksumsURL
-	f.ChecksumsSigURL = checksumsSigURL
-	// Only trust checksums from a signed checksums.txt. Without a valid
-	// signature the map stays empty and Swap refuses the upgrade.
-	if checksumsURL != "" && checksumsSigURL != "" {
-		f.Checksums = loadSignedChecksums(ctx, checksumsURL, checksumsSigURL, timeout)
+	if checksumsURL != "" {
+		f.Checksums = loadChecksums(ctx, checksumsURL, timeout)
 	}
 	return f, nil
 }
 
-// loadSignedChecksums downloads a goreleaser checksums.txt and its detached
-// OpenPGP signature, verifies the signature against the embedded release key,
-// and returns a map of asset key ("linux_amd64") → hex SHA-256. It returns nil
-// on ANY failure (fetch error, bad signature) so the caller refuses to upgrade
-// — an unverified checksum is never trusted.
-func loadSignedChecksums(ctx context.Context, checksumsURL, sigURL string, timeout time.Duration) map[string]string {
+// loadChecksums downloads a goreleaser checksums.txt and returns a map of asset
+// key ("linux_amd64") → hex SHA-256. Returns nil on any error, in which case
+// the caller has no checksum and Swap refuses the upgrade.
+func loadChecksums(ctx context.Context, checksumsURL string, timeout time.Duration) map[string]string {
 	checksums := fetchBytes(ctx, checksumsURL, timeout, 256*1024)
-	sig := fetchBytes(ctx, sigURL, timeout, 64*1024)
-	if checksums == nil || sig == nil {
+	if checksums == nil {
 		return nil
-	}
-	if err := verifyChecksumsSignature(checksums, sig); err != nil {
-		return nil // signature invalid — do not trust these checksums
 	}
 	out := make(map[string]string)
 	for _, line := range strings.Split(string(checksums), "\n") {

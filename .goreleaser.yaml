@@ -109,28 +109,6 @@ docker_manifests:
 checksum:
   name_template: checksums.txt
 
-# Sign checksums.txt with the release-only GPG signing subkey (under primary
-# 762F13A88A0D63D5). skoed embeds the release public key and refuses any upgrade
-# whose checksums.txt signature does not verify — see decisions/…-UpgradeArtifactSignatureVerification.md
-# CI must import the release signing subkey's secret and set GPG_FINGERPRINT.
-signs:
-  - id: checksums
-    artifacts: checksum
-    signature: "${artifact}.sig"
-    cmd: gpg
-    args:
-      - "--batch"
-      - "--pinentry-mode"
-      - "loopback"
-      - "--passphrase"
-      - "{{ .Env.GPG_PASSPHRASE }}"
-      - "--local-user"
-      - "{{ .Env.GPG_FINGERPRINT }}"
-      - "--output"
-      - "${signature}"
-      - "--detach-sign"
-      - "${artifact}"
-
 release:
   github:
     owner: ashmonger

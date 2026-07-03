@@ -1,7 +1,7 @@
-# Upgrade Artifact Signature Verification
+# Upgrade Artifact Integrity Verification
 
 - Date: 2026-07-03
-- Status: Accepted
+- Status: Accepted (revised — OpenPGP signing was prototyped then dropped; see "Decision")
 - Deciders: Repository Maintainer Council (UoR), driven by security audit follow-up
 
 ## Context
@@ -35,52 +35,41 @@ binary, and the checksum table.
 
 ## Decision
 
-Option 3. Sign the goreleaser `checksums.txt` at release time with a dedicated
-GPG signing subkey under the maintainer's primary key `762F13A88A0D63D5`. skoed
-**embeds the release public key at build time** (`internal/upgrade/release_pubkey.asc`,
-`//go:embed`) and verifies the detached signature over `checksums.txt` before any
-checksum — and therefore any artifact — is trusted. The chain is:
+**Mandatory SHA-256 integrity verification, with authenticity resting on the
+GitHub-hosted build + HTTPS transport. No cryptographic signing.**
 
-  embedded release pubkey → verify checksums.txt signature → SHA-256 of artifact → swap
+`upgrade.Swap` refuses to install any artifact without a matching SHA-256, and
+the checksum is sourced from the goreleaser `checksums.txt` on the GitHub release
+(or inline in a custom feed). The chain is:
 
-Rationale for reusing the maintainer's GPG identity: it is already published and
-trusted (`github.com/ashmonger.gpg`), so downstream users can independently
-verify releases against a pre-existing, out-of-band trust anchor rather than a
-key that first appears alongside the software it signs.
+  checksums.txt (GitHub release, HTTPS) → SHA-256 of artifact → swap
 
-### Dependency exception
-
-Verification uses `golang.org/x/crypto/openpgp`. This package is **deprecated**
-(frozen) upstream, but:
-- `golang.org/x/crypto` is **already a direct dependency**, so this adds **no new
-  module** and no new supply-chain surface — materially better than pulling in
-  `github.com/ProtonMail/go-crypto` (AGENTS.md Rule 11: standard/common libraries).
-- Detached-signature verification of an RSA key is stable, well-exercised
-  functionality unaffected by the package's frozen status.
-
-This is the written exception permitting the deprecated import; revisit if the
-package is ever removed from `x/crypto` (migrate to ProtonMail's fork at that
-point).
+Option 3 (GPG-signed `checksums.txt` with `x/crypto/openpgp` verification) was
+implemented first, but was **dropped** on maintainer decision: for a self-hosted
+appliance whose releases are built and published by GitHub Actions from tagged
+source, the GitHub-hosted build provenance plus HTTPS delivery is judged
+sufficient authenticity, and it avoids the operational burden of managing a
+signing key in CI and keeping an embedded public key in sync with subkey
+rotations. The deprecated `x/crypto/openpgp` dependency and the embedded
+`release_pubkey.asc` were removed with it.
 
 ## Consequences
 
-- The release process (CI) must import the release signing subkey's secret and
-  set `GPG_FINGERPRINT`; goreleaser's `signs` block emits `checksums.txt.sig`.
-- After the release subkey is created/rotated, `release_pubkey.asc` MUST be
-  re-exported (`gpg --armor --export 762F13A88A0D63D5`) and committed, or
-  upgrades will fail to verify.
-- The direct-`url` and cluster rolling-upgrade paths already require a `sha256`;
-  those SHAs are only trusted when they originate from a signature-verified
-  `checksums.txt` on the feed/GitHub path.
-- Custom feeds must reference `checksums_url` + `checksums_sig_url`; inline,
-  unsigned `checksums` in a feed are no longer trusted.
-- Tests inject an ephemeral signing key via `SKOED_TEST_UPGRADE_PUBKEY`
-  (never set in production).
+- No CI signing secrets required; `release.yml` has no GPG step and goreleaser
+  emits `checksums.txt` (no `.sig`).
+- SHA-256 verification still protects integrity: a corrupted/MITM'd download of a
+  known release is rejected. `TestUpgradeRejectsChecksumMismatch` covers this.
+- The direct-`url` and cluster rolling-upgrade paths still require a `sha256` in
+  the request.
+- **Accepted residual (audit C-2 tail):** a caller who can both reach the upgrade
+  API and control the checksum source is not stopped by SHA alone. This is
+  accepted given the trust model above; re-introduce signing if releases ever
+  move off GitHub-hosted builds or the API's trust boundary widens.
 
 ## Related hypotheses
 
-- A future move to a dedicated CI/release identity (rather than the maintainer's
-  personal primary) would further isolate blast radius; deferred.
+- If signing is ever reinstated, prefer a dedicated release identity + minisign
+  (stdlib Ed25519 verify) over reusing the maintainer's GPG primary.
 
 ## Affected features
 

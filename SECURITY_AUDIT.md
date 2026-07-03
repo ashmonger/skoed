@@ -12,12 +12,17 @@
 
 **Fixed & verified (build + acceptance tests green):**
 - ✅ **C-1** FSM `EndedAt` determinism — `closePauseHistoryEntry` now takes the payload timestamp. (M35 pause tests pass.)
-- ✅ **C-2** Unsigned binary swap — **fully closed** (integrity + authenticity):
-  - Mandatory SHA-256 verification in `upgrade.Swap`; interim download `0600`; direct-URL/rolling-upgrade paths require `sha256`.
-  - **OpenPGP signature verification**: `checksums.txt` is signed at release time (goreleaser `signs` → `checksums.txt.sig`) with a dedicated release subkey under GPG primary `762F13A88A0D63D5`; skoed embeds the release public key (`internal/upgrade/release_pubkey.asc`, `//go:embed`) and refuses any upgrade whose signature doesn't verify. Uses `golang.org/x/crypto/openpgp` (already a dep → no new module; deprecation exception recorded in `decisions/20260703-UpgradeArtifactSignatureVerification.md`).
-  - Custom feeds must reference `checksums_url` + `checksums_sig_url`; inline unsigned checksums are no longer trusted.
-  - Tests: `TestUpgradeBinarySwap` (signed happy path), `TestUpgradeRejectsChecksumMismatch` (SHA mismatch), `TestUpgradeRejectsBadSignature` (untrusted signer → refused, binary not swapped). This closes the "authenticated user supplies malicious binary + matching hash" gap.
-  - **Release-side TODO for the maintainer:** create the release signing subkey (`gpg --edit-key 762F13A88A0D63D5` → `addkey`), re-export & commit `release_pubkey.asc`, and set `GPG_FINGERPRINT` + import the subkey secret in CI.
+- ✅ **C-2** Unsigned binary swap — mandatory **SHA-256 integrity verification** in
+  `upgrade.Swap` (refuses without a checksum); interim download `0600`;
+  direct-URL/rolling-upgrade paths require `sha256`; checksum sourced from the
+  goreleaser `checksums.txt` on the GitHub release. Tests: `TestUpgradeBinarySwap`,
+  `TestUpgradeRejectsChecksumMismatch`.
+  - **Authenticity model (maintainer decision):** rests on the GitHub-hosted build
+    + HTTPS delivery rather than cryptographic signing. OpenPGP signing was
+    prototyped then dropped to avoid CI key-management overhead — see
+    `decisions/20260703-UpgradeArtifactSignatureVerification.md`.
+  - **Accepted residual:** SHA alone does not stop a caller who controls both the
+    upgrade API and the checksum source; accepted under the trust model above.
 - ✅ **H-1** Per-client pause fail-closed on unparseable IPs + handler rejects invalid `client_ip` (400). New test `TestPerClientPauseRejectsInvalidIP`.
 - ✅ **H-4** New-dynamic dismiss now a replicated tombstone; tracking skips dismissed IPs. New test `TestNewDynamicClientDismissIsDurable`.
 - ✅ **H-6** Bypass passcodes redacted from config exports (`redactProfileSecrets`).

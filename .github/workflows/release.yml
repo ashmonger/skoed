@@ -59,32 +59,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Import the release signing key so goreleaser can sign checksums.txt.
-      # skoed embeds the matching public key and refuses unsigned/foreign-signed
-      # upgrades — see decisions/20260703-UpgradeArtifactSignatureVerification.md
-      - name: Import GPG signing key
-        if: ${{ !inputs.snapshot }}
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: |
-          if [ -z "$GPG_PRIVATE_KEY" ]; then
-            echo "::error::GPG_PRIVATE_KEY secret is not set; a tagged release must sign checksums.txt" >&2
-            exit 1
-          fi
-          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
-          gpg --list-secret-keys --keyid-format long
-
       - name: goreleaser
         id: goreleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          # Snapshot builds skip signing (no key needed for local/test artifacts).
-          args: ${{ inputs.snapshot && 'release --snapshot --clean --skip=sign' || 'release --clean --skip=validate' }}
+          args: ${{ inputs.snapshot && 'release --snapshot --clean' || 'release --clean --skip=validate' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Install Helm
         if: ${{ !inputs.snapshot }}
