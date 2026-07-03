@@ -135,9 +135,16 @@ func urlParam(r *http.Request, key string) string {
 	return v
 }
 
-// decodeJSON decodes the request body into v. Returns false and writes a 400
-// response if decoding fails.
+// maxJSONBody bounds the size of a JSON request body. It protects the
+// (network-facing, some pre-auth) API from memory-exhaustion via an
+// arbitrarily large body. 4 MiB comfortably covers config imports and bulk
+// list operations while rejecting abuse.
+const maxJSONBody = 4 << 20
+
+// decodeJSON decodes the request body into v, bounded by maxJSONBody. Returns
+// false and writes a 400 response if decoding fails (including "body too large").
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return false
@@ -145,8 +152,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-// decodeJSONOptional decodes the request body silently; errors are ignored.
-// Use when the body is optional (caller checks zero values afterward).
+// decodeJSONOptional decodes the request body silently (bounded by maxJSONBody);
+// errors are ignored. Use when the body is optional (caller checks zero values).
 func decodeJSONOptional(r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxJSONBody)
 	return json.NewDecoder(r.Body).Decode(v)
 }

@@ -10,7 +10,7 @@ import (
 // BypassApp is the subset of api.App required by the bypass handler.
 type BypassApp interface {
 	GetCfg() *config.Config
-	SetProfilePause(id string, resumesAt time.Time, reason string) error
+	SetProfilePause(id string, resumesAt time.Time, reason string, clientIPs []string) error
 	GetProfilePause(id string) *config.PauseState
 }
 
@@ -74,7 +74,7 @@ func (h *BypassHandlers) CreateBypass(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resumesAt := time.Now().Add(time.Duration(req.DurationMinutes) * time.Minute)
-	if err := h.app.SetProfilePause(profile.ID, resumesAt, "bypass"); err != nil {
+	if err := h.app.SetProfilePause(profile.ID, resumesAt, "bypass", nil); err != nil {
 		writeError(w, http.StatusInternalServerError, "set profile pause: "+err.Error())
 		return
 	}

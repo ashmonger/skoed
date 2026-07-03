@@ -24,13 +24,18 @@ func (h *Handler) NodeUpgradeStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		SHA256 string `json:"sha256"`
 	}
 	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if body.URL == "" {
 		writeError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+	if body.SHA256 == "" {
+		writeError(w, http.StatusBadRequest, "sha256 is required")
 		return
 	}
 
@@ -43,7 +48,7 @@ func (h *Handler) NodeUpgradeStart(w http.ResponseWriter, r *http.Request) {
 		exePath = dest
 	}
 
-	if err := upgrade.Swap(body.URL, exePath); err != nil {
+	if err := upgrade.Swap(body.URL, exePath, body.SHA256); err != nil {
 		writeError(w, http.StatusInternalServerError, "swap failed: "+err.Error())
 		return
 	}
@@ -96,14 +101,22 @@ func (h *Handler) UpgradeCheck(w http.ResponseWriter, r *http.Request) {
 // upgrade feed is consulted (M5.6 path).
 func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		SHA256 string `json:"sha256"`
 	}
 	_ = decodeJSONOptional(r, &body)
 
-	var assetURL, targetVersion string
+	var assetURL, targetVersion, sha string
 	if body.URL != "" {
 		// Direct URL supplied (M18 rolling-upgrade path). Skip feed check.
+		// A checksum is mandatory: swapping the binary with unverified bytes
+		// from an arbitrary URL would be remote code execution.
+		if body.SHA256 == "" {
+			writeError(w, http.StatusBadRequest, "sha256 is required when supplying a direct url")
+			return
+		}
 		assetURL = body.URL
+		sha = body.SHA256
 	} else {
 		chk := h.app.GetUpgradeChecker()
 		if chk == nil {
@@ -121,6 +134,11 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "no asset for "+assetKey+" in feed")
 			return
 		}
+		sha = res.Checksums[assetKey]
+		if sha == "" {
+			writeError(w, http.StatusUnprocessableEntity, "release feed provides no checksum for "+assetKey+"; refusing unverified upgrade")
+			return
+		}
 		targetVersion = res.AvailableVersion
 	}
 
@@ -135,7 +153,7 @@ func (h *Handler) UpgradeStart(w http.ResponseWriter, r *http.Request) {
 		exePath = dest
 	}
 
-	if err := upgrade.Swap(assetURL, exePath); err != nil {
+	if err := upgrade.Swap(assetURL, exePath, sha); err != nil {
 		writeError(w, http.StatusInternalServerError, "swap failed: "+err.Error())
 		return
 	}

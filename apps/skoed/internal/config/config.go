@@ -35,10 +35,21 @@ type SharedAllowlist struct {
 // PauseState is stored in bbolt and replicated via Raft. ResumesAt is the
 // wall-clock deadline; if time.Now().Before(ResumesAt) the pause is active.
 // ProfileIDs restricts the pause to specific profiles; empty means all profiles.
+// ClientIPs (M35) restricts a per-profile pause to specific client IPs only.
 type PauseState struct {
 	ResumesAt  time.Time `yaml:"resumes_at" json:"resumes_at"`
 	Reason     string    `yaml:"reason,omitempty" json:"reason,omitempty"`
 	ProfileIDs []string  `yaml:"profile_ids,omitempty" json:"profile_ids,omitempty"`
+	ClientIPs  []string  `yaml:"client_ips,omitempty" json:"client_ips,omitempty"`
+}
+
+// PauseHistoryEntry records a single past or completed pause event.
+type PauseHistoryEntry struct {
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   time.Time `json:"ended_at,omitempty"`
+	Scope     string    `json:"scope"` // "profile" or "per-client"
+	Reason    string    `json:"reason,omitempty"`
+	ClientIPs []string  `json:"client_ips,omitempty"`
 }
 
 const SchemaVersion = 1

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
+	"github.com/skoed/skoed/internal/netguard"
 )
 
 
@@ -83,8 +84,10 @@ type Dispatcher struct {
 func New(endpoints func() []config.WebhookEndpoint) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Dispatcher{
-		endpoints:  endpoints,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		endpoints: endpoints,
+		// SSRF-guarded client: webhook URLs are operator-supplied and must not
+		// be usable to reach internal / loopback / cloud-metadata endpoints.
+		httpClient: netguard.Client(10 * time.Second),
 		queue:      make(chan delivery, 256),
 		seenIPs:    make(map[string]time.Time),
 		ctx:        ctx,

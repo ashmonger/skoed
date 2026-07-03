@@ -157,8 +157,11 @@ func TestWebhookCreateAndList(t *testing.T) {
 	if ep.URL != "https://example.com/hook" {
 		t.Errorf("url: got %q, want %q", ep.URL, "https://example.com/hook")
 	}
-	if ep.Secret != "my-secret" {
-		t.Errorf("secret: got %q, want %q", ep.Secret, "my-secret")
+	// The HMAC signing secret must be redacted from API responses (H-7): it is
+	// a credential that would let a reader forge signed payloads. It is stored
+	// server-side (signing still works) but never echoed back.
+	if ep.Secret != "" {
+		t.Errorf("secret should be redacted in the create response, got %q", ep.Secret)
 	}
 	if !ep.Enabled {
 		t.Error("newly created endpoint should be enabled")

@@ -76,7 +76,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
 | M34 | Certificate Management | ✅ | v0.2.7-2 | [note](demos/m34/DEMO_NOTE.md) | [certificate-management](specs/functional/certificate-management.feature) | [certificate-management](tests/acceptance/certificate_management_test.go) |
 | M34.5 | Configurable Session Timeout | ✅ | — | [note](demos/m345/DEMO_NOTE.md) · [report](demos/m345/test-report.html) | [session-timeout](specs/functional/session-timeout.feature) | [session-timeout](tests/acceptance/session_timeout_test.go) |
-| M35 | Filtering Pause Enhancements | ⬜ | — | — | — | — |
+| M35 | Filtering Pause Enhancements | 🎬 | — | [note](demos/m35/DEMO_NOTE.md) · [report](demos/m35/test-report.html) | [filtering-pause-enhancements](specs/functional/filtering-pause-enhancements.feature) | [filtering-pause-enhancements](tests/acceptance/filtering_pause_enhancements_test.go) |
 | M35.5 | Named Device Registry | ✅ | — | [note](demos/m355/DEMO_NOTE.md) · [report](demos/m355/test-report.html) | [device-registry](specs/functional/named-device-registry.feature) | [device-registry](tests/acceptance/device_registry_test.go) |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ✅ | v0.3.3 | [note](demos/m36/DEMO_NOTE.md) · [report](demos/m36/test-report.html) | — | — |
 | M37 | Schedule Binding Web UI + Bulk Operations | ✅ | v0.3.3 | [note](demos/m37/DEMO_NOTE.md) · [report](demos/m37/test-report.html) | — | — |
@@ -371,6 +371,36 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M34.5 — demo note: `demos/m345/DEMO_NOTE.md` — 2026-06-30
 - [ ] M34.5 — UoR demo validation
 - [ ] M34.5 — merge to master + tag release
+
+---
+
+## M35 tasks — Filtering Pause Enhancements (branch: `feature/m35-filtering-pause-enhancements`)
+
+### M35 specs
+- [x] M35 — functional spec: `specs/functional/filtering-pause-enhancements.feature` (10 FSIDs) — 2026-07-02
+- [x] M35 — UoR validates functional spec — 2026-07-02
+
+### M35 tests
+- [x] M35 — acceptance tests: `tests/acceptance/filtering_pause_enhancements_test.go` (10 tests covering all 10 FSIDs) — 2026-07-02
+- [x] M35 — 10/10 tests pass locally — 2026-07-02
+
+### M35 implementation
+- [x] M35 — `ClientIPs []string` + `PauseHistoryEntry` struct in `internal/config/config.go` — 2026-07-02
+- [x] M35 — `StartedAt`/`ClientIPs` in `ProfilePauseSetPayload`, `EndedAt` in `ProfilePauseClearPayload`, new `CmdPauseHistoryAppend` + `CmdNewDynamicClientDismiss` commands (`internal/cluster/commands.go`) — 2026-07-02
+- [x] M35 — `bucketPauseHistory` + `bucketNewDynamicClients` buckets; FSM handlers for history append/close and dismiss; `GetPauseHistory`, `TrackNewDynamicClient`, `GetNewDynamicClients` helpers (`internal/cluster/store.go`) — 2026-07-02
+- [x] M35 — `profilePauseClientIPs` map in filter engine; per-IP pause check (`internal/filter/engine.go`) — 2026-07-02
+- [x] M35 — Updated `SetProfilePause` signature; added `GetPauseHistory`, `GetNewDynamicClients`, `DismissNewDynamicClient`, `TrackNewDynamicClient` methods (`internal/cluster/cluster.go`) — 2026-07-02
+- [x] M35 — `GetPauseHistory`, `GetNewDynamicClients`, `DismissNewDynamicClient` handlers; updated `FilteringPauseApp` interface (`internal/api/handlers/filtering_pause.go`) — 2026-07-02
+- [x] M35 — Updated `BypassApp` interface (`internal/api/handlers/bypass.go`) — 2026-07-02
+- [x] M35 — M35 delegation methods + new routes in `internal/api/app.go` — 2026-07-02
+- [x] M35 — `runPauseExpiryWatcher` goroutine + `deviceNewHook` tracks new dynamic clients (`cmd/skoed/main.go`) — 2026-07-02
+
+### M35 demo
+- [x] M35 — Implementation done, CI local green (10/10) — 2026-07-02
+- [x] M35 — Proxmox deploy: v0.3.5-dev, 3/3 nodes in_sync — 2026-07-02
+- [x] M35 — Proxmox validation: 14/14 functional + 9/9 replication = 23/23 pass — 2026-07-02
+- [x] M35 — Demo artifacts: `demos/m35/` (DEMO_NOTE.md, 4 screenshots, test-report.html) — 2026-07-02
+- [ ] M35 — UoR validates demo and approves merge — pending
 
 ---
 

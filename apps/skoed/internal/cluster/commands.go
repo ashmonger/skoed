@@ -86,6 +86,9 @@ const (
 	// M35.5 — named device registry.
 	CmdDeviceUpsert CommandKind = "device.upsert"
 	CmdDeviceDelete CommandKind = "device.delete"
+	// M35 — pause history append and new-dynamic-client dismiss.
+	CmdPauseHistoryAppend        CommandKind = "pause_history.append"
+	CmdNewDynamicClientDismiss   CommandKind = "new_dynamic_client.dismiss"
 )
 
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
@@ -360,12 +363,15 @@ type GlobalPauseSetPayload struct {
 
 type ProfilePauseSetPayload struct {
 	ProfileID string    `json:"profile_id"`
+	StartedAt time.Time `json:"started_at"`
 	ResumesAt time.Time `json:"resumes_at"`
 	Reason    string    `json:"reason,omitempty"`
+	ClientIPs []string  `json:"client_ips,omitempty"`
 }
 
 type ProfilePauseClearPayload struct {
-	ProfileID string `json:"profile_id"`
+	ProfileID string    `json:"profile_id"`
+	EndedAt   time.Time `json:"ended_at"`
 }
 
 // ─── M20 payloads (TS-ClusterSecurityHardening) ─────────────────────────────
@@ -479,4 +485,20 @@ type DeviceUpsertPayload struct {
 
 type DeviceDeletePayload struct {
 	ID string `json:"id"`
+}
+
+// ─── M35 payloads (TS-FilteringPauseEnhancements) ────────────────────────────
+
+// PauseHistoryAppendPayload appends one history entry for a profile.
+type PauseHistoryAppendPayload struct {
+	ProfileID string                   `json:"profile_id"`
+	Entry     config.PauseHistoryEntry `json:"entry"`
+}
+
+// NewDynamicClientDismissPayload dismisses an IP from the new-dynamic alert
+// list. DismissedAt is captured by the leader (never read inside FSM Apply) so
+// the replicated tombstone timestamp is identical on every node.
+type NewDynamicClientDismissPayload struct {
+	ClientIP    string    `json:"client_ip"`
+	DismissedAt time.Time `json:"dismissed_at"`
 }

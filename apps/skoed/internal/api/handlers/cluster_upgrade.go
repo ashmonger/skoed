@@ -108,7 +108,8 @@ func (h *Handler) ClusterUpgradeLogStream(w http.ResponseWriter, r *http.Request
 
 // clusterUpgradeApplyRequest is the body for POST /api/v1/cluster/upgrade/apply.
 type clusterUpgradeApplyRequest struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256"`
 }
 
 // ClusterUpgradeApply handles POST /api/v1/cluster/upgrade/apply.
@@ -120,6 +121,10 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.URL == "" {
 		writeError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+	if req.SHA256 == "" {
+		writeError(w, http.StatusBadRequest, "sha256 is required; a rolling upgrade must supply the artifact checksum")
 		return
 	}
 
@@ -181,7 +186,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		completedFirst := ""
 		for _, peer := range peers {
 			addUpgradeLogLine("upgrading %s (%s)…", peer.id, peer.apiAddr)
-			if err := upgradeNode(peer.apiAddr, req.URL, clusterSecret); err != nil {
+			if err := upgradeNode(peer.apiAddr, req.URL, req.SHA256, clusterSecret); err != nil {
 				addUpgradeLogLine("FAILED %s: %v", peer.id, err)
 				node := peer.id
 				upgradeMu.Lock()
@@ -212,7 +217,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		// Upgrade self last: post to own API endpoint. In test mode UpgradeStart
 		// suppresses os.Exit so the goroutine completes normally.
 		addUpgradeLogLine("upgrading self (%s)…", selfID)
-		_ = upgradeNode(selfAPIAddr, req.URL, clusterSecret)
+		_ = upgradeNode(selfAPIAddr, req.URL, req.SHA256, clusterSecret)
 		addUpgradeLogLine("OK %s — upgrade complete", selfID)
 
 		upgradeMu.Lock()
@@ -229,12 +234,12 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 
 // upgradeNode posts to /api/v1/upgrade/start on the target node, waits for it
 // to return 200 and become healthy again (up to upgradeNodeTimeout).
-func upgradeNode(apiAddr, tarURL, clusterSecret string) error {
+func upgradeNode(apiAddr, tarURL, sha256, clusterSecret string) error {
 	const upgradeNodeTimeout = 120 * time.Second
 	const pollInterval = 3 * time.Second
 
 	baseURL := "http://" + apiAddr
-	body, _ := json.Marshal(map[string]string{"url": tarURL})
+	body, _ := json.Marshal(map[string]string{"url": tarURL, "sha256": sha256})
 
 	req, err := http.NewRequestWithContext(context.Background(),
 		http.MethodPost, baseURL+"/api/v1/upgrade/node-start", bytes.NewReader(body))

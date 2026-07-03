@@ -344,7 +344,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -536,7 +536,7 @@ func runDaemon(cfgPath string) {
 	}()
 
 	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6))
+	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6))
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -633,6 +633,13 @@ func runDaemon(cfgPath string) {
 	app.SetWebhookDispatcher(webhookDisp)
 	webhookDisp.Start()
 	defer webhookDisp.Stop()
+
+	// M35: pause-expiry watcher — fires filter.pause_expired when a profile
+	// pause reaches its deadline. Runs only on the leader to avoid duplicate events.
+	pauseWatcherCtx, pauseWatcherCancel := context.WithCancel(context.Background())
+	defer pauseWatcherCancel()
+	go runPauseExpiryWatcher(pauseWatcherCtx, c, webhookDisp)
+
 	// Wire the blocklist download-failure hook so the scheduler fires the
 	// blocklist.download_failed event through the dispatcher.
 	refreshSched.OnDownloadFailed = func(id, name, errStr string) {
@@ -751,7 +758,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -790,7 +797,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp), app.GetBlockPageIP, app.GetBlockPageV6),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)
@@ -1080,14 +1087,70 @@ func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
 }
 
 // deviceNewHook returns a function suitable for HandlerConfig.OnDeviceNew that
-// forwards to the dispatcher's deduplication path. When disp is nil (e.g. in
-// unit tests that don't wire the dispatcher) the returned value is nil, which
-// the DNS handler treats as "no hook".
-func deviceNewHook(disp *webhook.Dispatcher) func(string) {
+// forwards to the dispatcher's deduplication path and also persists the client
+// to the new-dynamic-client alert list (M35). When disp is nil (e.g. in unit
+// tests that don't wire the dispatcher) the returned value is nil, which the
+// DNS handler treats as "no hook".
+func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster) func(string) {
 	if disp == nil {
 		return nil
 	}
-	return disp.NotifyDeviceNew
+	return func(clientIP string) {
+		disp.NotifyDeviceNew(clientIP)
+		if clu != nil {
+			clu.TrackNewDynamicClient(clientIP, time.Now())
+		}
+	}
+}
+
+// runPauseExpiryWatcher polls all profiles every 5 seconds and fires a
+// filter.pause_expired webhook when a per-profile pause deadline passes.
+// Runs until ctx is cancelled (on shutdown). A panic in one tick is recovered
+// and logged so it can never crash the DNS/DHCP-serving process; only the
+// leader fires events, to avoid one event per node.
+func runPauseExpiryWatcher(ctx context.Context, clu *cluster.Cluster, disp *webhook.Dispatcher) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("pause-expiry watcher panicked (recovered): %v", r)
+		}
+	}()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	// Track which profiles we already fired an expiry event for, to avoid
+	// re-firing until the pause is set again.
+	fired := make(map[string]time.Time)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		if !clu.IsLeader() {
+			continue // only the leader fires, to avoid duplicate events per node
+		}
+		snap, err := clu.Store().Snapshot()
+		if err != nil {
+			continue
+		}
+		now := time.Now()
+		for _, p := range snap.Profiles {
+			if p.Pause == nil || p.Pause.ResumesAt.IsZero() {
+				delete(fired, p.ID)
+				continue
+			}
+			if now.After(p.Pause.ResumesAt) {
+				if t, ok := fired[p.ID]; ok && t.Equal(p.Pause.ResumesAt) {
+					continue // already fired for this exact pause
+				}
+				fired[p.ID] = p.Pause.ResumesAt
+				disp.Fire(webhook.EventFilterPauseExpired, map[string]any{
+					"profile_id": p.ID,
+					"expired_at": p.Pause.ResumesAt,
+				})
+			}
+		}
+	}
 }
 
 // dhcpV6LeasesFromPayloads converts Raft-persisted DHCPv6 lease payloads to

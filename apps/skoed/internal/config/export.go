@@ -33,7 +33,9 @@ type exportShape struct {
 // For URL-sourced blocklists the Domains field is cleared (they will be
 // re-downloaded on import). For inline blocklists Domains is included verbatim.
 // Admin credentials are never included — they are a per-node secret and must
-// not travel in a portable backup.
+// not travel in a portable backup. Per-profile bypass passcodes are likewise
+// redacted: they are secrets that would let anyone holding the backup defeat
+// filtering.
 func Export(c *Config, w io.Writer) error {
 	// Copy into the export shape which omits the Auth field entirely.
 	exported := exportShape{
@@ -43,7 +45,7 @@ func Export(c *Config, w io.Writer) error {
 		LocalDNS:   c.LocalDNS,
 		API:        c.API,
 		QueryLog:   c.QueryLog,
-		Profiles:   c.Profiles,
+		Profiles:   redactProfileSecrets(c.Profiles),
 		Schedules:  c.Schedules,
 		Bindings:   c.Bindings,
 		Categories: c.Categories,
@@ -87,6 +89,25 @@ func Export(c *Config, w io.Writer) error {
 		return fmt.Errorf("export: close gzip: %w", err)
 	}
 	return nil
+}
+
+// redactProfileSecrets returns a deep copy of profiles with per-profile
+// secrets (bypass passcodes) cleared, so they never travel in a portable
+// backup. The live config is not mutated.
+func redactProfileSecrets(profiles []Profile) []Profile {
+	if len(profiles) == 0 {
+		return profiles
+	}
+	out := make([]Profile, len(profiles))
+	copy(out, profiles)
+	for i := range out {
+		if out[i].BlockPage != nil && out[i].BlockPage.BypassPasscode != "" {
+			bp := *out[i].BlockPage // copy the struct so we don't touch the live pointer
+			bp.BypassPasscode = ""
+			out[i].BlockPage = &bp
+		}
+	}
+	return out
 }
 
 // ExportWithPassphrase serialises the config to a tar.gz archive. When
