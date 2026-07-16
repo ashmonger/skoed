@@ -174,7 +174,13 @@ fi
 pct push "$CT_ID" "$TMP_CONFIG" /etc/skoed/config.yaml
 rm -f "$TMP_CONFIG"
 
-# OpenRC init script
+# OpenRC init script.
+# Uses supervise-daemon with respawn so the service is restarted whenever the
+# process exits — matching systemd's Restart=on-failure on the Debian nodes.
+# This is required for the in-place / rolling upgrade: the binary swap ends with
+# os.Exit(1) and relies on the supervisor to restart into the new binary. With a
+# plain command_background start (no respawn) the Alpine node would stay down
+# after an upgrade, degrading the cluster.
 TMP_INIT=$(mktemp)
 cat > "$TMP_INIT" << 'INITEOF'
 #!/sbin/openrc-run
@@ -184,8 +190,9 @@ description="skoed DNS filter"
 command="/usr/bin/skoed"
 command_args="--config /etc/skoed/config.yaml"
 command_user="root"
-pidfile="/run/skoed.pid"
-command_background=true
+supervisor=supervise-daemon
+respawn_delay=2
+respawn_max=0
 output_log="/var/log/skoed/skoed.log"
 error_log="/var/log/skoed/skoed.log"
 

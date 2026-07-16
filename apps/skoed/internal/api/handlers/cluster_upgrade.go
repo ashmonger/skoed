@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -112,6 +113,26 @@ type clusterUpgradeApplyRequest struct {
 	SHA256 string `json:"sha256"`
 }
 
+// versionFromAssetURL extracts the release version from a goreleaser asset URL
+// like ".../releases/download/v0.4.0/skoed_0.4.0_linux_amd64.tar.gz" → "0.4.0".
+// Returns "" when no version-looking path segment is found.
+func versionFromAssetURL(u string) string {
+	for _, seg := range strings.Split(u, "/") {
+		if len(seg) >= 2 && seg[0] == 'v' && seg[1] >= '0' && seg[1] <= '9' && strings.Contains(seg, ".") {
+			return strings.TrimPrefix(seg, "v")
+		}
+	}
+	return ""
+}
+
+// sameVersion compares two version strings ignoring an optional leading "v"
+// and surrounding whitespace.
+func sameVersion(a, b string) bool {
+	na := strings.TrimSpace(strings.TrimPrefix(a, "v"))
+	nb := strings.TrimSpace(strings.TrimPrefix(b, "v"))
+	return na != "" && na == nb
+}
+
 // ClusterUpgradeApply handles POST /api/v1/cluster/upgrade/apply.
 // Must be called on the leader (forwarded by WriteForwardMiddleware).
 func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
@@ -152,11 +173,28 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selfID := cl.NodeID()
+
+	// Determine the target version and each node's current version so we can
+	// skip nodes already running the target — re-upgrading them is pointless
+	// and, across a version boundary, can fail (e.g. a newer node-start handler
+	// rejecting an older leader's request). A node already at the target is a
+	// success, not a failure.
+	targetVer := versionFromAssetURL(req.URL)
+	probes := probeAllPeers(cl, selfID, cl.ClusterSecret())
+
 	// Build peer list: all members except self, sorted for determinism.
+	// Skip peers already at the target version.
 	peers := make([]struct{ id, apiAddr string }, 0, len(members)-1)
+	skipped := make([]string, 0)
 	for _, m := range members {
 		if m.NodeID == selfID {
 			continue
+		}
+		if targetVer != "" {
+			if pr, ok := probes[m.NodeID]; ok && pr.alive && sameVersion(pr.version, targetVer) {
+				skipped = append(skipped, m.NodeID)
+				continue
+			}
 		}
 		// Resolve wildcard bind address (0.0.0.0) to the peer's actual IP
 		// using its Raft address as fallback. Without this, connecting to
@@ -165,15 +203,23 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, resolvePeerAddr(m.APIAddress, m.RaftAddress)})
 	}
 	sort.Slice(peers, func(i, j int) bool { return peers[i].id < peers[j].id })
+	sort.Strings(skipped)
+
+	// Is the leader itself already at the target?
+	localVer, _ := h.app.GetBuildVersion()
+	selfAtTarget := targetVer != "" && sameVersion(localVer, targetVer)
 
 	pending := make([]string, len(peers))
 	for i, p := range peers {
 		pending[i] = p.id
 	}
+	// Nodes already at the target count as completed up front.
+	completed := make([]string, len(skipped))
+	copy(completed, skipped)
 	upgradeState = rollingUpgradeState{
 		InProgress:     true,
 		PendingNodes:   pending,
-		CompletedNodes: []string{},
+		CompletedNodes: completed,
 		Log:            []string{},
 	}
 	upgradeMu.Unlock()
@@ -182,6 +228,12 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 	selfAPIAddr := cl.Node().Node.APIAddress
 
 	go func() {
+		if targetVer != "" {
+			addUpgradeLogLine("target version %s", targetVer)
+		}
+		for _, id := range skipped {
+			addUpgradeLogLine("SKIP %s — already at %s", id, targetVer)
+		}
 		addUpgradeLogLine("rolling upgrade started — %d peer(s) to upgrade before self", len(peers))
 		completedFirst := ""
 		for _, peer := range peers {
@@ -206,7 +258,25 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 			upgradeMu.Unlock()
 		}
 
-		// Transfer leadership so this node (about to upgrade itself) steps down gracefully.
+		// If the leader is already at the target, there is nothing to upgrade.
+		if selfAtTarget {
+			addUpgradeLogLine("SKIP %s (self) — already at %s", selfID, targetVer)
+			addUpgradeLogLine("upgrade complete — all nodes at %s", targetVer)
+			upgradeMu.Lock()
+			upgradeState.InProgress = false
+			if !containsStr(upgradeState.CompletedNodes, selfID) {
+				upgradeState.CompletedNodes = append(upgradeState.CompletedNodes, selfID)
+			}
+			upgradeMu.Unlock()
+			return
+		}
+
+		// Transfer leadership so this node (about to upgrade itself) steps down
+		// gracefully. Prefer a node we just upgraded; otherwise any healthy node
+		// already at the target (a skipped peer) is a valid handoff target.
+		if completedFirst == "" && len(skipped) > 0 {
+			completedFirst = skipped[0]
+		}
 		if completedFirst != "" {
 			addUpgradeLogLine("transferring leadership to %s before self-upgrade…", completedFirst)
 			_ = cl.TransferLeadership(completedFirst)
@@ -279,6 +349,15 @@ func upgradeNode(apiAddr, tarURL, sha256, clusterSecret string) error {
 		}
 	}
 	return fmt.Errorf("node %s did not become healthy within %s", apiAddr, upgradeNodeTimeout)
+}
+
+func containsStr(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func removePeer(list []string, id string) []string {
