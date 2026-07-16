@@ -144,8 +144,22 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "url is required")
 		return
 	}
+	// The web UI sends only the asset URL. Resolve the artifact checksum
+	// server-side from the release feed (the leader already has it) so callers
+	// don't have to supply it; node-start verifies the download against it.
 	if req.SHA256 == "" {
-		writeError(w, http.StatusBadRequest, "sha256 is required; a rolling upgrade must supply the artifact checksum")
+		if chk := h.app.GetUpgradeChecker(); chk != nil {
+			res := chk.Latest()
+			for key, u := range res.Assets {
+				if u == req.URL {
+					req.SHA256 = res.Checksums[key]
+					break
+				}
+			}
+		}
+	}
+	if req.SHA256 == "" {
+		writeError(w, http.StatusBadRequest, "could not resolve the artifact checksum for this release; ensure the release feed publishes a checksums.txt")
 		return
 	}
 
