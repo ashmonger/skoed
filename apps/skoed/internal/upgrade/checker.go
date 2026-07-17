@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -342,12 +343,23 @@ func assetKeyFromName(filename string) string {
 // isNewer reports whether candidate > current using a relaxed-semver
 // comparison. Both inputs may carry an optional leading "v".
 //
-// We intentionally avoid pulling golang.org/x/mod/semver to keep the
-// import surface small for M5.6 v1; the comparison is good enough for
-// skoed's normal release cadence (X.Y.Z).
+// A "current" that is not valid X.Y.Z semver is treated as a dev build (e.g.
+// a bare git-describe commit hash like "24091d2" when tags aren't fetched):
+// any real release is then considered an available upgrade. A candidate that
+// is not valid semver is never an upgrade. This avoids the trap where a
+// commit-hash version parsed as a huge integer made a real release look older.
+//
+// We intentionally avoid pulling golang.org/x/mod/semver to keep the import
+// surface small; the comparison is good enough for skoed's X.Y.Z cadence.
 func isNewer(candidate, current string) bool {
-	c := splitVersion(candidate)
-	r := splitVersion(current)
+	c, cok := splitVersion(candidate)
+	if !cok {
+		return false // candidate isn't a real release
+	}
+	r, rok := splitVersion(current)
+	if !rok {
+		return true // current is a dev/hash build → any release is newer
+	}
 	for i := 0; i < 3; i++ {
 		if c[i] != r[i] {
 			return c[i] > r[i]
@@ -356,18 +368,26 @@ func isNewer(candidate, current string) bool {
 	return false
 }
 
-// splitVersion turns "v1.2.3" / "1.2.3-rc1" into [1,2,3]. Pre-release
-// suffixes are stripped; treating "1.2.3-rc1" == "1.2.3" is fine for
-// M5.6 v1 — channel support comes later.
-func splitVersion(s string) [3]int {
+// splitVersion parses "v1.2.3" / "1.2.3-rc1" into [1,2,3], stripping an
+// optional leading "v" and any pre-release/build suffix. It returns ok=false
+// when s is not a valid three-part, fully-numeric version (e.g. a git commit
+// hash), so callers can distinguish a real release from a dev build.
+func splitVersion(s string) ([3]int, bool) {
 	s = strings.TrimPrefix(s, "v")
 	if i := strings.IndexAny(s, "-+"); i >= 0 {
 		s = s[:i]
 	}
-	parts := strings.SplitN(s, ".", 3)
-	var out [3]int
-	for i := 0; i < 3 && i < len(parts); i++ {
-		fmt.Sscanf(parts[i], "%d", &out[i])
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return [3]int{}, false
 	}
-	return out
+	var out [3]int
+	for i := 0; i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil || n < 0 {
+			return [3]int{}, false
+		}
+		out[i] = n
+	}
+	return out, true
 }
