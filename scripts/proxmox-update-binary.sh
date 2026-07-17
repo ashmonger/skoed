@@ -74,8 +74,9 @@ push_to_ct() {
     sleep 1
 
     echo "  [CT $id] pushing binary…"
-    $SSH "pct push $id /tmp/skoed-new /usr/bin/skoed"
-    $SSH "pct exec $id -- chmod +x /usr/bin/skoed"
+    $SSH "pct exec $id -- mkdir -p /var/lib/skoed/bin"
+    $SSH "pct push $id /tmp/skoed-new /var/lib/skoed/bin/skoed"
+    $SSH "pct exec $id -- chmod +x /var/lib/skoed/bin/skoed"
 
     if [ "$type" = "alpine" ]; then
         echo "  [CT $id] starting skoed (OpenRC)…"

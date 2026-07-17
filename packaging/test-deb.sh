@@ -28,7 +28,7 @@ echo "--- dpkg-deb --info"
 dpkg-deb --info /tmp/skoed.deb
 
 echo "--- dpkg-deb --contents (filtered)"
-dpkg-deb --contents /tmp/skoed.deb | grep -E '/usr/bin/skoed|/lib/systemd/system/skoed|/etc/skoed|/var/lib/skoed'
+dpkg-deb --contents /tmp/skoed.deb | grep -E '/var/lib/skoed/bin/skoed|/lib/systemd/system/skoed|/etc/skoed|/var/lib/skoed'
 
 echo "--- apt-get install (resolves adduser dep)"
 apt-get update -qq
@@ -38,9 +38,9 @@ echo "--- dpkg -i /tmp/skoed.deb"
 dpkg -i /tmp/skoed.deb
 
 echo "--- binary smoke test (--help)"
-/usr/bin/skoed --help 2>&1 | head -3 || true
+/var/lib/skoed/bin/skoed --help 2>&1 | head -3 || true
 # --version isn't yet wired; just confirm the binary is executable.
-test -x /usr/bin/skoed
+test -x /var/lib/skoed/bin/skoed
 
 echo "--- systemd unit syntax"
 test -r /lib/systemd/system/skoed.service

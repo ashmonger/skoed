@@ -130,19 +130,23 @@ done
 echo "    container IP: $BARE_IP"
 
 echo "[3/4] installing skoed v${SKOED_VERSION}…"
-pct push "$CT_ID" "$BIN" /usr/bin/skoed
+# Create the skoed-owned bin dir before pushing the binary there. The binary
+# lives under /var/lib/skoed/bin (not /usr/bin) so the in-place upgrade can
+# swap it in a writable, service-owned directory.
+pct exec "$CT_ID" -- sh -c '
+    set -e
+    addgroup -S skoed 2>/dev/null || true
+    adduser -S -G skoed -H -D skoed 2>/dev/null || true
+    mkdir -p /var/lib/skoed/bin /var/log/skoed /etc/skoed
+    chown skoed:skoed /var/lib/skoed /var/lib/skoed/bin /var/log/skoed
+'
+
+pct push "$CT_ID" "$BIN" /var/lib/skoed/bin/skoed
 
 pct exec "$CT_ID" -- sh -c '
     set -e
-    chmod +x /usr/bin/skoed
-
-    addgroup -S skoed 2>/dev/null || true
-    adduser -S -G skoed -H -D skoed 2>/dev/null || true
-
-    mkdir -p /var/lib/skoed /var/log/skoed /etc/skoed
-    chown skoed:skoed /var/lib/skoed /var/log/skoed
-
-    ls -la /usr/bin/skoed
+    chmod +x /var/lib/skoed/bin/skoed
+    ls -la /var/lib/skoed/bin/skoed
 '
 
 # Write config
@@ -187,7 +191,7 @@ cat > "$TMP_INIT" << 'INITEOF'
 
 name="skoed"
 description="skoed DNS filter"
-command="/usr/bin/skoed"
+command="/var/lib/skoed/bin/skoed"
 command_args="--config /etc/skoed/config.yaml"
 command_user="root"
 supervisor=supervise-daemon

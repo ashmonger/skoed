@@ -46,7 +46,11 @@ nfpms:
     formats:
       - deb
       - apk
-    bindir: /usr/bin
+    # Install the binary under the skoed-owned data dir (not /usr/bin) so the
+    # in-place upgrade can atomically swap it as the unprivileged skoed user.
+    # /usr/bin is root:root, so the swap there fails with permission-denied
+    # under User=skoed; /var/lib/skoed/bin is skoed-owned and writable.
+    bindir: /var/lib/skoed/bin
     section: net
     priority: optional
     dependencies:
@@ -61,6 +65,12 @@ nfpms:
         type: dir
         file_info:
           mode: 0700
+          owner: skoed
+          group: skoed
+      - dst: /var/lib/skoed/bin
+        type: dir
+        file_info:
+          mode: 0750
           owner: skoed
           group: skoed
       - dst: /var/log/skoed

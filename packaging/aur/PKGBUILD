@@ -19,7 +19,10 @@ sha256sums_x86_64=('SKIP')
 sha256sums_aarch64=('SKIP')
 
 package() {
-    install -Dm755 skoed "${pkgdir}/usr/bin/skoed"
+    # Binary under the skoed-owned data dir (not /usr/bin) so the in-place
+    # upgrade can swap it as the unprivileged skoed user; matches the systemd
+    # unit's ExecStart=/var/lib/skoed/bin/skoed.
+    install -Dm755 skoed "${pkgdir}/var/lib/skoed/bin/skoed"
 
     # Default config — installed only if /etc/skoed/config.yaml does not exist.
     # Users manage this file; it is not replaced on upgrade.
@@ -27,6 +30,7 @@ package() {
 
     # Data and log dirs
     install -dm700 "${pkgdir}/var/lib/skoed"
+    install -dm750 "${pkgdir}/var/lib/skoed/bin"
     install -dm750 "${pkgdir}/var/log/skoed"
 }
 

@@ -27,8 +27,10 @@ depends:
   - adduser
 
 contents:
+  # Binary lives under the skoed-owned data dir (not /usr/bin) so the in-place
+  # upgrade can atomically swap it as the unprivileged skoed user.
   - src: ./apps/skoed/skoed
-    dst: /usr/bin/skoed
+    dst: /var/lib/skoed/bin/skoed
     file_info:
       mode: 0755
 
@@ -47,6 +49,13 @@ contents:
     type: dir
     file_info:
       mode: 0700
+      owner: skoed
+      group: skoed
+
+  - dst: /var/lib/skoed/bin
+    type: dir
+    file_info:
+      mode: 0750
       owner: skoed
       group: skoed
 

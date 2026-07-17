@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/skoed --config /etc/skoed/config.yaml
+ExecStart=/var/lib/skoed/bin/skoed --config /etc/skoed/config.yaml
 Restart=on-failure
 RestartSec=3
 
@@ -28,6 +28,9 @@ ProtectControlGroups=true
 RestrictNamespaces=true
 RestrictRealtime=true
 LockPersonality=true
+# The skoed binary lives under /var/lib/skoed/bin so the in-place upgrade can
+# atomically swap it as the unprivileged skoed user (that path is skoed-owned
+# and already writable here); /usr/bin stays read-only under ProtectSystem.
 ReadWritePaths=/var/lib/skoed /var/log/skoed
 
 [Install]
