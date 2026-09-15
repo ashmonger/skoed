@@ -27,6 +27,24 @@ jobs:
       - name: go vet
         run: cd apps/skoed && go vet ./...
 
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: apps/skoed/go.sum
+
+      # The acceptance job runs tests/acceptance, which is a separate Go module.
+      # This job runs the unit tests of the apps/skoed internal packages, which
+      # nothing else in CI executes. No web build is needed: the embedded SPA
+      # bundle is committed under internal/api/static/dist, so go:embed is
+      # satisfied from the checkout alone.
+      - name: unit tests
+        run: cd apps/skoed && go test ./...
+
   acceptance:
     runs-on: ubuntu-latest
     needs: build
