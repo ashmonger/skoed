@@ -37,11 +37,17 @@ jobs:
           cache: true
           cache-dependency-path: apps/skoed/go.sum
 
+      # swaggerui embeds assets/openapi.yaml, which is generated rather than
+      # committed (see apps/skoed/internal/api/swaggerui/.gitignore), so every
+      # package that imports it fails to compile on a bare checkout. The SPA
+      # bundle under internal/api/static/dist is committed, so no web build is
+      # needed here — only the spec copy.
+      - name: sync OpenAPI spec
+        run: make openapi-sync
+
       # The acceptance job runs tests/acceptance, which is a separate Go module.
       # This job runs the unit tests of the apps/skoed internal packages, which
-      # nothing else in CI executes. No web build is needed: the embedded SPA
-      # bundle is committed under internal/api/static/dist, so go:embed is
-      # satisfied from the checkout alone.
+      # nothing else in CI executes.
       - name: unit tests
         run: cd apps/skoed && go test ./...
 
