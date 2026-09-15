@@ -76,7 +76,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M33 | Block Page Enhancements | ✅ | — | [note](demos/m33/DEMO_NOTE.md) · [report](demos/m33/test-report.html) | [block-page-enhancements](specs/functional/block-page-enhancements.feature) | [block-page-enhancements](tests/acceptance/block_page_enhancements_test.go) |
 | M34 | Certificate Management | ✅ | v0.2.7-2 | [note](demos/m34/DEMO_NOTE.md) | [certificate-management](specs/functional/certificate-management.feature) | [certificate-management](tests/acceptance/certificate_management_test.go) |
 | M34.5 | Configurable Session Timeout | ✅ | — | [note](demos/m345/DEMO_NOTE.md) · [report](demos/m345/test-report.html) | [session-timeout](specs/functional/session-timeout.feature) | [session-timeout](tests/acceptance/session_timeout_test.go) |
-| M35 | Filtering Pause Enhancements | 🎬 | — | [note](demos/m35/DEMO_NOTE.md) · [report](demos/m35/test-report.html) | [filtering-pause-enhancements](specs/functional/filtering-pause-enhancements.feature) | [filtering-pause-enhancements](tests/acceptance/filtering_pause_enhancements_test.go) |
+| M35 | Filtering Pause Enhancements | ✅ | v0.4.0 | [note](demos/m35/DEMO_NOTE.md) · [report](demos/m35/test-report.html) | [filtering-pause-enhancements](specs/functional/filtering-pause-enhancements.feature) | [filtering-pause-enhancements](tests/acceptance/filtering_pause_enhancements_test.go) |
 | M35.5 | Named Device Registry | ✅ | — | [note](demos/m355/DEMO_NOTE.md) · [report](demos/m355/test-report.html) | [device-registry](specs/functional/named-device-registry.feature) | [device-registry](tests/acceptance/device_registry_test.go) |
 | M36 | Allowlist Scheduling + Per-Entry Metadata | ✅ | v0.3.3 | [note](demos/m36/DEMO_NOTE.md) · [report](demos/m36/test-report.html) | — | — |
 | M37 | Schedule Binding Web UI + Bulk Operations | ✅ | v0.3.3 | [note](demos/m37/DEMO_NOTE.md) · [report](demos/m37/test-report.html) | — | — |
@@ -92,6 +92,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
 | M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
 | M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
+| M50 | Hardening & Technical Debt | ⬜ | — | — | [audit](SECURITY_AUDIT.md) | — |
 
 ## M12 tasks
 
@@ -400,7 +401,10 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [x] M35 — Proxmox deploy: v0.3.5-dev, 3/3 nodes in_sync — 2026-07-02
 - [x] M35 — Proxmox validation: 14/14 functional + 9/9 replication = 23/23 pass — 2026-07-02
 - [x] M35 — Demo artifacts: `demos/m35/` (DEMO_NOTE.md, 4 screenshots, test-report.html) — 2026-07-02
-- [ ] M35 — UoR validates demo and approves merge — pending
+- [x] M35 — UoR validates demo and approves merge — 2026-07-17
+- [x] M35 — Security audit follow-up: C-1 (FSM `EndedAt` determinism), H-1 (per-client pause fail-closed), H-4 (durable dismiss tombstone), M-14 (pause-expiry watcher recover/ctx) fixed and tested — 2026-07-17
+- [x] M35 — Merged to master (`ef1fcd4` → merge `ee40c89`) and shipped in v0.4.0; upgrade robustness follow-ups in v0.4.1–v0.4.3 — 2026-07-17
+- [x] M35 — **Done** — 2026-07-17
 
 ---
 

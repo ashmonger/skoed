@@ -1406,7 +1406,7 @@ Node certificate rotation:
 
 ---
 
-### Milestone 35 — Filtering Pause Enhancements
+### Milestone 35 — Filtering Pause Enhancements ✅ shipped v0.4.0
 
 **Outcome**: Operators and trusted users can pause filtering at finer granularity (per client IP, not just per profile), receive a notification when a pause expires, and manage pauses from the Web UI without using the API directly.
 
@@ -1423,6 +1423,8 @@ Node certificate rotation:
 - Pause propagation across cluster nodes without Raft — pauses are Raft-committed and consistent across nodes
 
 **Dependencies:** M13 Filtering Pause (the pause model and API exist); M22 Webhooks (for pause-expiry event); M36 Per-Entry Expiry (the bypass-from-block-page also creates timed allow entries, but per-client pause is distinct).
+
+**Status:** Shipped — 2026-07-17, released in v0.4.0. 10/10 acceptance tests; Proxmox 3-node validation 23/23 (14 functional + 9 replication). Backend delivered all five capabilities (per-client pause, pause history, pause-expiry webhook, new-dynamic-client alert, plus Raft-consistent propagation). A security audit found four M35 defects — C-1 FSM `EndedAt` non-determinism (cluster divergence, live-verified), H-1 per-client pause failing open on unparseable IPs, H-4 non-durable dismiss, M-14 pause-expiry watcher lacking panic-recovery/context — all fixed and covered by regression tests, shipped across v0.4.0–v0.4.3. Web UI pause management (duration picker, countdown badge) tracked as UI follow-up.
 
 ---
 
@@ -1648,6 +1650,37 @@ Node certificate rotation:
 - DNS filtering rule changes from the browser popup (the extension is a notification bridge only; filtering management is via the web UI)
 
 **Dependencies:** M22.5 Browser Extension (the extension source tree and build pipeline); M11 Distribution (the goreleaser release pipeline).
+
+---
+
+### Milestone 50 — Hardening & Technical Debt
+
+**Outcome**: Every finding from the 2026-07 security audit (`SECURITY_AUDIT.md`) is either fixed or carries a written, risk-accepted decision record; no request path fails *open* on malformed input; and the full unit-test suite runs in CI so regressions in non-acceptance code are caught. This milestone consolidates the deferred audit items and the engineering-quality debt surfaced during the v0.4.x upgrade work into one deliberate hardening pass rather than ad-hoc fixes.
+
+**Origin**: Born from the whole-codebase security audit (2 Critical + 12 High + 18 Medium + 9 Low) and the v0.4.0→v0.4.3 upgrade incident. The Criticals, most Highs, and the upgrade robustness fixes (skip-already-current, Alpine `supervise-daemon` respawn, server-side checksum resolution, non-semver version compare, `/var/lib/skoed/bin` relocation) already shipped in v0.4.x. M50 covers what was deliberately deferred as too large or too risky to rush.
+
+**Capabilities:**
+
+- **Cluster-wide session revocation** *(audit H-5, live-verified)*: login sessions are currently node-local — a token minted on one node returns 401 on the others, logout doesn't revoke cluster-wide, and a password change leaves old sessions valid until TTL. Replace with either Raft-replicated sessions or stateless signed tokens (HMAC/JWT with a replicated key) plus a replicated revocation list. Measurable: a token works on any node, logout invalidates it everywhere within one Raft round-trip, and a password change force-expires all existing sessions.
+- **DNS recursor bailiwick validation** *(audit H-10)*: the recursive resolver accepts Answer/NS/glue records for any name, allowing cache poisoning by a malicious authoritative server. Enforce that answers match the QNAME or a validated CNAME chain, referral NS sit at/above the delegation point, and glue matches a referral NS — discarding out-of-bailiwick records. Also bound glueless-NS recursion with a shared depth budget (audit M-10). Requires dedicated DNS test fixtures.
+- **DHCP server hardening** *(audit H-14)*: add a lease-expiry reaper (the pool currently fills permanently), per-MAC/DUID caps + a packet rate limit (DHCP starvation), RELEASE ownership verification (spoofed-MAC lease hijack), out-of-pool address rejection, and either wire ARP/NDP anti-spoof into the built-in server or document it as detection-only. Fix the `*lease4` data race (mutation outside the lease lock).
+- **Fail-closed input validation sweep**: eliminate the recurring "fail-open on bad input" class — `Config.Validate()` calls `ParseCustomRules` so a malformed imported rule set is rejected rather than silently dropping all custom rules (audit Low); malformed profile client selectors are rejected at the API rather than silently widening the `default` profile (audit Low); YAML config parsed with a strict decoder (`KnownFields(true)`, duplicate-key detection) (audit M-9).
+- **Secure-by-default posture**: `/metrics` requires auth by default or binds to loopback (audit M-15, live-verified default-open); the cluster secret grants only the scopes the internal routes need rather than blanket `cluster:admin` on every route (audit Low); bypass-passcode comparison is constant-time with failed-attempt throttling, and `/auth/login` gains brute-force throttling (audit M-5, M-6); custom regex rules are anchored by default and the block-page `domain` parameter is sanitized (audit M-7, M-8).
+- **FSM / cluster correctness (Mediums)**: move disk I/O (cert-file writes) out of the Raft `Apply` path so a per-node disk fault can't diverge replicated state (M-1); take Raft snapshots via a bbolt read transaction (`tx.WriteTo`) rather than a raw file copy to avoid torn snapshots (M-2); preserve the mTLS stream layer across `ResetRaftForJoin` (M-3); add retention/caps to the unbounded `new_dynamic_clients` bucket and webhook `seenIPs` map (audit Lows).
+- **Build-tag the test-mode affordances**: `SKOED_TEST_MODE` currently gates production-reachable bypasses (DNS source-IP/MAC spoofing, schedule-time spoofing, token-TTL override) behind a runtime env var, so the release binary *contains* them. Move behind a `//go:build skoed_testmode` tag so they are physically absent from released binaries (audit defense-in-depth).
+- **CI unit-test coverage**: the `ci.yml` build job runs `go vet` and the `tests/acceptance` suite but never `go test ./...` for `apps/skoed` internal packages — unit tests (e.g. the version-comparison and upgrade-skip tests) are invisible to CI. Add a unit-test job. Measurable: a failing internal unit test turns CI red.
+
+**Non-goals:**
+- OAuth2 / OIDC / SSO for the management API (single-org, single-admin model stays; API tokens under M45 cover automation)
+- Splitting the large source files (`store.go`, `cluster.go`, `app.go`) — a readability refactor tracked separately; M50 is behavioural hardening, not restructuring
+- Re-introducing cryptographic release signing (dropped by decision `decisions/20260703-…`; revisit only if releases move off GitHub-hosted builds — that's M47 territory)
+- New user-facing features — M50 is purely hardening and debt reduction
+
+**Dependencies:** Security audit (`SECURITY_AUDIT.md`); M2 Raft cluster (session replication, FSM correctness); M20 Cluster Security Hardening (token scoping); M23.5 DHCP Server Core (DHCP hardening target). Complements M47 Upgrade Experience (upgrade-path robustness already largely shipped in v0.4.x).
+
+**Risks:**
+- The session-revocation change (H-5) touches the auth hot path on every request; needs careful rollout to avoid locking operators out.
+- DHCP hardening changes packet handling for a feature not currently enabled on the reference cluster — needs a dedicated DHCP test environment before validation.
 
 ---
 

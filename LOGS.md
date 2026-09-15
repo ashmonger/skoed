@@ -8,6 +8,14 @@
 
 ## Outcomes log
 
+- **Date**: 2026-07-17
+  **Artifact**: M35 — Filtering Pause Enhancements
+  **Outcome**: Shipped (released in v0.4.0). Delivered per-client pause (`client_ips` on `POST /api/v1/profiles/{id}/pause`), pause history (`GET .../pause/history`, 50-entry cap), `filter.pause_expired` webhook event, and the new-dynamic-client dashboard alert (`GET/POST /api/v1/clients/new-dynamic`), all Raft-replicated. 10/10 acceptance tests; Proxmox 3-node validation 23/23 (14 functional + 9 replication). A whole-codebase security audit surfaced four M35 defects, all fixed with regression tests and released across v0.4.0–v0.4.3: C-1 (FSM `closePauseHistoryEntry` used `time.Now()` inside Apply → cluster divergence, live-verified 54 ms spread; now uses payload `EndedAt`), H-1 (per-client pause failed open — unparseable IPs paused the whole profile; now rejected at the API and fail-closed in the engine), H-4 (dismiss was a Raft delete resurrected by per-query local tracking; now a replicated tombstone), M-14 (pause-expiry watcher gained panic recovery, context cancellation, leader-only guard). UoR sign-off 2026-07-17. Web UI pause-management controls (duration picker, countdown badge) remain a UI follow-up. Demo: `demos/m35/`.
+
+- **Date**: 2026-07-17
+  **Artifact**: M50 — Hardening & Technical Debt (roadmap milestone created)
+  **Outcome**: New milestone added to `ROADMAP.md` and the `TODO.md` index to consolidate the deferred findings from the 2026-07 whole-codebase security audit (`SECURITY_AUDIT.md`: H-5 node-local sessions, H-10 recursor bailiwick, H-14 DHCP hardening, Mediums M-1..M-17, Lows) and engineering debt surfaced during the v0.4.x upgrade incident. Also captures a CI gap discovered this session: `ci.yml` runs `go vet` + the acceptance suite but no `go test ./...` for `apps/skoed` internal packages, so unit tests (version-compare, upgrade-skip) are never executed in CI. The audit's Criticals, most Highs, and the upgrade robustness fixes already shipped in v0.4.x. M50 is roadmap-only pending UoR validation; no specs/tests/code written yet (BDD-First).
+
 - **Date**: 2026-07-01
   **Artifact**: M35.5 — Named Device Registry
   **Outcome**: Shipped. `Device` entity (name, profile_id, MACs, IPs, hostnames, client_ids) persisted in bbolt `config_devices` bucket and replicated cluster-wide via Raft. REST CRUD at `/api/v1/devices`. DNS filter engine gains Tier 0 device-registry match (beats CIDR Tier 1 and default profile); MAC extracted from EDNS0 option 65501. Query log enriched with `device_name`, `device_id`, `match_source`. Devices.vue replaces Clients page with register/edit side panel and real-time search. Critical fix: `fsm.Restore()` calls `store.init()` after snapshot restore — prevents nil panic on rolling upgrade from a pre-M35.5 snapshot. 9/9 acceptance tests green (Docker). 17/17 Proxmox 3-node cluster validation checks pass. Demo: `demos/m355/`.
