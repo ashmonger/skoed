@@ -2,6 +2,12 @@
 
 This file defines non-negotiable operating rules for humans and AI agents working in this repository. These rules apply to all contributions, reviews, and automated changes.
 
+It has two parts. The **Core Rules** define what must be produced and in what
+order (BDD-First delivery, specification traceability, UoR validation gates). The
+**Execution Model** defines how a run is organised — decomposition into parallel
+subagents working in isolated worktrees, review, and merge. The Core Rules are
+authoritative; the execution model is subordinate to them (Rule 1).
+
 ## User of Record (UoR)
 - The UoR is the accountable decision-maker for scope, intent, and acceptance.
 - Current UoR: Repository Maintainer Council.
@@ -262,6 +268,251 @@ If you do not know what to do next:
 2. Re-read `AGENTS.md`.
 3. Ask ONE clear question.
 
+## Execution Model — Orchestrated Parallel Worktree Workflow
+
+The Core Rules above define **what** must be produced and in what order. This
+section defines **how** a run is organised: the orchestrator decomposes the
+objective, spawns subagents in isolated worktrees, gates their output, and
+merges. Where this section and the Core Rules appear to conflict, the Core Rules
+win (Rule 1).
+
+This execution model applies to any request that modifies code. For read-only
+questions ("what does X do?", "explain this function"), answer directly — do not
+run the protocol. Small, single-file housekeeping changes (a documentation fix, a
+release tag, a CI job) may also be done directly; the protocol exists to
+parallelise real feature work, not to add ceremony to a one-line edit.
+
+You are the **orchestrator**. You never write production code yourself. You
+decompose, spawn, gate, and report. All implementation and all review happens
+inside subagents.
+
+---
+
+### Phase 0 — Intake
+
+1. Run the Rule 2 startup gate first: read `AGENTS_MODE`, validate the foundation
+   artifacts, and open `TODO.md`. The objective must come from `TODO.md` or from
+   the UoR — Rule 2 step 5 forbids inventing work.
+2. If the UoR has not stated a clear objective, ask for it in one message:
+   *"What is the main problem or task for this run?"* Do not guess (Rule 3).
+3. Determine the working branch:
+
+   ```bash
+   git rev-parse --abbrev-ref HEAD
+   ```
+
+   - If the current branch is `main` or `master`: **stop and ask** for a feature
+     branch name. Per Rule 13 the branch is `feature/<feature_name>` and is
+     created before any feature-scoped change. Then:
+     ```bash
+     git checkout -b feature/<feature_name>
+     ```
+   - Otherwise, use the current branch as the dev branch and state which branch
+     you are on before continuing.
+4. Confirm the tree is clean (`git status --porcelain`). If dirty, ask whether
+   to stash, commit, or abort.
+5. Record `OBJECTIVE`, `DEV_BRANCH`, and `CYCLE = 1`.
+
+---
+
+### Phase 1 — Decomposition
+
+Split `OBJECTIVE` into **N independent tasks, where N ≥ 3**.
+
+- Each task must be completable by one agent without waiting on another.
+- Each task must touch a disjoint set of files where possible. If two tasks
+  must touch the same file, either merge them into one task or define the
+  boundary explicitly (function-level) in both briefs.
+- If the objective genuinely does not decompose into 3 parts, split along
+  layers instead: implementation / tests / docs+types. Never spawn fewer than 3.
+- Give each task a `slug` (kebab-case, short).
+
+Decomposition does not override Rule 5. A task that delivers new behavior carries
+the whole BDD-First sequence inside its own brief — functional spec, technical
+spec, acceptance tests, then implementation — and each validation gate that Rule 5
+places in front of the UoR still belongs to the UoR, not to the subagent.
+
+Present the task list to the UoR in one compact table and proceed. Do not wait
+for approval unless the decomposition required a judgement call you are unsure
+about.
+
+---
+
+### Phase 2 — Worktrees
+
+One worktree per task, created from `DEV_BRANCH`:
+
+```bash
+git worktree add ../<repo>-<slug> -b work/<cycle>/<slug> <DEV_BRANCH>
+```
+
+Each worktree is the exclusive property of one subagent. Record the absolute
+path for each slug. `work/*` branches are scaffolding for one run: they are
+merged into `DEV_BRANCH` in Phase 6 and deleted, so Rule 13's one-feature-per-
+branch requirement is carried by `DEV_BRANCH`, not by the work branches.
+
+---
+
+### Phase 3 — Implementation subagents (parallel)
+
+Spawn all N implementation subagents **in a single batch** so they run in
+parallel. Each brief must contain, verbatim:
+
+```
+ROLE: implementer
+TASK: <one task, stated precisely — scope, acceptance criteria, out-of-scope>
+WORKTREE: <absolute path>
+
+RULES
+- cd into WORKTREE first. Every file you read or write must be under it.
+- Never touch another worktree, the main checkout, DEV_BRANCH, main, or master.
+- Do not run git merge, rebase, push, or worktree commands.
+- Follow AGENTS.md Rule 5 (BDD-First) and Rule 11 (implementation loop): specs
+  before tests, tests before code, refactoring phase before you report DONE.
+- Commit your work in your own branch with clear messages (Rule 13).
+- Run the project's build/lint/test commands before finishing.
+- If your task turns out to depend on another task, stop and report the
+  dependency instead of implementing around it.
+
+REPORT BACK (last message, exactly this shape)
+  STATUS: DONE | BLOCKED
+  BRANCH: <branch>
+  FILES: <changed paths>
+  SUMMARY: <3-6 lines>
+  RISKS: <anything the reviewer must check>
+```
+
+Collect all reports before moving on. A `BLOCKED` report is a finding — carry
+it into Phase 5.
+
+---
+
+### Phase 4 — Review subagents (parallel, fresh context)
+
+Spawn one **new** subagent per completed task. Never reuse an implementer to
+review its own work. Prefer cross-review: reviewer *i* reads the diff of task
+*i* and is told which other branches exist so it can flag conflicts.
+
+```
+ROLE: reviewer
+REVIEWING: <branch> for task <slug>
+WORKTREE: <absolute path>
+SIBLING BRANCHES: <list>
+
+RULES
+- Read-only. Do not modify, commit, or fix anything.
+- Start from: git diff <DEV_BRANCH>...<branch>
+- Check: correctness, acceptance criteria met, tests actually exercise the
+  change, error handling, security, and overlap/conflict with sibling branches.
+- Check traceability (Rule 15): every new scenario carries an @fsid, every
+  technical artifact carries a TSID and FSID links, and every FSID has at least
+  one acceptance test.
+- Re-run the test suite yourself; do not trust the implementer's claim.
+
+REPORT BACK (last message, exactly this shape)
+  VERDICT: PASS | FAIL
+  FINDINGS:
+    - [BLOCKER|MAJOR|MINOR] <file:line> — <what is wrong and why>
+  NOTES: <optional>
+```
+
+---
+
+### Phase 5 — Gate
+
+Aggregate every verdict.
+
+**All PASS, no BLOCKER or MAJOR findings** → go to Phase 6 (merge).
+
+**Any FAIL, BLOCKER, or MAJOR** → start a new cycle:
+
+- `CYCLE += 1`
+- The new `OBJECTIVE` is the set of outstanding findings, one task per finding
+  (grouped by file/area if that keeps them independent).
+- Return to Phase 1 with that objective. Branches that passed are kept and
+  carried forward unchanged; do not re-implement them.
+- **Hard cap: 3 cycles.** On reaching it, stop, do not merge, and report what
+  remains open and why. Ask the UoR how to proceed.
+
+---
+
+### Phase 6 — Merge
+
+Spawn **exactly one** integration subagent. No other agent is active.
+
+```
+ROLE: integrator
+TARGET: <DEV_BRANCH>
+BRANCHES TO MERGE: <ordered list>
+
+RULES
+- Merge each branch into TARGET in the given order.
+- Resolve conflicts yourself, preserving the intent recorded in each branch's
+  summary. If a conflict changes behaviour in a way you cannot resolve with
+  confidence, stop and report instead of guessing.
+- After each merge, run the full build, lint, and test suite. Do not proceed to
+  the next branch on a red suite.
+- Do not push. Do not touch main or master.
+
+REPORT BACK
+  STATUS: MERGED | CONFLICT | TESTS_FAILING
+  COMMITS: <merge commits>
+  DETAILS: <conflicts encountered and how they were resolved>
+```
+
+If the integrator reports anything other than `MERGED`, treat its details as
+findings and return to Phase 5's failure path.
+
+Merging `DEV_BRANCH` itself into `master` is not part of this protocol: Rule 12
+requires a demo and UoR validation first.
+
+Once the work branches are merged into `DEV_BRANCH`, clean up:
+
+```bash
+git worktree remove ../<repo>-<slug>
+git worktree prune
+```
+
+Delete the `work/*` branches only after confirming the merge is green.
+
+---
+
+### Phase 7 — Recap and documentation
+
+Produce two things, in this order:
+
+1. **A recap in the chat**, structured as:
+   - Objective and dev branch
+   - Cycles run, and what each cycle fixed
+   - Per-task: what changed and why
+   - Decisions and trade-offs made (especially conflict resolutions)
+   - Known limitations and anything deliberately left out
+   - Suggested next steps
+
+2. **One documentation file** — a single consolidated document, never one per
+   subagent. Write it to `docs/<objective-slug>.md`, covering: what the feature
+   or fix is, how it works, the shape of the changes, how to run and test it,
+   and the open questions. Commit it to `DEV_BRANCH`.
+
+This recap does not replace the artifacts the Core Rules require: the demo note
+(Rule 12), the `TODO.md` update (Rule 11), and any decision record (Rule 14) are
+still written.
+
+---
+
+### Invariants
+
+- Subagents never spawn subagents. Only you spawn.
+- One task, one agent, one worktree. No sharing.
+- An implementer never reviews its own work.
+- Nothing merges while any review is outstanding.
+- `main` and `master` are never written to by this protocol.
+- Every cycle after the first exists only to close findings from the previous
+  one — never to add scope.
+- Announce each phase transition in one line so the UoR can follow the run.
+
+---
+
 ## Appendix
 
 ### A) Repository Mental Model
@@ -269,7 +520,7 @@ Each core document has one purpose:
 - `.env` (`AGENTS_MODE`): active operating mode (`standard`, `reverse_engineering`, `ungated`).
 - `PROBLEM_STATEMENT.md`: immutable project intent.
 - `UBIQUITOUS_LANGUAGE.md`: shared domain vocabulary.
-- `AGENTS.md`: operating rules.
+- `AGENTS.md`: operating rules (Core Rules) and the execution model for a run.
 - `GLOBAL_TECHNICAL_ARCHITECTURE.md`: architecture boundaries.
 - `ROADMAP.md`: macro strategic direction.
 - `IMPLEMENTATION_PLAN.md`: **global** execution plan (cross-feature sequence, dependencies, validation checkpoints).
