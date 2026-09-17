@@ -494,6 +494,24 @@ functional spec in front of it.
   privilege model (owed by the exception)
 - [ ] Alpine — demo note and UoR validation
 
+## v0.4.3 validation defects — blocklist create (branch: `feature/blocklist-create-validation`)
+
+Direct fix under the same Rule 14 exception
+(`decisions/20260917-DirectFixForValidationDefects.md`), so there is no
+functional spec in front of it either.
+
+- [x] API — a create with no `source.type`, or one that is neither `url`
+  nor `inline`, is refused with 400 and stores nothing — 2026-09-17
+- [x] API — an inline create is counted after parsing, so entries that are
+  only whitespace or comments are refused and `domain_count` reports what
+  the engine loads — 2026-09-17
+- [x] Demos and seeders — `demos/m10`, `scripts/shoot-m5.9.7.sh` and
+  `web/shoot-m5.mjs` send the contract shape, so they no longer create
+  blocklists the daemon refuses — 2026-09-17
+- [ ] API — retroactive functional spec with `@fsid` scenarios for the
+  create contract (owed by the exception)
+- [ ] API — demo note and UoR validation
+
 ## Backlog
 
 ### Packaging + deployment (both shipped in M11 — strike)
