@@ -16,7 +16,7 @@
 #   --cores     1           (default 1)
 #   --disk      2           (GB, default 2)
 #   --template  alpine-3.22-default_20250617_amd64.tar.xz
-#   --version   0.1.4       (skoed release version; default: embedded below)
+#   --version   0.4.4       (skoed release version; default: embedded below)
 #   --ip        10.0.0.101/24   (static IP with prefix, required)
 #   --gw        10.0.0.1        (default gateway, required)
 #   --leader-api <ip>:8080  (leader API address for cluster join)
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 # ─── Release version — updated automatically when bundled with a release ───
-SKOED_VERSION="0.1.4"
+SKOED_VERSION="0.4.4"
 GH_REPO="ashmonger/skoed"
 
 CT_ID=""
@@ -139,13 +139,18 @@ pct exec "$CT_ID" -- sh -c '
     adduser -S -G skoed -H -D skoed 2>/dev/null || true
     mkdir -p /var/lib/skoed/bin /var/log/skoed /etc/skoed
     chown skoed:skoed /var/lib/skoed /var/lib/skoed/bin /var/log/skoed
+    chmod 0700 /var/lib/skoed
+    chmod 0750 /var/lib/skoed/bin /var/log/skoed
 '
 
 pct push "$CT_ID" "$BIN" /var/lib/skoed/bin/skoed
 
+# pct push writes the binary as root:root. Hand it to skoed, like postinst.sh
+# does on the Debian nodes, so the file modes match across the cluster.
 pct exec "$CT_ID" -- sh -c '
     set -e
     chmod +x /var/lib/skoed/bin/skoed
+    chown -R skoed:skoed /var/lib/skoed /var/log/skoed
     ls -la /var/lib/skoed/bin/skoed
 '
 
@@ -185,6 +190,16 @@ rm -f "$TMP_CONFIG"
 # os.Exit(1) and relies on the supervisor to restart into the new binary. With a
 # plain command_background start (no respawn) the Alpine node would stay down
 # after an upgrade, degrading the cluster.
+#
+# The daemon runs as the unprivileged skoed user, like the systemd unit on the
+# Debian nodes. It binds UDP/TCP 53 through supervise-daemon's --capabilities,
+# which raises CAP_NET_BIND_SERVICE in the ambient set before exec — the OpenRC
+# equivalent of the unit's AmbientCapabilities. A file capability set with
+# setcap would not work here: the in-place upgrade replaces the binary by
+# renaming a freshly extracted file over it, and the new file carries no
+# extended attributes, so the capability would be lost on the first self-upgrade
+# and the node would fail to bind :53 on restart. An ambient capability is
+# granted by the supervisor at every start, so it survives the swap.
 TMP_INIT=$(mktemp)
 cat > "$TMP_INIT" << 'INITEOF'
 #!/sbin/openrc-run
@@ -193,7 +208,9 @@ name="skoed"
 description="skoed DNS filter"
 command="/var/lib/skoed/bin/skoed"
 command_args="--config /etc/skoed/config.yaml"
-command_user="root"
+command_user="skoed:skoed"
+capabilities="^CAP_NET_BIND_SERVICE"
+no_new_privs="yes"
 supervisor=supervise-daemon
 respawn_delay=2
 respawn_max=0

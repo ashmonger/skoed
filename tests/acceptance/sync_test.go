@@ -184,7 +184,7 @@ func TestClusterConfigSyncMinorityPartitionRefusesWrites(t *testing.T) {
 		"name":    "should fail",
 		"enabled": true,
 		"domains": []string{"nope.example.com"},
-		"source":  map[string]string{"format": "domainlist"},
+		"source":  map[string]string{"type": "inline", "format": "domainlist"},
 	}))
 	defer resp.Body.Close()
 	if resp.StatusCode == 201 {

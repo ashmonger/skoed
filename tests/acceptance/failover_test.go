@@ -158,7 +158,7 @@ func TestLeaderFailoverWritesDuringTransition(t *testing.T) {
 			"name":    "during transition",
 			"enabled": true,
 			"domains": []string{"transition.example.com"},
-			"source":  map[string]string{"format": "domainlist"},
+			"source":  map[string]string{"type": "inline", "format": "domainlist"},
 		}))
 		if err != nil {
 			// connection error — server died mid-request, treated as failure

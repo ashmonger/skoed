@@ -54,6 +54,14 @@ func (h *Handler) ListBlocklists(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// Source types a blocklist can be created with. Any other value leaves the
+// daemon with no way to load domains, so the create is refused rather than
+// committed as an enabled list that matches nothing.
+const (
+	blocklistSourceURL    = "url"
+	blocklistSourceInline = "inline"
+)
+
 // createBlocklistRequest is the body accepted by POST /api/v1/blocklists.
 type createBlocklistRequest struct {
 	ID                     string                 `json:"id"`
@@ -76,10 +84,15 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the domains the list will hold. Every branch either produces a
+	// non-empty list or refuses the create: a blocklist committed enabled with
+	// no domains reads as active through the API and the web UI while
+	// filtering nothing.
 	var domains []string
-	if req.Source.Type == "url" {
+	switch req.Source.Type {
+	case blocklistSourceURL:
 		if req.Source.URL == "" {
-			writeError(w, http.StatusBadRequest, "source.url is required for type=url")
+			writeError(w, http.StatusBadRequest, "source.url is required for source.type=url")
 			return
 		}
 		var err error
@@ -88,8 +101,29 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
 			return
 		}
-	} else {
-		domains = req.Domains
+	case blocklistSourceInline:
+		if len(req.Domains) == 0 {
+			writeError(w, http.StatusBadRequest, "domains is required for source.type=inline")
+			return
+		}
+		// Store the domains the engine will load rather than the entries as
+		// sent: the engine drops blank lines and comments when it reads a
+		// blocklist, so an entry of "  " or "# ads.example" counts as one
+		// domain in the response and as none in the filter. Parsing here
+		// keeps domain_count and the engine's set in agreement, and leaves
+		// nothing usable to refuse.
+		domains = filter.ParseStoredDomains(req.Domains, req.Source.Format)
+		if len(domains) == 0 {
+			writeError(w, http.StatusBadRequest,
+				"domains contains no usable domain for source.type=inline (blank lines and comments are ignored)")
+			return
+		}
+	case "":
+		writeError(w, http.StatusBadRequest, "source.type is required (url or inline)")
+		return
+	default:
+		writeError(w, http.StatusBadRequest, "source.type must be url or inline")
+		return
 	}
 
 	id := req.ID
@@ -182,7 +216,7 @@ func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
 					cfg.Filtering.Blocklists[i].BlockPolicy = *req.BlockPolicy
 				}
 				if req.Source != nil && req.Source.URL != "" {
-					cfg.Filtering.Blocklists[i].Source.Type = "url"
+					cfg.Filtering.Blocklists[i].Source.Type = blocklistSourceURL
 					cfg.Filtering.Blocklists[i].Source.URL = req.Source.URL
 					if req.Source.Format != "" {
 						cfg.Filtering.Blocklists[i].Source.Format = req.Source.Format
@@ -274,7 +308,7 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 	found := false
 	for _, bl := range cfg.Filtering.Blocklists {
 		if bl.ID == id {
-			if bl.Source.Type != "url" {
+			if bl.Source.Type != blocklistSourceURL {
 				writeError(w, http.StatusBadRequest, "only url-type blocklists can be refreshed")
 				return
 			}

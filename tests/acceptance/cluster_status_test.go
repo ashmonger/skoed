@@ -130,7 +130,7 @@ func TestClusterStatusShowsLaggingFollower(t *testing.T) {
 			"name":    "lag",
 			"enabled": true,
 			"domains": []string{id + ".example.com"},
-			"source":  map[string]string{"format": "domainlist"},
+			"source":  map[string]string{"type": "inline", "format": "domainlist"},
 		})
 		resp, err := leader.apiDoNonFatal("POST", "/api/v1/blocklists", body)
 		if err != nil {

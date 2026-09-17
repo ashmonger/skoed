@@ -77,9 +77,10 @@ func TestAuditWriteRecorded(t *testing.T) {
 	before := fetchAudit(t, n, "limit=1")
 
 	body := mustJSON(t, map[string]any{
-		"id":     "house-block-audit",
-		"name":   "Audit-test blocklist",
-		"source": map[string]string{"type": "manual"},
+		"id":      "house-block-audit",
+		"name":    "Audit-test blocklist",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"audit.example.com"},
 	})
 	resp := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 	resp.Body.Close()
@@ -159,9 +160,10 @@ func TestAuditListEndpointShape(t *testing.T) {
 	// Make 3 mutations so we have at least 3 entries.
 	for i := 0; i < 3; i++ {
 		body := mustJSON(t, map[string]any{
-			"id":     fmt.Sprintf("shape-%d", i),
-			"name":   "shape",
-			"source": map[string]string{"type": "manual"},
+			"id":      fmt.Sprintf("shape-%d", i),
+			"name":    "shape",
+			"source":  map[string]string{"type": "inline"},
+			"domains": []string{"audit.example.com"},
 		})
 		r := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 		r.Body.Close()
@@ -200,9 +202,10 @@ func TestAuditFilterByAction(t *testing.T) {
 	n := c.Leader(t).Node
 	// Seed a blocklist (action: blocklist.create).
 	body := mustJSON(t, map[string]any{
-		"id":     "filter-action-bl",
-		"name":   "filter",
-		"source": map[string]string{"type": "manual"},
+		"id":      "filter-action-bl",
+		"name":    "filter",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"audit.example.com"},
 	})
 	r := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 	r.Body.Close()
@@ -235,9 +238,10 @@ func TestAuditReplicatesAcrossNodes(t *testing.T) {
 	c := startCluster(t, 3)
 	leader := c.Leader(t).Node
 	body := mustJSON(t, map[string]any{
-		"id":     "replicates-bl",
-		"name":   "replicates",
-		"source": map[string]string{"type": "manual"},
+		"id":      "replicates-bl",
+		"name":    "replicates",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"audit.example.com"},
 	})
 	r := leader.apiDo(t, "POST", "/api/v1/blocklists", body)
 	r.Body.Close()
@@ -294,9 +298,10 @@ func TestAuditMetricsCounter(t *testing.T) {
 	n := c.Leader(t).Node
 
 	warm := mustJSON(t, map[string]any{
-		"id":     "metrics-counter-warm",
-		"name":   "metrics-counter-warm",
-		"source": map[string]string{"type": "manual"},
+		"id":      "metrics-counter-warm",
+		"name":    "metrics-counter-warm",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"audit.example.com"},
 	})
 	r := n.apiDo(t, "POST", "/api/v1/blocklists", warm)
 	r.Body.Close()
@@ -314,9 +319,10 @@ func TestAuditMetricsCounter(t *testing.T) {
 	base := sumActionCounter(string(b0), "blocklist.create")
 
 	body := mustJSON(t, map[string]any{
-		"id":     "metrics-counter-bl",
-		"name":   "metrics-counter",
-		"source": map[string]string{"type": "manual"},
+		"id":      "metrics-counter-bl",
+		"name":    "metrics-counter",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"audit.example.com"},
 	})
 	r2 := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 	r2.Body.Close()

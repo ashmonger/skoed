@@ -907,7 +907,7 @@ func (c *Cluster) MustCreateBlocklist(t *testing.T, via *ClusterNode, id string,
 		Name:    "Test " + id,
 		Enabled: true,
 		Domains: domains,
-		Source:  src{Type: "", Format: "domainlist"},
+		Source:  src{Type: "inline", Format: "domainlist"},
 	}
 	resp := via.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, body))
 	defer resp.Body.Close()

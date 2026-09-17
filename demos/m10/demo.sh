@@ -182,7 +182,7 @@ info "Adding a blocklist entry via $FOLLOWER1_ID (follower, :$FOLLOWER1_PORT):"
 cmd "curl -X POST http://127.0.0.1:$FOLLOWER1_PORT/api/v1/blocklists ..."
 
 RESP=$(api_v "$FOLLOWER1_URL" POST /api/v1/blocklists \
-  '{"url":"https://example.com/blocklist.txt","name":"test-blocklist","enabled":true}')
+  '{"name":"test-blocklist","enabled":true,"source":{"type":"inline"},"domains":["forwarded.example"]}')
 HTTP_STATUS=$(echo "$RESP" | head -1 | awk '{print $2}')
 SERVED_BY=$(echo "$RESP"   | grep -i "x-served-by:"      | tr -d '\r' | awk '{print $2}')
 COMMIT_IDX=$(echo "$RESP"  | grep -i "x-raft-commit-index:" | tr -d '\r' | awk '{print $2}')

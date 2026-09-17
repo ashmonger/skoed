@@ -29,8 +29,8 @@ await page.evaluate(([u, p]) => {
 // state-changing API calls; auth via httpCredentials picks up Basic.
 async function seedAudit() {
   const variants = [
-    { path: '/api/v1/blocklists', method: 'POST', body: { id: 'screenshot-bl-1', name: 'Screenshot blocklist 1', source: { type: 'manual' } } },
-    { path: '/api/v1/blocklists', method: 'POST', body: { id: 'screenshot-bl-2', name: 'Screenshot blocklist 2', source: { type: 'manual' } } },
+    { path: '/api/v1/blocklists', method: 'POST', body: { id: 'screenshot-bl-1', name: 'Screenshot blocklist 1', source: { type: 'inline' }, domains: ['doubleclick.net'] } },
+    { path: '/api/v1/blocklists', method: 'POST', body: { id: 'screenshot-bl-2', name: 'Screenshot blocklist 2', source: { type: 'inline' }, domains: ['googletagmanager.com'] } },
     { path: '/api/v1/allowlist',  method: 'POST', body: { domain: 'example.com' } },
     { path: '/api/v1/local-dns',  method: 'POST', body: { hostname: 'nas.lab', type: 'A', value: '10.42.10.20', ttl: 300 } },
     { path: '/api/v1/local-dns',  method: 'POST', body: { hostname: 'printer.lab', type: 'A', value: '10.42.10.21', ttl: 300 } },

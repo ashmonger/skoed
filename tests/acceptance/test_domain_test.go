@@ -72,7 +72,7 @@ func seedBlockedDomain(t *testing.T, n *Node) {
 		"id":      "td-block",
 		"name":    "td-block",
 		"enabled": true,
-		"source":  map[string]string{"type": "manual"},
+		"source":  map[string]string{"type": "inline"},
 		"domains": []string{"doubleclick.net"},
 	})
 	r := n.apiDo(t, "POST", "/api/v1/blocklists", body)

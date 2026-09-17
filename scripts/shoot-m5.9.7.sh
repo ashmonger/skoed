@@ -94,14 +94,14 @@ echo "  auth set"
 # ---- 4. Seed minimum data ----
 echo ">>> [4/5] seed"
 auth='-u admin:demopass123 -H content-type:application/json'
-# Use a manual blocklist (domains inline) instead of a URL source.
-# Manual blocklists land in cfg.Filtering.Blocklists[].Domains in the
+# Use an inline blocklist (domains in the request) instead of a URL source.
+# Inline blocklists land in cfg.Filtering.Blocklists[].Domains in the
 # same Raft apply, so the engine has them ready as soon as POST returns.
 # URL sources need a second roundtrip to populate Domains and have shown
 # replication-vs-fetch races in this script.
 # shellcheck disable=SC2086
 curl -fsS $auth -X POST "http://127.0.0.1:$API/api/v1/blocklists" \
-    -d '{"id":"hagezi-pro","name":"Hagezi Pro","source":{"type":"manual"},"domains":["doubleclick.net","googletagmanager.com","tracker.example"]}' >/dev/null
+    -d '{"id":"hagezi-pro","name":"Hagezi Pro","source":{"type":"inline"},"domains":["doubleclick.net","googletagmanager.com","tracker.example"]}' >/dev/null
 # shellcheck disable=SC2086
 curl -fsS $auth -X POST "http://127.0.0.1:$API/api/v1/profiles" \
     -d '{"id":"kids","name":"Kids","blocklists":["hagezi-pro"],"client_ips":["10.42.10.50"]}' >/dev/null
