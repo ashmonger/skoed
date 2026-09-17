@@ -95,7 +95,7 @@ func TestConfigShadowYamlAtomicWrite(t *testing.T) {
 		for i := 0; i < writes; i++ {
 			id := fmt.Sprintf("burst-%03d", i)
 			body := fmt.Sprintf(
-				`{"id":%q,"name":%q,"enabled":true,"domains":[%q],"source":{"type":"","format":"domainlist"}}`,
+				`{"id":%q,"name":%q,"enabled":true,"domains":[%q],"source":{"type":"inline","format":"domainlist"}}`,
 				id, "Test "+id, id+".example.com",
 			)
 			resp, err := leader.apiDoNonFatal("POST", "/api/v1/blocklists", body)

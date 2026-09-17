@@ -79,9 +79,10 @@ func TestMtlsClusterFormsAndReplicates(t *testing.T) {
 	// Replicate a blocklist; every node should see it via /api/v1/blocklists.
 	leader := c.Leader(t).Node
 	body := mustJSON(t, map[string]any{
-		"id":     "mtls-bl",
-		"name":   "mTLS cluster blocklist",
-		"source": map[string]string{"type": "manual"},
+		"id":      "mtls-bl",
+		"name":    "mTLS cluster blocklist",
+		"source":  map[string]string{"type": "inline"},
+		"domains": []string{"mtls.example.com"},
 	})
 	resp := leader.apiDo(t, "POST", "/api/v1/blocklists", body)
 	resp.Body.Close()

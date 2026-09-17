@@ -376,7 +376,7 @@ func TestNodeRemoval(t *testing.T) {
 			"name":    "should not commit",
 			"enabled": true,
 			"domains": []string{"nope.example.com"},
-			"source":  map[string]string{"format": "domainlist"},
+			"source":  map[string]string{"type": "inline", "format": "domainlist"},
 		}))
 	if err == nil {
 		defer postResp.Body.Close()
