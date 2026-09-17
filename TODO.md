@@ -477,6 +477,23 @@ Sequential node upgrade preserving Raft quorum. Adblock format fix.
 - [ ] M30.5 — UoR demo validation
 - [ ] M30.5 — merge to master (pending M30 merge first)
 
+## v0.4.3 validation defects — Alpine privileges (branch: `work/fix/alpine-privileges`)
+
+Direct fix under the Rule 14 exception in
+`decisions/20260917-DirectFixForValidationDefects.md`, so there is no
+functional spec in front of it.
+
+- [x] Alpine — OpenRC service runs as `skoed:skoed` with an ambient
+  `CAP_NET_BIND_SERVICE` instead of `command_user="root"` — 2026-09-17
+- [x] Alpine — binary, data dir and log dir handed to `skoed` after
+  `pct push`, with the .deb's 0700/0750 modes — 2026-09-17
+- [x] Alpine — validated on CT 201 of the live cluster: daemon runs as uid
+  100, binds :53 and :8080, answers DNS, keeps the capability across a
+  binary swap and a container reboot — 2026-09-17
+- [ ] Alpine — retroactive functional spec with `@fsid` scenarios for the
+  privilege model (owed by the exception)
+- [ ] Alpine — demo note and UoR validation
+
 ## Backlog
 
 ### Packaging + deployment (both shipped in M11 — strike)
