@@ -217,12 +217,12 @@ echo
 
 cmd "POST /api/v1/blocklists  {id:ads, domains:[doubleclick.net]}"
 api POST /api/v1/blocklists \
-  '{"id":"ads","name":"Ads","format":"inline","domains":["doubleclick.net"]}' | jp
+  '{"id":"ads","name":"Ads","source":{"type":"inline"},"domains":["doubleclick.net"]}' | jp
 echo
 
 cmd "POST /api/v1/blocklists  {id:social, domains:[facebook.com]}"
 api POST /api/v1/blocklists \
-  '{"id":"social","name":"Social","format":"inline","domains":["facebook.com"]}' | jp
+  '{"id":"social","name":"Social","source":{"type":"inline"},"domains":["facebook.com"]}' | jp
 echo
 
 cmd "POST /api/v1/profiles  {id:default, blocklists:[ads]}"

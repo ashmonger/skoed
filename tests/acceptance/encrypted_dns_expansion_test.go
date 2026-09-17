@@ -225,7 +225,7 @@ func TestDoh3AppliesFilter(t *testing.T) {
 	setupAuth(t, n)
 
 	// Add blocked.example.com to the allowlist-inverted path via blocklist.
-	blockResp := n.apiDo(t, "POST", "/api/v1/blocklists", `{"name":"test","format":"hosts","domains":["blocked.example.com"]}`)
+	blockResp := n.apiDo(t, "POST", "/api/v1/blocklists", `{"name":"test","source":{"type":"inline","format":"hosts"},"domains":["blocked.example.com"]}`)
 	if blockResp.StatusCode != http.StatusCreated && blockResp.StatusCode != http.StatusOK {
 		t.Logf("add blocklist: status %d (non-fatal, test may not verify filtering)", blockResp.StatusCode)
 	}

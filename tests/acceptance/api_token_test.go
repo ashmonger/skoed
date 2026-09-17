@@ -165,7 +165,7 @@ func TestTokenReadScopeBlocksWrites(t *testing.T) {
 
 	// POST must be forbidden.
 	body := mustJSON(t, map[string]any{
-		"name": "test", "url": "https://example.com/list.txt", "enabled": true,
+		"name": "test", "source": map[string]string{"type": "inline"}, "domains": []string{"list.example.com"}, "enabled": true,
 	})
 	postResp := n.apiDoBearer(t, "POST", "/api/v1/blocklists", body, m.Token)
 	defer postResp.Body.Close()
@@ -181,7 +181,7 @@ func TestTokenWriteScopeAllowsMutations(t *testing.T) {
 	m := mintToken(t, n, "writer", []string{"read", "write"})
 
 	body := mustJSON(t, map[string]any{
-		"name": "scopetest", "url": "https://example.com/list.txt", "enabled": false,
+		"name": "scopetest", "source": map[string]string{"type": "inline"}, "domains": []string{"list.example.com"}, "enabled": false,
 	})
 	resp := n.apiDoBearer(t, "POST", "/api/v1/blocklists", body, m.Token)
 	defer resp.Body.Close()
@@ -312,7 +312,7 @@ func TestTokenAuditEntryRecordsTokenId(t *testing.T) {
 
 	// Perform a write with the Bearer token so it appears in the audit log.
 	body := mustJSON(t, map[string]any{
-		"name": "audit-bl", "url": "https://example.com/audit.txt", "enabled": false,
+		"name": "audit-bl", "source": map[string]string{"type": "inline"}, "domains": []string{"audit.example.com"}, "enabled": false,
 	})
 	writeResp := n.apiDoBearer(t, "POST", "/api/v1/blocklists", body, m.Token)
 	defer writeResp.Body.Close()

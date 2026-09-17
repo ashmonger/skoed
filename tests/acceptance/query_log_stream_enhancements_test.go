@@ -317,7 +317,7 @@ func TestWebSocketAuthRequired(t *testing.T) {
 // addBlocklistEntryDirect adds a single-entry inline blocklist via the API.
 func addBlocklistEntryDirect(t *testing.T, n *Node, domain string) {
 	t.Helper()
-	body := `{"name":"m42-test","type":"inline","domains":["` + domain + `"],"enabled":true}`
+	body := `{"name":"m42-test","source":{"type":"inline"},"domains":["` + domain + `"],"enabled":true}`
 	resp := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
