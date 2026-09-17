@@ -27,23 +27,29 @@ Content-Type: application/json
 
 {
   "name": "My fast-rotating list",
-  "url": "https://example.com/blocklist.txt",
-  "refresh_interval": "6h"
+  "source": {
+    "type": "url",
+    "url": "https://example.com/blocklist.txt",
+    "format": "auto"
+  },
+  "refresh_interval_seconds": 21600
 }
 ```
+
+The source is required: a create that names neither `source.type: url` with a URL nor `source.type: inline` with domains is refused with 400, because the daemon would have no way to load the list.
 
 **After creation:**
 
 ```http
-POST /api/v1/blocklists/<id>
+PATCH /api/v1/blocklists/<id>
 Content-Type: application/json
 
 {
-  "refresh_interval": "30m"
+  "refresh_interval_seconds": 1800
 }
 ```
 
-A per-list `refresh_interval` takes precedence over the global default. Set it to `""` (empty string) to fall back to the global default.
+A per-list `refresh_interval_seconds` takes precedence over the global default. Set it to `0` to stop refreshing that list automatically.
 
 ## What happens during a refresh
 
