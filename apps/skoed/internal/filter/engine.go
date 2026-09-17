@@ -214,7 +214,12 @@ func parsePolicy(s string) BlockPolicy {
 	}
 }
 
-func parseDomains(raw []string, format string) []string {
+// ParseStoredDomains turns the entries stored in a blocklist into the domains
+// the engine loads from them. It is exported so the API can count a list the
+// way the engine will read it: blank lines and comments are dropped here, so
+// a caller that counts raw entries instead reports domains the engine never
+// sees.
+func ParseStoredDomains(raw []string, format string) []string {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -299,7 +304,7 @@ func New(cfg config.FilteringConfig) *Engine {
 		if !bl.Enabled {
 			continue
 		}
-		domains := parseDomains(bl.Domains, bl.Source.Format)
+		domains := ParseStoredDomains(bl.Domains, bl.Source.Format)
 		entry := blocklistEntry{
 			id:      bl.ID,
 			policy:  parsePolicy(bl.BlockPolicy),

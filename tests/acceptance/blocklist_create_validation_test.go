@@ -15,17 +15,25 @@
 //	    when it carries domains.
 //	TestCreateBlocklistInlineWithoutDomainsIsRefused
 //	    A create of an inline blocklist with no domains is refused.
+//	TestCreateBlocklistInlineWithOnlyBlankDomainsIsRefused
+//	    A create whose domains are only whitespace is refused.
+//	TestCreateBlocklistInlineWithOnlyCommentDomainsIsRefused
+//	    A create whose domains are only comments is refused.
 //	TestCreateBlocklistInlineWithDomainsIsAccepted
 //	    The valid inline path still works and counts its domains.
+//	TestCreateBlocklistInlineCountsOnlyUsableDomains
+//	    domain_count reports what the engine loads, not the array length.
 //	TestCreateBlocklistFromUrlIsAccepted
 //	    The valid url path still works and counts the downloaded domains.
 //	TestCreateBlocklistWithoutIdGetsGeneratedId
 //	    A create with no id still succeeds and receives a generated one.
 //
-// The first three defend against the fail-open measured on a 3-node
-// cluster running v0.4.3: a blocklist with no usable source was committed
-// enabled with zero domains, and then read as active through the API and
-// the web UI while filtering nothing.
+// The refusals defend against the fail-open measured on a 3-node cluster
+// running v0.4.3: a blocklist with no usable source was committed enabled
+// with zero domains, and then read as active through the API and the web
+// UI while filtering nothing. The blank and comment cases are the same
+// fail-open reached through entries that survive the request and not the
+// engine's parser.
 
 package acceptance
 
@@ -245,5 +253,57 @@ func TestCreateBlocklistWithoutIdGetsGeneratedId(t *testing.T) {
 	readBack := readBody(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("generated id %q is not addressable (status %d): %s", created.ID, resp.StatusCode, readBack)
+	}
+}
+
+// An inline create whose domains are only whitespace is refused.
+//
+// The daemon drops blank lines when it parses a domain list, so such a
+// create counts one array entry and loads no domain: the API and the web
+// UI report a blocklist with 1 domain while the engine matches nothing.
+func TestCreateBlocklistInlineWithOnlyBlankDomainsIsRefused(t *testing.T) {
+	t.Parallel()
+	n := startNode(t, NodeConfig{})
+
+	status, body := postBlocklist(t, n,
+		`{"id":"inline-blank-bl","name":"inline blank","source":{"type":"inline"},"domains":["  ","\t"]}`)
+
+	assertRefused(t, status, body, "no usable domain")
+	assertBlocklistAbsent(t, n, "inline-blank-bl")
+}
+
+// An inline create whose domains are only comments is refused.
+//
+// Comments are stripped by the same parser, so the outcome is the one
+// above: entries that survive the request and not the engine.
+func TestCreateBlocklistInlineWithOnlyCommentDomainsIsRefused(t *testing.T) {
+	t.Parallel()
+	n := startNode(t, NodeConfig{})
+
+	status, body := postBlocklist(t, n,
+		`{"id":"inline-comment-bl","name":"inline comment","source":{"type":"inline"},"domains":["# ads.example","   # tracker.example"]}`)
+
+	assertRefused(t, status, body, "no usable domain")
+	assertBlocklistAbsent(t, n, "inline-comment-bl")
+}
+
+// An inline create mixing usable domains with blanks and comments is
+// accepted, and domain_count reports only what the engine loads.
+func TestCreateBlocklistInlineCountsOnlyUsableDomains(t *testing.T) {
+	t.Parallel()
+	n := startNode(t, NodeConfig{})
+
+	status, body := postBlocklist(t, n,
+		`{"id":"inline-mixed-bl","name":"inline mixed","source":{"type":"inline"},"domains":["ads.example","","# a comment","tracker.example  "]}`)
+	if status != http.StatusCreated {
+		t.Fatalf("mixed inline create: want 201, got %d: %s", status, body)
+	}
+
+	var created createdBlocklist
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		t.Fatalf("decode create response: %v: %s", err, body)
+	}
+	if created.DomainCount != 2 {
+		t.Errorf("domain_count must count only parsable domains: want 2, got %d", created.DomainCount)
 	}
 }

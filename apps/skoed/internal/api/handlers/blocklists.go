@@ -106,7 +106,18 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "domains is required for source.type=inline")
 			return
 		}
-		domains = req.Domains
+		// Store the domains the engine will load rather than the entries as
+		// sent: the engine drops blank lines and comments when it reads a
+		// blocklist, so an entry of "  " or "# ads.example" counts as one
+		// domain in the response and as none in the filter. Parsing here
+		// keeps domain_count and the engine's set in agreement, and leaves
+		// nothing usable to refuse.
+		domains = filter.ParseStoredDomains(req.Domains, req.Source.Format)
+		if len(domains) == 0 {
+			writeError(w, http.StatusBadRequest,
+				"domains contains no usable domain for source.type=inline (blank lines and comments are ignored)")
+			return
+		}
 	case "":
 		writeError(w, http.StatusBadRequest, "source.type is required (url or inline)")
 		return
