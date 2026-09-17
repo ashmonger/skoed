@@ -78,8 +78,12 @@ push_to_ct() {
     $SSH "pct push $id /tmp/skoed-new /var/lib/skoed/bin/skoed"
     $SSH "pct exec $id -- chmod +x /var/lib/skoed/bin/skoed"
     # pct push writes the binary as root:root. Both node types run the daemon
-    # as skoed, so give the binary back to it.
-    $SSH "pct exec $id -- chown skoed:skoed /var/lib/skoed/bin/skoed"
+    # as skoed, so give the binary back to it. A container created before the
+    # skoed user existed still runs the daemon as root and has no such user:
+    # the chown fails there, and under set -e it would abort the update with
+    # the daemon already stopped. Warn and carry on instead.
+    $SSH "pct exec $id -- chown skoed:skoed /var/lib/skoed/bin/skoed" \
+        || echo "  [CT $id] no skoed user — binary stays root-owned"
 
     if [ "$type" = "alpine" ]; then
         echo "  [CT $id] starting skoed (OpenRC)…"
