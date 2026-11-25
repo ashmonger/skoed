@@ -66,7 +66,10 @@ type ClusterNode struct {
 	RaftPort int
 	// Env is passed verbatim to every Start/Restart of this node so that
 	// SKOED_TEST_* overrides survive process restarts.
-	Env    []string
+	Env []string
+	// UID is the user the skoed process runs as; 0 means the user running
+	// the tests. A non-zero UID needs root (see AddNodeAsUser).
+	UID    int
 	cmd    *exec.Cmd
 	killed bool
 }
@@ -110,6 +113,9 @@ type M2NodeConfig struct {
 	// Env passes extra environment variables to the subprocess. Used by tests
 	// that need SKOED_TEST_* overrides (token TTL, aggregate flush interval).
 	Env []string
+	// UID is copied to ClusterNode.UID: the process runs as this user when
+	// non-zero. Not written to config.yaml.
+	UID int
 	// UpstreamResolvers is written to the top-level dns.upstream_resolvers
 	// section (outside node:) so the DNS forwarder has a target. When empty
 	// the node has no upstream and returns SERVFAIL for forwarded queries.
@@ -276,6 +282,15 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 // reports converged commit index.
 func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 	t.Helper()
+	return c.AddNodeAsUser(t, 0)
+}
+
+// AddNodeAsUser is AddNode with the new node's process running as uid (0 =
+// the user running the tests). The node's data dir is handed to that uid
+// before every start. Running as another uid needs root; M50 uses it so an
+// iptables owner match can cut one node's traffic only (cutUID).
+func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
+	t.Helper()
 	leader := c.Leader(t)
 	token := c.mustCreateToken(t, leader)
 
@@ -287,6 +302,7 @@ func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 		RaftPort:            freeTCPPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
+		UID:                 uid,
 	}
 	if c.mtls {
 		cfg.ClusterMTLSEnabled = true
@@ -356,6 +372,7 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 		APIPort:  cfg.APIPort,
 		RaftPort: cfg.RaftPort,
 		Env:      env,
+		UID:      cfg.UID,
 	}
 	c.startProcess(t, cn)
 	return cn
@@ -392,6 +409,7 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 		APIPort:  cfg.APIPort,
 		RaftPort: cfg.RaftPort,
 		Env:      env,
+		UID:      cfg.UID,
 	}
 	c.startProcess(t, cn)
 	return cn
@@ -412,6 +430,10 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 		cmd.Stderr = os.Stderr
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+	if cn.UID != 0 {
+		giveDataDirToUID(t, cn.DataDir, cn.UID)
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(cn.UID), Gid: uint32(cn.UID)}
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start skoed (node %s): %v", cn.NodeID, err)
 	}
@@ -425,6 +447,33 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 			cmd.Wait()         //nolint:errcheck
 		}
 	})
+}
+
+// giveDataDirToUID chowns dir and everything under it to uid:uid, and adds
+// the search bit for others on the parent directories that t.TempDir created
+// (mode 0700, owned by the test user), so a process running as uid can reach
+// dir.
+func giveDataDirToUID(t *testing.T, dir string, uid int) {
+	t.Helper()
+	err := filepath.Walk(dir, func(p string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(p, uid, uid)
+	})
+	if err != nil {
+		t.Fatalf("chown %s to uid %d: %v", dir, uid, err)
+	}
+	tmp := filepath.Clean(os.TempDir())
+	for p := filepath.Dir(dir); strings.HasPrefix(p, tmp+string(filepath.Separator)); p = filepath.Dir(p) {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		if err := os.Chmod(p, fi.Mode().Perm()|0o001); err != nil {
+			t.Fatalf("chmod o+x %s: %v", p, err)
+		}
+	}
 }
 
 // writeConfigYAML writes the per-node config.yaml consumed by an M2 node.

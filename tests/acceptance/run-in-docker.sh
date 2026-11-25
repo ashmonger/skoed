@@ -7,6 +7,9 @@
 # allocation is clean for every run.
 # See ~/.claude/projects/.../memory/feedback-tests-in-docker.md.
 #
+# NET_ADMIN and the iptables package let the M50 tests cut one node's
+# access to the leader's API (FS-BlocklistContentFollowerCannotReachLeader).
+#
 # ----- Persistent Go cache (M5.9.3) -----------------------------------
 # Two named Docker volumes are mounted by default so warm reruns reuse
 # downloaded modules and compiled artefacts instead of re-doing the
@@ -50,12 +53,14 @@ fi
 # shellcheck disable=SC2086  # $cache_mounts is intentionally word-split
 docker run --rm \
   --network bridge \
+  --cap-add NET_ADMIN \
   -v "$ROOT":/src \
   $cache_mounts \
   -w /src/apps/skoed \
   -e CGO_ENABLED=0 \
   -e SKOED_TEST_MODE=1 \
   "$IMG" sh -c '
+    apk add --no-cache iptables >/dev/null
     go build -ldflags="-s -w" -o /tmp/skoed ./cmd/skoed/
     cd /src/tests/acceptance
     SKOED_BINARY=/tmp/skoed exec go test -timeout 1200s -parallel 8 "$@" ./...
