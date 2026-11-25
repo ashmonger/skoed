@@ -145,6 +145,17 @@ func TestRaftLogStaysBounded(t *testing.T) {
 	commitCustomRuleWrites(t, leader, 2000, "bounded")
 	c.WaitConverged(t)
 
+	// A snapshot taken before the writes would pass the bound check with
+	// any TrailingLogs, so each node must snapshot at or past `mark`, the
+	// leader's last index after the writes, less the SnapshotThreshold of
+	// 64 entries (TS §8) that may stay unsnapshotted.
+	leaderIdx, ok := raftIndexes(t, leader)
+	if !ok {
+		t.Fatalf("node %s: raft indexes missing from GET /api/v1/cluster/status", leader.NodeID)
+	}
+	const snapshotThreshold = 64
+	mark := leaderIdx.Last - snapshotThreshold
+
 	for i := 0; i < c.Size(); i++ {
 		n := c.Node(i)
 		var last RaftIndexes
@@ -154,8 +165,8 @@ func TestRaftLogStaysBounded(t *testing.T) {
 				return false
 			}
 			last = idx
-			return idx.Snapshot > 0 && idx.Snapshot-idx.First <= raftTrailingLogs
-		}, "node %s: Raft log not truncated to %d entries before its snapshot", n.NodeID, raftTrailingLogs)
+			return idx.Snapshot >= mark && idx.Snapshot-idx.First <= raftTrailingLogs
+		}, "node %s: no snapshot at index >= %d with at most %d entries before it", n.NodeID, mark, raftTrailingLogs)
 		t.Logf("node %s: first=%d last=%d snapshot=%d", n.NodeID, last.First, last.Last, last.Snapshot)
 		if last.Last < 2000 {
 			t.Errorf("node %s: last_log_index = %d, want >= 2000 after 2000 changes", n.NodeID, last.Last)
