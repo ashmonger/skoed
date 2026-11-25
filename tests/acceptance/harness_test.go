@@ -670,3 +670,15 @@ func freeTCPPort(t *testing.T) int {
 	t.Helper()
 	return int(portCounter.Add(1))
 }
+
+// freeRaftPort returns a Raft port and also reserves the port right after it.
+// skoed's internal peer API listens on <raft port + 1> by default
+// (specs/technical/encrypted-cluster-mesh.md, "Internal API"), and the
+// harness does not write `node.cluster.peer_api_address`, so that default is
+// the one exercised. Without the reservation, the next allocation (often the
+// next node's DNS port) would be RaftPort+1 and collide with that listener.
+// Use it for every RaftPort.
+func freeRaftPort(t *testing.T) int {
+	t.Helper()
+	return int(portCounter.Add(2)) - 1
+}

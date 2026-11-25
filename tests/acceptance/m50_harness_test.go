@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -335,11 +336,21 @@ func requireIptables(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skipf("network cut needs root to run iptables (euid %d); run the suite with tests/acceptance/run-in-docker.sh", os.Geteuid())
 	}
-	out, err := exec.Command("iptables", "-L", "OUTPUT", "-n").CombinedOutput()
-	if err != nil {
-		t.Skipf("network cut needs a working iptables (NET_ADMIN capability and the iptables package): `iptables -L OUTPUT -n` failed: %v: %s",
-			err, strings.TrimSpace(string(out)))
+	// Check a rule of the same shape as blockUIDToPort's: `iptables -C` loads
+	// the owner match and the REJECT target, so a kernel or iptables build
+	// without them is caught here. Exit status 1 means the rule is absent and
+	// both modules work; any other failure means iptables cannot cut traffic.
+	probe := []string{
+		"-C", "OUTPUT", "-m", "owner", "--uid-owner", "65534",
+		"-p", "tcp", "--dport", "1", "-j", "REJECT", "--reject-with", "tcp-reset",
 	}
+	out, err := exec.Command("iptables", probe...).CombinedOutput()
+	var exitErr *exec.ExitError
+	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() == 1) {
+		return
+	}
+	t.Skipf("network cut needs a working iptables with the owner match and the REJECT target (NET_ADMIN capability and the iptables package): `iptables %s` failed: %v: %s",
+		strings.Join(probe, " "), err, strings.TrimSpace(string(out)))
 }
 
 // blockUIDToPort rejects TCP connections from processes running as uid to

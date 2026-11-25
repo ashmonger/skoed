@@ -164,7 +164,7 @@ func startReplicatedLeaseCluster(t *testing.T, opts DhcpOpts) *Cluster {
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 		DHCP:     &opts,
 	}
 	cn1 := c.spawnNode(t, cfg1)
@@ -181,7 +181,7 @@ func startReplicatedLeaseCluster(t *testing.T, opts DhcpOpts) *Cluster {
 			NodeID:              fmt.Sprintf("node-%d", i),
 			DNSPort:             freeUDPPort(t),
 			APIPort:             freeTCPPort(t),
-			RaftPort:            freeTCPPort(t),
+			RaftPort:            freeRaftPort(t),
 			DHCP:                &opts,
 			BootstrapLeaderAddr: leader.APIBase,
 			BootstrapToken:      token,

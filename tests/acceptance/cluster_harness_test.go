@@ -64,6 +64,10 @@ type ClusterNode struct {
 	DNSPort  int
 	APIPort  int
 	RaftPort int
+	// PeerAPIPort is the internal peer API port, RaftPort+1: the default
+	// skoed derives when `node.cluster.peer_api_address` is unset, which the
+	// harness never writes. freeRaftPort reserves it.
+	PeerAPIPort int
 	// Env is passed verbatim to every Start/Restart of this node so that
 	// SKOED_TEST_* overrides survive process restarts.
 	Env []string
@@ -187,7 +191,7 @@ func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 		DoHPort:  freeTCPPort(t),
 		DoTPort:  freeTCPPort(t),
 		Acme:     &opts,
@@ -231,13 +235,20 @@ func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, 
 // every node it spawns (and to any future AddNode calls on the cluster).
 func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster {
 	t.Helper()
+	return startClusterWithBinary(t, initialNodes, env, skoedBinary(t))
+}
+
+// startClusterWithBinary is startClusterWithEnv with the skoed binary at bin
+// instead of SKOED_BINARY. The upgrade test uses it to start a cluster on the
+// previous release, then switches to the binary under test with SetBinary.
+func startClusterWithBinary(t *testing.T, initialNodes int, env []string, bin string) *Cluster {
+	t.Helper()
 	if initialNodes < 1 {
 		t.Fatalf("startCluster: need at least 1 node, got %d", initialNodes)
 	}
 
-	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY, or SKOED_PREVIOUS_BINARY for the previous release)", bin)
 	}
 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env}
@@ -263,7 +274,7 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 	}
 	if c.encryptedDNS {
 		cfg.DoHPort = freeTCPPort(t)
@@ -299,7 +310,7 @@ func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
 		NodeID:              nodeID,
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
-		RaftPort:            freeTCPPort(t),
+		RaftPort:            freeRaftPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
 		UID:                 uid,
@@ -326,7 +337,7 @@ func (c *Cluster) AddNodeWithToken(t *testing.T, token string) *ClusterNode {
 		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
-		RaftPort:            freeTCPPort(t),
+		RaftPort:            freeRaftPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
 	})
@@ -364,15 +375,16 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
 	}
 	cn := &ClusterNode{
-		Node:     n,
-		NodeID:   cfg.NodeID,
-		DataDir:  dir,
-		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
-		DNSPort:  cfg.DNSPort,
-		APIPort:  cfg.APIPort,
-		RaftPort: cfg.RaftPort,
-		Env:      env,
-		UID:      cfg.UID,
+		Node:        n,
+		NodeID:      cfg.NodeID,
+		DataDir:     dir,
+		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		DNSPort:     cfg.DNSPort,
+		APIPort:     cfg.APIPort,
+		RaftPort:    cfg.RaftPort,
+		PeerAPIPort: cfg.RaftPort + 1,
+		Env:         env,
+		UID:         cfg.UID,
 	}
 	c.startProcess(t, cn)
 	return cn
@@ -401,15 +413,16 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
 	}
 	cn := &ClusterNode{
-		Node:     n,
-		NodeID:   cfg.NodeID,
-		DataDir:  dir,
-		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
-		DNSPort:  cfg.DNSPort,
-		APIPort:  cfg.APIPort,
-		RaftPort: cfg.RaftPort,
-		Env:      env,
-		UID:      cfg.UID,
+		Node:        n,
+		NodeID:      cfg.NodeID,
+		DataDir:     dir,
+		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		DNSPort:     cfg.DNSPort,
+		APIPort:     cfg.APIPort,
+		RaftPort:    cfg.RaftPort,
+		PeerAPIPort: cfg.RaftPort + 1,
+		Env:         env,
+		UID:         cfg.UID,
 	}
 	c.startProcess(t, cn)
 	return cn
@@ -431,6 +444,7 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	if cn.UID != 0 {
+		requireExecutableByUID(t, c.bin, cn.UID)
 		giveDataDirToUID(t, cn.DataDir, cn.UID)
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(cn.UID), Gid: uint32(cn.UID)}
 	}
@@ -449,10 +463,65 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	})
 }
 
+// requireExecutableByUID skips the test unless a process running as uid:uid
+// (with no supplementary groups, as startProcess sets it) can execute bin:
+// every parent directory needs the search bit and bin the execute bit for
+// that uid. Otherwise the start fails with a bare "permission denied", e.g.
+// when SKOED_BINARY points into a 0700 home directory.
+func requireExecutableByUID(t *testing.T, bin string, uid int) {
+	t.Helper()
+	abs, err := filepath.Abs(bin)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", bin, err)
+	}
+	check := func(p string) {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		if !modeAllowsExec(fi, uid) {
+			t.Skipf("the skoed binary %s (SKOED_BINARY or SKOED_PREVIOUS_BINARY) must be executable by uid %d, but %s is %v: put it where that uid can reach it (e.g. /tmp or /usr/local/bin with mode 0755)",
+				abs, uid, p, fi.Mode())
+		}
+	}
+	for p := filepath.Dir(abs); ; p = filepath.Dir(p) {
+		check(p)
+		if p == filepath.Dir(p) {
+			break
+		}
+	}
+	check(abs)
+}
+
+// modeAllowsExec reports whether uid, running with gid uid and no
+// supplementary groups, has the execute (or search) bit on fi.
+func modeAllowsExec(fi os.FileInfo, uid int) bool {
+	perm := fi.Mode().Perm()
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return perm&0o001 != 0
+	}
+	switch {
+	case int(st.Uid) == uid:
+		return perm&0o100 != 0
+	case int(st.Gid) == uid:
+		return perm&0o010 != 0
+	default:
+		return perm&0o001 != 0
+	}
+}
+
 // giveDataDirToUID chowns dir and everything under it to uid:uid, and adds
 // the search bit for others on the parent directories that t.TempDir created
 // (mode 0700, owned by the test user), so a process running as uid can reach
 // dir.
+//
+// Precondition: no process running as uid may be alive during the walk.
+// Such a process could swap a file under dir for a symlink between the walk
+// reading it and the chown, and redirect the chown to a file outside dir
+// (Lchown only covers a symlink that is already there). startProcess calls it
+// before every start, and KillNode always waits for the process to exit, so
+// the node that owns dir is never running at that point.
 func giveDataDirToUID(t *testing.T, dir string, uid int) {
 	t.Helper()
 	err := filepath.Walk(dir, func(p string, _ os.FileInfo, err error) error {
@@ -696,6 +765,14 @@ func (c *Cluster) Node(i int) *ClusterNode {
 		c.t.Fatalf("Node(%d): out of range (cluster size %d)", i, len(c.nodes))
 	}
 	return c.nodes[i]
+}
+
+// SetBinary makes every later start of a node in this cluster (RestartNode,
+// AddNode) use the skoed binary at bin. Running nodes are not touched. The
+// upgrade test starts a cluster on the previous release, then kills, switches
+// and restarts each node in turn.
+func (c *Cluster) SetBinary(bin string) {
+	c.bin = bin
 }
 
 // Size returns the number of nodes that have ever been added (including killed).
@@ -961,7 +1038,7 @@ func (c *Cluster) MustCreateBlocklist(t *testing.T, via *ClusterNode, id string,
 	resp := via.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 201 {
-		t.Fatalf("create blocklist %s via %s: status %d", id, via.NodeID, resp.StatusCode)
+		t.Fatalf("create blocklist %s via %s: status %d: %s", id, via.NodeID, resp.StatusCode, readBody(t, resp))
 	}
 	c.WaitConverged(t)
 }
