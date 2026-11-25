@@ -188,6 +188,8 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
+		// newRaftNode has closed streamLayer, through the transport or
+		// directly when it failed before creating one.
 		store.Close()
 		return nil, fmt.Errorf("start raft: %w", err)
 	}
@@ -235,7 +237,7 @@ func (c *Cluster) ResetRaftForJoin() error {
 	dataDir := c.node.Node.DataDir
 
 	// Remove the Raft bolt stores.
-	for _, rel := range []string{raftLogPath, raftStablePath} {
+	for _, rel := range []string{RaftLogPath, raftStablePath} {
 		p := filepath.Join(dataDir, rel)
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove %s: %w", rel, err)

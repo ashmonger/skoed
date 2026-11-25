@@ -994,7 +994,7 @@ func fileExists(path string) bool {
 // raftStateExists returns true when this node has already participated in a
 // Raft cluster (so the binary should NOT bootstrap a new one).
 func raftStateExists(node *cluster.NodeYAML) bool {
-	for _, p := range []string{"raft/raft-log.bolt", "raft/raft-stable.bolt"} {
+	for _, p := range []string{cluster.RaftLogPath, "raft/raft-stable.bolt"} {
 		if fi, err := os.Stat(node.DataPath(p)); err == nil && fi.Size() > 0 {
 			return true
 		}

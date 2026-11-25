@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -89,6 +90,15 @@ type clusterStatusResp struct {
 	RaftTerm  uint64             `json:"raft_term"`
 	LeaderID  string             `json:"leader_id"`
 	Nodes     []clusterNodeEntry `json:"nodes"`
+	Raft      *raftIndexesResp   `json:"raft,omitempty"`
+}
+
+// raftIndexesResp is `ClusterStatus.raft`: the Raft log indexes of the
+// answering node (TS-BlocklistContentDistribution §8).
+type raftIndexesResp struct {
+	FirstLogIndex     uint64 `json:"first_log_index"`
+	LastLogIndex      uint64 `json:"last_log_index"`
+	LastSnapshotIndex uint64 `json:"last_snapshot_index"`
 }
 
 type transferLeadershipReq struct {
@@ -573,6 +583,20 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		RaftTerm:  c.Raft().CurrentTerm(),
 		LeaderID:  leaderID,
 		Nodes:     make([]clusterNodeEntry, 0, len(servers)),
+	}
+	// When the indexes cannot be read, `raft` is left out rather than
+	// failing the whole status. A closed store is expected while the node
+	// shuts down; any other error is logged.
+	idx, err := c.RaftIndexes()
+	switch {
+	case err == nil:
+		out.Raft = &raftIndexesResp{
+			FirstLogIndex:     idx.First,
+			LastLogIndex:      idx.Last,
+			LastSnapshotIndex: idx.LastSnapshot,
+		}
+	case !errors.Is(err, cluster.ErrRaftStoreClosed):
+		log.Printf("[cluster-status] read raft indexes: %v", err)
 	}
 
 	now := time.Now().UTC()
