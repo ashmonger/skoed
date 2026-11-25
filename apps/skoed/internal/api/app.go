@@ -594,7 +594,7 @@ func (a *App) onApply() {
 
 	// M50: rebuild the filter engine only when its inputs changed, so
 	// stats, audit, lease and member entries no longer rebuild it.
-	a.rebuildFilterIfChanged(snap, false)
+	a.rebuildFilterIfChanged(false)
 
 	// M35.5 (TS-DeviceRegistry): re-wire the device lookup on every apply
 	// so device-profile matches stay current.
@@ -634,8 +634,8 @@ func (a *App) SetBlocklistContent(c *blocklistcache.Cache) {
 	if c == nil {
 		return
 	}
-	c.OnChange(func() { a.rebuildFilterIfChanged(a.GetCfg(), false) })
-	a.rebuildFilterIfChanged(a.GetCfg(), true)
+	c.OnChange(func() { a.rebuildFilterIfChanged(false) })
+	a.rebuildFilterIfChanged(true)
 }
 
 // BlocklistContent returns this node's copy of URL blocklist content, or
@@ -650,15 +650,18 @@ func (a *App) SetBlocklistRefresher(r handlers.BlocklistRefresher) { a.blRefresh
 // blocklists, or nil when not wired.
 func (a *App) BlocklistRefresher() handlers.BlocklistRefresher { return a.blRefresher }
 
-// rebuildFilterIfChanged rebuilds the filter engine from snap when the
-// fingerprint of its inputs differs from the current engine's, or when
-// force is set.
-func (a *App) rebuildFilterIfChanged(snap *config.Config, force bool) {
+// rebuildFilterIfChanged rebuilds the filter engine from the cached config
+// when the fingerprint of its inputs differs from the current engine's, or
+// when force is set. The config is read under rebuildMu, so a rebuild
+// started by a cache change cannot replace the engine built by a later
+// apply with one built from an older config.
+func (a *App) rebuildFilterIfChanged(force bool) {
+	a.rebuildMu.Lock()
+	defer a.rebuildMu.Unlock()
+	snap := a.GetCfg()
 	if snap == nil {
 		return
 	}
-	a.rebuildMu.Lock()
-	defer a.rebuildMu.Unlock()
 	var entries map[string]blocklistcache.Entry
 	var src filter.ContentSource
 	if a.blContent != nil {

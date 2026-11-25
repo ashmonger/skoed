@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/filter"
+	"github.com/skoed/skoed/internal/refresh"
 )
 
 // blocklistResponse is the JSON representation of a blocklist exposed by the API.
@@ -58,18 +61,17 @@ func (h *Handler) toBlocklistResponse(bl config.Blocklist) blocklistResponse {
 		LastRefreshStatus:      bl.LastRefreshStatus,
 		LastRefreshError:       bl.LastRefreshError,
 	}
-	if bl.Source.Type != blocklistSourceURL {
+	// With no replicated version yet (never downloaded, or a legacy entry
+	// during a rolling upgrade), the content fields are omitted so such a
+	// list is not reported as out of date (§5.3).
+	if bl.Source.Type != blocklistSourceURL || bl.Content == nil {
 		return resp
 	}
-	if bl.Content != nil {
-		resp.ContentSHA256 = bl.Content.SHA256
-	}
+	resp.ContentSHA256 = bl.Content.SHA256
 	if cache := h.app.BlocklistContent(); cache != nil {
 		if e, ok := cache.Get(bl.ID); ok {
 			resp.LocalContentSHA256 = e.SHA256
-			if bl.Content != nil {
-				resp.DomainCount = e.Count
-			}
+			resp.DomainCount = e.Count
 		}
 	}
 	switch {
@@ -126,6 +128,13 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 	id := req.ID
 	if id == "" {
 		id = newID()
+	}
+	// Refuse a duplicate before anything is downloaded: on the M50 path the
+	// download writes this node's copy under id, which would replace the
+	// copy of the existing list.
+	if blocklistExists(h.app.GetCfg(), id) {
+		writeError(w, http.StatusConflict, "a blocklist with this id already exists")
+		return
 	}
 
 	// Resolve the domains the list will hold. Every branch either produces a
@@ -199,9 +208,16 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {
+		if blocklistExists(cfg, id) {
+			return errBlocklistExists
+		}
 		cfg.Filtering.Blocklists = append(cfg.Filtering.Blocklists, bl)
 		return nil
 	}); err != nil {
+		if errors.Is(err, errBlocklistExists) {
+			writeError(w, http.StatusConflict, "a blocklist with this id already exists")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -215,6 +231,23 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, h.toBlocklistResponse(bl))
+}
+
+// errBlocklistExists is returned by the create transaction when another
+// request created a list with the same id meanwhile.
+var errBlocklistExists = errors.New("blocklist already exists")
+
+// blocklistExists reports whether cfg holds a blocklist with this id.
+func blocklistExists(cfg *config.Config, id string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, bl := range cfg.Filtering.Blocklists {
+		if bl.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // GetBlocklist handles GET /api/v1/blocklists/{id}.
@@ -389,7 +422,22 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := ref.RefreshNow(id); err != nil {
-		writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
+		var dl *refresh.DownloadError
+		switch {
+		case errors.Is(err, cluster.ErrNotLeader):
+			// Leadership moved while the request was served: the result
+			// may not be recorded, so the caller retries on the leader.
+			c := h.app.GetCluster()
+			if c == nil || c.LeaderAPIAddress() == "" {
+				writeError(w, http.StatusServiceUnavailable, "no leader: "+err.Error())
+				return
+			}
+			writeLeaderRedirect(w, c, err.Error())
+		case errors.As(err, &dl):
+			writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "refresh blocklist: "+err.Error())
+		}
 		return
 	}
 
