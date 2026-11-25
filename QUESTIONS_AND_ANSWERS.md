@@ -62,3 +62,6 @@ None.
 
 - **Q**: M50 — Raft replicates only the blocklist configuration, not the downloaded domains. Where does each node get the content of a URL blocklist?
   **A**: Each node downloads the URL itself and caches it under `data_dir`, as AdGuard Home and Pi-hole do. No peer fallback, no leader-side download. See `decisions/20261125-NodeLocalBlocklistContent.md`. — 2026-11-25
+
+- **Q**: M50 — revisited the same day: where does each node get the content of a URL blocklist, and what triggers a leader change?
+  **A**: Supersedes the previous answer. The leader downloads the full list; followers copy it from the leader over the cluster API. The leader changes only when the leader node goes down (Raft election); a failed download on a live leader keeps the previous copy and is retried at the next refresh. See `decisions/20261125-LeaderDistributedBlocklistContent.md`. — 2026-11-25

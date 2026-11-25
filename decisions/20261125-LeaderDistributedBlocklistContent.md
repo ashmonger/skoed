@@ -1,4 +1,4 @@
-# Node-local blocklist content and a bounded Raft log
+# Blocklist content distributed by the leader, and a bounded Raft log
 
 ## Context
 
@@ -49,26 +49,31 @@ follower's ability to filter to replaying multi-MB log entries.
 
 ## Decision
 
-Option 1, chosen by the UoR on 2026-11-25. It matches the AdGuard Home and
-Pi-hole model, keeps nodes independent, and needs no new inter-node
-endpoint. Option 4 is applied in addition: `TrailingLogs` is set to 256 so
-the log is truncated after each snapshot whatever the entries contain.
+Option 3, chosen by the UoR on 2026-11-25 (after first choosing option 1
+the same day). The leader keeps downloading, as the refresh scheduler does
+today, but stores the content in a cache under `data_dir` and replicates
+only its version (hash, domain count, refresh status). Followers that see a
+new version copy the content from the leader over the authenticated cluster
+API, check it against the replicated hash, and keep their previous copy
+until they succeed. When the leader node goes down, the Raft election picks
+a new leader, which takes over the downloads; a failed download on a live
+leader does not change the leader.
 
-A manual refresh replicates only a refresh request, so every node downloads
-again. An offline `skoed raft compact` command shrinks log files left
-oversized by earlier versions. On upgrade, each node seeds its cache from the
-domains still present in the old state before they are dropped.
+Option 4 is applied in addition: `TrailingLogs` is set to 256 so the log is
+truncated after each snapshot whatever the entries contain. An offline
+`skoed raft compact` command shrinks log files left oversized by earlier
+versions. On upgrade, each node seeds its cache from the domains still
+present in the old state before they are dropped.
 
 ## Consequences
 
-* `domain_count` and `last_refresh_*` become per-node values.
-* Each node downloads every URL list; a 3-node cluster makes 3 requests per
-  refresh to each list's host.
-* A node that has never downloaded a list, and cannot reach its URL, filters
-  without that list until a download succeeds.
+* Each list is downloaded once per refresh, by the leader only;
+  FS-AutoRefreshLeaderOnly and FS-AutoRefreshUpdatesAllNodes still hold.
+* A new authenticated endpoint serves cached list content to followers,
+  and followers depend on reaching the leader to get a new version.
+* A follower reports when its copy is older than the replicated version.
 * Config exports no longer contain the domains of URL lists, so backups
-  shrink and an import triggers a download on every node.
-* FS-AutoRefreshLeaderOnly and FS-AutoRefreshUpdatesAllNodes are superseded.
+  shrink and an import triggers a download on the leader.
 
 ## Related hypotheses
 
