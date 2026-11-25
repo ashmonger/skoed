@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -336,21 +335,24 @@ func requireIptables(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skipf("network cut needs root to run iptables (euid %d); run the suite with tests/acceptance/run-in-docker.sh", os.Geteuid())
 	}
-	// Check a rule of the same shape as blockUIDToPort's: `iptables -C` loads
-	// the owner match and the REJECT target, so a kernel or iptables build
-	// without them is caught here. Exit status 1 means the rule is absent and
-	// both modules work; any other failure means iptables cannot cut traffic.
-	probe := []string{
-		"-C", "OUTPUT", "-m", "owner", "--uid-owner", "65534",
-		"-p", "tcp", "--dport", "1", "-j", "REJECT", "--reject-with", "tcp-reset",
+	// Insert a rule of the same shape as blockUIDToPort's, on port 1 where
+	// nothing listens, and delete it right away. `iptables -C` only compares
+	// rules in userspace, while the insert makes the kernel load the owner
+	// match and the REJECT target, so a kernel or iptables build without them
+	// is caught here.
+	rule := []string{
+		"OUTPUT", "-m", "owner", "--uid-owner", strconv.Itoa(cutUID),
+		"-p", "tcp", "-d", "127.0.0.1", "--dport", "1",
+		"-j", "REJECT", "--reject-with", "tcp-reset",
 	}
-	out, err := exec.Command("iptables", probe...).CombinedOutput()
-	var exitErr *exec.ExitError
-	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() == 1) {
-		return
+	if out, err := exec.Command("iptables", append([]string{"-I"}, rule...)...).CombinedOutput(); err != nil {
+		t.Skipf("network cut needs a working iptables with the owner match and the REJECT target (NET_ADMIN capability and the iptables package): `iptables -I %s` failed: %v: %s",
+			strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
 	}
-	t.Skipf("network cut needs a working iptables with the owner match and the REJECT target (NET_ADMIN capability and the iptables package): `iptables %s` failed: %v: %s",
-		strings.Join(probe, " "), err, strings.TrimSpace(string(out)))
+	if out, err := exec.Command("iptables", append([]string{"-D"}, rule...)...).CombinedOutput(); err != nil {
+		t.Errorf("delete the iptables probe rule: `iptables -D %s` failed: %v: %s",
+			strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
+	}
 }
 
 // blockUIDToPort rejects TCP connections from processes running as uid to

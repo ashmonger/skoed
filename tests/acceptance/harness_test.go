@@ -342,18 +342,18 @@ func loginSessionMaybe(t *testing.T, n *Node, username, password string) string 
 }
 
 // loginWithRetry retries POST /api/v1/auth/login until it returns a token or
-// the timeout expires. Used by cluster nodes that may be waiting for credentials
+// readyTimeout expires. Used by cluster nodes that may be waiting for credentials
 // to be replicated from the leader before login is possible.
 func loginWithRetry(t *testing.T, n *Node, username, password string) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(readyTimeout)
 	for time.Now().Before(deadline) {
 		if tok := loginSessionMaybe(t, n, username, password); tok != "" {
 			return tok
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("could not login to %s within 10s — credentials not yet replicated?", n.APIBase)
+	t.Fatalf("could not login to %s within %s — credentials not yet replicated?", n.APIBase, readyTimeout)
 	return ""
 }
 

@@ -516,12 +516,15 @@ func modeAllowsExec(fi os.FileInfo, uid int) bool {
 // (mode 0700, owned by the test user), so a process running as uid can reach
 // dir.
 //
-// Precondition: no process running as uid may be alive during the walk.
-// Such a process could swap a file under dir for a symlink between the walk
-// reading it and the chown, and redirect the chown to a file outside dir
+// Precondition: no process running as uid may write under dir during the
+// walk. Such a process could swap a file under dir for a symlink between the
+// walk reading it and the chown, and redirect the chown to a file outside dir
 // (Lchown only covers a symlink that is already there). startProcess calls it
 // before every start, and KillNode always waits for the process to exit, so
-// the node that owns dir is never running at that point.
+// the node that owns dir is never running during the walk. Other processes
+// running as the same uid can be alive, because parallel tests use cutUID
+// too, but they are skoed processes under test from other tests: they use
+// their own data directories and do not race with this one.
 func giveDataDirToUID(t *testing.T, dir string, uid int) {
 	t.Helper()
 	err := filepath.Walk(dir, func(p string, _ os.FileInfo, err error) error {
