@@ -688,6 +688,24 @@ func runDaemon(cfgPath string) {
 		log.Printf("management API listening on %s", node.Node.APIAddress)
 	}
 
+	// ── M50: peer API listener (TS-EncryptedClusterMesh, "Internal API") ──
+	// With mTLS on, peers reach this node's API router on a second listener
+	// that requires a client certificate signed by the cluster CA; the main
+	// listener then refuses the cluster secret.
+	var peerSrv *api.PeerServer
+	if c.MTLSEnabled() {
+		peerTLS, err := c.PeerServerTLSConfig()
+		if err != nil {
+			log.Fatalf("peer API TLS config: %v", err)
+		}
+		peerSrv, err = api.StartPeerServer(app, c.PeerAPIAddress(), peerTLS)
+		if err != nil {
+			log.Fatalf("start peer API server: %v", err)
+		}
+		log.Printf("peer API listening on %s (cluster mTLS)", peerSrv.Addr())
+	}
+	// ── end M50 peer API listener ──
+
 	if err := dnsServer.Start(); err != nil {
 		log.Fatalf("start dns server: %v", err)
 	}
@@ -834,6 +852,11 @@ func runDaemon(cfgPath string) {
 	if err := apiSrv.Shutdown(ctx); err != nil {
 		log.Printf("api shutdown: %v", err)
 	}
+	if peerSrv != nil {
+		if err := peerSrv.Shutdown(ctx); err != nil {
+			log.Printf("peer api shutdown: %v", err)
+		}
+	}
 	dnsServer.Shutdown()
 	if encryptedSrv != nil {
 		encryptedSrv.Shutdown()
@@ -976,11 +999,14 @@ func raftStateExists(node *cluster.NodeYAML) bool {
 // We retry briefly to tolerate the leader not being immediately reachable
 // when the joining node boots faster than the leader.
 func joinExistingCluster(node *cluster.NodeYAML) error {
-	body, err := json.Marshal(map[string]string{
-		"token":        node.Bootstrap.Token,
-		"node_id":      node.Node.ID,
-		"raft_address": node.Node.RaftAddress,
-		"api_address":  node.Node.APIAddress,
+	self := cluster.LocalMemberUpdate(node)
+	body, err := json.Marshal(map[string]any{
+		"token":            node.Bootstrap.Token,
+		"node_id":          node.Node.ID,
+		"raft_address":     node.Node.RaftAddress,
+		"api_address":      node.Node.APIAddress,
+		"peer_api_address": self.PeerAPIAddress,
+		"capabilities":     self.Capabilities,
 	})
 	if err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/skoed/skoed/internal/config"
 	"gopkg.in/yaml.v3"
@@ -40,6 +41,29 @@ type NodeSection struct {
 // the encrypted cluster mesh; future milestones can hang more here.
 type ClusterSection struct {
 	MTLS ClusterMTLSSection `yaml:"mtls,omitempty"`
+	// PeerAPIAddress is the host:port of the peer API listener, opened only
+	// when MTLS.Enabled is true. It serves the management API router to
+	// cluster peers over mutual TLS. Empty means <raft host>:<raft port + 1>
+	// (see PeerAPIAddress).
+	PeerAPIAddress string `yaml:"peer_api_address,omitempty"`
+}
+
+// PeerAPIAddress returns the configured peer API listen address, or
+// <raft host>:<raft port + 1> when `node.cluster.peer_api_address` is unset.
+// Returns "" when neither is set nor derivable.
+func (ns NodeSection) PeerAPIAddress() string {
+	if ns.Cluster.PeerAPIAddress != "" {
+		return ns.Cluster.PeerAPIAddress
+	}
+	host, port, err := net.SplitHostPort(ns.RaftAddress)
+	if err != nil {
+		return ""
+	}
+	p, err := strconv.Atoi(port)
+	if err != nil || p <= 0 || p >= 65535 {
+		return ""
+	}
+	return net.JoinHostPort(host, strconv.Itoa(p+1))
 }
 
 // ClusterMTLSSection enables the M5.3 encrypted cluster mesh. When

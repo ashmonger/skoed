@@ -45,6 +45,25 @@ All nodes must share the **same CA certificate** but each node must have its **o
 
 ---
 
+## Peer API listener
+
+With `node.cluster.mtls.enabled: true`, each node opens a second API listener for its peers on `node.cluster.peer_api_address` (default: the Raft host with the Raft port + 1, e.g. `127.0.0.1:7001` for `raft_address: 127.0.0.1:7000`). It serves the same API, but only to clients presenting a certificate signed by the cluster CA. Forwarded writes, hourly statistics, the cluster-wide query log, the rolling upgrade and the blocklist copy between nodes use it.
+
+```yaml
+node:
+  raft_address: 10.0.0.11:7000
+  cluster:
+    mtls:
+      enabled: true
+    peer_api_address: 10.0.0.11:7001   # optional
+```
+
+Open this port between cluster nodes in the firewall. The main API listener then refuses requests carrying the cluster secret (`X-Cluster-Secret`), so the secret never travels in clear. Joining a node still goes through the main API, authenticated by the join token.
+
+With mTLS disabled (the default), peers call each other's main API over plain HTTP, and the cluster secret crosses the network in clear.
+
+---
+
 ## Certificate Generation
 
 The following example creates a self-signed cluster CA and signs a certificate for each node. Run these commands on a secure machine and distribute the resulting files.

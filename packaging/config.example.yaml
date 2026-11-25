@@ -27,6 +27,11 @@ node:
   #     require_auth: true
 
   # Uncomment for cluster mTLS (M5.3). Cluster-wide flip; restart.
+  # With mTLS on, peers call each other's API on a second listener that
+  # requires a cluster certificate (default <raft host>:<raft port + 1>).
+  # With mTLS off, peer HTTP is plain and the cluster secret crosses the
+  # network in clear.
   # cluster:
   #   mtls:
   #     enabled: true
+  #   peer_api_address: "0.0.0.0:7001"

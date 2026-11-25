@@ -227,7 +227,7 @@ func (h *Handler) streamCluster(w http.ResponseWriter, flusher http.Flusher, ctx
 		wg.Add(1)
 		go func(nodeID, baseURL string) {
 			defer wg.Done()
-			peerFan(ctx, nodeID, baseURL, secret, filters, merged, w, flusher)
+			peerFan(ctx, c.PeerStreamHTTPClient(), nodeID, baseURL, secret, filters, merged, w, flusher)
 		}(m.NodeID, apiURL)
 	}
 
@@ -287,8 +287,10 @@ func localFan(ctx context.Context, ql interface {
 }
 
 // peerFan connects to a peer's SSE stream and forwards events to out.
-// baseURL is the peer's routable HTTP base URL (e.g. "http://10.0.0.102:8080").
-func peerFan(ctx context.Context, nodeID, baseURL, secret string,
+// baseURL is the peer's URL from Cluster.MemberAPIURL (e.g.
+// "http://10.0.0.102:8080", or its https:// peer listener with mTLS on), and
+// client is Cluster.PeerStreamHTTPClient (no overall timeout).
+func peerFan(ctx context.Context, client *http.Client, nodeID, baseURL, secret string,
 	filters streamFilters, out chan<- fanEvent,
 	w io.Writer, flusher http.Flusher) {
 
@@ -304,7 +306,7 @@ func peerFan(ctx context.Context, nodeID, baseURL, secret string,
 	}
 	req.Header.Set("X-Cluster-Secret", secret)
 
-	resp, err := (&http.Client{Timeout: 0}).Do(req)
+	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		if resp != nil {
 			resp.Body.Close()

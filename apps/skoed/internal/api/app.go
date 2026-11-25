@@ -906,6 +906,9 @@ func (a *App) FireWebhookTest(endpointID string) error {
 func (a *App) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	// M50 — with mTLS on, the cluster secret is accepted only on the peer
+	// listener (peer_listener.go).
+	r.Use(a.rejectClusterSecretOffPeerListener)
 
 	h := handlers.New(a)
 
@@ -963,6 +966,10 @@ func (a *App) Router() http.Handler {
 	// upgrade goroutine to self-upgrade each peer without WriteForwardMiddleware
 	// redirecting the call back to the leader. Authenticated by X-Cluster-Secret.
 	r.Post("/api/v1/upgrade/node-start", h.NodeUpgradeStart)
+
+	// M50 — follower → leader update of the follower's own member record
+	// (peer API address, capabilities). Authenticated by X-Cluster-Secret.
+	r.Post("/api/v1/cluster/_internal/members/self", h.ClusterInternalSelfMember)
 
 	r.Group(func(r chi.Router) {
 		r.Use(a.Auth)
@@ -1336,3 +1343,6 @@ type clusterAdapter struct{ c *cluster.Cluster }
 func (a clusterAdapter) IsLeader() bool           { return a.c.IsLeader() }
 func (a clusterAdapter) LeaderAPIAddress() string { return a.c.LeaderAPIAddress() }
 func (a clusterAdapter) LeaderID() string         { return a.c.LeaderID() }
+func (a clusterAdapter) PeerHTTPClient() *http.Client {
+	return a.c.PeerHTTPClient()
+}

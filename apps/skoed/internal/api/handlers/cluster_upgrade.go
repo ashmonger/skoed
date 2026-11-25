@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -210,11 +209,12 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		// Resolve wildcard bind address (0.0.0.0) to the peer's actual IP
-		// using its Raft address as fallback. Without this, connecting to
-		// 0.0.0.0:port on Linux routes to loopback and the leader upgrades
-		// itself instead of the peer.
-		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, resolvePeerAddr(m.APIAddress, m.RaftAddress)})
+		// MemberAPIURL resolves a wildcard bind address (0.0.0.0) to the
+		// peer's actual IP using its Raft address as fallback. Without this,
+		// connecting to 0.0.0.0:port on Linux routes to loopback and the
+		// leader upgrades itself instead of the peer. With mTLS on, it is
+		// the peer's https:// peer listener.
+		peers = append(peers, struct{ id, apiAddr string }{m.NodeID, cl.MemberAPIURL(m)})
 	}
 	sort.Slice(peers, func(i, j int) bool { return peers[i].id < peers[j].id })
 	sort.Strings(skipped)
@@ -239,7 +239,13 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 	upgradeMu.Unlock()
 
 	clusterSecret := cl.ClusterSecret()
-	selfAPIAddr := cl.Node().Node.APIAddress
+	// The self-upgrade call carries the cluster secret too, so with mTLS on
+	// it must go to this node's own peer listener, like the peer calls.
+	selfAPIAddr := "http://" + cl.Node().Node.APIAddress
+	if self, _ := cl.Store().MemberByID(selfID); self != nil && cl.MTLSEnabled() {
+		selfAPIAddr = cl.MemberAPIURL(*self)
+	}
+	client := cl.PeerHTTPClient()
 
 	go func() {
 		if targetVer != "" {
@@ -252,7 +258,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		completedFirst := ""
 		for _, peer := range peers {
 			addUpgradeLogLine("upgrading %s (%s)…", peer.id, peer.apiAddr)
-			if err := upgradeNode(peer.apiAddr, req.URL, req.SHA256, clusterSecret); err != nil {
+			if err := upgradeNode(client, peer.apiAddr, req.URL, req.SHA256, clusterSecret); err != nil {
 				addUpgradeLogLine("FAILED %s: %v", peer.id, err)
 				node := peer.id
 				upgradeMu.Lock()
@@ -301,7 +307,7 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		// Upgrade self last: post to own API endpoint. In test mode UpgradeStart
 		// suppresses os.Exit so the goroutine completes normally.
 		addUpgradeLogLine("upgrading self (%s)…", selfID)
-		_ = upgradeNode(selfAPIAddr, req.URL, req.SHA256, clusterSecret)
+		_ = upgradeNode(client, selfAPIAddr, req.URL, req.SHA256, clusterSecret)
 		addUpgradeLogLine("OK %s — upgrade complete", selfID)
 
 		upgradeMu.Lock()
@@ -316,16 +322,20 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// upgradeNode posts to /api/v1/upgrade/start on the target node, waits for it
-// to return 200 and become healthy again (up to upgradeNodeTimeout).
-func upgradeNode(apiAddr, tarURL, sha256, clusterSecret string) error {
+// upgradeNode posts to /api/v1/upgrade/node-start on the node at baseURL (its
+// URL from Cluster.MemberAPIURL), waits for it to return 200 and become
+// healthy again (up to upgradeNodeTimeout). client is Cluster.PeerHTTPClient.
+func upgradeNode(client *http.Client, baseURL, tarURL, sha256, clusterSecret string) error {
 	const upgradeNodeTimeout = 120 * time.Second
 	const pollInterval = 3 * time.Second
+	const requestTimeout = 15 * time.Second
 
-	baseURL := "http://" + apiAddr
+	apiAddr := baseURL
 	body, _ := json.Marshal(map[string]string{"url": tarURL, "sha256": sha256})
 
-	req, err := http.NewRequestWithContext(context.Background(),
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx,
 		http.MethodPost, baseURL+"/api/v1/upgrade/node-start", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
@@ -333,7 +343,6 @@ func upgradeNode(apiAddr, tarURL, sha256, clusterSecret string) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Cluster-Secret", clusterSecret)
 
-	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("call upgrade/node-start on %s: %w", apiAddr, err)
@@ -349,20 +358,29 @@ func upgradeNode(apiAddr, tarURL, sha256, clusterSecret string) error {
 	deadline := time.Now().Add(upgradeNodeTimeout)
 	for time.Now().Before(deadline) {
 		time.Sleep(pollInterval)
-		hreq, _ := http.NewRequestWithContext(context.Background(),
-			http.MethodGet, baseURL+"/api/v1/health", nil)
-		hresp, herr := client.Do(hreq)
-		if herr == nil && hresp.StatusCode == http.StatusOK {
-			io.Copy(io.Discard, hresp.Body) //nolint:errcheck
-			hresp.Body.Close()
+		if healthy(client, baseURL, requestTimeout) {
 			return nil
-		}
-		if hresp != nil {
-			io.Copy(io.Discard, hresp.Body) //nolint:errcheck
-			hresp.Body.Close()
 		}
 	}
 	return fmt.Errorf("node %s did not become healthy within %s", apiAddr, upgradeNodeTimeout)
+}
+
+// healthy reports whether GET <baseURL>/api/v1/health answers 200 within
+// timeout.
+func healthy(client *http.Client, baseURL string, timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v1/health", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func containsStr(list []string, s string) bool {
@@ -382,20 +400,4 @@ func removePeer(list []string, id string) []string {
 		}
 	}
 	return out
-}
-
-// resolvePeerAddr returns a connectable host:port for a cluster peer.
-// When the peer's API address is bound to 0.0.0.0 or ::, the host is
-// replaced with the IP extracted from the peer's Raft address.
-func resolvePeerAddr(apiAddr, raftAddr string) string {
-	host, port, err := net.SplitHostPort(apiAddr)
-	if err != nil {
-		return apiAddr
-	}
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		if raftHost, _, rerr := net.SplitHostPort(raftAddr); rerr == nil && raftHost != "" {
-			return net.JoinHostPort(raftHost, port)
-		}
-	}
-	return apiAddr
 }

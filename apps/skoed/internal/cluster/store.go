@@ -1360,6 +1360,13 @@ type Member struct {
 	RaftAddress string `json:"raft_address"`
 	APIAddress  string `json:"api_address"`
 	JoinedUnix  int64  `json:"joined_unix"`
+	// PeerAPIAddress is the member's peer API listener (host:port), set by
+	// the member itself when it runs with mTLS enabled. Empty when the
+	// member has no peer listener (mTLS off, or a previous version).
+	PeerAPIAddress string `json:"peer_api_address,omitempty"`
+	// Capabilities lists the features the member's version supports, e.g.
+	// CapabilityBlocklistContentV1. A previous version advertises none.
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // Members returns the current replicated member list.
