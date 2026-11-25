@@ -551,7 +551,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   joining node; fixed under `decisions/20261125-DirectFixDnsServerDoubleStart.md` — 2026-11-25
 - [ ] DNS — retroactive functional scenario owed by that exception: a node
   joining a cluster starts its DNS listener once
-- [ ] M50 — CI green on GitHub
+- [x] M50 — merged to master (PR #1 cf20da2, with Go 1.27 PR #2 01311e7), CI green; released as v0.5.0 (release run 41; run 40 failed while uploading the assets and the tag was re-pushed) — 2026-11-25
 - [ ] M50 follow-ups (MINOR, from review, not blocking):
   * legacy attempt record survives two leader changes around a gate loss
     (`refresh/scheduler.go`); tie the attempt to `Content.SHA256`
@@ -590,7 +590,21 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [x] M50 — real-environment validation on a Proxmox 3-node cluster:
   `demos/m50/DEMO_NOTE.md` (0.3.2 → final rolling upgrade, compaction,
   iptables cut, failover pass; cross-host mTLS fails, pre-existing) — 2026-11-25
-- [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
+- [x] M50 — home cluster upgraded 0.3.2 → 0.5.0 from the .deb, skoed1
+  (follower) then skoed2 (leader); backups in /root/skoed{1,2}-skoed-0.3.2-20261125.tgz
+  on pve0/pve1. Blocking held throughout; shadow config.yaml 16 MB → 5.8 KB — 2026-11-25
+- [ ] M50 — compact the home cluster's 1.8 GB `raft-log.bolt` once the log
+  has truncated (needs ~64 new Raft entries; about one per hour on its own):
+  check `GET /api/v1/cluster/status` → `raft.last_snapshot_index -
+  raft.first_log_index <= 256` on both nodes, then one node at a time,
+  follower first: `systemctl stop skoed`,
+  `sudo -u skoed /var/lib/skoed/bin/skoed raft compact --data-dir /var/lib/skoed`,
+  `systemctl start skoed`, wait until it has rejoined, delete
+  `raft/raft-log.bolt.pre-compact`. Then lower the CTs back from 2 GB
+- [ ] Scripts — `scripts/proxmox-create.sh`, `proxmox-create-alpine.sh` and
+  `proxmox-cluster.sh` still default `SKOED_VERSION` to 0.4.4
+- [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
+  release run 40; delete it on GitHub if present
 - [x] M50 — demo note and UoR validation — 2026-11-25
 - [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
   daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in
