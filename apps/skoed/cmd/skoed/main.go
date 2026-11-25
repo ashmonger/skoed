@@ -207,7 +207,10 @@ func runDaemon(cfgPath string) {
 	queryLog := dlog.New(snap.QueryLog.MaxEntries)
 
 	var app *api.App
-	var dnsServer *dnsengine.Server
+	// The plain DNS server is started once, by main, after startup. A
+	// rebuildDNS call before that (Raft replay on a joining node) only
+	// records the latest config for the start to use.
+	var dnsServer dnsengine.ServerHolder
 	var encryptedSrv *dnsengine.EncryptedServer  // populated below; closure captures by name
 	var dnscryptSrv  *dnsengine.DNSCryptServer  // M8: populated below if DNSCryptPort > 0
 	var dhcpMgr *dhcp.Manager                   // populated below; closure captures by name
@@ -369,19 +372,7 @@ func runDaemon(cfgPath string) {
 				}
 			}
 		}
-		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
-			dnsServer.UpdateHandler(newHandler)
-			return nil
-		}
-		newServer := dnsengine.New(newCfg.DNS, newHandler)
-		if dnsServer != nil {
-			dnsServer.Shutdown()
-		}
-		if err := newServer.Start(); err != nil {
-			return fmt.Errorf("start rebuilt dns server: %w", err)
-		}
-		dnsServer = newServer
-		return nil
+		return dnsServer.Rebuild(newCfg.DNS, newHandler)
 	}
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
@@ -535,8 +526,8 @@ func runDaemon(cfgPath string) {
 		}
 	}()
 
-	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6))
+	// Initial DNS handler; the server is started further down.
+	bootDNSHandler := buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
 
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
@@ -688,10 +679,11 @@ func runDaemon(cfgPath string) {
 		log.Printf("management API listening on %s", node.Node.APIAddress)
 	}
 
-	if err := dnsServer.Start(); err != nil {
+	dnsCfg, err := dnsServer.Start(snap.DNS, bootDNSHandler)
+	if err != nil {
 		log.Fatalf("start dns server: %v", err)
 	}
-	log.Printf("DNS server listening on :%d (mode=%s)", snap.DNS.Listen.Port, snap.DNS.Mode)
+	log.Printf("DNS server listening on :%d (mode=%s)", dnsCfg.Listen.Port, dnsCfg.Mode)
 
 	// M26 — block page HTTP server. Started when block_policy="redirect".
 	bpCfg := snap.Filtering.BlockPage
