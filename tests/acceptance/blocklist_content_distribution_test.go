@@ -180,6 +180,8 @@ func TestBlocklistContentOnlyLeaderDownloads(t *testing.T) {
 
 	bcdCreate(t, leader, ls.URL, 5)
 	bcdWaitAllCurrent(t, c, bcdListID, 30*time.Second)
+	// Followers must not download even while they have no copy yet.
+	bcdOnlyFrom(t, ls, leader)
 	ls.Reset()
 
 	time.Sleep(12 * time.Second)
@@ -565,7 +567,7 @@ func TestBlocklistContentSurvivesRestartOffline(t *testing.T) {
 	// Start the process directly: RestartNode also logs in, and the check
 	// must run as soon as DNS answers.
 	c.startProcess(t, follower)
-	bcdWaitDNSAnswer(t, follower, 10*time.Second)
+	bcdWaitDNSAnswer(t, follower, readyTimeout)
 	if !isBlocked(t, follower, bcdTracker) {
 		t.Errorf("restarted follower %s does not block %s once it answers DNS", follower.NodeID, bcdTracker)
 	}
@@ -598,7 +600,12 @@ func TestBlocklistContentNewNodeCopiesOnJoin(t *testing.T) {
 	// the new node to converge.
 	joinStart := time.Now()
 	joined := c.AddNode(t)
-	waitFor(t, 30*time.Second-time.Since(joinStart), func() bool {
+	remaining := 30*time.Second - time.Since(joinStart)
+	if remaining < 5*time.Second {
+		t.Fatalf("joining %s took %s, which leaves less than 5 s of the 30 s window to check that it blocks %s",
+			joined.NodeID, time.Since(joinStart).Round(time.Second), bcdTracker)
+	}
+	waitFor(t, remaining, func() bool {
 		return isBlocked(t, joined, bcdTracker)
 	}, "new node %s does not block %s within 30 s of joining", joined.NodeID, bcdTracker)
 	if !bcdCurrent(t, joined, bcdListID) {
@@ -655,10 +662,8 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", current)
 	}
 
-	// 50000 domains of about 27 bytes: well over 1 MB in the replicated
-	// state of the previous version, so the size check below can fail.
 	const prefix = "upgrade"
-	const size = 50000
+	const size = 1000
 	ls := startListServer(t, bcdDomains(size, prefix))
 	c := startClusterWithBinary(t, 3, bcdEnv, prev)
 	leader := c.Leader(t)
@@ -705,14 +710,18 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 	}, "upgraded nodes do not all block %s", bcdTracker)
 
 	// The leader records the version from its local copy, which clears the
-	// domains from the replicated state.
+	// domains from the replicated state. The shadow config is written after
+	// a 1 s debounce, so poll it. The size of a Raft snapshot is not checked
+	// here: it is a copy of cluster.bbolt, which never shrinks.
 	bcdWaitAllCurrent(t, c, bcdListID, 30*time.Second)
-	for _, n := range c.nodes {
-		if strings.Contains(string(readShadowYAML(t, n)), prefix+"-") {
-			t.Errorf("%s: shadow config.yaml still contains the downloaded domains of %q", n.NodeID, bcdListID)
+	waitFor(t, 15*time.Second, func() bool {
+		for _, n := range c.nodes {
+			if strings.Contains(string(readShadowYAML(t, n)), prefix+"-") {
+				return false
+			}
 		}
-	}
-	bcdCheckSnapshotSize(t, c.Leader(t))
+		return true
+	}, "a shadow config.yaml still contains the downloaded domains of %q", bcdListID)
 
 	if got := ls.RequestsByNode(); len(got) > 0 {
 		t.Errorf("upgraded nodes downloaded %q from its URL: %v", bcdListID, got)
