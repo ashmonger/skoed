@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/skoed/skoed/internal/auth"
+	"github.com/skoed/skoed/internal/blocklistcache"
 	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
@@ -99,6 +100,28 @@ type AppState interface {
 
 	// SetCustomRules replaces the cluster-wide custom filtering rules (M30.5).
 	SetCustomRules(rules string) error
+
+	// BlocklistContent returns this node's copy of URL blocklist content
+	// (M50), or nil when not wired.
+	BlocklistContent() *blocklistcache.Cache
+
+	// BlocklistRefresher returns the leader-side download path of URL
+	// blocklists (M50), or nil when not wired.
+	BlocklistRefresher() BlocklistRefresher
+}
+
+// BlocklistRefresher downloads URL blocklists on the leader (M50,
+// TS-BlocklistContentDistribution §4). Implemented by refresh.Scheduler.
+type BlocklistRefresher interface {
+	// UsesContent reports whether downloaded domains are kept out of the
+	// replicated state (cache present and capability gate met).
+	UsesContent() bool
+	// FetchContent downloads a list being created, writes this node's
+	// copy under id and returns the version to commit with the list.
+	FetchContent(id, url, format string) (*config.BlocklistContent, error)
+	// RefreshNow downloads list id and records the result like the
+	// scheduler. It returns the download error, if any.
+	RefreshNow(id string) error
 }
 
 // Handler groups all HTTP handlers and holds a reference to the application state.

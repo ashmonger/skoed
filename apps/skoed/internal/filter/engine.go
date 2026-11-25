@@ -267,7 +267,37 @@ func detectFormat(lines []string) string {
 	return "domainlist"
 }
 
+// ContentSource gives the engine the downloaded domains of URL blocklists,
+// which are not part of the replicated configuration (M50). Domains
+// returns this node's copy of list id, which may be older than the
+// replicated version sha256 while a copy from the leader is pending: the
+// previous copy keeps filtering until then. ok is false when the node
+// holds no copy.
+type ContentSource interface {
+	Domains(id, sha256 string) (domains []string, ok bool)
+}
+
+// blocklistDomains returns the domains the engine loads for bl. A URL list
+// with a content version reads this node's copy from src. Inline lists,
+// and URL lists written by a previous version (domains still replicated,
+// no content version), use bl.Domains.
+func blocklistDomains(bl config.Blocklist, src ContentSource) []string {
+	if bl.Source.Type == "url" && bl.Content != nil {
+		if src == nil {
+			return nil
+		}
+		domains, _ := src.Domains(bl.ID, bl.Content.SHA256)
+		return domains
+	}
+	return ParseStoredDomains(bl.Domains, bl.Source.Format)
+}
+
 func New(cfg config.FilteringConfig) *Engine {
+	return NewWithContent(cfg, nil)
+}
+
+// NewWithContent is New with the source of URL blocklist content.
+func NewWithContent(cfg config.FilteringConfig, src ContentSource) *Engine {
 	staticSet, scheduled := splitAllowlistEntries(cfg.AllowlistEntries, Now())
 	// Merge legacy plain-string allowlist into the static set.
 	for _, d := range cfg.Allowlist {
@@ -304,7 +334,7 @@ func New(cfg config.FilteringConfig) *Engine {
 		if !bl.Enabled {
 			continue
 		}
-		domains := ParseStoredDomains(bl.Domains, bl.Source.Format)
+		domains := blocklistDomains(bl, src)
 		entry := blocklistEntry{
 			id:      bl.ID,
 			policy:  parsePolicy(bl.BlockPolicy),
@@ -323,7 +353,13 @@ func New(cfg config.FilteringConfig) *Engine {
 // in each profile. Calls to EvaluateForClient walk per-profile blocklists;
 // the legacy Evaluate is preserved for the no-client-info code paths.
 func NewProfiled(cfg *config.Config) *Engine {
-	e := New(cfg.Filtering)
+	return NewProfiledWithContent(cfg, nil)
+}
+
+// NewProfiledWithContent is NewProfiled with the source of URL blocklist
+// content.
+func NewProfiledWithContent(cfg *config.Config, src ContentSource) *Engine {
+	e := NewWithContent(cfg.Filtering, src)
 	e.profiles = make([]profileEntry, 0, len(cfg.Profiles))
 	now := Now()
 	for _, p := range cfg.Profiles {

@@ -143,8 +143,14 @@ func (h *Handler) EnableCategory(w http.ResponseWriter, r *http.Request) {
 		}
 		// For URL-based categories download domains immediately so the blocklist
 		// is usable right after enablement without a separate manual refresh.
+		// M50: like the create path, the leader keeps the domains in its own
+		// copy and replicates their version. A failed download leaves the
+		// list without a version, so the scheduler downloads it next tick.
+		var content *config.BlocklistContent
 		if src.Type == "url" && src.URL != "" {
-			if downloaded, err := filter.Download(src.URL, src.Format, 30*time.Second); err == nil {
+			if ref := h.app.BlocklistRefresher(); ref != nil && ref.UsesContent() {
+				content, _ = ref.FetchContent(blID, src.URL, src.Format)
+			} else if downloaded, err := filter.Download(src.URL, src.Format, 30*time.Second); err == nil {
 				domains = downloaded
 			}
 		}
@@ -156,6 +162,12 @@ func (h *Handler) EnableCategory(w http.ResponseWriter, r *http.Request) {
 			Domains:     domains,
 			LastUpdated: time.Now().UTC().Format(time.RFC3339),
 			Managed:     true,
+		}
+		if content != nil {
+			bl.Content = content
+			bl.LastUpdated = content.FetchedAt
+			bl.LastRefreshAt = content.FetchedAt
+			bl.LastRefreshStatus = "ok"
 		}
 		if err := cluster.UpsertBlocklist(bl); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

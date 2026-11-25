@@ -91,6 +91,9 @@ const (
 	CmdNewDynamicClientDismiss   CommandKind = "new_dynamic_client.dismiss"
 )
 
+// M50 — version of a URL blocklist's downloaded content (no domains).
+const CmdBlocklistContentSet CommandKind = "blocklist.content_set"
+
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
 // — its concrete type depends on Kind. We keep the version field to leave a
 // clear upgrade path if the schema ever changes.
@@ -115,6 +118,21 @@ func Encode(kind CommandKind, payload any) ([]byte, error) {
 
 type BlocklistUpsertPayload struct {
 	Blocklist config.Blocklist `json:"blocklist"`
+}
+
+// BlocklistContentSetPayload records the result of one download of a URL
+// blocklist by the leader (M50). Content is set only when Status is "ok".
+type BlocklistContentSetPayload struct {
+	ID        string                   `json:"id"`
+	Content   *config.BlocklistContent `json:"content,omitempty"`
+	Status    string                   `json:"status"` // ok | unchanged | error
+	Error     string                   `json:"error,omitempty"`
+	RefreshAt string                   `json:"refresh_at"` // RFC3339
+	// URL and Format are the source the download used. The entry is
+	// ignored when they differ from the stored source: a PATCH that changed
+	// the source while the download ran wins.
+	URL    string `json:"url"`
+	Format string `json:"format"`
 }
 
 type BlocklistDeletePayload struct {
