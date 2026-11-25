@@ -18,6 +18,8 @@ const (
 	CmdBlocklistUpsert      CommandKind = "blocklist.upsert"
 	CmdBlocklistDelete      CommandKind = "blocklist.delete"
 	CmdBlocklistSetEnabled  CommandKind = "blocklist.set_enabled"
+	// M50 — version of a URL blocklist's downloaded content (no domains).
+	CmdBlocklistContentSet CommandKind = "blocklist.content_set"
 	CmdAllowlistAdd         CommandKind = "allowlist.add"
 	CmdAllowlistRemove      CommandKind = "allowlist.remove"
 	CmdSharedAllowlistUpsert CommandKind = "shared_allowlist.upsert" // M36
@@ -115,6 +117,16 @@ func Encode(kind CommandKind, payload any) ([]byte, error) {
 
 type BlocklistUpsertPayload struct {
 	Blocklist config.Blocklist `json:"blocklist"`
+}
+
+// BlocklistContentSetPayload records the result of one download of a URL
+// blocklist by the leader (M50). Content is set only when Status is "ok".
+type BlocklistContentSetPayload struct {
+	ID        string                   `json:"id"`
+	Content   *config.BlocklistContent `json:"content,omitempty"`
+	Status    string                   `json:"status"` // ok | unchanged | error
+	Error     string                   `json:"error,omitempty"`
+	RefreshAt string                   `json:"refresh_at"` // RFC3339
 }
 
 type BlocklistDeletePayload struct {
