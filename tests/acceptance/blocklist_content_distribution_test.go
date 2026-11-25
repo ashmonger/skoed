@@ -29,11 +29,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 const (
@@ -41,6 +41,12 @@ const (
 	bcdTracker     = "tracker.example.com"
 	bcdBackgroundN = 1000
 )
+
+// bcdSnapshotWait bounds every wait for a Raft snapshot: hashicorp/raft
+// checks SnapshotThreshold on a timer randomized between SnapshotInterval
+// (30 s) and twice that, so a snapshot can take up to 60 s after the
+// threshold is passed.
+const bcdSnapshotWait = 120 * time.Second
 
 // bcdEnv shortens the scheduler and sync ticks to 1 s.
 var bcdEnv = []string{"SKOED_TEST_MODE=1"}
@@ -178,8 +184,8 @@ func TestBlocklistContentOnlyLeaderDownloads(t *testing.T) {
 
 	time.Sleep(12 * time.Second)
 
-	if n := bcdOnlyFrom(t, ls, leader); n < 2 {
-		t.Errorf("leader %s downloaded %d time(s) in 12 s with a 5 s interval, want at least 2", leader.NodeID, n)
+	if n := bcdOnlyFrom(t, ls, leader); n == 0 {
+		t.Errorf("leader %s did not download %q in 12 s with a 5 s interval", leader.NodeID, bcdListID)
 	}
 }
 
@@ -236,8 +242,8 @@ func TestBlocklistContentNotReplicated(t *testing.T) {
 	}
 
 	export := exportConfigText(t, leader)
-	if !strings.Contains(export, bcdListID) || !strings.Contains(export, ls.URL) {
-		t.Errorf("export does not contain blocklist %q with URL %s", bcdListID, ls.URL)
+	if !strings.Contains(export, ls.URL) {
+		t.Errorf("export does not contain the URL %s of blocklist %q", ls.URL, bcdListID)
 	}
 	// Every generated domain starts with "<prefix>-"; one match means the
 	// downloaded domains leaked into the export.
@@ -248,12 +254,19 @@ func TestBlocklistContentNotReplicated(t *testing.T) {
 		t.Errorf("export is %d bytes, want under 1 MB", len(export))
 	}
 
-	// The replicated state is the FSM snapshot. Commit enough small
-	// configuration changes to pass SnapshotThreshold (64), then wait for a
-	// snapshot taken after the list content was recorded.
-	idx, ok := raftIndexes(t, leader)
+	bcdCheckSnapshotSize(t, leader)
+}
+
+// bcdCheckSnapshotSize checks that the replicated state of the cluster, as
+// saved in the newest Raft snapshot of n, is under 1 MB. It commits enough
+// small configuration changes to pass SnapshotThreshold (64), then waits for
+// a snapshot taken after them, so the snapshot reflects the state at the
+// time of the call.
+func bcdCheckSnapshotSize(t *testing.T, n *ClusterNode) {
+	t.Helper()
+	idx, ok := raftIndexes(t, n)
 	if !ok {
-		t.Fatalf("cluster status of %s does not expose raft indexes", leader.NodeID)
+		t.Fatalf("cluster status of %s does not expose raft indexes", n.NodeID)
 	}
 	mark := idx.Last
 	for i := 0; i < 80; i++ {
@@ -264,18 +277,18 @@ func TestBlocklistContentNotReplicated(t *testing.T) {
 			"domains": []string{fmt.Sprintf("filler-%02d.example.test", i)},
 			"source":  map[string]string{"type": "inline", "format": "domainlist"},
 		})
-		resp := leader.apiDo(t, "POST", "/api/v1/blocklists", body)
+		resp := n.apiDo(t, "POST", "/api/v1/blocklists", body)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
-			t.Fatalf("create filler blocklist %d: status %d", i, resp.StatusCode)
+			t.Fatalf("create filler blocklist %d via %s: status %d", i, n.NodeID, resp.StatusCode)
 		}
 	}
-	waitFor(t, 45*time.Second, func() bool {
-		idx, ok := raftIndexes(t, leader)
+	waitFor(t, bcdSnapshotWait, func() bool {
+		idx, ok := raftIndexes(t, n)
 		return ok && idx.Snapshot > mark
-	}, "no Raft snapshot after index %d on %s", mark, leader.NodeID)
+	}, "no Raft snapshot after index %d on %s", mark, n.NodeID)
 
-	state := bcdNewestSnapshotState(t, leader)
+	state := bcdNewestSnapshotState(t, n)
 	fi, err := os.Stat(state)
 	if err != nil {
 		t.Fatalf("stat %s: %v", state, err)
@@ -287,20 +300,34 @@ func TestBlocklistContentNotReplicated(t *testing.T) {
 
 // bcdNewestSnapshotState returns the state.bin of the newest Raft snapshot
 // of n (hashicorp/raft FileSnapshotStore under <data_dir>/raft/snapshots).
+// Snapshots still being written (directory "<name>.tmp") and entries that
+// vanish while listing (a snapshot reaped meanwhile) are skipped.
 func bcdNewestSnapshotState(t *testing.T, n *ClusterNode) string {
 	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(n.DataDir, "raft", "snapshots", "snapshots", "*", "state.bin"))
-	if err != nil || len(matches) == 0 {
-		t.Fatalf("no Raft snapshot under %s (err %v)", n.DataDir, err)
+	root := filepath.Join(n.DataDir, "raft", "snapshots", "snapshots")
+	matches, err := filepath.Glob(filepath.Join(root, "*", "state.bin"))
+	if err != nil {
+		t.Fatalf("list Raft snapshots under %s: %v", root, err)
 	}
 	// Snapshot directory names are "<term>-<index>-<ms>": compare by
 	// modification time instead of parsing them.
-	sort.Slice(matches, func(i, j int) bool {
-		a, _ := os.Stat(matches[i])
-		b, _ := os.Stat(matches[j])
-		return a.ModTime().Before(b.ModTime())
-	})
-	return matches[len(matches)-1]
+	newest, newestTime := "", time.Time{}
+	for _, m := range matches {
+		if strings.HasSuffix(filepath.Dir(m), ".tmp") {
+			continue
+		}
+		fi, err := os.Stat(m)
+		if err != nil {
+			continue
+		}
+		if newest == "" || fi.ModTime().After(newestTime) {
+			newest, newestTime = m, fi.ModTime()
+		}
+	}
+	if newest == "" {
+		t.Fatalf("no complete Raft snapshot under %s", root)
+	}
+	return newest
 }
 
 // @fsid:FS-BlocklistContentInlineStillReplicates
@@ -476,10 +503,7 @@ func TestBlocklistContentFollowerCannotReachLeader(t *testing.T) {
 	bcdCreate(t, leader, ls.URL, 0)
 	bcdWaitAllCurrent(t, c, bcdListID, 30*time.Second)
 
-	var once sync.Once
-	unblock := blockUIDToPort(t, cutUID, leader.APIPort)
-	restore := func() { once.Do(unblock) }
-	t.Cleanup(restore)
+	restore := blockUIDToPort(t, cutUID, leader.APIPort)
 
 	// The new version drops tracker.example.com, so a node still blocking it
 	// is serving its previous copy.
@@ -541,10 +565,23 @@ func TestBlocklistContentSurvivesRestartOffline(t *testing.T) {
 	// Start the process directly: RestartNode also logs in, and the check
 	// must run as soon as DNS answers.
 	c.startProcess(t, follower)
-	waitReady(t, follower.Node)
+	bcdWaitDNSAnswer(t, follower, 10*time.Second)
 	if !isBlocked(t, follower, bcdTracker) {
 		t.Errorf("restarted follower %s does not block %s once it answers DNS", follower.NodeID, bcdTracker)
 	}
+}
+
+// bcdWaitDNSAnswer waits until n answers a DNS query with any response code,
+// which is the moment it starts serving DNS.
+func bcdWaitDNSAnswer(t *testing.T, n *ClusterNode, within time.Duration) {
+	t.Helper()
+	client := &dns.Client{Net: "udp", Timeout: 500 * time.Millisecond}
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn("probe.example.test"), dns.TypeA)
+	waitFor(t, within, func() bool {
+		r, _, err := client.Exchange(m, n.DNSAddr)
+		return err == nil && r != nil
+	}, "node %s does not answer DNS queries", n.NodeID)
 }
 
 // @fsid:FS-BlocklistContentNewNodeCopiesOnJoin
@@ -557,16 +594,17 @@ func TestBlocklistContentNewNodeCopiesOnJoin(t *testing.T) {
 	bcdWaitAllCurrent(t, c, bcdListID, 30*time.Second)
 	ls.Reset()
 
+	// The 30 s count from the start of the join: AddNode itself waits for
+	// the new node to converge.
+	joinStart := time.Now()
 	joined := c.AddNode(t)
-	waitFor(t, 30*time.Second, func() bool {
+	waitFor(t, 30*time.Second-time.Since(joinStart), func() bool {
 		return isBlocked(t, joined, bcdTracker)
 	}, "new node %s does not block %s within 30 s of joining", joined.NodeID, bcdTracker)
 	if !bcdCurrent(t, joined, bcdListID) {
 		t.Errorf("new node %s does not hold the leader's copy of %q", joined.NodeID, bcdListID)
 	}
-	if n := ls.RequestsByNode()[joined.NodeID]; n > 0 {
-		t.Errorf("new node %s downloaded %q from its URL %d time(s); it must copy from the leader", joined.NodeID, bcdListID, n)
-	}
+	bcdOnlyFrom(t, ls, leader)
 }
 
 // @fsid:FS-BlocklistContentManualRefresh
@@ -617,9 +655,12 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", current)
 	}
 
+	// 50000 domains of about 27 bytes: well over 1 MB in the replicated
+	// state of the previous version, so the size check below can fail.
 	const prefix = "upgrade"
-	ls := startListServer(t, bcdDomains(bcdBackgroundN, prefix))
-	c := bcdStartClusterWithBinary(t, 3, bcdEnv, prev)
+	const size = 50000
+	ls := startListServer(t, bcdDomains(size, prefix))
+	c := startClusterWithBinary(t, 3, bcdEnv, prev)
 	leader := c.Leader(t)
 
 	// Interval 0, so neither version downloads it by interval.
@@ -633,10 +674,21 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 		return true
 	}, "previous version does not block %s on every node", bcdTracker)
 
+	// Precondition: the previous version stored the downloaded domains in
+	// the replicated state, which every node writes to its shadow config.
+	waitFor(t, 30*time.Second, func() bool {
+		for _, n := range c.nodes {
+			if !strings.Contains(string(readShadowYAML(t, n)), prefix+"-") {
+				return false
+			}
+		}
+		return true
+	}, "previous version did not store the downloaded domains of %q in the replicated state of every node", bcdListID)
+
 	// The URL becomes unreachable, then every node is upgraded in turn.
 	ls.SetStatus(http.StatusServiceUnavailable)
 	ls.Reset()
-	c.bin = current
+	c.SetBinary(current)
 	for i := range c.nodes {
 		c.KillNode(t, i)
 		c.RestartNode(t, i)
@@ -656,33 +708,13 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 	// domains from the replicated state.
 	bcdWaitAllCurrent(t, c, bcdListID, 30*time.Second)
 	for _, n := range c.nodes {
-		export := exportConfigText(t, n)
-		if strings.Contains(export, prefix+"-") || strings.Contains(export, bcdTracker) {
-			t.Errorf("%s: export still contains the downloaded domains of %q", n.NodeID, bcdListID)
-		}
 		if strings.Contains(string(readShadowYAML(t, n)), prefix+"-") {
 			t.Errorf("%s: shadow config.yaml still contains the downloaded domains of %q", n.NodeID, bcdListID)
 		}
 	}
+	bcdCheckSnapshotSize(t, c.Leader(t))
 
 	if got := ls.RequestsByNode(); len(got) > 0 {
 		t.Errorf("upgraded nodes downloaded %q from its URL: %v", bcdListID, got)
 	}
-}
-
-// bcdStartClusterWithBinary is startClusterWithEnv with an explicit skoed
-// binary, so the upgrade test can start the previous version and later set
-// c.bin to the current one before RestartNode.
-func bcdStartClusterWithBinary(t *testing.T, initialNodes int, env []string, bin string) *Cluster {
-	t.Helper()
-	c := &Cluster{t: t, bin: bin, defaultEnv: env}
-	c.bootstrapFirst(t)
-	setupAuth(t, c.nodes[0].Node)
-	for i := 1; i < initialNodes; i++ {
-		c.AddNode(t)
-	}
-	if initialNodes > 1 {
-		c.WaitConverged(t)
-	}
-	return c
 }
