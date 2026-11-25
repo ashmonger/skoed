@@ -197,13 +197,12 @@ func (c *Cache) Write(id string, domains []string) (Entry, error) {
 	if c.Has(id, e.SHA256) {
 		return e, nil
 	}
-	tmp, err := os.CreateTemp(c.dir, url.PathEscape(id)+".*.tmp")
+	tmp, err := c.createTemp(id)
 	if err != nil {
-		return Entry{}, fmt.Errorf("create tmp: %w", err)
+		return Entry{}, err
 	}
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		_ = os.Remove(tmp.Name())
+		discardTemp(tmp)
 		return Entry{}, fmt.Errorf("write %s: %w", tmp.Name(), err)
 	}
 	if err := c.commit(id, tmp, e); err != nil {
@@ -220,9 +219,9 @@ func (c *Cache) Install(id string, r io.Reader, wantSHA256 string) (Entry, error
 	if err := validID(id); err != nil {
 		return Entry{}, err
 	}
-	tmp, err := os.CreateTemp(c.dir, url.PathEscape(id)+".*.tmp")
+	tmp, err := c.createTemp(id)
 	if err != nil {
-		return Entry{}, fmt.Errorf("create tmp: %w", err)
+		return Entry{}, err
 	}
 	h := sha256.New()
 	lines := &lineCounter{}
@@ -231,20 +230,34 @@ func (c *Cache) Install(id string, r io.Reader, wantSHA256 string) (Entry, error
 		err = fmt.Errorf("content larger than %d bytes", maxFileBytes)
 	}
 	if err != nil {
-		tmp.Close()
-		_ = os.Remove(tmp.Name())
+		discardTemp(tmp)
 		return Entry{}, err
 	}
 	e := Entry{SHA256: hex.EncodeToString(h.Sum(nil)), Count: lines.n}
 	if e.SHA256 != wantSHA256 {
-		tmp.Close()
-		_ = os.Remove(tmp.Name())
+		discardTemp(tmp)
 		return Entry{}, fmt.Errorf("%w: got %s, want %s", ErrHashMismatch, e.SHA256, wantSHA256)
 	}
 	if err := c.commit(id, tmp, e); err != nil {
 		return Entry{}, err
 	}
 	return e, nil
+}
+
+// createTemp creates the temporary file a new copy of list id is written
+// to before commit.
+func (c *Cache) createTemp(id string) (*os.File, error) {
+	tmp, err := os.CreateTemp(c.dir, url.PathEscape(id)+".*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("create tmp: %w", err)
+	}
+	return tmp, nil
+}
+
+// discardTemp closes and deletes a temporary file that is not committed.
+func discardTemp(tmp *os.File) {
+	tmp.Close()
+	_ = os.Remove(tmp.Name())
 }
 
 // commit fsyncs and closes tmp, sets its mode to 0600, and renames it over
