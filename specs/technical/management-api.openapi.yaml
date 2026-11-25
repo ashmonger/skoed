@@ -920,8 +920,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "409":
+          description: Leadership moved during the refresh; the body names the leader's main API address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: The download succeeded but the local copy or the Raft write failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "503":
-          description: No refresher is available on this node (daemon starting or shutting down)
+          description: No refresher is available on this node (daemon starting or shutting down), or no leader is known
           content:
             application/json:
               schema:
