@@ -62,29 +62,16 @@ type raftOptions struct {
 }
 
 func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
-	if err := os.MkdirAll(filepath.Join(opts.DataDir, "raft"), 0700); err != nil {
-		return nil, fmt.Errorf("create raft dir: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Join(opts.DataDir, raftSnapshotsDir), 0700); err != nil {
-		return nil, fmt.Errorf("create snapshot dir: %w", err)
-	}
-
-	logStore, err := openRaftStore(filepath.Join(opts.DataDir, RaftLogPath))
-	if err != nil {
-		return nil, fmt.Errorf("open raft log store: %w", err)
-	}
-	stableStore, err := openRaftStore(filepath.Join(opts.DataDir, raftStablePath))
-	if err != nil {
-		logStore.Close()
-		return nil, fmt.Errorf("open raft stable store: %w", err)
-	}
 	// Until the node is returned, every failure stops Raft and closes the
 	// transport and the stores, so the bind address and the file locks are
-	// released.
+	// released. Once the transport exists, closing it closes
+	// opts.TLSStreamLayer; before that, the stream layer is closed directly.
 	var (
-		r         *raft.Raft
-		transport *raft.NetworkTransport
-		created   bool
+		r           *raft.Raft
+		transport   *raft.NetworkTransport
+		logStore    *raftboltdb.BoltStore
+		stableStore *raftboltdb.BoltStore
+		created     bool
 	)
 	defer func() {
 		if created {
@@ -95,10 +82,33 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		}
 		if transport != nil {
 			transport.Close()
+		} else if opts.TLSStreamLayer != nil {
+			opts.TLSStreamLayer.Close()
 		}
-		logStore.Close()
-		stableStore.Close()
+		if logStore != nil {
+			logStore.Close()
+		}
+		if stableStore != nil {
+			stableStore.Close()
+		}
 	}()
+
+	if err := os.MkdirAll(filepath.Join(opts.DataDir, "raft"), 0700); err != nil {
+		return nil, fmt.Errorf("create raft dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(opts.DataDir, raftSnapshotsDir), 0700); err != nil {
+		return nil, fmt.Errorf("create snapshot dir: %w", err)
+	}
+
+	var err error
+	logStore, err = openRaftStore(filepath.Join(opts.DataDir, RaftLogPath))
+	if err != nil {
+		return nil, fmt.Errorf("open raft log store: %w", err)
+	}
+	stableStore, err = openRaftStore(filepath.Join(opts.DataDir, raftStablePath))
+	if err != nil {
+		return nil, fmt.Errorf("open raft stable store: %w", err)
+	}
 
 	snaps, err := raft.NewFileSnapshotStore(filepath.Join(opts.DataDir, raftSnapshotsDir), 3, opts.Logger)
 	if err != nil {

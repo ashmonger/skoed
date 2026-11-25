@@ -180,6 +180,8 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
+		// newRaftNode has closed streamLayer, through the transport or
+		// directly when it failed before creating one.
 		store.Close()
 		return nil, fmt.Errorf("start raft: %w", err)
 	}

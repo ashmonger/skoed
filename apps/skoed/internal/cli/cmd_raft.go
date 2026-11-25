@@ -76,10 +76,15 @@ func raftCompactDataDir(cmd *cobra.Command) (string, error) {
 
 // compactRaftLog rewrites logPath with bolt.Compact (TS §9). The original
 // is opened read-only, which fails when the daemon holds its lock, and stays
-// open until the end so the lock is held throughout. The compacted copy is
-// written to logPath.compact; the original is then hard-linked to
-// logPath.pre-compact and the copy renamed over logPath, so logPath exists at
-// every point and a crash never leaves the node without its log.
+// open until the end. The compacted copy is written to logPath.compact; the
+// original is then hard-linked to logPath.pre-compact and the copy renamed
+// over logPath, so logPath exists at every point and a crash never leaves
+// the node without its log. The lock belongs to the original inode, so it
+// keeps the daemon away from logPath only until the rename; after it, the
+// lock covers logPath.pre-compact and a daemon started then opens the
+// compacted file. logPath.compact is created with O_EXCL, so a second
+// compaction running at the same time stops there instead of removing the
+// first one's copy.
 func compactRaftLog(cmd *cobra.Command, logPath string) error {
 	compactPath := logPath + ".compact"
 	preCompactPath := logPath + ".pre-compact"
@@ -102,8 +107,17 @@ func compactRaftLog(cmd *cobra.Command, logPath string) error {
 	if _, err := os.Stat(preCompactPath); err == nil {
 		return errPreCompactExists(preCompactPath)
 	}
-	// Left over by an interrupted compaction; it was never renamed in place.
-	if err := os.Remove(compactPath); err != nil && !os.IsNotExist(err) {
+	// The copy is created here, empty, so that only one compaction owns it.
+	// bolt.Open initializes an empty file.
+	f, err := os.OpenFile(compactPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, orig.Mode().Perm())
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("%s already exists: another compaction is running, or one was interrupted; delete it if none is running, then run the compaction again", compactPath)
+	}
+	if err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(compactPath)
 		return err
 	}
 
@@ -123,8 +137,10 @@ func compactRaftLog(cmd *cobra.Command, logPath string) error {
 		os.Remove(compactPath)
 		return err
 	}
+	// The rename is done: from here on, an error must not suggest the
+	// compaction failed.
 	if err := syncDir(filepath.Dir(logPath)); err != nil {
-		return err
+		return fmt.Errorf("%s compacted; original kept as %s; directory fsync failed: %w", logPath, preCompactPath, err)
 	}
 
 	compacted, err := os.Stat(logPath)
