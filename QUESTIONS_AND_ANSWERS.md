@@ -74,3 +74,9 @@ None.
 
 - **Q**: M50 — with mTLS on, should a peer with no recorded peer address be reached over plain HTTP (sending the cluster secret in clear)?
   **A**: Never plain HTTP. Use https on the recorded peer address, or on the default (Raft host, Raft port + 1). During a rolling upgrade, writes forwarded to an older leader fail with 503 until the leader is upgraded. — 2026-11-25
+
+- **Q**: M50 — the run hit the 3-cycle cap with one MAJOR left (a lost capability gate does not force a fresh download of converted lists). How to proceed?
+  **A**: One more focused cycle under a Rule 14 exception, limited to that fix and a few small safety fixes; see `decisions/20261125-M50FourthCycle.md`. — 2026-11-25
+
+- **Q**: M50 — should join refuse node IDs a certificate cannot pin (localhost, IP literals) when mTLS is off?
+  **A**: No. Refuse them only on an mTLS cluster; mtls-bootstrap and the start-time check keep refusing them with mTLS on. — 2026-11-25

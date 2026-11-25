@@ -125,12 +125,15 @@ upgrade. The cluster secret never crosses the network in clear.
   requires the cluster secret; on the peer listener the client
   certificate's CN must also equal `node_id` (403 otherwise); an unknown
   `node_id` gets 404, so a removed node cannot add itself back.
-- A node ID that cannot be pinned is refused: `localhost` (any case, with
-  or without a trailing dot) and any IP literal. Every leaf carries the SANs
-  `localhost`, 127.0.0.1 and ::1, and Go matches an IP `ServerName` against
-  IP SANs only. Join and mtls-bootstrap answer 400; a node whose own ID is
-  such a value refuses to start with mTLS enabled (this covers the
-  bootstrap node, which never joins).
+- A node ID that cannot be pinned is refused when mTLS is enabled:
+  `localhost` (any case, with or without a trailing dot) and any IP
+  literal, including bracketed or zoned forms (`[::1]`, `::1%lo`). Every
+  leaf carries the SANs `localhost`, 127.0.0.1 and ::1, and Go matches an
+  IP `ServerName` against IP SANs only. On an mTLS cluster, join answers
+  400; mtls-bootstrap always answers 400 (it only runs with mTLS); a node
+  whose own ID is such a value refuses to start with mTLS enabled (this
+  covers the bootstrap node, which never joins). With mTLS off such IDs
+  are accepted (UoR decision, 2026-11-25).
 - With mTLS enabled, the peer transport refuses any `http://` URL, so no
   caller can send the cluster secret in clear.
 
