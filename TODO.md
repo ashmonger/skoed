@@ -522,7 +522,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [x] M50 — functional spec: `specs/functional/blocklist-content-distribution.feature` (16 FSIDs) — 2026-11-25
 - [x] M50 — UoR validated functional spec — 2026-11-25
 - [x] M50 — technical spec: `specs/technical/blocklist-content-distribution.md` (TS-BlocklistContentDistribution) + `management-api.openapi.yaml` — 2026-11-25
-- [ ] M50 — UoR validated technical spec
+- [x] M50 — UoR validated technical spec (blocklist content distribution + peer mTLS) — 2026-11-25
 - [ ] M50 — peer HTTP over mTLS: implement FS-MtlsInternalApiHTTPS as
   revised in `specs/technical/encrypted-cluster-mesh.md` ("Internal API").
   No peer HTTP client used TLS so far, so `X-Cluster-Secret` crosses the
