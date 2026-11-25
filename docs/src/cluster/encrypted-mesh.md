@@ -45,6 +45,35 @@ All nodes must share the **same CA certificate** but each node must have its **o
 
 ---
 
+## Peer API listener
+
+With `node.cluster.mtls.enabled: true`, each node opens a second API listener for its peers on `node.cluster.peer_api_address` (default: the Raft host with the Raft port + 1, e.g. `127.0.0.1:7001` for `raft_address: 127.0.0.1:7000`). It serves the same API, but only to clients presenting a certificate signed by the cluster CA. Forwarded writes, hourly statistics, the cluster-wide query log, the rolling upgrade and the blocklist copy between nodes use it.
+
+```yaml
+node:
+  raft_address: 10.0.0.11:7000
+  cluster:
+    mtls:
+      enabled: true
+    peer_api_address: 10.0.0.11:7001   # optional
+```
+
+Open this port between cluster nodes in the firewall: it is a new port when you upgrade an mTLS cluster from a version without the peer listener. The main API listener then refuses requests carrying the cluster secret (`X-Cluster-Secret`), and peers are always called over HTTPS, never plain HTTP, so the secret never travels in clear. Joining a node still goes through the main API, authenticated by the join token. A node ID of `localhost` is refused at join, because every cluster certificate carries that name.
+
+If `peer_api_address` is not set and cannot be derived from `raft_address` (unparseable address, or Raft port 65535), the node refuses to start.
+
+### Rolling upgrade with mTLS
+
+A node that has no peer address recorded yet (it runs a previous version, or it has just been upgraded) is called on the default address, its Raft host and Raft port + 1. A node still running a previous version does not serve that listener, so it cannot be reached for peer calls: writes sent to a follower and forwarded to a leader that has not been upgraded yet fail with 503 until the leader is upgraded. The rolling upgrade upgrades the leader last, so this lasts for the duration of the upgrade; send writes to the leader directly in the meantime.
+
+### Certificate rotation
+
+The peer listener and the peer clients load the node certificate once, at start, like Raft. After a certificate rotation, restart each node to use the new certificate.
+
+With mTLS disabled (the default), peers call each other's main API over plain HTTP, and the cluster secret crosses the network in clear.
+
+---
+
 ## Certificate Generation
 
 The following example creates a self-signed cluster CA and signs a certificate for each node. Run these commands on a secure machine and distribute the resulting files.

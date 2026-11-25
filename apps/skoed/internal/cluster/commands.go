@@ -206,10 +206,12 @@ type ConfigImportPayload struct {
 }
 
 type MemberUpsertPayload struct {
-	NodeID      string `json:"node_id"`
-	RaftAddress string `json:"raft_address"`
-	APIAddress  string `json:"api_address"`
-	JoinedUnix  int64  `json:"joined_unix"`
+	NodeID         string   `json:"node_id"`
+	RaftAddress    string   `json:"raft_address"`
+	APIAddress     string   `json:"api_address"`
+	JoinedUnix     int64    `json:"joined_unix"`
+	PeerAPIAddress string   `json:"peer_api_address,omitempty"`
+	Capabilities   []string `json:"capabilities,omitempty"`
 }
 
 type MemberRemovePayload struct {

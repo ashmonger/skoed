@@ -42,6 +42,11 @@ type Cluster struct {
 	raft   *raftNode
 	logger raftLoggerFn
 
+	// raftMu guards the c.raft pointer against ResetRaftForJoin for code
+	// that runs in the background, such as selfMemberSyncLoop; read it
+	// there with currentRaft.
+	raftMu sync.RWMutex
+
 	mu          sync.Mutex
 	subscribers []func()
 
@@ -54,6 +59,9 @@ type Cluster struct {
 	mtlsCA       []byte
 	mtlsLeafCert []byte
 	mtlsLeafKey  []byte
+
+	// M50 — peer HTTP over the cluster mTLS (peer_http.go).
+	peer peerState
 }
 
 // MTLSEnabled reports whether this cluster runs with the M5.3 encrypted
@@ -186,6 +194,14 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 
 	c.raft = rn
 
+	if err := c.initPeer(); err != nil {
+		_ = rn.Shutdown()
+		store.Close()
+		return nil, err
+	}
+	c.peer.loopDone = make(chan struct{})
+	go c.selfMemberSyncLoop()
+
 	// If we bootstrapped, register ourselves in the replicated members bucket
 	// once Raft elects us leader (which happens immediately for a single-node).
 	if wantBootstrap {
@@ -195,8 +211,10 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 	return c, nil
 }
 
-// Close shuts down Raft and the bbolt store.
+// Close stops the self member sync loop and waits for it to exit, then shuts
+// down Raft and the bbolt store.
 func (c *Cluster) Close() error {
+	c.stopPeer()
 	if c.raft != nil {
 		_ = c.raft.Shutdown()
 	}
@@ -245,8 +263,17 @@ func (c *Cluster) ResetRaftForJoin() error {
 	if err != nil {
 		return fmt.Errorf("restart raft: %w", err)
 	}
+	c.raftMu.Lock()
 	c.raft = rn
+	c.raftMu.Unlock()
 	return nil
+}
+
+// currentRaft returns the Raft node, read under raftMu.
+func (c *Cluster) currentRaft() *raftNode {
+	c.raftMu.RLock()
+	defer c.raftMu.RUnlock()
+	return c.raft
 }
 
 // Subscribe registers fn to be called after every committed FSM apply on this
@@ -297,12 +324,38 @@ func (c *Cluster) NodeID() string { return c.node.Node.ID }
 // CommitIndex returns the latest log index applied by this node's FSM.
 func (c *Cluster) CommitIndex() uint64 { return c.raft.CommitIndex() }
 
-// LeaderAPIAddress returns the HTTP base URL of the current leader (e.g.
-// "http://192.168.1.10:8080") or "" if no leader is yet known. Looks up the
-// leader's NodeID from Raft and resolves its api_address from the replicated
-// members bucket.
+// LeaderAPIAddress returns the base URL peers use to reach the current
+// leader, or "" if no leader is yet known. Looks up the leader's NodeID from
+// Raft and resolves its address from the replicated members bucket (see
+// memberURL). With mTLS enabled, it is always the leader's peer API listener
+// over HTTPS, never plain HTTP: "https://<peer_api_address>", or
+// "https://<raft host>:<raft port + 1>" when the leader has recorded none
+// (send requests to it with PeerHTTPClient). With mTLS disabled, it is the
+// leader's main API, e.g. "http://192.168.1.10:8080".
 func (c *Cluster) LeaderAPIAddress() string {
-	raftAddr, id := c.raft.Leader()
+	return c.leaderURL(c.currentRaft())
+}
+
+// leaderURL is LeaderAPIAddress, with the leader read from rn.
+func (c *Cluster) leaderURL(rn *raftNode) string {
+	raftAddr, id := rn.Leader()
+	if id == "" {
+		return ""
+	}
+	m, err := c.store.MemberByID(string(id))
+	if err != nil || m == nil {
+		return ""
+	}
+	raftHost, _, _ := net.SplitHostPort(string(raftAddr))
+	return c.memberURL(*m, raftHost)
+}
+
+// LeaderMainAPIAddress returns the main API base URL of the current leader
+// (the operator-facing listener, never the peer listener), or "" if no
+// leader is yet known. Used in responses that tell a client where the
+// leader is.
+func (c *Cluster) LeaderMainAPIAddress() string {
+	raftAddr, id := c.currentRaft().Leader()
 	if id == "" {
 		return ""
 	}
@@ -495,15 +548,16 @@ func (c *Cluster) forwardAggregate(agg HourAggregate) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, leaderURL+"/api/v1/cluster/_internal/aggregates", bytes.NewReader(body))
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, leaderURL+"/api/v1/cluster/_internal/aggregates", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Cluster-Secret", secret)
 
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := c.PeerHTTPClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("post aggregate to leader: %w", err)
 	}
@@ -872,7 +926,10 @@ func (c *Cluster) MintLeafForJoin(token, nodeID string) (caCert, leafCert, leafK
 // Validates the token, consumes it via Raft, then issues AddVoter. Returns
 // when the new node has caught up (or after timeout). On token failure
 // returns the typed JoinError so the handler can map to 403.
-func (c *Cluster) EnrollNode(token, nodeID, raftAddress, apiAddress string) (*JoinResult, error) {
+//
+// peerAPIAddress and capabilities are the joining node's own member record
+// values (LocalMemberUpdate); a previous version sends neither.
+func (c *Cluster) EnrollNode(token, nodeID, raftAddress, apiAddress, peerAPIAddress string, capabilities []string) (*JoinResult, error) {
 	if err := c.requireLeader(); err != nil {
 		return nil, err
 	}
@@ -907,10 +964,12 @@ func (c *Cluster) EnrollNode(token, nodeID, raftAddress, apiAddress string) (*Jo
 	// Record the member in the replicated members bucket so any node can map
 	// node_id → api_address.
 	if err := c.raft.ApplyCommand(CmdMemberUpsert, MemberUpsertPayload{
-		NodeID:      nodeID,
-		RaftAddress: raftAddress,
-		APIAddress:  apiAddress,
-		JoinedUnix:  time.Now().Unix(),
+		NodeID:         nodeID,
+		RaftAddress:    raftAddress,
+		APIAddress:     apiAddress,
+		JoinedUnix:     time.Now().Unix(),
+		PeerAPIAddress: peerAPIAddress,
+		Capabilities:   capabilities,
 	}, ApplyTimeout); err != nil {
 		return nil, err
 	}
@@ -961,11 +1020,14 @@ func (c *Cluster) registerSelfAfterLeader() {
 	for time.Now().Before(deadline) {
 		if c.raft.IsLeader() {
 			// Best-effort; if it fails we'll retry on next leader transition.
+			u := c.selfMemberUpdate()
 			_ = c.raft.ApplyCommand(CmdMemberUpsert, MemberUpsertPayload{
-				NodeID:      c.node.Node.ID,
-				RaftAddress: c.node.Node.RaftAddress,
-				APIAddress:  c.node.Node.APIAddress,
-				JoinedUnix:  time.Now().Unix(),
+				NodeID:         c.node.Node.ID,
+				RaftAddress:    c.node.Node.RaftAddress,
+				APIAddress:     c.node.Node.APIAddress,
+				JoinedUnix:     time.Now().Unix(),
+				PeerAPIAddress: u.PeerAPIAddress,
+				Capabilities:   u.Capabilities,
 			}, ApplyTimeout)
 			return
 		}
@@ -999,6 +1061,11 @@ func resolveTokenTTL() time.Duration {
 // fallbackHost is used instead; if none is provided it falls back to 127.0.0.1
 // (useful for single-node / loopback testing).
 func apiBaseURL(listenAddr string, fallbackHost ...string) string {
+	return baseURL("http", listenAddr, fallbackHost...)
+}
+
+// baseURL is apiBaseURL with the given scheme ("http" or "https").
+func baseURL(scheme, listenAddr string, fallbackHost ...string) string {
 	host := listenAddr
 	port := ""
 	for i := len(listenAddr) - 1; i >= 0; i-- {
@@ -1018,9 +1085,9 @@ func apiBaseURL(listenAddr string, fallbackHost ...string) string {
 		}
 	}
 	if port == "" {
-		return "http://" + host
+		return scheme + "://" + host
 	}
-	return "http://" + host + ":" + port
+	return scheme + "://" + host + ":" + port
 }
 
 // MembersFromRaftConfig returns the node IDs currently in the Raft
@@ -1031,13 +1098,16 @@ func (c *Cluster) MembersFromRaftConfig() []raft.Server {
 	return c.raft.Configuration().Servers
 }
 
-// MemberAPIURL resolves a member's routable HTTP base URL.
-// When the stored api_address is bound to 0.0.0.0 (the common case for
-// single-interface nodes), the host part of raft_address is used as fallback,
-// because the Raft address always carries the actual inter-node IP.
+// MemberAPIURL resolves the base URL peers use to reach a member (see
+// memberURL): with mTLS enabled, its peer API listener over HTTPS (send
+// requests to it with PeerHTTPClient), never plain HTTP; with mTLS
+// disabled, its main API over plain HTTP. When the stored address is bound
+// to 0.0.0.0 (the common case for single-interface nodes), the host part of
+// raft_address is used as fallback, because the Raft address always carries
+// the actual inter-node IP.
 func (c *Cluster) MemberAPIURL(m Member) string {
 	raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
-	return apiBaseURL(m.APIAddress, raftHost)
+	return c.memberURL(m, raftHost)
 }
 
 // ─── M13: Filtering pause (TS-FilterPause) ───────────────────────────────────
