@@ -14,7 +14,10 @@
 // which was wrong: no peer HTTP client used TLS (`apiBaseURL` always
 // returned http://), so forwarded writes and the X-Cluster-Secret header
 // went over plain HTTP. TestMtlsInternalApiHTTPS checks the peer listener
-// from specs/technical/encrypted-cluster-mesh.md "Internal API".
+// from specs/technical/encrypted-cluster-mesh.md "Internal API". Instead of
+// the hourly aggregate named in the scenario, it uses a write forwarded by a
+// follower to the leader: both go through the same peer HTTP client, and a
+// write can be sent on demand and checked on the leader.
 
 package acceptance
 
@@ -26,6 +29,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -115,11 +119,19 @@ func TestMtlsClusterFormsAndReplicates(t *testing.T) {
 	}
 }
 
-// peerAPIAddr is the default peer listener address of a node with mTLS on:
-// <raft host>:<raft port + 1> (encrypted-cluster-mesh.md "Internal API").
+// peerAPIAddr is the peer listener address of a node with mTLS on. The
+// default is <raft host>:<raft port + 1> (encrypted-cluster-mesh.md
+// "Internal API"); the harness reserves that port as PeerAPIPort so no other
+// listener of the test run takes it.
 func peerAPIAddr(n *ClusterNode) string {
-	return fmt.Sprintf("127.0.0.1:%d", n.RaftPort+1)
+	return fmt.Sprintf("127.0.0.1:%d", n.PeerAPIPort)
 }
+
+// tlsRefusal matches the error a TLS client gets when the server ends the
+// handshake with an alert, e.g. "remote error: tls: certificate required"
+// (TLS 1.3) or "remote error: tls: bad certificate" (TLS 1.2). A refused
+// connection or a plain-HTTP answer does not match.
+var tlsRefusal = regexp.MustCompile(`remote error: tls: `)
 
 // peerHTTPClient returns an HTTPS client that trusts the cluster CA of the
 // node in caDir and verifies the server as serverName. When certDir is not
@@ -152,29 +164,28 @@ func peerHTTPClient(t *testing.T, caDir, certDir, serverName string) *http.Clien
 }
 
 // @fsid:FS-MtlsInternalApiHTTPS
-// With mTLS on, the main API refuses X-Cluster-Secret, the peer listener
-// accepts only clients holding a cluster certificate, and a write sent to
-// a follower still reaches the leader through it.
+// With mTLS on, the peer listener accepts only clients holding a cluster
+// certificate, and a follower that cannot reach the leader's main API still
+// forwards a write to the leader, so the forward goes through the peer
+// listener over HTTPS with both nodes presenting their cluster certificate.
+//
+// The technical-spec rule "the main listener refuses X-Cluster-Secret with
+// mTLS on" is not covered by this test: it is not a Then-step of this
+// scenario, and the test cannot read the real cluster secret (it is stored
+// in the node's bbolt database, locked by the daemon), while an invalid
+// secret is already refused today.
 func TestMtlsInternalApiHTTPS(t *testing.T) {
+	requireIptables(t)
 	t.Parallel()
-	c := startClusterMTLS(t, 3)
+	c := startClusterMTLS(t, 2)
+	// The third node runs as cutUID so iptables can cut its traffic only.
+	// It joins through the leader's main API, so the cut comes after.
+	cut := c.AddNodeAsUser(t, cutUID)
 	leader := c.Leader(t)
-	follower := c.Followers(t)[0]
+	if cut == leader {
+		t.Fatalf("node %s, just added, is the leader", cut.NodeID)
+	}
 	peerURL := "https://" + peerAPIAddr(leader)
-
-	// (1) The main listener rejects any request carrying X-Cluster-Secret.
-	// The harness cannot read the real secret (it is stored in the node's
-	// bbolt database, locked by the daemon), so this uses an arbitrary value.
-	req := newRequestWithHeaders(t, "GET", leader.APIBase+"/api/v1/blocklists", "",
-		map[string]string{"X-Cluster-Secret": "not-the-cluster-secret"})
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("main API request with X-Cluster-Secret: %v", err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("main API with X-Cluster-Secret: status %d, want 401", resp.StatusCode)
-	}
 
 	// The peer listener must be open for the handshake checks below to
 	// mean anything.
@@ -184,20 +195,23 @@ func TestMtlsInternalApiHTTPS(t *testing.T) {
 	}
 	conn.Close()
 
-	// (2) A TLS client without a cluster certificate is refused. With
-	// TLS 1.3, the server reports the missing certificate after the client
-	// side of the handshake, so the refusal shows up on the request.
+	// (1) A TLS client without a cluster certificate is refused during the
+	// handshake. With TLS 1.3, the server reports the missing certificate
+	// after the client side of the handshake, so the refusal shows up on
+	// the request.
 	noCert := peerHTTPClient(t, leader.DataDir, "", leader.NodeID)
 	if resp, err := noCert.Get(peerURL + "/api/v1/health"); err == nil {
 		resp.Body.Close()
-		t.Errorf("peer API answered %d to a client without a cluster certificate, want a TLS error", resp.StatusCode)
+		t.Errorf("peer API answered %d to a client without a cluster certificate, want a TLS refusal", resp.StatusCode)
+	} else if !tlsRefusal.MatchString(err.Error()) {
+		t.Errorf("peer API without a cluster certificate: got %q, want a TLS alert from the server", err)
 	}
 
-	// (3) A client presenting a cluster leaf completes the handshake. The
+	// (2) A client presenting a cluster leaf completes the handshake. The
 	// peer listener serves the main router, and protected routes still
 	// answer 401 without the cluster secret or a token.
-	withCert := peerHTTPClient(t, leader.DataDir, follower.DataDir, leader.NodeID)
-	resp, err = withCert.Get(peerURL + "/api/v1/health")
+	withCert := peerHTTPClient(t, leader.DataDir, cut.DataDir, leader.NodeID)
+	resp, err := withCert.Get(peerURL + "/api/v1/health")
 	if err != nil {
 		t.Fatalf("peer API with a cluster certificate: %v", err)
 	}
@@ -214,8 +228,23 @@ func TestMtlsInternalApiHTTPS(t *testing.T) {
 		t.Errorf("peer API /api/v1/blocklists without credentials: status %d, want 401", resp.StatusCode)
 	}
 
-	// (4) A write sent to a follower is forwarded to the leader, which
-	// now goes through the peer listener.
-	c.MustCreateBlocklist(t, follower, "mtls-forwarded-bl", "forwarded.mtls.example.com")
+	// (3) Cut the follower from the leader's main API, then send it a
+	// write. The follower forwards it to the leader; with the main API
+	// unreachable, the write can only reach the leader through the peer
+	// listener.
+	blockUIDToPort(t, cutUID, leader.APIPort)
+	body := mustJSON(t, map[string]any{
+		"id":      "mtls-forwarded-bl",
+		"name":    "mTLS forwarded blocklist",
+		"enabled": true,
+		"source":  map[string]string{"type": "inline", "format": "domainlist"},
+		"domains": []string{"forwarded.mtls.example.com"},
+	})
+	resp = cut.apiDo(t, "POST", "/api/v1/blocklists", body)
+	b := readBody(t, resp)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create blocklist via %s (cut from the leader's main API): status %d, want 201; body: %s",
+			cut.NodeID, resp.StatusCode, b)
+	}
 	waitForBlocklist(t, leader, "mtls-forwarded-bl", 10*time.Second)
 }

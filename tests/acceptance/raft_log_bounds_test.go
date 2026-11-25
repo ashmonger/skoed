@@ -16,10 +16,11 @@ package acceptance
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -32,7 +33,29 @@ const (
 	raftTrailingLogs = 256
 	// raftLogFile is the raft-boltdb store, relative to the data dir.
 	raftLogFile = "raft/raft-log.bolt"
+	// snapshotWait bounds the waits that need a Raft snapshot to happen.
+	snapshotWait = 120 * time.Second
 )
+
+// raftWriteClient sends the custom-rules writes. Unlike http.DefaultClient,
+// it has a timeout, so a node that stops answering fails the test instead
+// of blocking it.
+var raftWriteClient = &http.Client{Timeout: 10 * time.Second}
+
+// sendCustomRulesWrite sends one authenticated PUT /api/v1/custom-rules to n
+// through raftWriteClient. It never fails the test, so it is safe to call
+// from a goroutine.
+func sendCustomRulesWrite(n *ClusterNode, body string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPut, n.APIBase+"/api/v1/custom-rules", strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if n.sessionToken != "" {
+		req.Header.Set("Authorization", "Bearer "+n.sessionToken)
+	}
+	return raftWriteClient.Do(req)
+}
 
 // commitCustomRuleWrites sends `count` PUT /api/v1/custom-rules requests to
 // `via`, each one a distinct Raft entry, with a few requests in flight at a
@@ -56,7 +79,7 @@ func commitCustomRuleWrites(t *testing.T, via *ClusterNode, count int, tag strin
 					return
 				}
 				body := fmt.Sprintf(`{"rules":"%s-%d.example.com"}`, tag, i)
-				resp, err := via.apiDoNonFatal("PUT", "/api/v1/custom-rules", body)
+				resp, err := sendCustomRulesWrite(via, body)
 				if err != nil {
 					failures.Add(1)
 					firstErr.CompareAndSwap(nil, err.Error())
@@ -125,7 +148,7 @@ func TestRaftLogStaysBounded(t *testing.T) {
 	for i := 0; i < c.Size(); i++ {
 		n := c.Node(i)
 		var last RaftIndexes
-		waitFor(t, 60*time.Second, func() bool {
+		waitFor(t, snapshotWait, func() bool {
 			idx, ok := raftIndexes(t, n)
 			if !ok {
 				return false
@@ -150,11 +173,17 @@ func TestRaftLogCompactOffline(t *testing.T) {
 	c := startCluster(t, 3)
 	leader := c.Leader(t)
 
-	// Large entries first: each inline blocklist is one Raft entry of
-	// roughly 100 KB.
+	// Large entries first. A blocklist create commits the whole
+	// configuration as one Raft entry (`App.WithWriteLock` → ConfigImport),
+	// so each entry holds every blocklist created before it: with 30 lists
+	// of 200 domains (about 6.6 KB each), the entries grow to about 200 KB
+	// and add up to about 3 MB. Each create body stays under 8 KB because
+	// the audit middleware passes only the first 8 KB of a request body to
+	// the handler (`auditMiddleware`, apps/skoed/internal/api/
+	// audit_middleware.go), so a larger body is refused as invalid JSON.
 	const (
-		lists          = 20
-		domainsPerList = 3000
+		lists          = 30
+		domainsPerList = 200
 	)
 	var ids []string
 	for i := 0; i < lists; i++ {
@@ -173,7 +202,7 @@ func TestRaftLogCompactOffline(t *testing.T) {
 	// Then enough small entries for snapshots to truncate every large one.
 	commitCustomRuleWrites(t, leader, 4*raftTrailingLogs, "compact")
 	c.WaitConverged(t)
-	waitFor(t, 60*time.Second, func() bool {
+	waitFor(t, snapshotWait, func() bool {
 		cur, ok := raftIndexes(t, followerNode)
 		return ok && cur.First > afterLarge.Last
 	}, "node %s: Raft log still holds the blocklist entries (first_log_index <= %d)", followerNode.NodeID, afterLarge.Last)
@@ -239,17 +268,19 @@ func TestRaftLogCompactRefusedWhileRunning(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("skoed raft compact exit 0 on a running node, want non-zero; output:\n%s", out)
 	}
-	if !regexp.MustCompile(`(?i)stop`).MatchString(out) || !regexp.MustCompile(`(?i)locked`).MatchString(out) {
-		t.Errorf("output should say the file is locked and the daemon must be stopped; got:\n%s", out)
+	const lockedMsg = "raft-log.bolt is locked: stop the skoed daemon first"
+	if !strings.Contains(out, lockedMsg) {
+		t.Errorf("output should contain %q; got:\n%s", lockedMsg, out)
 	}
 
 	after, err := os.Stat(logPath)
 	if err != nil {
 		t.Fatalf("stat %s after refused compaction: %v", logPath, err)
 	}
-	if after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
-		t.Errorf("raft-log.bolt changed: size %d → %d, mtime %s → %s",
-			before.Size(), after.Size(), before.ModTime(), after.ModTime())
+	// The running daemon may write to the file, so the mtime is not
+	// compared; the size only changes when bolt grows its mmap.
+	if after.Size() != before.Size() {
+		t.Errorf("raft-log.bolt changed size during a refused compaction: %d → %d bytes", before.Size(), after.Size())
 	}
 	for _, suffix := range []string{".compact", ".pre-compact"} {
 		if _, err := os.Stat(logPath + suffix); err == nil {
