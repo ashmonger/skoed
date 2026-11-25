@@ -520,8 +520,12 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 
 - [x] M50 — live mitigation: CTs 666 and 667 raised 512 MB → 2048 MB — 2026-11-25
 - [x] M50 — functional spec: `specs/functional/blocklist-content-distribution.feature` (16 FSIDs) — 2026-11-25
-- [ ] M50 — UoR validated functional spec
-- [ ] M50 — technical spec (FSM command changes, cache layout, content endpoint for followers, `TrailingLogs`, `skoed raft compact`)
+- [x] M50 — UoR validated functional spec — 2026-11-25
+- [x] M50 — technical spec: `specs/technical/blocklist-content-distribution.md` (TS-BlocklistContentDistribution) + `management-api.openapi.yaml` — 2026-11-25
+- [ ] M50 — UoR validated technical spec
+- [ ] Tooling — `tools/traceability/traceability_check.sh` only recognizes
+  JavaScript `it(`/`test(` calls, so it reports every FSID covered by a Go
+  acceptance test as MISSING (118 on this branch, 102 on master)
 - [ ] M50 — acceptance tests
 - [ ] M50 — implementation, refactoring phase, CI green
 - [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node

@@ -101,6 +101,11 @@ components:
     basicAuth:
       type: http
       scheme: basic
+    clusterSecret:
+      type: apiKey
+      in: header
+      name: X-Cluster-Secret
+      description: Shared cluster secret; used only by node-to-node calls.
 
   schemas:
 
@@ -265,10 +270,36 @@ components:
         domain_count:
           type: integer
           readOnly: true
+          description: >
+            For URL lists, the number of domains in the answering node's
+            copy; for inline lists, the number of stored domains.
         last_updated:
           type: string
           format: date-time
           readOnly: true
+        content_sha256:
+          type: string
+          readOnly: true
+          x-tsid: TS-BlocklistContentDistribution
+          x-fsid-links:
+            - FS-BlocklistContentFollowersCopyFromLeader
+          description: URL lists only. SHA-256 of the version every node must hold; empty before the first successful download.
+        local_content_sha256:
+          type: string
+          readOnly: true
+          x-tsid: TS-BlocklistContentDistribution
+          x-fsid-links:
+            - FS-BlocklistContentFollowerCannotReachLeader
+          description: URL lists only. SHA-256 of the answering node's copy; empty when it holds none.
+        content_status:
+          type: string
+          enum: [current, out_of_date, missing]
+          readOnly: true
+          x-tsid: TS-BlocklistContentDistribution
+          x-fsid-links:
+            - FS-BlocklistContentFollowerCannotReachLeader
+            - FS-BlocklistContentFollowersCopyFromLeader
+          description: URL lists only. Whether the answering node's copy matches content_sha256.
 
     BlocklistCreate:
       type: object
@@ -516,6 +547,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClusterNode"
+        raft:
+          type: object
+          description: Raft log indexes of the answering node.
+          x-tsid: TS-BlocklistContentDistribution
+          x-fsid-links:
+            - FS-RaftLogStaysBounded
+          properties:
+            first_log_index:
+              type: integer
+            last_log_index:
+              type: integer
+            last_snapshot_index:
+              type: integer
 
     HourlyAggregate:
       type: object
@@ -836,7 +880,13 @@ paths:
   /api/v1/blocklists/{id}/refresh:
     post:
       summary: Manually refresh a URL-sourced blocklist
+      description: >
+        Forwarded to the leader, which downloads the list and records the
+        new version; followers copy it from the leader.
       operationId: refreshBlocklist
+      x-tsid: TS-BlocklistContentDistribution
+      x-fsid-links:
+        - FS-BlocklistContentManualRefresh
       parameters:
         - name: id
           in: path
@@ -864,6 +914,58 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: The leader could not download the list; the previous version is kept
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/cluster/_internal/blocklists/{id}/content:
+    get:
+      summary: Node-to-node copy of a URL blocklist's downloaded content
+      description: >
+        Called by followers on the leader. Returns the node's cached copy of
+        the list, one normalized domain per line. Not for operator use.
+      operationId: getBlocklistContentInternal
+      x-tsid: TS-BlocklistContentDistribution
+      x-fsid-links:
+        - FS-BlocklistContentFollowersCopyFromLeader
+        - FS-BlocklistContentNewNodeCopiesOnJoin
+        - FS-BlocklistContentLeaderFailover
+      security:
+        - clusterSecret: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-zA-Z0-9_:-]+$"
+        - name: sha256
+          in: query
+          required: true
+          description: Version the caller wants; must match the node's copy.
+          schema:
+            type: string
+            pattern: "^[0-9a-f]{64}$"
+      responses:
+        "200":
+          description: The cached list. Sent gzip-encoded when the request accepts it.
+          headers:
+            X-Skoed-Content-SHA256:
+              schema:
+                type: string
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          description: Missing or wrong cluster secret
+        "404":
+          description: Unknown blocklist, or this node holds no copy
+        "409":
+          description: This node holds a different version than the one requested
 
   # ── Allowlist ─────────────────────────────────────────────────────────────
 
