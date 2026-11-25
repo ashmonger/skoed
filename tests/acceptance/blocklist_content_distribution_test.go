@@ -338,12 +338,14 @@ func TestBlocklistContentInlineStillReplicates(t *testing.T) {
 	c, _ := bcdBackground(t)
 	leader := c.Leader(t)
 
+	// block_policy "null" gives the 0.0.0.0 answer isBlocked looks for.
 	body := mustJSON(t, map[string]any{
-		"id":      "manual",
-		"name":    "manual",
-		"enabled": true,
-		"domains": []string{"bad.example.com"},
-		"source":  map[string]string{"type": "inline", "format": "domainlist"},
+		"id":           "manual",
+		"name":         "manual",
+		"enabled":      true,
+		"domains":      []string{"bad.example.com"},
+		"source":       map[string]string{"type": "inline", "format": "domainlist"},
+		"block_policy": "null",
 	})
 	resp := leader.apiDo(t, "POST", "/api/v1/blocklists", body)
 	if resp.StatusCode != http.StatusCreated {
@@ -722,6 +724,14 @@ func TestBlocklistContentUpgradeKeepsFiltering(t *testing.T) {
 		}
 		return true
 	}, "a shadow config.yaml still contains the downloaded domains of %q", bcdListID)
+
+	// Clearing the domains from the replicated state must not clear them from
+	// the filter.
+	for _, n := range c.nodes {
+		if !isBlocked(t, n, bcdTracker) {
+			t.Errorf("%s no longer blocks %s once the domains left the replicated state", n.NodeID, bcdTracker)
+		}
+	}
 
 	if got := ls.RequestsByNode(); len(got) > 0 {
 		t.Errorf("upgraded nodes downloaded %q from its URL: %v", bcdListID, got)

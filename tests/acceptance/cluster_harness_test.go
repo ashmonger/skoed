@@ -15,6 +15,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -285,7 +286,17 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 	}
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
-	waitReady(t, cn.Node)
+	c.waitNodeReady(t, cn)
+}
+
+// waitNodeReady waits until cn answers on its API and DNS ports. If the
+// process exits before, the test fails at once with the exit status and
+// the last lines the process wrote.
+func (c *Cluster) waitNodeReady(t *testing.T, cn *ClusterNode) {
+	t.Helper()
+	if err := waitReadyErr(cn.Node); err != nil {
+		t.Fatalf("node %s: %v%s", cn.NodeID, err, exitReport(cn.Node))
+	}
 }
 
 // AddNode generates a join token on the current leader and starts a fresh node
@@ -305,9 +316,8 @@ func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
 	leader := c.Leader(t)
 	token := c.mustCreateToken(t, leader)
 
-	nodeID := fmt.Sprintf("node-%d", len(c.nodes)+1)
 	cfg := M2NodeConfig{
-		NodeID:              nodeID,
+		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
 		RaftPort:            freeRaftPort(t),
@@ -320,7 +330,7 @@ func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
 	}
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
-	waitReady(t, cn.Node)
+	c.waitNodeReady(t, cn)
 	// Credentials are replicated via Raft; retry login until they arrive.
 	cn.Node.sessionToken = loginWithRetry(t, cn.Node, defaultUsername, defaultPassword)
 	c.WaitConverged(t)
@@ -386,6 +396,7 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 		Env:         env,
 		UID:         cfg.UID,
 	}
+	n.ports = m2ConfigPorts(cfg)
 	c.startProcess(t, cn)
 	return cn
 }
@@ -424,8 +435,24 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 		Env:         env,
 		UID:         cfg.UID,
 	}
+	n.ports = m2ConfigPorts(cfg)
 	c.startProcess(t, cn)
 	return cn
+}
+
+// m2ConfigPorts lists every port cfg makes a node listen on, for
+// portReport.
+func m2ConfigPorts(cfg M2NodeConfig) []int {
+	ports := []int{cfg.DNSPort, cfg.APIPort, cfg.RaftPort, cfg.RaftPort + 1}
+	for _, p := range []int{cfg.DoHPort, cfg.DoTPort, cfg.DoH3Port, cfg.DNSCryptPort, cfg.APITLSHTTPSPort} {
+		if p > 0 {
+			ports = append(ports, p)
+		}
+	}
+	if cfg.Acme != nil && cfg.Acme.HTTPChallengePort > 0 {
+		ports = append(ports, cfg.Acme.HTTPChallengePort)
+	}
+	return ports
 }
 
 // startProcess starts (or restarts) the skoed process for a ClusterNode,
@@ -438,27 +465,26 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	if len(cn.Env) > 0 {
 		cmd.Env = append(os.Environ(), cn.Env...)
 	}
-	if testing.Verbose() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
+	output := captureOutput(cmd)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	if cn.UID != 0 {
 		requireExecutableByUID(t, c.bin, cn.UID)
 		giveDataDirToUID(t, cn.DataDir, cn.UID)
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(cn.UID), Gid: uint32(cn.UID)}
 	}
-	if err := cmd.Start(); err != nil {
+	exited, err := startReaped(cmd)
+	if err != nil {
 		t.Fatalf("start skoed (node %s): %v", cn.NodeID, err)
 	}
 	cn.cmd = cmd
 	cn.Node.cmd = cmd
+	cn.Node.exited = exited
+	cn.Node.output = output
 	cn.killed = false
 
 	t.Cleanup(func() {
 		if !cn.killed {
-			cmd.Process.Kill() //nolint:errcheck
-			cmd.Wait()         //nolint:errcheck
+			killAndReap(cmd, exited)
 		}
 	})
 }
@@ -783,17 +809,33 @@ func (c *Cluster) Size() int { return len(c.nodes) }
 
 // KillNode stops a node's process without removing its data directory, so a
 // later RestartNode can revive it with the same Raft identity.
+//
+// If the process had already exited on its own, the test fails (without
+// stopping) with the exit status and the last lines the process wrote: a
+// node that crashes during a test must not go unnoticed.
 func (c *Cluster) KillNode(t *testing.T, i int) {
 	t.Helper()
 	n := c.Node(i)
 	if n.killed {
 		return
 	}
-	if err := n.cmd.Process.Kill(); err != nil {
+	// ErrProcessDone: the process already exited and was reaped. The exit
+	// status below tells that case apart from a kill.
+	if err := n.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		t.Fatalf("kill node %s: %v", n.NodeID, err)
 	}
-	n.cmd.Wait() //nolint:errcheck
+	<-n.Node.exited
 	n.killed = true
+	if !killedBySIGKILL(n.cmd.ProcessState) {
+		t.Errorf("node %s exited on its own before KillNode%s", n.NodeID, exitReport(n.Node))
+	}
+}
+
+// killedBySIGKILL reports whether the process ended on SIGKILL, the signal
+// KillNode sends, rather than on its own.
+func killedBySIGKILL(ps *os.ProcessState) bool {
+	ws, ok := ps.Sys().(syscall.WaitStatus)
+	return ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL
 }
 
 // RestartNode brings a previously-killed node back up using the same data dir
@@ -807,7 +849,7 @@ func (c *Cluster) RestartNode(t *testing.T, i int) {
 		t.Fatalf("RestartNode: node %s is not killed", n.NodeID)
 	}
 	c.startProcess(t, n)
-	waitReady(t, n.Node)
+	c.waitNodeReady(t, n)
 	n.Node.sessionToken = loginSession(t, n.Node, defaultUsername, defaultPassword)
 }
 
