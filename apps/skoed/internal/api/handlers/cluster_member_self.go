@@ -7,6 +7,13 @@ import (
 	"github.com/skoed/skoed/internal/cluster"
 )
 
+// selfMemberCluster is the part of *cluster.Cluster the members/self
+// endpoint uses.
+type selfMemberCluster interface {
+	ValidateClusterSecret(secret string) bool
+	ApplyForwardedSelfMemberUpdate(u cluster.SelfMemberUpdate) error
+}
+
 // ClusterInternalSelfMember handles POST /api/v1/cluster/_internal/members/self
 // on the leader: a follower sets the peer API address and the capabilities in
 // its own member record (TS-EncryptedClusterMesh "Internal API",
@@ -19,6 +26,12 @@ func (h *Handler) ClusterInternalSelfMember(w http.ResponseWriter, r *http.Reque
 	if c == nil {
 		return
 	}
+	serveSelfMember(w, r, c, func(msg string) { writeLeaderRedirect(w, c, msg) })
+}
+
+// serveSelfMember is ClusterInternalSelfMember once the cluster is known.
+// notLeader writes the response when c is not the leader.
+func serveSelfMember(w http.ResponseWriter, r *http.Request, c selfMemberCluster, notLeader func(msg string)) {
 	if !c.ValidateClusterSecret(r.Header.Get("X-Cluster-Secret")) {
 		writeError(w, http.StatusUnauthorized, "invalid cluster secret")
 		return
@@ -40,7 +53,7 @@ func (h *Handler) ClusterInternalSelfMember(w http.ResponseWriter, r *http.Reque
 	if err := c.ApplyForwardedSelfMemberUpdate(u); err != nil {
 		switch {
 		case errors.Is(err, cluster.ErrNotLeader):
-			writeLeaderRedirect(w, c, "not the leader")
+			notLeader("not the leader")
 		case errors.Is(err, cluster.ErrUnknownMember):
 			writeError(w, http.StatusNotFound, err.Error())
 		default:

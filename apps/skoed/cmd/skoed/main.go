@@ -130,6 +130,11 @@ func runDaemon(cfgPath string) {
 	wantBootstrap := !hasRaft && node.Bootstrap.Token == ""
 	suppressRaft := os.Getenv("SKOED_TEST_MODE") == "1"
 	mtlsEnabled := node.Node.Cluster.MTLS.Enabled
+	// M50 — with mTLS on, peers reach this node only on its peer API
+	// listener, so refuse to start without an address for it.
+	if mtlsEnabled && node.Node.PeerAPIAddress() == "" {
+		log.Fatalf("node.cluster.peer_api_address is unset and cannot be derived from raft_address %q (raft port + 1); set it explicitly", node.Node.RaftAddress)
+	}
 
 	// M5.3 — when joining with mTLS enabled, fetch the cluster CA + a
 	// freshly-signed leaf cert from the leader BEFORE cluster.New so the

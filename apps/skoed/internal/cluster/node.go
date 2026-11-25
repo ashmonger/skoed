@@ -55,7 +55,14 @@ func (ns NodeSection) PeerAPIAddress() string {
 	if ns.Cluster.PeerAPIAddress != "" {
 		return ns.Cluster.PeerAPIAddress
 	}
-	host, port, err := net.SplitHostPort(ns.RaftAddress)
+	return DefaultPeerAPIAddress(ns.RaftAddress)
+}
+
+// DefaultPeerAPIAddress returns <raft host>:<raft port + 1>, the default peer
+// API address of a node with the given Raft address, or "" when raftAddress
+// cannot be parsed or its port is 65535.
+func DefaultPeerAPIAddress(raftAddress string) string {
+	host, port, err := net.SplitHostPort(raftAddress)
 	if err != nil {
 		return ""
 	}

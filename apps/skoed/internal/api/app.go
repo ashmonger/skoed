@@ -1343,6 +1343,9 @@ type clusterAdapter struct{ c *cluster.Cluster }
 func (a clusterAdapter) IsLeader() bool           { return a.c.IsLeader() }
 func (a clusterAdapter) LeaderAPIAddress() string { return a.c.LeaderAPIAddress() }
 func (a clusterAdapter) LeaderID() string         { return a.c.LeaderID() }
+func (a clusterAdapter) LeaderMainAPIAddress() string {
+	return a.c.LeaderMainAPIAddress()
+}
 func (a clusterAdapter) PeerHTTPClient() *http.Client {
 	return a.c.PeerHTTPClient()
 }

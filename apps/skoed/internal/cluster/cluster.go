@@ -42,6 +42,11 @@ type Cluster struct {
 	raft   *raftNode
 	logger raftLoggerFn
 
+	// raftMu guards the c.raft pointer against ResetRaftForJoin for code
+	// that runs in the background, such as selfMemberSyncLoop; read it
+	// there with currentRaft.
+	raftMu sync.RWMutex
+
 	mu          sync.Mutex
 	subscribers []func()
 
@@ -194,6 +199,7 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		store.Close()
 		return nil, err
 	}
+	c.peer.loopDone = make(chan struct{})
 	go c.selfMemberSyncLoop()
 
 	// If we bootstrapped, register ourselves in the replicated members bucket
@@ -205,7 +211,8 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 	return c, nil
 }
 
-// Close shuts down Raft and the bbolt store.
+// Close stops the self member sync loop and waits for it to exit, then shuts
+// down Raft and the bbolt store.
 func (c *Cluster) Close() error {
 	c.stopPeer()
 	if c.raft != nil {
@@ -256,8 +263,17 @@ func (c *Cluster) ResetRaftForJoin() error {
 	if err != nil {
 		return fmt.Errorf("restart raft: %w", err)
 	}
+	c.raftMu.Lock()
 	c.raft = rn
+	c.raftMu.Unlock()
 	return nil
+}
+
+// currentRaft returns the Raft node, read under raftMu.
+func (c *Cluster) currentRaft() *raftNode {
+	c.raftMu.RLock()
+	defer c.raftMu.RUnlock()
+	return c.raft
 }
 
 // Subscribe registers fn to be called after every committed FSM apply on this
@@ -315,7 +331,12 @@ func (c *Cluster) CommitIndex() uint64 { return c.raft.CommitIndex() }
 // "https://<peer_api_address>" (send requests to it with PeerHTTPClient);
 // otherwise the leader's main API, e.g. "http://192.168.1.10:8080".
 func (c *Cluster) LeaderAPIAddress() string {
-	raftAddr, id := c.raft.Leader()
+	return c.leaderURL(c.raft)
+}
+
+// leaderURL is LeaderAPIAddress, with the leader read from rn.
+func (c *Cluster) leaderURL(rn *raftNode) string {
+	raftAddr, id := rn.Leader()
 	if id == "" {
 		return ""
 	}

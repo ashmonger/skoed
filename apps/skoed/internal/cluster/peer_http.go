@@ -66,14 +66,17 @@ type peerState struct {
 	client       *http.Client
 	streamClient *http.Client
 
-	stopOnce sync.Once
-	stop     chan struct{}
+	// stopCtx is cancelled by stopPeer; it ends selfMemberSyncLoop and the
+	// request it may be sending. loopDone is closed when the loop returns.
+	stopCtx  context.Context
+	stop     context.CancelFunc
+	loopDone chan struct{}
 }
 
 // initPeer sets up the peer HTTP state. Called once from New, after the mTLS
 // material is loaded.
 func (c *Cluster) initPeer() error {
-	c.peer.stop = make(chan struct{})
+	c.peer.stopCtx, c.peer.stop = context.WithCancel(context.Background())
 	if !c.mtlsEnabled {
 		return nil
 	}
@@ -85,13 +88,15 @@ func (c *Cluster) initPeer() error {
 	return nil
 }
 
-// stopPeer stops the self member sync loop. Safe to call more than once.
+// stopPeer stops the self member sync loop and waits for it to return. Safe
+// to call more than once.
 func (c *Cluster) stopPeer() {
-	c.peer.stopOnce.Do(func() {
-		if c.peer.stop != nil {
-			close(c.peer.stop)
-		}
-	})
+	if c.peer.stop != nil {
+		c.peer.stop()
+	}
+	if c.peer.loopDone != nil {
+		<-c.peer.loopDone
+	}
 }
 
 // PeerAPIAddress returns the address of this node's peer API listener, or ""
@@ -101,6 +106,18 @@ func (c *Cluster) PeerAPIAddress() string {
 		return ""
 	}
 	return c.node.Node.PeerAPIAddress()
+}
+
+// SelfPeerAPIURL returns the base URL of this node's own peer API listener,
+// from its configured peer_api_address (a wildcard host becomes 127.0.0.1),
+// or "" when mTLS is disabled. Unlike MemberAPIURL, it does not depend on
+// the member record.
+func (c *Cluster) SelfPeerAPIURL() string {
+	addr := c.PeerAPIAddress()
+	if addr == "" {
+		return ""
+	}
+	return baseURL("https", addr)
 }
 
 // PeerServerTLSConfig returns the TLS config of the peer API listener: this
@@ -138,8 +155,11 @@ func (c *Cluster) PeerStreamHTTPClient() *http.Client {
 func (c *Cluster) initPeerClients() {
 	c.peer.clientOnce.Do(func() {
 		rt := &peerRoundTripper{c: c, plain: newPeerTransport(nil), byNode: map[string]*peerNodeTransport{}}
-		c.peer.client = &http.Client{Transport: rt, Timeout: peerClientTimeout}
-		c.peer.streamClient = &http.Client{Transport: rt}
+		// Peer clients never follow redirects: a redirect could send the
+		// X-Cluster-Secret header to a host that is not a cluster peer.
+		noRedirect := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		c.peer.client = &http.Client{Transport: rt, Timeout: peerClientTimeout, CheckRedirect: noRedirect}
+		c.peer.streamClient = &http.Client{Transport: rt, CheckRedirect: noRedirect}
 	})
 }
 
@@ -226,32 +246,42 @@ func (t *peerRoundTripper) transportFor(nodeID string, cc *CertCache) (*http.Tra
 }
 
 // peerNodeIDForHost returns the ID of the member whose peer API URL has the
-// given host:port, or "" when none does.
+// given host:port (this node's own SelfPeerAPIURL included), or "" when none
+// does.
 func (c *Cluster) peerNodeIDForHost(hostPort string) string {
+	if strings.TrimPrefix(c.SelfPeerAPIURL(), "https://") == hostPort {
+		return c.node.Node.ID
+	}
 	members, err := c.store.Members()
 	if err != nil {
 		return ""
 	}
 	for _, m := range members {
-		if m.PeerAPIAddress == "" {
-			continue
-		}
-		if strings.TrimPrefix(c.MemberAPIURL(m), "https://") == hostPort {
+		if u := c.MemberAPIURL(m); u != "" && strings.TrimPrefix(u, "https://") == hostPort {
 			return m.NodeID
 		}
 	}
 	return ""
 }
 
-// memberURL returns the base URL peers use to reach m: its peer API listener
-// over HTTPS when mTLS is enabled and m advertises one, its main API over
-// plain HTTP otherwise (mTLS off, or a member running a previous version).
+// memberURL returns the base URL peers use to reach m. With mTLS enabled,
+// it is always its peer API listener over HTTPS, never plain HTTP: the
+// recorded PeerAPIAddress, or <raft host>:<raft port + 1> when m has none
+// yet (a previous version, or a node that just upgraded). It is "" when
+// neither is known. With mTLS disabled, it is m's main API over plain HTTP.
 // fallbackHost replaces a wildcard bind host.
 func (c *Cluster) memberURL(m Member, fallbackHost string) string {
-	if c.mtlsEnabled && m.PeerAPIAddress != "" {
-		return baseURL("https", m.PeerAPIAddress, fallbackHost)
+	if !c.mtlsEnabled {
+		return baseURL("http", m.APIAddress, fallbackHost)
 	}
-	return baseURL("http", m.APIAddress, fallbackHost)
+	addr := m.PeerAPIAddress
+	if addr == "" {
+		addr = DefaultPeerAPIAddress(m.RaftAddress)
+	}
+	if addr == "" {
+		return ""
+	}
+	return baseURL("https", addr, fallbackHost)
 }
 
 // AllMembersHaveCapability reports whether every server in the Raft
@@ -317,10 +347,36 @@ func (u SelfMemberUpdate) matches(m Member) bool {
 	return true
 }
 
-// applySelfMemberUpdate commits u on top of the existing record m, keeping
-// its addresses and join time. Leader only.
-func (c *Cluster) applySelfMemberUpdate(m Member, u SelfMemberUpdate) error {
-	return c.raft.ApplyCommand(CmdMemberUpsert, MemberUpsertPayload{
+// selfMemberAction is what one self-correction pass does with a node's own
+// member record.
+type selfMemberAction int
+
+const (
+	// selfMemberKeep writes nothing: the record already matches, or there
+	// is no record (not enrolled yet, or removed).
+	selfMemberKeep selfMemberAction = iota
+	// selfMemberApply commits the update through Raft (leader).
+	selfMemberApply
+	// selfMemberForward sends the update to the leader (follower).
+	selfMemberForward
+)
+
+// planSelfMemberSync decides what a self-correction pass does with record m
+// (nil when the node has none) and the values u the node should advertise.
+func planSelfMemberSync(m *Member, u SelfMemberUpdate, isLeader bool) selfMemberAction {
+	if m == nil || u.matches(*m) {
+		return selfMemberKeep
+	}
+	if isLeader {
+		return selfMemberApply
+	}
+	return selfMemberForward
+}
+
+// applySelfMemberUpdate commits u through rn on top of the existing record m,
+// keeping its addresses and join time. Leader only.
+func applySelfMemberUpdate(rn *raftNode, m Member, u SelfMemberUpdate) error {
+	return rn.ApplyCommand(CmdMemberUpsert, MemberUpsertPayload{
 		NodeID:         m.NodeID,
 		RaftAddress:    m.RaftAddress,
 		APIAddress:     m.APIAddress,
@@ -332,11 +388,20 @@ func (c *Cluster) applySelfMemberUpdate(m Member, u SelfMemberUpdate) error {
 
 // ApplyForwardedSelfMemberUpdate is called on the leader by the internal
 // endpoint, after it checked the cluster secret. It refuses a node without a
-// member record so a removed node cannot add itself back.
+// member record (ErrUnknownMember) so a removed node cannot add itself back,
+// and writes nothing when the record already matches.
 func (c *Cluster) ApplyForwardedSelfMemberUpdate(u SelfMemberUpdate) error {
 	if err := c.requireLeader(); err != nil {
 		return err
 	}
+	return c.applyForwardedSelfMember(u, func(m Member) error {
+		return applySelfMemberUpdate(c.raft, m, u)
+	})
+}
+
+// applyForwardedSelfMember looks up u.NodeID in the store and calls apply
+// with its record only when the record differs from u.
+func (c *Cluster) applyForwardedSelfMember(u SelfMemberUpdate, apply func(Member) error) error {
 	m, err := c.store.MemberByID(u.NodeID)
 	if err != nil {
 		return err
@@ -344,33 +409,33 @@ func (c *Cluster) ApplyForwardedSelfMemberUpdate(u SelfMemberUpdate) error {
 	if m == nil {
 		return ErrUnknownMember
 	}
-	if u.matches(*m) {
+	if planSelfMemberSync(m, u, true) == selfMemberKeep {
 		return nil
 	}
-	return c.applySelfMemberUpdate(*m, u)
+	return apply(*m)
 }
 
 // syncSelfMember brings this node's member record up to date with its peer
-// API address and capabilities. The leader applies the change itself; a
-// follower sends it to the leader. A node without a member record (not
-// enrolled yet, or removed) does nothing.
+// API address and capabilities (planSelfMemberSync). It runs in the
+// background, so it reads the Raft node with currentRaft.
 func (c *Cluster) syncSelfMember() error {
 	m, err := c.store.MemberByID(c.node.Node.ID)
-	if err != nil || m == nil {
+	if err != nil {
 		return err
 	}
+	rn := c.currentRaft()
 	u := c.selfMemberUpdate()
-	if u.matches(*m) {
-		return nil
+	switch planSelfMemberSync(m, u, rn.IsLeader()) {
+	case selfMemberApply:
+		return applySelfMemberUpdate(rn, *m, u)
+	case selfMemberForward:
+		return c.forwardSelfMemberUpdate(rn, u)
 	}
-	if c.raft.IsLeader() {
-		return c.applySelfMemberUpdate(*m, u)
-	}
-	return c.forwardSelfMemberUpdate(u)
+	return nil
 }
 
-func (c *Cluster) forwardSelfMemberUpdate(u SelfMemberUpdate) error {
-	leaderURL := c.LeaderAPIAddress()
+func (c *Cluster) forwardSelfMemberUpdate(rn *raftNode, u SelfMemberUpdate) error {
+	leaderURL := c.leaderURL(rn)
 	if leaderURL == "" {
 		return errors.New("no leader currently elected")
 	}
@@ -382,7 +447,7 @@ func (c *Cluster) forwardSelfMemberUpdate(u SelfMemberUpdate) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), selfMemberForwardTimeout)
+	ctx, cancel := context.WithTimeout(c.peer.stopCtx, selfMemberForwardTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, leaderURL+selfMemberPath, bytes.NewReader(body))
 	if err != nil {
@@ -404,14 +469,23 @@ func (c *Cluster) forwardSelfMemberUpdate(u SelfMemberUpdate) error {
 
 // selfMemberSyncLoop runs syncSelfMember on every node until Close, so the
 // record is set after a join, after an upgrade from a previous version, and
-// once a leader that knows the endpoint is elected.
+// once a leader that knows the endpoint is elected. It closes
+// c.peer.loopDone when it returns.
 func (c *Cluster) selfMemberSyncLoop() {
+	defer close(c.peer.loopDone)
 	interval := 10 * time.Second
 	if os.Getenv("SKOED_TEST_MODE") == "1" {
 		interval = time.Second
 	}
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 	lastErr := ""
 	for {
+		select {
+		case <-c.peer.stopCtx.Done():
+			return
+		case <-timer.C:
+		}
 		err := c.syncSelfMember()
 		msg := ""
 		if err != nil {
@@ -425,10 +499,6 @@ func (c *Cluster) selfMemberSyncLoop() {
 			}
 			lastErr = msg
 		}
-		select {
-		case <-c.peer.stop:
-			return
-		case <-time.After(interval):
-		}
+		timer.Reset(interval)
 	}
 }

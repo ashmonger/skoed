@@ -17,6 +17,9 @@ import (
 type Cluster interface {
 	IsLeader() bool
 	LeaderAPIAddress() string // e.g. "http://192.168.1.10:8080"; "" if no leader known
+	// LeaderMainAPIAddress is the leader's operator-facing main API, reported
+	// in error bodies; LeaderAPIAddress may be its peer listener.
+	LeaderMainAPIAddress() string
 	LeaderID() string
 	// PeerHTTPClient sends the forwarded request; with mTLS enabled it
 	// reaches the leader's peer listener over the cluster mTLS.
@@ -74,7 +77,7 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 				writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 					Error:         "failed to read request body: " + err.Error(),
 					LeaderID:      c.LeaderID(),
-					LeaderAddress: leaderBase,
+					LeaderAddress: c.LeaderMainAPIAddress(),
 				})
 				return
 			}
@@ -94,7 +97,7 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 			writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 				Error:         "failed to build forward request: " + err.Error(),
 				LeaderID:      c.LeaderID(),
-				LeaderAddress: leaderBase,
+				LeaderAddress: c.LeaderMainAPIAddress(),
 			})
 			return
 		}
@@ -111,7 +114,7 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 			writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 				Error:         "forward to leader failed: " + err.Error(),
 				LeaderID:      c.LeaderID(),
-				LeaderAddress: leaderBase,
+				LeaderAddress: c.LeaderMainAPIAddress(),
 			})
 			return
 		}

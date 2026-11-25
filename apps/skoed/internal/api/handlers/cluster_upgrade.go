@@ -240,10 +240,11 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 
 	clusterSecret := cl.ClusterSecret()
 	// The self-upgrade call carries the cluster secret too, so with mTLS on
-	// it must go to this node's own peer listener, like the peer calls.
+	// it must go to this node's own peer listener, at its configured
+	// peer_api_address (the member record may not hold it yet).
 	selfAPIAddr := "http://" + cl.Node().Node.APIAddress
-	if self, _ := cl.Store().MemberByID(selfID); self != nil && cl.MTLSEnabled() {
-		selfAPIAddr = cl.MemberAPIURL(*self)
+	if cl.MTLSEnabled() {
+		selfAPIAddr = cl.SelfPeerAPIURL()
 	}
 	client := cl.PeerHTTPClient()
 
@@ -307,7 +308,15 @@ func (h *Handler) ClusterUpgradeApply(w http.ResponseWriter, r *http.Request) {
 		// Upgrade self last: post to own API endpoint. In test mode UpgradeStart
 		// suppresses os.Exit so the goroutine completes normally.
 		addUpgradeLogLine("upgrading self (%s)…", selfID)
-		_ = upgradeNode(client, selfAPIAddr, req.URL, req.SHA256, clusterSecret)
+		if err := upgradeNode(client, selfAPIAddr, req.URL, req.SHA256, clusterSecret); err != nil {
+			addUpgradeLogLine("FAILED %s (self): %v", selfID, err)
+			node := selfID
+			upgradeMu.Lock()
+			upgradeState.InProgress = false
+			upgradeState.FailedNode = &node
+			upgradeMu.Unlock()
+			return
+		}
 		addUpgradeLogLine("OK %s — upgrade complete", selfID)
 
 		upgradeMu.Lock()

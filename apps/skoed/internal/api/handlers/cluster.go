@@ -307,6 +307,15 @@ func (h *Handler) NodeJoinCluster(w http.ResponseWriter, r *http.Request) {
 
 // ─── join ────────────────────────────────────────────────────────────────────
 
+const reservedNodeIDMsg = `node_id "localhost" is reserved: every cluster leaf carries it as a SAN, so peers could not verify this node`
+
+// reservedNodeID reports whether id cannot be used by a joining node. Every
+// cluster leaf certificate carries the DNS SAN "localhost", and peer clients
+// verify a node by its ID as ServerName (TS-EncryptedClusterMesh).
+func reservedNodeID(id string) bool {
+	return strings.EqualFold(id, "localhost")
+}
+
 // ClusterJoin handles POST /api/v1/cluster/join. Validates the token, adds
 // the new node as a Raft voter, and records it in the replicated members
 // bucket. Must be invoked on the leader.
@@ -322,6 +331,10 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Token == "" || req.NodeID == "" || req.RaftAddress == "" {
 		writeError(w, http.StatusBadRequest, "token, node_id and raft_address are required")
+		return
+	}
+	if reservedNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, reservedNodeIDMsg)
 		return
 	}
 
@@ -363,6 +376,10 @@ func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Token == "" || req.NodeID == "" {
 		writeError(w, http.StatusBadRequest, "token and node_id are required")
+		return
+	}
+	if reservedNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, reservedNodeIDMsg)
 		return
 	}
 	ca, leaf, key, err := c.MintLeafForJoin(req.Token, req.NodeID)

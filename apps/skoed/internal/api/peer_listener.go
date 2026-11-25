@@ -32,15 +32,31 @@ func fromPeerListener(r *http.Request) bool {
 // X-Cluster-Secret when mTLS is enabled and the request did not come in on
 // the peer listener. With mTLS disabled, peers still use the main listener.
 func (a *App) rejectClusterSecretOffPeerListener(next http.Handler) http.Handler {
+	return rejectClusterSecretOffPeer(func() bool {
+		return a.cluster != nil && a.cluster.MTLSEnabled()
+	}, next)
+}
+
+// rejectClusterSecretOffPeer is rejectClusterSecretOffPeerListener, with
+// mtlsEnabled telling whether the node runs with the cluster mTLS. The
+// secret's value is not checked: any request carrying it is refused.
+func rejectClusterSecretOffPeer(mtlsEnabled func() bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Cluster-Secret") != "" && a.cluster != nil &&
-			a.cluster.MTLSEnabled() && !fromPeerListener(r) {
+		if r.Header.Get("X-Cluster-Secret") != "" && mtlsEnabled() && !fromPeerListener(r) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"the cluster secret is accepted only on the peer mTLS listener"}` + "\n"))
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+// markPeerListener marks every request as received on the peer listener
+// before passing it to next.
+func markPeerListener(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerListenerKey{}, true)))
 	})
 }
 
@@ -57,14 +73,14 @@ func StartPeerServer(app *App, addr string, tlsCfg *tls.Config) (*PeerServer, er
 	if tlsCfg == nil || tlsCfg.ClientAuth != tls.RequireAndVerifyClientCert {
 		return nil, errors.New("peer API server: TLS config must require and verify client certificates")
 	}
+	if addr == "" {
+		return nil, errors.New("peer API server: no listen address")
+	}
 	ln, err := tls.Listen("tcp", addr, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("peer API server: listen %s: %w", addr, err)
 	}
-	router := app.Router()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		router.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerListenerKey{}, true)))
-	})
+	handler := markPeerListener(app.Router())
 	s := &PeerServer{
 		listener: ln,
 		// Same limits as the main listener; no WriteTimeout so the query-log
