@@ -1,0 +1,170 @@
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"syscall"
+	"time"
+
+	"github.com/spf13/cobra"
+	bolt "go.etcd.io/bbolt"
+
+	"github.com/skoed/skoed/internal/cluster"
+)
+
+const (
+	// raftLogRelPath is the raft-boltdb log store, relative to data_dir.
+	raftLogRelPath = "raft/raft-log.bolt"
+	// raftCompactLockTimeout bounds the wait for the bbolt file lock. The
+	// daemon holds the lock for as long as it runs, so a timeout means it
+	// is running.
+	raftCompactLockTimeout = 1 * time.Second
+	// raftCompactTxMaxSize is the amount of data bolt.Compact copies per
+	// write transaction.
+	raftCompactTxMaxSize = 64 << 20
+)
+
+// errRaftLogLocked is printed when the daemon holds raft-log.bolt
+// (FS-RaftLogCompactRefusedWhileRunning).
+var errRaftLogLocked = errors.New("raft-log.bolt is locked: stop the skoed daemon first")
+
+func newRaftCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "raft",
+		Short: "Offline maintenance of the node's Raft state",
+	}
+	c.AddCommand(newRaftCompactCmd())
+	return c
+}
+
+func newRaftCompactCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "compact",
+		Short: "Compact raft-log.bolt of a stopped node",
+		Long: `Rewrite <data_dir>/raft/raft-log.bolt without the space freed by log
+truncation. The daemon must be stopped. The original file is kept as
+raft-log.bolt.pre-compact; delete it once the node has restarted and
+rejoined the cluster.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dataDir, err := raftCompactDataDir(cmd)
+			if err != nil {
+				return err
+			}
+			return compactRaftLog(cmd, filepath.Join(dataDir, raftLogRelPath))
+		},
+	}
+	c.Flags().String("config", "config.yaml", "path to config.yaml, read for data_dir")
+	c.Flags().String("data-dir", "", "node data directory (instead of --config)")
+	c.MarkFlagsMutuallyExclusive("config", "data-dir")
+	return c
+}
+
+// raftCompactDataDir returns --data-dir, or data_dir from --config.
+func raftCompactDataDir(cmd *cobra.Command) (string, error) {
+	if dir, _ := cmd.Flags().GetString("data-dir"); dir != "" {
+		return dir, nil
+	}
+	cfgPath, _ := cmd.Flags().GetString("config")
+	node, _, err := cluster.LoadConfig(cfgPath)
+	if err != nil {
+		return "", err
+	}
+	return node.Node.DataDir, nil
+}
+
+// compactRaftLog rewrites logPath with bolt.Compact. Steps (TS §9): open the
+// original read-only, refusing when the daemon holds its lock; compact into
+// logPath.compact; rename the original to logPath.pre-compact and the
+// compacted file to logPath. The original stays open, so its lock is held,
+// until both renames are done.
+func compactRaftLog(cmd *cobra.Command, logPath string) error {
+	compactPath := logPath + ".compact"
+	preCompactPath := logPath + ".pre-compact"
+
+	orig, err := os.Stat(logPath)
+	if err != nil {
+		return err
+	}
+	src, err := bolt.Open(logPath, 0, &bolt.Options{Timeout: raftCompactLockTimeout, ReadOnly: true})
+	if errors.Is(err, bolt.ErrTimeout) {
+		return errRaftLogLocked
+	}
+	if err != nil {
+		return fmt.Errorf("open %s: %w", logPath, err)
+	}
+	defer src.Close()
+
+	// A previous compaction's backup is kept until the operator deletes it.
+	if _, err := os.Stat(preCompactPath); err == nil {
+		return fmt.Errorf("%s already exists: delete it once the node has rejoined, then run the compaction again", preCompactPath)
+	}
+	// Left over by an interrupted compaction; it was never renamed in place.
+	if err := os.Remove(compactPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := writeCompactedCopy(src, compactPath, orig); err != nil {
+		os.Remove(compactPath)
+		return err
+	}
+	if err := os.Rename(logPath, preCompactPath); err != nil {
+		os.Remove(compactPath)
+		return err
+	}
+	if err := os.Rename(compactPath, logPath); err != nil {
+		return fmt.Errorf("%w (the original is %s; rename it back to %s)", err, preCompactPath, logPath)
+	}
+	if err := syncDir(filepath.Dir(logPath)); err != nil {
+		return err
+	}
+
+	compacted, err := os.Stat(logPath)
+	if err != nil {
+		return err
+	}
+	writeln(cmd, fmt.Sprintf("%s: %d → %d bytes (original kept as %s)",
+		logPath, orig.Size(), compacted.Size(), preCompactPath))
+	return nil
+}
+
+// writeCompactedCopy compacts src into a new bolt file at path, with the
+// mode and ownership of orig, and syncs it.
+func writeCompactedCopy(src *bolt.DB, path string, orig os.FileInfo) error {
+	dst, err := bolt.Open(path, orig.Mode().Perm(), &bolt.Options{Timeout: raftCompactLockTimeout})
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	if err := bolt.Compact(dst, src, raftCompactTxMaxSize); err != nil {
+		dst.Close()
+		return fmt.Errorf("compact into %s: %w", path, err)
+	}
+	if err := dst.Sync(); err != nil {
+		dst.Close()
+		return fmt.Errorf("sync %s: %w", path, err)
+	}
+	if err := dst.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", path, err)
+	}
+	// bolt.Open applies the umask, so the mode is set again explicitly.
+	if err := os.Chmod(path, orig.Mode().Perm()); err != nil {
+		return err
+	}
+	if st, ok := orig.Sys().(*syscall.Stat_t); ok {
+		if err := os.Chown(path, int(st.Uid), int(st.Gid)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
+}

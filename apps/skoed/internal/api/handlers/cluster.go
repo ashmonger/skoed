@@ -85,6 +85,15 @@ type clusterStatusResp struct {
 	RaftTerm  uint64             `json:"raft_term"`
 	LeaderID  string             `json:"leader_id"`
 	Nodes     []clusterNodeEntry `json:"nodes"`
+	Raft      *raftIndexesResp   `json:"raft,omitempty"`
+}
+
+// raftIndexesResp is `ClusterStatus.raft`: the Raft log indexes of the
+// answering node (TS-BlocklistContentDistribution §8).
+type raftIndexesResp struct {
+	FirstLogIndex     uint64 `json:"first_log_index"`
+	LastLogIndex      uint64 `json:"last_log_index"`
+	LastSnapshotIndex uint64 `json:"last_snapshot_index"`
 }
 
 type transferLeadershipReq struct {
@@ -552,6 +561,15 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		RaftTerm:  c.Raft().CurrentTerm(),
 		LeaderID:  leaderID,
 		Nodes:     make([]clusterNodeEntry, 0, len(servers)),
+	}
+	// The indexes only fail to read while Raft shuts down; `raft` is then
+	// left out rather than failing the whole status.
+	if idx, err := c.RaftIndexes(); err == nil {
+		out.Raft = &raftIndexesResp{
+			FirstLogIndex:     idx.First,
+			LastLogIndex:      idx.Last,
+			LastSnapshotIndex: idx.LastSnapshot,
+		}
 	}
 
 	now := time.Now().UTC()

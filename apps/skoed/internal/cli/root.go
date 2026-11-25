@@ -62,6 +62,7 @@ func Execute(daemon DaemonFn) error {
 	root.AddCommand(newBlocklistCmd())
 	root.AddCommand(newDomainCmd())
 	root.AddCommand(newTopCmd())
+	root.AddCommand(newRaftCmd())
 
 	return root.Execute()
 }
