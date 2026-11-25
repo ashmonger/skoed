@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -78,6 +79,12 @@ type Node struct {
 	// at node startup. Used by apiDo for all authenticated calls.
 	sessionToken string
 	cmd          *exec.Cmd
+	// exited is closed once cmd has exited and been reaped (startReaped).
+	// nil for a Node whose process the harness does not start.
+	exited <-chan struct{}
+	// ports lists every port written to the node's config.yaml, for the
+	// report logged when the process exits before it is ready.
+	ports []int
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
@@ -109,6 +116,10 @@ func skoedBinary(t *testing.T) string {
 
 // startNode starts a skoed node. The test is skipped if the binary is missing.
 // Cleanup (process kill) is registered automatically via t.Cleanup.
+//
+// If the process exits before it is ready, e.g. with "bind: address already
+// in use" on a port something outside the harness holds, the node is started
+// again in a fresh directory on fresh ports, up to maxNodeStarts times.
 func startNode(t *testing.T, cfg NodeConfig) *Node {
 	t.Helper()
 
@@ -117,58 +128,171 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 
-	dir := t.TempDir()
-	dnsPort := freeUDPPort(t)
-	apiPort := freeTCPPort(t)
-
 	if cfg.Mode == "" {
 		cfg.Mode = "forwarding"
 	}
 	if cfg.BlockPolicy == "" {
 		cfg.BlockPolicy = "nxdomain"
 	}
-
 	// M26: assign a unique block page port when policy is redirect and no port set.
-	if cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0 {
-		cfg.BlockPagePort = freeTCPPort(t)
-	}
+	autoBlockPagePort := cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0
 
-	writeConfig(t, dir, cfg, dnsPort, apiPort)
+	for attempt := 1; ; attempt++ {
+		dir := t.TempDir()
+		dnsPort := freeUDPPort(t)
+		apiPort := freeTCPPort(t)
+		if autoBlockPagePort {
+			cfg.BlockPagePort = freeTCPPort(t)
+		}
 
-	cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
-	cmd.Dir = dir
-	if len(cfg.Env) > 0 {
-		cmd.Env = append(os.Environ(), cfg.Env...)
+		writeConfig(t, dir, cfg, dnsPort, apiPort)
+
+		cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
+		cmd.Dir = dir
+		if len(cfg.Env) > 0 {
+			cmd.Env = append(os.Environ(), cfg.Env...)
+		}
+		if testing.Verbose() {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
+		cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+		exited, err := startReaped(cmd)
+		if err != nil {
+			t.Fatalf("start skoed: %v", err)
+		}
+
+		blockPageURL := ""
+		ports := []int{dnsPort, apiPort}
+		if cfg.BlockPolicy == "redirect" {
+			blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
+			ports = append(ports, cfg.BlockPagePort)
+		}
+
+		n := &Node{
+			DNSAddr:      fmt.Sprintf("127.0.0.1:%d", dnsPort),
+			APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
+			BlockPageURL: blockPageURL,
+			cmd:          cmd,
+			exited:       exited,
+			ports:        ports,
+		}
+
+		t.Cleanup(func() { killAndReap(cmd, exited) })
+
+		err = waitReadyErr(n)
+		if err == nil {
+			setupAuth(t, n) // also calls loginSession and sets n.sessionToken
+			return n
+		}
+		if !errors.Is(err, errExitedBeforeReady) || attempt == maxNodeStarts {
+			t.Fatalf("%v%s", err, exitReport(n))
+		}
+		t.Logf("start %d of %d: %v; starting the node again on fresh ports%s", attempt, maxNodeStarts, err, exitReport(n))
 	}
-	if testing.Verbose() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+}
+
+// maxNodeStarts bounds how many times the harness starts a node whose
+// process exits before it is ready.
+const maxNodeStarts = 3
+
+// errExitedBeforeReady is returned by waitReadyErr when the skoed process
+// exits before it answers on its API and DNS ports.
+var errExitedBeforeReady = errors.New("skoed process exited before it became ready")
+
+// startReaped starts cmd and waits for it in a goroutine. The returned
+// channel is closed once the process has exited and cmd.ProcessState is
+// set. Nothing else may call cmd.Wait: wait on the channel instead.
+func startReaped(cmd *exec.Cmd) (<-chan struct{}, error) {
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start skoed: %v", err)
+		return nil, err
 	}
+	done := make(chan struct{})
+	go func() {
+		cmd.Wait() //nolint:errcheck
+		close(done)
+	}()
+	return done, nil
+}
 
-	blockPageURL := ""
-	if cfg.BlockPolicy == "redirect" {
-		blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
+// killAndReap kills the process started by startReaped, if it still runs,
+// and returns once it has been reaped.
+func killAndReap(cmd *exec.Cmd, exited <-chan struct{}) {
+	cmd.Process.Kill() //nolint:errcheck
+	<-exited
+}
+
+// hasExited reports whether the node's process has exited. It is false for
+// a Node whose process the harness does not start.
+func (n *Node) hasExited() bool {
+	if n.exited == nil {
+		return false
 	}
-
-	n := &Node{
-		DNSAddr:      fmt.Sprintf("127.0.0.1:%d", dnsPort),
-		APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
-		BlockPageURL: blockPageURL,
-		cmd:          cmd,
+	select {
+	case <-n.exited:
+		return true
+	default:
+		return false
 	}
+}
 
-	t.Cleanup(func() {
-		cmd.Process.Kill() //nolint:errcheck
-		cmd.Wait()         //nolint:errcheck
-	})
+// exitReport describes how the node's process ended and which sockets use
+// its ports, for the message of a node that exited before it was ready.
+// It is empty while the process runs.
+func exitReport(n *Node) string {
+	if !n.hasExited() {
+		return ""
+	}
+	return fmt.Sprintf("\nprocess: %s\n%s", n.cmd.ProcessState, portReport(n.ports))
+}
 
-	waitReady(t, n)
-	setupAuth(t, n) // also calls loginSession and sets n.sessionToken
-	return n
+// portReport lists the sockets that use any of ports, from `ss -tuanp`
+// (or `netstat -tuanp` where ss is missing), and the local port range of
+// the host, to show what holds a port a node could not bind.
+func portReport(ports []int) string {
+	var b strings.Builder
+	if r, err := os.ReadFile("/proc/sys/net/ipv4/ip_local_port_range"); err == nil {
+		fmt.Fprintf(&b, "ip_local_port_range: %s\n", strings.Join(strings.Fields(string(r)), "-"))
+	}
+	tool := "ss -tuanp"
+	out, err := exec.Command("ss", "-tuanp").CombinedOutput()
+	if err != nil {
+		tool = "netstat -tuanp"
+		out, err = exec.Command("netstat", "-tuanp").CombinedOutput()
+	}
+	if err != nil {
+		fmt.Fprintf(&b, "neither ss nor netstat ran: %v", err)
+		return b.String()
+	}
+	suffixes := make([]string, len(ports))
+	for i, p := range ports {
+		suffixes[i] = fmt.Sprintf(":%d", p)
+	}
+	fmt.Fprintf(&b, "%s, sockets on ports %v:", tool, ports)
+	found := false
+	for _, line := range strings.Split(string(out), "\n") {
+		if lineHasPort(line, suffixes) {
+			b.WriteString("\n  " + line)
+			found = true
+		}
+	}
+	if !found {
+		b.WriteString(" none")
+	}
+	return b.String()
+}
+
+// lineHasPort reports whether a field of line, an address such as
+// "0.0.0.0:20001" or "[::]:20001", ends with one of suffixes.
+func lineHasPort(line string, suffixes []string) bool {
+	for _, f := range strings.Fields(line) {
+		for _, s := range suffixes {
+			if strings.HasSuffix(f, s) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // startFakeUpstream starts an in-process UDP DNS server whose handler you control.
@@ -574,38 +698,50 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 
 func waitReady(t *testing.T, n *Node) {
 	t.Helper()
+	if err := waitReadyErr(n); err != nil {
+		t.Fatalf("%v%s", err, exitReport(n))
+	}
+}
+
+// waitReadyErr waits until the node answers on its API and DNS ports. It
+// returns errExitedBeforeReady (wrapped) as soon as the process exits, and
+// an error naming the listener that is not up after readyTimeout.
+func waitReadyErr(n *Node) error {
 	deadline := time.Now().Add(readyTimeout)
-	// Phase 1: HTTP /health responds. The API listener binds first.
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(n.APIBase + "/api/v1/health")
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == 200 || resp.StatusCode == 401 {
+	apiUp := false
+	for {
+		if n.hasExited() {
+			return fmt.Errorf("%w (API %s, DNS %s)", errExitedBeforeReady, n.APIBase, n.DNSAddr)
+		}
+		// Phase 1: HTTP /health responds. The API listener binds first.
+		if !apiUp {
+			if resp, err := http.Get(n.APIBase + "/api/v1/health"); err == nil {
+				resp.Body.Close()
 				// 401 means auth not set up yet — API is running.
-				goto dnsCheck
+				apiUp = resp.StatusCode == 200 || resp.StatusCode == 401
 			}
 		}
-		time.Sleep(readyPollInterval)
-	}
-	t.Fatalf("skoed API did not become ready within %s at %s", readyTimeout, n.APIBase)
-
-dnsCheck:
-	// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
-	// the API listener; a test that fires a DNS query the moment
-	// waitReady returns can otherwise see "connection refused" on the
-	// still-unbound port. skoed binds both UDP and TCP on the same
-	// DNS port, so a TCP dial proves the listener is up WITHOUT
-	// sending a DNS message — no query-log pollution, no upstream
-	// contact, no SafeSearch rewrite.
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", n.DNSAddr, 500*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return
+		// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
+		// the API listener; a test that fires a DNS query the moment
+		// waitReady returns can otherwise see "connection refused" on the
+		// still-unbound port. skoed binds both UDP and TCP on the same
+		// DNS port, so a TCP dial proves the listener is up WITHOUT
+		// sending a DNS message — no query-log pollution, no upstream
+		// contact, no SafeSearch rewrite.
+		if apiUp {
+			if conn, err := net.DialTimeout("tcp", n.DNSAddr, 500*time.Millisecond); err == nil {
+				conn.Close()
+				return nil
+			}
+		}
+		if !time.Now().Before(deadline) {
+			if !apiUp {
+				return fmt.Errorf("skoed API did not become ready within %s at %s", readyTimeout, n.APIBase)
+			}
+			return fmt.Errorf("skoed DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("skoed DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 }
 
 func setupAuth(t *testing.T, n *Node) {
