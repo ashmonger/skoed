@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/api/swaggerui"
 	"github.com/skoed/skoed/internal/auth"
+	"github.com/skoed/skoed/internal/blocklistcache"
 	"github.com/skoed/skoed/internal/blockpage"
 	"github.com/skoed/skoed/internal/cluster"
 	"github.com/skoed/skoed/internal/config"
@@ -91,6 +93,17 @@ type App struct {
 	cfgMu     sync.RWMutex
 	cfg       *config.Config
 	filterEng *filter.Engine
+
+	// M50 (TS-BlocklistContentDistribution §7): this node's copy of URL
+	// blocklist content, read by the filter engine, and the leader-side
+	// download path used by the blocklist handlers. Nil until wired.
+	blContent   *blocklistcache.Cache
+	blRefresher handlers.BlocklistRefresher
+	// rebuildMu serializes filter rebuilds (FSM applies and cache
+	// changes); filterFP is the fingerprint of the inputs of the current
+	// engine, so an apply that changes none of them keeps the engine.
+	rebuildMu sync.Mutex
+	filterFP  [sha256.Size]byte
 
 	// apiTokensByHash is an in-memory lookup table rebuilt on every onApply.
 	// Key = hex(sha256(rawToken)); value = pointer into apiTokensByID.
@@ -577,15 +590,14 @@ func (a *App) onApply() {
 	}
 	a.cfgMu.Lock()
 	a.cfg = snap
-	a.filterEng = filter.NewProfiled(snap)
 	a.cfgMu.Unlock()
 
-	// M6.5 (TS-BlockDyn): re-wire the lease origin lookup every time the
-	// engine is rebuilt so block_dynamic_clients profiles resolve correctly.
-	a.wireLeaseOriginLookup()
+	// M50: rebuild the filter engine only when its inputs changed, so
+	// stats, audit, lease and member entries no longer rebuild it.
+	a.rebuildFilterIfChanged(false)
 
-	// M35.5 (TS-DeviceRegistry): re-wire the device lookup every time the
-	// engine is rebuilt so device-profile matches stay current.
+	// M35.5 (TS-DeviceRegistry): re-wire the device lookup on every apply
+	// so device-profile matches stay current.
 	a.wireDeviceLookup(snap)
 
 	// M7 (TS-ApiToken): keep the in-memory token cache in sync with bbolt.
@@ -612,6 +624,111 @@ func (a *App) onApply() {
 			a.dhcpMgr.ResetReplicatedAnomalies(anomalies)
 		}
 	}
+}
+
+// SetBlocklistContent wires this node's copy of URL blocklist content
+// (M50). The filter engine is rebuilt now and after every change of the
+// cache.
+func (a *App) SetBlocklistContent(c *blocklistcache.Cache) {
+	a.blContent = c
+	if c == nil {
+		return
+	}
+	c.OnChange(func() { a.rebuildFilterIfChanged(false) })
+	a.rebuildFilterIfChanged(true)
+}
+
+// BlocklistContent returns this node's copy of URL blocklist content, or
+// nil when not wired.
+func (a *App) BlocklistContent() *blocklistcache.Cache { return a.blContent }
+
+// SetBlocklistRefresher wires the leader-side download path of URL
+// blocklists used by the blocklist handlers (M50).
+func (a *App) SetBlocklistRefresher(r handlers.BlocklistRefresher) { a.blRefresher = r }
+
+// BlocklistRefresher returns the leader-side download path of URL
+// blocklists, or nil when not wired.
+func (a *App) BlocklistRefresher() handlers.BlocklistRefresher { return a.blRefresher }
+
+// rebuildFilterIfChanged rebuilds the filter engine from the cached config
+// when the fingerprint of its inputs differs from the current engine's, or
+// when force is set. The config is read under rebuildMu, so a rebuild
+// started by a cache change cannot replace the engine built by a later
+// apply with one built from an older config.
+func (a *App) rebuildFilterIfChanged(force bool) {
+	a.rebuildMu.Lock()
+	defer a.rebuildMu.Unlock()
+	snap := a.GetCfg()
+	if snap == nil {
+		return
+	}
+	var entries map[string]blocklistcache.Entry
+	var src filter.ContentSource
+	if a.blContent != nil {
+		entries = a.blContent.Entries()
+		src = a.blContent
+	}
+	fp := filterFingerprint(snap, entries, filter.Now())
+	if !force && fp == a.filterFP {
+		return
+	}
+	eng := filter.NewProfiledWithContent(snap, src)
+	a.cfgMu.Lock()
+	a.filterEng = eng
+	a.cfgMu.Unlock()
+	a.filterFP = fp
+
+	// M6.5 (TS-BlockDyn): re-wire the lease origin lookup every time the
+	// engine is rebuilt so block_dynamic_clients profiles resolve correctly.
+	a.wireLeaseOriginLookup()
+	// M35.5 (TS-DeviceRegistry): the new engine needs the device lookup.
+	a.wireDeviceLookup(snap)
+}
+
+// filterFingerprint hashes everything the filter engine is built from: the
+// filtering configuration (blocklists without their LastRefresh* fields),
+// profiles, schedules, bindings, categories, which allowlist entries have
+// expired at now (the engine drops them when it is built), and the hashes
+// of this node's copies of URL blocklists.
+func filterFingerprint(snap *config.Config, cache map[string]blocklistcache.Entry, now time.Time) [sha256.Size]byte {
+	filtering := snap.Filtering
+	filtering.Blocklists = make([]config.Blocklist, len(snap.Filtering.Blocklists))
+	for i, bl := range snap.Filtering.Blocklists {
+		bl.LastRefreshAt, bl.LastRefreshStatus, bl.LastRefreshError = "", "", ""
+		filtering.Blocklists[i] = bl
+	}
+	expired := 0
+	countExpired := func(entries []config.AllowlistEntry) {
+		for _, e := range entries {
+			if e.ExpiresAt != nil && !now.Before(*e.ExpiresAt) {
+				expired++
+			}
+		}
+	}
+	countExpired(snap.Filtering.AllowlistEntries)
+	for _, p := range snap.Profiles {
+		countExpired(p.AllowlistEntries)
+	}
+	for _, s := range snap.Filtering.SharedAllowlists {
+		countExpired(s.Entries)
+	}
+	local := make(map[string]string, len(cache))
+	for id, e := range cache {
+		local[id] = e.SHA256
+	}
+	h := sha256.New()
+	_ = json.NewEncoder(h).Encode(struct {
+		Filtering  config.FilteringConfig
+		Profiles   []config.Profile
+		Schedules  []config.Schedule
+		Bindings   []config.ScheduleBinding
+		Categories []config.CategoryOverride
+		Expired    int
+		Local      map[string]string
+	}{filtering, snap.Profiles, snap.Schedules, snap.Bindings, snap.Categories, expired, local})
+	var out [sha256.Size]byte
+	copy(out[:], h.Sum(nil))
+	return out
 }
 
 // --- handlers.AppState implementation ---
@@ -906,6 +1023,9 @@ func (a *App) FireWebhookTest(endpointID string) error {
 func (a *App) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	// M50 — with mTLS on, the cluster secret is accepted only on the peer
+	// listener (peer_listener.go).
+	r.Use(a.rejectClusterSecretOffPeerListener)
 
 	h := handlers.New(a)
 
@@ -959,10 +1079,18 @@ func (a *App) Router() http.Handler {
 	// X-Cluster-Secret header — peers do not have admin credentials.
 	r.Post("/api/v1/cluster/_internal/aggregates", h.ClusterInternalAggregates)
 
+	// M50 — follower → leader copy of a URL blocklist's downloaded content.
+	// Same authentication as the aggregates channel (X-Cluster-Secret).
+	r.Get("/api/v1/cluster/_internal/blocklists/{id}/content", h.ClusterInternalBlocklistContent)
+
 	// M18 — cluster-internal per-node upgrade trigger. Used by the rolling
 	// upgrade goroutine to self-upgrade each peer without WriteForwardMiddleware
 	// redirecting the call back to the leader. Authenticated by X-Cluster-Secret.
 	r.Post("/api/v1/upgrade/node-start", h.NodeUpgradeStart)
+
+	// M50 — follower → leader update of the follower's own member record
+	// (peer API address, capabilities). Authenticated by X-Cluster-Secret.
+	r.Post("/api/v1/cluster/_internal/members/self", h.ClusterInternalSelfMember)
 
 	r.Group(func(r chi.Router) {
 		r.Use(a.Auth)
@@ -1336,3 +1464,9 @@ type clusterAdapter struct{ c *cluster.Cluster }
 func (a clusterAdapter) IsLeader() bool           { return a.c.IsLeader() }
 func (a clusterAdapter) LeaderAPIAddress() string { return a.c.LeaderAPIAddress() }
 func (a clusterAdapter) LeaderID() string         { return a.c.LeaderID() }
+func (a clusterAdapter) LeaderMainAPIAddress() string {
+	return a.c.LeaderMainAPIAddress()
+}
+func (a clusterAdapter) PeerHTTPClient() *http.Client {
+	return a.c.PeerHTTPClient()
+}

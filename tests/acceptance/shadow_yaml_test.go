@@ -365,7 +365,7 @@ func TestConfigShadowYamlRoundTrips(t *testing.T) {
 	c2 := &Cluster{t: t, bin: skoedBinary(t)}
 	dnsPort := freeUDPPort(t)
 	apiPort := freeTCPPort(t)
-	raftPort := freeTCPPort(t)
+	raftPort := freeRaftPort(t)
 	cn := c2.spawnNode(t, M2NodeConfig{
 		NodeID:   "restored-1",
 		DNSPort:  dnsPort,

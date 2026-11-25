@@ -92,7 +92,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
 | M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
 | M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
-| M50 | Hardening & Technical Debt | ⬜ | — | — | [audit](SECURITY_AUDIT.md) | — |
+| M50 | Hardening & Technical Debt | 🔄 | — | — | [audit](SECURITY_AUDIT.md) · [blocklist-content](specs/functional/blocklist-content-distribution.feature) | — |
 
 ## M12 tasks
 
@@ -511,6 +511,91 @@ functional spec in front of it either.
 - [ ] API — retroactive functional spec with `@fsid` scenarios for the
   create contract (owed by the exception)
 - [ ] API — demo note and UoR validation
+
+## M50 tasks — Blocklist content distributed by the leader (branch: `feature/m50-node-local-blocklists`)
+
+Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
+`raft-log.bolt` and an OOM loop. Decision:
+`decisions/20261125-LeaderDistributedBlocklistContent.md`.
+
+- [x] M50 — live mitigation: CTs 666 and 667 raised 512 MB → 2048 MB — 2026-11-25
+- [x] M50 — functional spec: `specs/functional/blocklist-content-distribution.feature` (16 FSIDs) — 2026-11-25
+- [x] M50 — UoR validated functional spec — 2026-11-25
+- [x] M50 — technical spec: `specs/technical/blocklist-content-distribution.md` (TS-BlocklistContentDistribution) + `management-api.openapi.yaml` — 2026-11-25
+- [x] M50 — UoR validated technical spec (blocklist content distribution + peer mTLS) — 2026-11-25
+- [x] M50 — peer HTTP over mTLS (FS-MtlsInternalApiHTTPS), no plain-HTTP
+  fallback, unpinnable node IDs refused with mTLS on — merged at 4df4e71 — 2026-11-25
+- [ ] M50 — enable `node.cluster.mtls.enabled` on the home cluster
+- [ ] Tooling — `tools/traceability/traceability_check.sh` only recognizes
+  JavaScript `it(`/`test(` calls, so it reports every FSID covered by a Go
+  acceptance test as MISSING (118 on this branch, 102 on master)
+- [x] M50 — acceptance tests: `blocklist_content_distribution_test.go` (13),
+  `raft_log_bounds_test.go` (3), `encrypted_mesh_test.go`
+  (FS-MtlsInternalApiHTTPS), helpers in `m50_harness_test.go`; 3 review
+  cycles, merged at 7904a1a. Run on a test CT against today's binary:
+  2 pass (regression checks), 15 fail because the feature is missing — 2026-11-25
+- [x] M50 — UoR validated acceptance tests — 2026-11-25
+- [x] M50 — test follow-ups: `iptables -w`; upgrade test re-checks blocking — 2026-11-25
+- [ ] API — the audit middleware reads at most 8 KB of every write body and
+  passes only that on (`apps/skoed/internal/api/audit_middleware.go:34-39`),
+  so any JSON write over 8 KB fails with 400 "invalid JSON" (e.g. an inline
+  blocklist of more than about 250 domains); needs its own spec
+- [ ] Tooling — `gofmt -l` lists 35 files under `tests/acceptance` that
+  were already unformatted on master
+- [x] M50 — implementation: 4 review cycles (the 4th under
+  `decisions/20261125-M50FourthCycle.md`), merged at 993a997. Full suite
+  on test CT 101: 599 pass, 32 skip, 1 known flake
+  (TestLeaseReplLeasesEndpointExposesSnapshot, passes 3/3 alone);
+  `go test -race ./...` clean; no "address already in use" — 2026-11-25
+- [x] DNS — the plain DNS server could start twice at boot and crash a
+  joining node; fixed under `decisions/20261125-DirectFixDnsServerDoubleStart.md` — 2026-11-25
+- [ ] DNS — retroactive functional scenario owed by that exception: a node
+  joining a cluster starts its DNS listener once
+- [ ] M50 — CI green on GitHub
+- [ ] M50 follow-ups (MINOR, from review, not blocking):
+  * legacy attempt record survives two leader changes around a gate loss
+    (`refresh/scheduler.go`); tie the attempt to `Content.SHA256`
+  * an empty legacy download is recorded as "unchanged" while the stored
+    version still holds the old domains
+  * `raft compact`: print both sizes when the final directory fsync fails
+  * test gaps: tick-level `clearLegacyAttempt`, a `Rebuild` during the boot
+    builder, mtls-bootstrap refusal with mTLS off, holder port release
+  * `LeaderMainAPIAddress` read twice in the refresh handler (tiny window
+    for a 409 with an empty leader address)
+  * node IDs that differ only by case or a trailing dot verify each
+    other's leaves; join has no duplicate-ID check
+- [ ] mTLS — **confirmed in the M50 demo**: Raft over mTLS fails between
+  real hosts (`x509: certificate is valid for 127.0.0.1, ::1, not
+  192.168.1.192`). `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`)
+  sets no `ServerName`, and leaves carry only the node ID, localhost,
+  127.0.0.1 and ::1; tests run on 127.0.0.1 only. A join then adds a voter
+  that never receives Raft traffic, so a 2-voter cluster loses its leader.
+  Needs its own spec; docs warn about it
+- [ ] Cluster — a joining node with an empty bootstrap token silently starts
+  its own single-node cluster
+- [ ] Cluster — the used `bootstrap:` token stays in config.yaml and every
+  start logs "detected cluster seed in config.yaml; will migrate after
+  bootstrap"
+- [ ] Docs — `docs/src/cluster/bootstrap.md` shows `curl -u admin:…`, but
+  HTTP Basic auth returns 401; only a Bearer token from `/auth/login` works
+- [ ] mTLS — `ResetRaftForJoin` rebuilds Raft without the TLS stream layer
+- [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
+  `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
+  rebuild can start DNSCrypt with a handler built before `main` finished
+- [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
+  TestDotAppliesFilter (query log read right after the query),
+  TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
+- [x] M50 — refactoring phase (3 commits up to 7f4150b), full suite again:
+  599 pass, 1 known flake (passes 3/3 alone), `-race` clean — 2026-11-25
+- [x] M50 — real-environment validation on a Proxmox 3-node cluster:
+  `demos/m50/DEMO_NOTE.md` (0.3.2 → final rolling upgrade, compaction,
+  iptables cut, failover pass; cross-host mTLS fails, pre-existing) — 2026-11-25
+- [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
+- [x] M50 — demo note and UoR validation — 2026-11-25
+- [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
+  daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in
+  use` on a host with `net.ipv6.bindv6only = 0` (seen on Debian 13, also on
+  master); needs its own spec
 
 ## Backlog
 

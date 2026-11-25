@@ -18,6 +18,8 @@ import (
 	"github.com/skoed/skoed/internal/api"
 	apiSSE "github.com/skoed/skoed/internal/api/sse"
 	"github.com/skoed/skoed/internal/auth"
+	"github.com/skoed/skoed/internal/blocklistcache"
+	"github.com/skoed/skoed/internal/blocklistsync"
 	"github.com/skoed/skoed/internal/blockpage"
 	"github.com/skoed/skoed/internal/cli"
 	"github.com/skoed/skoed/internal/cluster"
@@ -130,6 +132,18 @@ func runDaemon(cfgPath string) {
 	wantBootstrap := !hasRaft && node.Bootstrap.Token == ""
 	suppressRaft := os.Getenv("SKOED_TEST_MODE") == "1"
 	mtlsEnabled := node.Node.Cluster.MTLS.Enabled
+	// M50 — with mTLS on, peers reach this node only on its peer API
+	// listener, so refuse to start without an address for it.
+	if mtlsEnabled && node.Node.PeerAPIAddress() == "" {
+		log.Fatalf("node.cluster.peer_api_address is unset and cannot be derived from raft_address %q (raft port + 1); set it explicitly", node.Node.RaftAddress)
+	}
+	// Peers verify this node with its ID as TLS ServerName, which
+	// "localhost" or an IP literal cannot pin: every leaf carries
+	// localhost, 127.0.0.1 and ::1 as SANs. Join refuses such an ID; this
+	// covers the bootstrap node, which never joins.
+	if mtlsEnabled && cluster.UnpinnableNodeID(node.Node.ID) {
+		log.Fatalf("node.id %q cannot be used with mTLS enabled: peers could not verify it (use a name, not \"localhost\" or an IP address)", node.Node.ID)
+	}
 
 	// M5.3 — when joining with mTLS enabled, fetch the cluster CA + a
 	// freshly-signed leaf cert from the leader BEFORE cluster.New so the
@@ -203,11 +217,29 @@ func runDaemon(cfgPath string) {
 	snap.Defaults()
 	mergeNodeLocal(snap, node)
 
+	// ── M50 — node-local copy of URL blocklist content ──────────────────
+	// (TS-BlocklistContentDistribution §2.2, §6). Downloads identify the
+	// node to list hosts. The copies of URL lists written by a previous
+	// version (domains still replicated) are written now, so the leader
+	// can record their version without downloading and followers already
+	// hold the same file. blSync is started with the refresh scheduler.
+	filter.SetUserAgent(version, node.Node.ID)
+	blCache, err := blocklistcache.Open(node.Node.DataDir)
+	if err != nil {
+		log.Fatalf("open blocklist cache: %v", err)
+	}
+	blCache.SeedLegacy(snap, false)
+	var blSync *blocklistsync.Worker
+	// ── end M50 ─────────────────────────────────────────────────────────
+
 	authStore := auth.NewStore(snap.Auth)
 	queryLog := dlog.New(snap.QueryLog.MaxEntries)
 
 	var app *api.App
-	var dnsServer *dnsengine.Server
+	// The plain DNS server is started once, by main, after startup. A
+	// rebuildDNS call before that (Raft replay on a joining node) is
+	// ignored: the start builds its handler from a fresh snapshot.
+	var dnsServer dnsengine.ServerHolder
 	var encryptedSrv *dnsengine.EncryptedServer  // populated below; closure captures by name
 	var dnscryptSrv  *dnsengine.DNSCryptServer  // M8: populated below if DNSCryptPort > 0
 	var dhcpMgr *dhcp.Manager                   // populated below; closure captures by name
@@ -288,9 +320,12 @@ func runDaemon(cfgPath string) {
 			if err != nil {
 				return nil
 			}
-			var failures map[string]uint64
+			var failures, fetchFailures map[string]uint64
 			if refreshSched != nil {
 				failures = refreshSched.PerBlocklistFailures()
+			}
+			if blSync != nil {
+				fetchFailures = blSync.FetchFailures()
 			}
 			out := make([]metrics.BlocklistSnapshot, 0, len(snap.Filtering.Blocklists))
 			for _, bl := range snap.Filtering.Blocklists {
@@ -304,6 +339,10 @@ func runDaemon(cfgPath string) {
 					ID:            bl.ID,
 					LastRefreshAt: last,
 					Failures:      failures[bl.ID],
+					// M50 — node-local copy of URL list content.
+					URLContent:           bl.Source.Type == "url",
+					ContentCurrent:       bl.Content != nil && blCache.Has(bl.ID, bl.Content.SHA256),
+					ContentFetchFailures: fetchFailures[bl.ID],
 				})
 			}
 			return out
@@ -369,22 +408,11 @@ func runDaemon(cfgPath string) {
 				}
 			}
 		}
-		if dnsServer != nil && !dnsServer.ListenCfgChanged(newCfg.DNS) {
-			dnsServer.UpdateHandler(newHandler)
-			return nil
-		}
-		newServer := dnsengine.New(newCfg.DNS, newHandler)
-		if dnsServer != nil {
-			dnsServer.Shutdown()
-		}
-		if err := newServer.Start(); err != nil {
-			return fmt.Errorf("start rebuilt dns server: %w", err)
-		}
-		dnsServer = newServer
-		return nil
+		return dnsServer.Rebuild(newCfg.DNS, newHandler)
 	}
 
 	app = api.NewApp(c, authStore, queryLog, rebuildDNS)
+	app.SetBlocklistContent(blCache) // M50: before DNS starts serving
 	app.SetBuildInfo(version, commit)
 	app.SetDNSCache(dnsCache)
 	app.SetMetrics(prom)
@@ -535,9 +563,6 @@ func runDaemon(cfgPath string) {
 		}
 	}()
 
-	// Initial DNS handler + server.
-	dnsServer = dnsengine.New(snap.DNS, buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6))
-
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
 	shadow.Start()
@@ -569,9 +594,19 @@ func runDaemon(cfgPath string) {
 	if os.Getenv("SKOED_TEST_MODE") == "1" {
 		refreshTick = time.Second
 	}
-	refreshSched = refresh.New(c, refresh.Options{Tick: refreshTick})
+	refreshSched = refresh.New(c, refresh.Options{Tick: refreshTick, Cache: blCache})
 	refreshSched.Start()
 	defer refreshSched.Stop()
+
+	// ── M50 — followers copy URL list content from the leader ───────────
+	// (TS-BlocklistContentDistribution §4, §5.2). The blocklist handlers
+	// download through the scheduler on the leader; the sync worker runs
+	// on every node with the scheduler's tick.
+	app.SetBlocklistRefresher(refreshSched)
+	blSync = blocklistsync.New(c, blCache, refreshTick)
+	blSync.Start()
+	defer blSync.Stop()
+	// ── end M50 ─────────────────────────────────────────────────────────
 
 	// M6 — start the curated DoH/DoT resolver snapshot scheduler.
 	// Started on every node; only the current leader actually fetches
@@ -688,10 +723,41 @@ func runDaemon(cfgPath string) {
 		log.Printf("management API listening on %s", node.Node.APIAddress)
 	}
 
-	if err := dnsServer.Start(); err != nil {
+	// ── M50: peer API listener (TS-EncryptedClusterMesh, "Internal API") ──
+	// With mTLS on, peers reach this node's API router on a second listener
+	// that requires a client certificate signed by the cluster CA; the main
+	// listener then refuses the cluster secret.
+	var peerSrv *api.PeerServer
+	if c.MTLSEnabled() {
+		peerTLS, err := c.PeerServerTLSConfig()
+		if err != nil {
+			log.Fatalf("peer API TLS config: %v", err)
+		}
+		peerSrv, err = api.StartPeerServer(app, c.PeerAPIAddress(), peerTLS)
+		if err != nil {
+			log.Fatalf("start peer API server: %v", err)
+		}
+		log.Printf("peer API listening on %s (cluster mTLS)", peerSrv.Addr())
+	}
+	// ── end M50 peer API listener ──
+
+	// The boot handler is built here, from a fresh snapshot, once app,
+	// dhcpMgr and webhookDisp are assigned. A handler built by an earlier
+	// rebuildDNS could hold a nil app or dhcpMgr.
+	dnsCfg, err := dnsServer.Start(func() (config.DNSConfig, *dnsengine.Handler, error) {
+		bootSnap, err := c.Store().Snapshot()
+		if err != nil {
+			return config.DNSConfig{}, nil, err
+		}
+		bootSnap.Defaults()
+		mergeNodeLocal(bootSnap, node)
+		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		return bootSnap.DNS, handler, nil
+	})
+	if err != nil {
 		log.Fatalf("start dns server: %v", err)
 	}
-	log.Printf("DNS server listening on :%d (mode=%s)", snap.DNS.Listen.Port, snap.DNS.Mode)
+	log.Printf("DNS server listening on :%d (mode=%s)", dnsCfg.Listen.Port, dnsCfg.Mode)
 
 	// M26 — block page HTTP server. Started when block_policy="redirect".
 	bpCfg := snap.Filtering.BlockPage
@@ -834,6 +900,11 @@ func runDaemon(cfgPath string) {
 	if err := apiSrv.Shutdown(ctx); err != nil {
 		log.Printf("api shutdown: %v", err)
 	}
+	if peerSrv != nil {
+		if err := peerSrv.Shutdown(ctx); err != nil {
+			log.Printf("peer api shutdown: %v", err)
+		}
+	}
 	dnsServer.Shutdown()
 	if encryptedSrv != nil {
 		encryptedSrv.Shutdown()
@@ -959,7 +1030,7 @@ func fileExists(path string) bool {
 // raftStateExists returns true when this node has already participated in a
 // Raft cluster (so the binary should NOT bootstrap a new one).
 func raftStateExists(node *cluster.NodeYAML) bool {
-	for _, p := range []string{"raft/raft-log.bolt", "raft/raft-stable.bolt"} {
+	for _, p := range []string{cluster.RaftLogPath, "raft/raft-stable.bolt"} {
 		if fi, err := os.Stat(node.DataPath(p)); err == nil && fi.Size() > 0 {
 			return true
 		}
@@ -976,11 +1047,14 @@ func raftStateExists(node *cluster.NodeYAML) bool {
 // We retry briefly to tolerate the leader not being immediately reachable
 // when the joining node boots faster than the leader.
 func joinExistingCluster(node *cluster.NodeYAML) error {
-	body, err := json.Marshal(map[string]string{
-		"token":        node.Bootstrap.Token,
-		"node_id":      node.Node.ID,
-		"raft_address": node.Node.RaftAddress,
-		"api_address":  node.Node.APIAddress,
+	self := cluster.LocalMemberUpdate(node)
+	body, err := json.Marshal(map[string]any{
+		"token":            node.Bootstrap.Token,
+		"node_id":          node.Node.ID,
+		"raft_address":     node.Node.RaftAddress,
+		"api_address":      node.Node.APIAddress,
+		"peer_api_address": self.PeerAPIAddress,
+		"capabilities":     self.Capabilities,
 	})
 	if err != nil {
 		return err

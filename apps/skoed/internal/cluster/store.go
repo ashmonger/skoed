@@ -192,11 +192,22 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
 			return err
 		}
-		v, err := json.Marshal(p.Blocklist)
+		bl := p.Blocklist
+		if stored, ok := storedBlocklist(tx, bl.ID); ok {
+			bl = keepStoredContent(stored, bl)
+		}
+		v, err := json.Marshal(bl)
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(bucketBlocklists).Put([]byte(p.Blocklist.ID), v)
+		return tx.Bucket(bucketBlocklists).Put([]byte(bl.ID), v)
+
+	case CmdBlocklistContentSet:
+		var p BlocklistContentSetPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return err
+		}
+		return applyBlocklistContentSet(tx, p)
 
 	case CmdBlocklistDelete:
 		var p BlocklistDeletePayload
@@ -1033,6 +1044,21 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 	// from "explicit API call 0 = disabled".
 	isFirstBoot := tx.Bucket(bucketSettings).Get([]byte("filtering")) == nil
 
+	// M50: read the stored blocklists before the wipe, so the content
+	// version of a URL list survives an import built from a snapshot taken
+	// before a concurrent blocklist.content_set (or from an export, which
+	// carries no domains).
+	storedLists := map[string]config.Blocklist{}
+	if err := tx.Bucket(bucketBlocklists).ForEach(func(k, v []byte) error {
+		var bl config.Blocklist
+		if err := json.Unmarshal(v, &bl); err == nil {
+			storedLists[string(k)] = bl
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	// Wipe & rewrite each replicated bucket from the M1 snapshot.
 	for _, name := range [][]byte{bucketBlocklists, bucketAllowlist, bucketLocalDNS, bucketSettings, bucketAuth} {
 		if err := tx.DeleteBucket(name); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) {
@@ -1045,6 +1071,9 @@ func importM1Config(tx *bolt.Tx, c config.Config) error {
 
 	// Blocklists.
 	for _, bl := range c.Filtering.Blocklists {
+		if stored, ok := storedLists[bl.ID]; ok {
+			bl = keepStoredContent(stored, bl)
+		}
 		v, err := json.Marshal(bl)
 		if err != nil {
 			return err
@@ -1360,6 +1389,13 @@ type Member struct {
 	RaftAddress string `json:"raft_address"`
 	APIAddress  string `json:"api_address"`
 	JoinedUnix  int64  `json:"joined_unix"`
+	// PeerAPIAddress is the member's peer API listener (host:port), set by
+	// the member itself when it runs with mTLS enabled. Empty when the
+	// member has no peer listener (mTLS off, or a previous version).
+	PeerAPIAddress string `json:"peer_api_address,omitempty"`
+	// Capabilities lists the features the member's version supports, e.g.
+	// CapabilityBlocklistContentV1. A previous version advertises none.
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // Members returns the current replicated member list.

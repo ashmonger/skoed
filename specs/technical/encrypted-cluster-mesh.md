@@ -64,16 +64,105 @@ TLS layer.
 
 ## Internal API
 
-Reuses the M4.6 HTTPS listener. When `mtls.enabled=true`:
+Revised 2026-11-25 (M50). Until then no peer HTTP client used TLS:
+`apiBaseURL` (`internal/cluster/cluster.go:1001`) always returned
+`http://`, so the `X-Cluster-Secret` header, which grants `cluster:admin`,
+went over plain HTTP on every forwarded write. The earlier text reused
+the M4.6 HTTPS listener, which serves the operator's certificate and may
+be disabled, so it cannot verify cluster peers.
 
-- The `/api/v1/cluster/_internal/aggregates` and `/api/v1/cluster/join`
-  endpoints are wrapped in a middleware that verifies the request's
-  client cert is signed by the cluster CA.
-- Forwarders (`internal/cluster/cluster.go` — `forwardAggregate`,
-  `joinExistingCluster`) build their HTTP client with the cluster
-  CA in `RootCAs` and the node's leaf cert in `Certificates`.
-- The cluster_secret header is still sent for defense-in-depth and to
-  keep the audit log's `actor` field meaningful.
+When `mtls.enabled=true`:
+
+- **Peer listener.** Each node opens a second HTTP server on
+  `node.cluster.peer_api_address`, default `<raft host>:<raft port + 1>`.
+  It uses `BuildClusterTLSConfigDynamic` (`internal/cluster/mtls_reload.go:96`)
+  with `ClientAuth: tls.RequireAndVerifyClientCert` and the cluster CA as
+  `ClientCAs`, so certificate rotation applies to it as it does to Raft.
+  It serves the same router as the main API.
+- **Member record.** `Member` gains `PeerAPIAddress`, set by each node when
+  it upserts its own record. `Cluster.LeaderAPIAddress()` and
+  `MemberAPIURL` return `https://<PeerAPIAddress>` when mTLS is enabled.
+- **Peer clients.** `ForwardWrite`, `forwardAggregate`, the query-log
+  fan-out, the cluster upgrade calls and the blocklist sync worker share
+  one `*http.Client` whose `tls.Config` has the cluster CA in `RootCAs`,
+  the node's leaf through `GetClientCertificate`, and `ServerName` set to
+  the target's node ID (the leaf's CN and DNS SAN), so a valid
+  certificate for another node is rejected.
+- **Secret only over TLS.** With mTLS enabled, the main API listener
+  rejects requests that carry `X-Cluster-Secret` (401), so the secret is
+  never accepted over plain HTTP. On the peer listener the secret is still
+  required in addition to the client certificate, and keeps the audit
+  log's `actor` field meaningful.
+- **Join and bootstrap.** `/api/v1/cluster/join` and
+  `/api/v1/cluster/mtls-bootstrap` stay on the main listener: a joining
+  node has no leaf yet. They are authenticated by the single-use join
+  token, as today.
+
+With `mtls.enabled=false` (the default) peer HTTP stays plain, as before;
+the docs state that the cluster secret then crosses the network in clear.
+
+**No plain-HTTP fallback (UoR decision, 2026-11-25).** With mTLS enabled, a
+peer is always called over https. When its member record has no
+`PeerAPIAddress` yet (an older version during a rolling upgrade, or a node
+that just upgraded), the client uses the default address: the member's Raft
+host and Raft port + 1. A node that does not serve that listener (an older
+version) cannot be reached for peer HTTP: writes forwarded to an older
+leader fail with 503 until the leader is upgraded. `ClusterUpgradeApply`
+upgrades the leader last, so this lasts for the duration of the rolling
+upgrade. The cluster secret never crosses the network in clear.
+
+**Member records.**
+
+- `Member` carries `PeerAPIAddress` (set only with mTLS enabled) and
+  `Capabilities` (see blocklist-content-distribution.md §3.3).
+- `POST /api/v1/cluster/join` accepts the joining node's
+  `peer_api_address` and `capabilities`, so the leader writes the full
+  record at enrollment.
+- After start, each node compares its own record with what it should
+  advertise every 10 s (1 s with `SKOED_TEST_MODE`), and writes only when
+  they differ. The leader applies the change itself; a follower calls
+  `POST /api/v1/cluster/_internal/members/self` on the leader. That route
+  requires the cluster secret; on the peer listener the client
+  certificate's CN must also equal `node_id` (403 otherwise); an unknown
+  `node_id` gets 404, so a removed node cannot add itself back.
+- A node ID that cannot be pinned is refused when mTLS is enabled:
+  `localhost` (any case, with or without a trailing dot) and any IP
+  literal, including bracketed or zoned forms (`[::1]`, `::1%lo`). Every
+  leaf carries the SANs `localhost`, 127.0.0.1 and ::1, and Go matches an
+  IP `ServerName` against IP SANs only. On an mTLS cluster, join answers
+  400; mtls-bootstrap always answers 400 (it only runs with mTLS); a node
+  whose own ID is such a value refuses to start with mTLS enabled (this
+  covers the bootstrap node, which never joins). With mTLS off such IDs
+  are accepted (UoR decision, 2026-11-25).
+- With mTLS enabled, the peer transport refuses any `http://` URL, so no
+  caller can send the cluster secret in clear.
+
+**Other rules.**
+
+- If `peer_api_address` cannot be derived (unparseable `raft_address`, or
+  Raft port 65535) while mTLS is enabled, the daemon refuses to start.
+- Peer clients do not follow redirects.
+- Leader-redirect error bodies (409/503) report the leader's main API
+  address, not its peer address.
+- The self-upgrade call of the rolling upgrade goes to the node's own peer
+  listener, at its configured `peer_api_address`.
+- Certificate rotation needs a restart: like Raft, the peer listener and
+  clients build their certificate cache once at start (live rotation is a
+  non-goal). Upgrading an mTLS cluster opens a new port (Raft port + 1 by
+  default), which firewalls must allow between nodes.
+
+**Tests.** The rules above that black-box tests cannot reach without the
+cluster secret are covered by Go unit tests in `internal/cluster` and
+`internal/api`:
+
+- the main listener answers 401 to any request carrying `X-Cluster-Secret`
+  when mTLS is enabled, including with the right secret;
+- a peer client pinned to node A rejects a valid cluster leaf of node B;
+- `members/self` returns 403 on a CN mismatch and 404 for an unknown member;
+- the self-correction pass writes no Raft entry when the record already
+  matches;
+- with mTLS enabled and no `PeerAPIAddress` recorded, the peer URL is
+  `https://<raft host>:<raft port + 1>`, never `http://`.
 
 ## Bootstrap & join
 

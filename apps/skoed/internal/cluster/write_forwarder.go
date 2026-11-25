@@ -10,10 +10,8 @@ import (
 	"time"
 )
 
-
-// forwardClient is reused across ForwardWrite calls to benefit from
-// connection pooling. The 10 s timeout covers the full round-trip to the leader.
-var forwardClient = &http.Client{Timeout: 10 * time.Second}
+// forwardTimeout covers the full round-trip of a forwarded write to the leader.
+const forwardTimeout = 10 * time.Second
 
 // hopByHopHeaders lists headers that must not be forwarded to the leader.
 // Includes the standard hop-by-hop set plus Host (leader address differs).
@@ -64,6 +62,8 @@ func (c *Cluster) ForwardWrite(
 		bodyReader = bytes.NewReader(body)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, forwardTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, target, bodyReader)
 	if err != nil {
 		errBody, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("build forward request: %s", err)})
@@ -93,7 +93,7 @@ func (c *Cluster) ForwardWrite(
 		req.Header.Set("X-Cluster-Secret", secret)
 	}
 
-	resp, err := forwardClient.Do(req)
+	resp, err := c.PeerHTTPClient().Do(req)
 	if err != nil {
 		errBody, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("forward to leader: %s", err)})
 		return http.StatusServiceUnavailable, errBody, nil, fmt.Errorf("forward to leader: %w", err)

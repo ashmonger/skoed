@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/skoed/skoed/internal/filter/parsers"
@@ -15,11 +16,28 @@ import (
 // list server cannot exhaust memory on the node.
 const maxBlocklistBytes = 64 << 20 // 64 MiB
 
+// userAgent is sent with every list download. Set once at startup by
+// SetUserAgent; list hosts see which software and node downloads.
+var userAgent atomic.Value // string
+
+// SetUserAgent sets the User-Agent of Download to
+// "skoed/<version> (node <nodeID>)".
+func SetUserAgent(version, nodeID string) {
+	userAgent.Store(fmt.Sprintf("skoed/%s (node %s)", version, nodeID))
+}
+
 func Download(url, format string, timeout time.Duration) ([]string, error) {
 	// SSRF-guarded client: operator-supplied URLs must not reach internal /
 	// loopback / cloud-metadata endpoints. Enforced at dial time.
 	client := netguard.Client(timeout)
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s: %w", url, err)
+	}
+	if ua, _ := userAgent.Load().(string); ua != "" {
+		req.Header.Set("User-Agent", ua)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", url, err)
 	}

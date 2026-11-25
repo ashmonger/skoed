@@ -350,6 +350,26 @@ type Blocklist struct {
 	LastRefreshAt          string `yaml:"last_refresh_at,omitempty"          json:"last_refresh_at,omitempty"`
 	LastRefreshStatus      string `yaml:"last_refresh_status,omitempty"      json:"last_refresh_status,omitempty"`
 	LastRefreshError       string `yaml:"last_refresh_error,omitempty"       json:"last_refresh_error,omitempty"`
+
+	// M50 — version of the downloaded content of a URL list. The domains
+	// themselves stay in each node's cache under <data_dir>/blocklists and
+	// are not replicated: every node must hold the file whose SHA-256 is
+	// Content.SHA256. Nil for inline lists and for URL lists not yet
+	// downloaded.
+	Content *BlocklistContent `yaml:"content,omitempty" json:"content,omitempty"`
+}
+
+// BlocklistContent identifies one downloaded version of a URL blocklist.
+type BlocklistContent struct {
+	SHA256      string `yaml:"sha256"       json:"sha256"` // hex, of the cache file bytes
+	DomainCount int    `yaml:"domain_count" json:"domain_count"`
+	FetchedAt   string `yaml:"fetched_at"   json:"fetched_at"` // RFC3339, leader's download time
+}
+
+// IsLegacyURLContent reports whether bl is a URL list written by a version
+// that replicated the downloaded domains: Domains set and no Content.
+func (bl Blocklist) IsLegacyURLContent() bool {
+	return bl.Source.Type == "url" && bl.Content == nil && len(bl.Domains) > 0
 }
 
 type BlocklistSource struct {

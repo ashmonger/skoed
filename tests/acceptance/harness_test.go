@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -78,6 +80,16 @@ type Node struct {
 	// at node startup. Used by apiDo for all authenticated calls.
 	sessionToken string
 	cmd          *exec.Cmd
+	// exited is closed once cmd has exited and been reaped (startReaped).
+	// nil for a Node whose process the harness does not start.
+	exited <-chan struct{}
+	// output keeps the last lines the process wrote to stdout and stderr,
+	// for the report of a process that exited on its own. nil for a Node
+	// whose process the harness does not start.
+	output *tailBuffer
+	// ports lists every port written to the node's config.yaml, for the
+	// report of a process that exited on a bind error.
+	ports []int
 }
 
 // NodeConfig drives what gets written to config.yaml before starting the node.
@@ -109,6 +121,9 @@ func skoedBinary(t *testing.T) string {
 
 // startNode starts a skoed node. The test is skipped if the binary is missing.
 // Cleanup (process kill) is registered automatically via t.Cleanup.
+//
+// If the process exits before it is ready, the test fails at once with the
+// exit status and the last lines the process wrote.
 func startNode(t *testing.T, cfg NodeConfig) *Node {
 	t.Helper()
 
@@ -127,7 +142,6 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 	if cfg.BlockPolicy == "" {
 		cfg.BlockPolicy = "nxdomain"
 	}
-
 	// M26: assign a unique block page port when policy is redirect and no port set.
 	if cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0 {
 		cfg.BlockPagePort = freeTCPPort(t)
@@ -140,18 +154,19 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 	if len(cfg.Env) > 0 {
 		cmd.Env = append(os.Environ(), cfg.Env...)
 	}
-	if testing.Verbose() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
+	output := captureOutput(cmd)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
-	if err := cmd.Start(); err != nil {
+	exited, err := startReaped(cmd)
+	if err != nil {
 		t.Fatalf("start skoed: %v", err)
 	}
+	t.Cleanup(func() { killAndReap(cmd, exited) })
 
 	blockPageURL := ""
+	ports := []int{dnsPort, apiPort}
 	if cfg.BlockPolicy == "redirect" {
 		blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
+		ports = append(ports, cfg.BlockPagePort)
 	}
 
 	n := &Node{
@@ -159,16 +174,176 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
 		BlockPageURL: blockPageURL,
 		cmd:          cmd,
+		exited:       exited,
+		output:       output,
+		ports:        ports,
 	}
-
-	t.Cleanup(func() {
-		cmd.Process.Kill() //nolint:errcheck
-		cmd.Wait()         //nolint:errcheck
-	})
 
 	waitReady(t, n)
 	setupAuth(t, n) // also calls loginSession and sets n.sessionToken
 	return n
+}
+
+// outputTailLines is how many of the last lines a skoed process wrote
+// the harness keeps for the report of a process that exited on its own.
+const outputTailLines = 40
+
+// tailBuffer is an io.Writer that keeps the last outputTailLines lines
+// written to it. It is safe for concurrent use.
+type tailBuffer struct {
+	mu      sync.Mutex
+	lines   []string
+	partial string
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	parts := strings.Split(b.partial+string(p), "\n")
+	b.partial = parts[len(parts)-1]
+	b.lines = append(b.lines, parts[:len(parts)-1]...)
+	if extra := len(b.lines) - outputTailLines; extra > 0 {
+		b.lines = append(b.lines[:0], b.lines[extra:]...)
+	}
+	return len(p), nil
+}
+
+// String returns the kept lines, each prefixed with two spaces.
+func (b *tailBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	lines := b.lines
+	if b.partial != "" {
+		lines = append(lines[:len(lines):len(lines)], b.partial)
+	}
+	if len(lines) == 0 {
+		return "  (no output)"
+	}
+	return "  " + strings.Join(lines, "\n  ")
+}
+
+// captureOutput sends the stdout and stderr of cmd to a new tailBuffer,
+// and also to os.Stdout and os.Stderr under -v. It returns the buffer.
+func captureOutput(cmd *exec.Cmd) *tailBuffer {
+	tail := &tailBuffer{}
+	cmd.Stdout = tail
+	cmd.Stderr = tail
+	if testing.Verbose() {
+		cmd.Stdout = io.MultiWriter(os.Stdout, tail)
+		cmd.Stderr = io.MultiWriter(os.Stderr, tail)
+	}
+	// The output is copied through a pipe, and cmd.Wait waits for that
+	// copy to end. Bound it, in case a child of skoed keeps the pipe open.
+	cmd.WaitDelay = 5 * time.Second
+	return tail
+}
+
+// errExitedBeforeReady is returned by waitReadyErr when the skoed process
+// exits before it answers on its API and DNS ports.
+var errExitedBeforeReady = errors.New("skoed process exited before it became ready")
+
+// startReaped starts cmd and waits for it in a goroutine. The returned
+// channel is closed once the process has exited and cmd.ProcessState is
+// set. Nothing else may call cmd.Wait: wait on the channel instead.
+func startReaped(cmd *exec.Cmd) (<-chan struct{}, error) {
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan struct{})
+	go func() {
+		cmd.Wait() //nolint:errcheck
+		close(done)
+	}()
+	return done, nil
+}
+
+// killAndReap kills the process started by startReaped, if it still runs,
+// and returns once it has been reaped.
+func killAndReap(cmd *exec.Cmd, exited <-chan struct{}) {
+	cmd.Process.Kill() //nolint:errcheck
+	<-exited
+}
+
+// hasExited reports whether the node's process has exited. It is false for
+// a Node whose process the harness does not start.
+func (n *Node) hasExited() bool {
+	if n.exited == nil {
+		return false
+	}
+	select {
+	case <-n.exited:
+		return true
+	default:
+		return false
+	}
+}
+
+// exitReport describes how the node's process ended and the last lines it
+// wrote, for the message of a node that exited on its own. When the output
+// reports a port in use, it also lists the sockets on the node's ports.
+// It is empty while the process runs.
+func exitReport(n *Node) string {
+	if !n.hasExited() {
+		return ""
+	}
+	out := "(not captured)"
+	if n.output != nil {
+		out = n.output.String()
+	}
+	report := fmt.Sprintf("\nprocess: %s\nlast %d lines of output:\n%s", n.cmd.ProcessState, outputTailLines, out)
+	if strings.Contains(out, "address already in use") {
+		report += "\n" + portReport(n.ports)
+	}
+	return report
+}
+
+// portReport lists the sockets that use any of ports, from `ss -tuanp`
+// (or `netstat -tuanp` where ss is missing), and the local port range of
+// the host, to show what holds a port a node could not bind.
+func portReport(ports []int) string {
+	var b strings.Builder
+	if r, err := os.ReadFile("/proc/sys/net/ipv4/ip_local_port_range"); err == nil {
+		fmt.Fprintf(&b, "ip_local_port_range: %s\n", strings.Join(strings.Fields(string(r)), "-"))
+	}
+	tool := "ss -tuanp"
+	out, err := exec.Command("ss", "-tuanp").CombinedOutput()
+	if err != nil {
+		tool = "netstat -tuanp"
+		out, err = exec.Command("netstat", "-tuanp").CombinedOutput()
+	}
+	if err != nil {
+		fmt.Fprintf(&b, "neither ss nor netstat ran: %v", err)
+		return b.String()
+	}
+	suffixes := make([]string, len(ports))
+	for i, p := range ports {
+		suffixes[i] = fmt.Sprintf(":%d", p)
+	}
+	fmt.Fprintf(&b, "%s, sockets on ports %v:", tool, ports)
+	found := false
+	for _, line := range strings.Split(string(out), "\n") {
+		if lineHasPort(line, suffixes) {
+			b.WriteString("\n  " + line)
+			found = true
+		}
+	}
+	if !found {
+		b.WriteString(" none")
+	}
+	return b.String()
+}
+
+// lineHasPort reports whether a field of line, an address such as
+// "0.0.0.0:20001" or "[::]:20001", ends with one of suffixes.
+func lineHasPort(line string, suffixes []string) bool {
+	for _, f := range strings.Fields(line) {
+		for _, s := range suffixes {
+			if strings.HasSuffix(f, s) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // startFakeUpstream starts an in-process UDP DNS server whose handler you control.
@@ -342,18 +517,18 @@ func loginSessionMaybe(t *testing.T, n *Node, username, password string) string 
 }
 
 // loginWithRetry retries POST /api/v1/auth/login until it returns a token or
-// the timeout expires. Used by cluster nodes that may be waiting for credentials
+// readyTimeout expires. Used by cluster nodes that may be waiting for credentials
 // to be replicated from the leader before login is possible.
 func loginWithRetry(t *testing.T, n *Node, username, password string) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(readyTimeout)
 	for time.Now().Before(deadline) {
 		if tok := loginSessionMaybe(t, n, username, password); tok != "" {
 			return tok
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("could not login to %s within 10s — credentials not yet replicated?", n.APIBase)
+	t.Fatalf("could not login to %s within %s — credentials not yet replicated?", n.APIBase, readyTimeout)
 	return ""
 }
 
@@ -574,38 +749,50 @@ func writeConfig(t *testing.T, dir string, cfg NodeConfig, dnsPort, apiPort int)
 
 func waitReady(t *testing.T, n *Node) {
 	t.Helper()
+	if err := waitReadyErr(n); err != nil {
+		t.Fatalf("%v%s", err, exitReport(n))
+	}
+}
+
+// waitReadyErr waits until the node answers on its API and DNS ports. It
+// returns errExitedBeforeReady (wrapped) as soon as the process exits, and
+// an error naming the listener that is not up after readyTimeout.
+func waitReadyErr(n *Node) error {
 	deadline := time.Now().Add(readyTimeout)
-	// Phase 1: HTTP /health responds. The API listener binds first.
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(n.APIBase + "/api/v1/health")
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == 200 || resp.StatusCode == 401 {
+	apiUp := false
+	for {
+		if n.hasExited() {
+			return fmt.Errorf("%w (API %s, DNS %s)", errExitedBeforeReady, n.APIBase, n.DNSAddr)
+		}
+		// Phase 1: HTTP /health responds. The API listener binds first.
+		if !apiUp {
+			if resp, err := http.Get(n.APIBase + "/api/v1/health"); err == nil {
+				resp.Body.Close()
 				// 401 means auth not set up yet — API is running.
-				goto dnsCheck
+				apiUp = resp.StatusCode == 200 || resp.StatusCode == 401
 			}
 		}
-		time.Sleep(readyPollInterval)
-	}
-	t.Fatalf("skoed API did not become ready within %s at %s", readyTimeout, n.APIBase)
-
-dnsCheck:
-	// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
-	// the API listener; a test that fires a DNS query the moment
-	// waitReady returns can otherwise see "connection refused" on the
-	// still-unbound port. skoed binds both UDP and TCP on the same
-	// DNS port, so a TCP dial proves the listener is up WITHOUT
-	// sending a DNS message — no query-log pollution, no upstream
-	// contact, no SafeSearch rewrite.
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", n.DNSAddr, 500*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return
+		// Phase 2: DNS listener bound. main.go binds the DNS server AFTER
+		// the API listener; a test that fires a DNS query the moment
+		// waitReady returns can otherwise see "connection refused" on the
+		// still-unbound port. skoed binds both UDP and TCP on the same
+		// DNS port, so a TCP dial proves the listener is up WITHOUT
+		// sending a DNS message — no query-log pollution, no upstream
+		// contact, no SafeSearch rewrite.
+		if apiUp {
+			if conn, err := net.DialTimeout("tcp", n.DNSAddr, 500*time.Millisecond); err == nil {
+				conn.Close()
+				return nil
+			}
+		}
+		if !time.Now().Before(deadline) {
+			if !apiUp {
+				return fmt.Errorf("skoed API did not become ready within %s at %s", readyTimeout, n.APIBase)
+			}
+			return fmt.Errorf("skoed DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 		}
 		time.Sleep(readyPollInterval)
 	}
-	t.Fatalf("skoed DNS did not become ready within %s at %s", readyTimeout, n.DNSAddr)
 }
 
 func setupAuth(t *testing.T, n *Node) {
@@ -669,4 +856,16 @@ func freeUDPPort(t *testing.T) int {
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
 	return int(portCounter.Add(1))
+}
+
+// freeRaftPort returns a Raft port and also reserves the port right after it.
+// skoed's internal peer API listens on <raft port + 1> by default
+// (specs/technical/encrypted-cluster-mesh.md, "Internal API"), and the
+// harness does not write `node.cluster.peer_api_address`, so that default is
+// the one exercised. Without the reservation, the next allocation (often the
+// next node's DNS port) would be RaftPort+1 and collide with that listener.
+// Use it for every RaftPort.
+func freeRaftPort(t *testing.T) int {
+	t.Helper()
+	return int(portCounter.Add(2)) - 1
 }

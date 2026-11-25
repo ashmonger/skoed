@@ -119,7 +119,7 @@ func TestClusterJoinWebUiFollowerDialog(t *testing.T) {
 		NodeID:   "node-fresh",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 	})
 	newCluster.nodes = append(newCluster.nodes, newCN)
 	waitReady(t, newCN.Node)
@@ -205,7 +205,7 @@ func TestClusterJoinWebUiExpiredToken(t *testing.T) {
 		NodeID:   "node-fresh",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 	})
 	freshCluster.nodes = append(freshCluster.nodes, freshCN)
 	waitReady(t, freshCN.Node)

@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -16,7 +17,13 @@ import (
 type Cluster interface {
 	IsLeader() bool
 	LeaderAPIAddress() string // e.g. "http://192.168.1.10:8080"; "" if no leader known
+	// LeaderMainAPIAddress is the leader's operator-facing main API, reported
+	// in error bodies; LeaderAPIAddress may be its peer listener.
+	LeaderMainAPIAddress() string
 	LeaderID() string
+	// PeerHTTPClient sends the forwarded request; with mTLS enabled it
+	// reaches the leader's peer listener over the cluster mTLS.
+	PeerHTTPClient() *http.Client
 }
 
 // leaderRedirect is the JSON body returned when a follower cannot forward a
@@ -39,8 +46,6 @@ const forwardTimeout = 10 * time.Second
 // served locally from bbolt so reads remain available during leader
 // transitions.
 func LeaderForward(c Cluster, next http.Handler) http.Handler {
-	client := &http.Client{Timeout: forwardTimeout}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Reads are always served locally — no cluster round-trip required.
 		if isReadMethod(r.Method) {
@@ -72,7 +77,7 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 				writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 					Error:         "failed to read request body: " + err.Error(),
 					LeaderID:      c.LeaderID(),
-					LeaderAddress: leaderBase,
+					LeaderAddress: c.LeaderMainAPIAddress(),
 				})
 				return
 			}
@@ -85,12 +90,14 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 		// Preserve the full request URI (path + raw query) when targeting the leader.
 		target := leaderBase + r.URL.RequestURI()
 
-		outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
+		ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
+		defer cancel()
+		outReq, err := http.NewRequestWithContext(ctx, r.Method, target, body)
 		if err != nil {
 			writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 				Error:         "failed to build forward request: " + err.Error(),
 				LeaderID:      c.LeaderID(),
-				LeaderAddress: leaderBase,
+				LeaderAddress: c.LeaderMainAPIAddress(),
 			})
 			return
 		}
@@ -100,14 +107,14 @@ func LeaderForward(c Cluster, next http.Handler) http.Handler {
 		// we don't accidentally pin the forwarded connection's lifecycle.
 		copyHeaders(outReq.Header, r.Header)
 
-		resp, err := client.Do(outReq)
+		resp, err := c.PeerHTTPClient().Do(outReq)
 		if err != nil {
 			// Leader just died, connection refused, timeout, etc. Surface as 503
 			// so the client can retry against the new leader once one is elected.
 			writeLeaderRedirect(w, http.StatusServiceUnavailable, leaderRedirect{
 				Error:         "forward to leader failed: " + err.Error(),
 				LeaderID:      c.LeaderID(),
-				LeaderAddress: leaderBase,
+				LeaderAddress: c.LeaderMainAPIAddress(),
 			})
 			return
 		}

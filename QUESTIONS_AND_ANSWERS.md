@@ -59,3 +59,24 @@ None.
 
 - **Q**: Client identification by MAC address — how to resolve IP → MAC (M3)?
   **A**: Primary = DHCP integration (supported sources: Kea DHCP REST API, dnsmasq lease file, ISC DHCP lease file, generic configurable HTTP API returning leases as JSON). Fallback = IP-only identification for clients not in the DHCP lease table or when no DHCP source is configured. — 2026-05-29
+
+- **Q**: M50 — Raft replicates only the blocklist configuration, not the downloaded domains. Where does each node get the content of a URL blocklist?
+  **A**: Each node downloads the URL itself and caches it under `data_dir`, as AdGuard Home and Pi-hole do. No peer fallback, no leader-side download. See `decisions/20261125-NodeLocalBlocklistContent.md`. — 2026-11-25
+
+- **Q**: M50 — revisited the same day: where does each node get the content of a URL blocklist, and what triggers a leader change?
+  **A**: Supersedes the previous answer. The leader downloads the full list; followers copy it from the leader over the cluster API. The leader changes only when the leader node goes down (Raft election); a failed download on a live leader keeps the previous copy and is retried at the next refresh. See `decisions/20261125-LeaderDistributedBlocklistContent.md`. — 2026-11-25
+
+- **Q**: M50 — how should the blocklist copy between nodes be encrypted, and how should the acceptance test cut one follower off from the leader?
+  **A**: Encrypt all peer HTTP with the existing cluster mTLS (a dedicated peer listener using the cluster CA and node certificates), implemented as its own M50 item for FS-MtlsInternalApiHTTPS; the copy endpoint uses it. Cut the follower with a real `iptables` owner-match rule in the acceptance test (root + NET_ADMIN in the Docker runner, skipped otherwise) instead of a test-only variable, and repeat the cut on Proxmox. — 2026-11-25
+
+- **Q**: M50 — the validated tests count NXDOMAIN as "blocked", but test nodes resolve recursively with internet access, so a made-up name also gets NXDOMAIN. How should the tests be fixed?
+  **A**: Create the test URL lists with `block_policy: "null"` and count only the 0.0.0.0 / `::` answer as a block in the M50 tests. — 2026-11-25
+
+- **Q**: M50 — with mTLS on, should a peer with no recorded peer address be reached over plain HTTP (sending the cluster secret in clear)?
+  **A**: Never plain HTTP. Use https on the recorded peer address, or on the default (Raft host, Raft port + 1). During a rolling upgrade, writes forwarded to an older leader fail with 503 until the leader is upgraded. — 2026-11-25
+
+- **Q**: M50 — the run hit the 3-cycle cap with one MAJOR left (a lost capability gate does not force a fresh download of converted lists). How to proceed?
+  **A**: One more focused cycle under a Rule 14 exception, limited to that fix and a few small safety fixes; see `decisions/20261125-M50FourthCycle.md`. — 2026-11-25
+
+- **Q**: M50 — should join refuse node IDs a certificate cannot pin (localhost, IP literals) when mTLS is off?
+  **A**: No. Refuse them only on an mTLS cluster; mtls-bootstrap and the start-time check keep refusing them with mTLS on. — 2026-11-25

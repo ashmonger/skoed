@@ -65,8 +65,21 @@ func (f *fsm) Restore(snap io.ReadCloser) error {
 	}
 	out.Close()
 
-	// Swap the underlying bbolt file. We hold the Store's write lock so no
-	// reader is mid-transaction.
+	if err := f.swapDB(tmp, path); err != nil {
+		return err
+	}
+	// M50: the subscribers (filter engine, shadow YAML, blocklist sync)
+	// must see the restored state, as after any apply. Called after the
+	// Store lock is released, since they read the store.
+	if f.onApply != nil {
+		f.onApply()
+	}
+	return nil
+}
+
+// swapDB replaces the bbolt file at path with tmp. It holds the Store's
+// write lock so no reader is mid-transaction.
+func (f *fsm) swapDB(tmp, path string) error {
 	f.store.mu.Lock()
 	defer f.store.mu.Unlock()
 	if err := f.store.db.Close(); err != nil {

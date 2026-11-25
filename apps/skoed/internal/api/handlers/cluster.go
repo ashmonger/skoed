@@ -11,11 +11,12 @@ package handlers
 // LeaderRedirect body so the caller can retry against the leader.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -46,6 +47,10 @@ type joinReq struct {
 	NodeID      string `json:"node_id"`
 	RaftAddress string `json:"raft_address"`
 	APIAddress  string `json:"api_address"`
+	// M50 — the joining node's own member record values; absent when the
+	// joining node runs a previous version.
+	PeerAPIAddress string   `json:"peer_api_address,omitempty"`
+	Capabilities   []string `json:"capabilities,omitempty"`
 }
 
 type joinResp struct {
@@ -85,6 +90,15 @@ type clusterStatusResp struct {
 	RaftTerm  uint64             `json:"raft_term"`
 	LeaderID  string             `json:"leader_id"`
 	Nodes     []clusterNodeEntry `json:"nodes"`
+	Raft      *raftIndexesResp   `json:"raft,omitempty"`
+}
+
+// raftIndexesResp is `ClusterStatus.raft`: the Raft log indexes of the
+// answering node (TS-BlocklistContentDistribution §8).
+type raftIndexesResp struct {
+	FirstLogIndex     uint64 `json:"first_log_index"`
+	LastLogIndex      uint64 `json:"last_log_index"`
+	LastSnapshotIndex uint64 `json:"last_snapshot_index"`
 }
 
 type transferLeadershipReq struct {
@@ -173,7 +187,7 @@ func writeLeaderRedirect(w http.ResponseWriter, c *cluster.Cluster, msg string) 
 	writeJSON(w, http.StatusConflict, leaderRedirectResp{
 		Error:         msg,
 		LeaderID:      c.LeaderID(),
-		LeaderAddress: c.LeaderAPIAddress(),
+		LeaderAddress: c.LeaderMainAPIAddress(),
 	})
 }
 
@@ -252,11 +266,14 @@ func (h *Handler) NodeJoinCluster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	node := c.Node()
+	self := cluster.LocalMemberUpdate(node)
 	joinBody, _ := json.Marshal(joinReq{
-		Token:       req.Token,
-		NodeID:      node.Node.ID,
-		RaftAddress: node.Node.RaftAddress,
-		APIAddress:  node.Node.APIAddress,
+		Token:          req.Token,
+		NodeID:         node.Node.ID,
+		RaftAddress:    node.Node.RaftAddress,
+		APIAddress:     node.Node.APIAddress,
+		PeerAPIAddress: self.PeerAPIAddress,
+		Capabilities:   self.Capabilities,
 	})
 
 	// Reset local Raft state before calling the leader. The leader's AddVoter
@@ -300,6 +317,10 @@ func (h *Handler) NodeJoinCluster(w http.ResponseWriter, r *http.Request) {
 
 // ─── join ────────────────────────────────────────────────────────────────────
 
+// unpinnableNodeIDMsg is the 400 body for a node ID that peers could not
+// verify (cluster.UnpinnableNodeID).
+const unpinnableNodeIDMsg = `node_id must not be "localhost" or an IP address: every cluster leaf carries localhost, 127.0.0.1 and ::1 as SANs, so peers could not verify this node`
+
 // ClusterJoin handles POST /api/v1/cluster/join. Validates the token, adds
 // the new node as a Raft voter, and records it in the replicated members
 // bucket. Must be invoked on the leader.
@@ -317,8 +338,14 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "token, node_id and raft_address are required")
 		return
 	}
+	// Only mTLS pins a peer by its node ID; without it, such an ID still
+	// works (TS-EncryptedClusterMesh, "Member records").
+	if c.MTLSEnabled() && cluster.UnpinnableNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, unpinnableNodeIDMsg)
+		return
+	}
 
-	res, err := c.EnrollNode(req.Token, req.NodeID, req.RaftAddress, req.APIAddress)
+	res, err := c.EnrollNode(req.Token, req.NodeID, req.RaftAddress, req.APIAddress, req.PeerAPIAddress, req.Capabilities)
 	if err != nil {
 		// Token validation failure → 403, as per the OpenAPI contract.
 		var je *cluster.JoinError
@@ -356,6 +383,10 @@ func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Token == "" || req.NodeID == "" {
 		writeError(w, http.StatusBadRequest, "token and node_id are required")
+		return
+	}
+	if cluster.UnpinnableNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, unpinnableNodeIDMsg)
 		return
 	}
 	ca, leaf, key, err := c.MintLeafForJoin(req.Token, req.NodeID)
@@ -553,6 +584,20 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		LeaderID:  leaderID,
 		Nodes:     make([]clusterNodeEntry, 0, len(servers)),
 	}
+	// When the indexes cannot be read, `raft` is left out rather than
+	// failing the whole status. A closed store is expected while the node
+	// shuts down; any other error is logged.
+	idx, err := c.RaftIndexes()
+	switch {
+	case err == nil:
+		out.Raft = &raftIndexesResp{
+			FirstLogIndex:     idx.First,
+			LastLogIndex:      idx.Last,
+			LastSnapshotIndex: idx.LastSnapshot,
+		}
+	case !errors.Is(err, cluster.ErrRaftStoreClosed):
+		log.Printf("[cluster-status] read raft indexes: %v", err)
+	}
 
 	now := time.Now().UTC()
 
@@ -639,6 +684,9 @@ type peerProbeResult struct {
 	commit      string
 }
 
+// peerProbeTimeout bounds one probePeer call.
+const peerProbeTimeout = 800 * time.Millisecond
+
 // probeAllPeers fan-outs probePeer to every cluster member except localID
 // using the shared HTTP timeout. Uses the cluster secret for inter-node auth
 // so that node-local session tokens do not need to be forwarded. Missing
@@ -651,7 +699,7 @@ func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string
 	out := make(map[string]peerProbeResult, len(servers))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	client := &http.Client{Timeout: 800 * time.Millisecond}
+	client := c.PeerHTTPClient()
 	for _, s := range servers {
 		id := string(s.ID)
 		if id == localID {
@@ -664,12 +712,11 @@ func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string
 			mu.Unlock()
 			continue
 		}
-		apiAddr := m.APIAddress
-		raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
+		base := c.MemberAPIURL(*m)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r := probePeer(client, apiAddr, clusterSecret, raftHost)
+			r := probePeer(client, base, clusterSecret)
 			mu.Lock()
 			out[id] = peerProbeResult{alive: r.alive, commitIndex: r.commitIndex, version: r.version, commit: r.commit}
 			mu.Unlock()
@@ -685,14 +732,17 @@ func probeAllPeers(c *cluster.Cluster, localID, clusterSecret string) map[string
 // the liveness signal so the caller can compute behind / in_sync accurately.
 // clusterSecret is sent as X-Cluster-Secret so the peer accepts the probe
 // without a user session — session tokens are node-local and would be rejected.
-func probePeer(client *http.Client, apiAddr, clusterSecret string, raftHostFallback ...string) (out struct {
+// base is the peer's URL from Cluster.MemberAPIURL; the probe gives up after
+// peerProbeTimeout.
+func probePeer(client *http.Client, base, clusterSecret string) (out struct {
 	alive       bool
 	commitIndex uint64
 	version     string
 	commit      string
 }) {
-	base := apiBase(apiAddr, raftHostFallback...)
-	req, err := http.NewRequest(http.MethodGet, base+"/api/v1/cluster/self", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), peerProbeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/v1/cluster/self", nil)
 	if err != nil {
 		return
 	}
@@ -1032,7 +1082,8 @@ func (h *Handler) ClusterQueryLog(w http.ResponseWriter, r *http.Request) {
 
 	results := make(chan fanResult, len(members))
 	var wg sync.WaitGroup
-	httpClient := &http.Client{Timeout: time.Duration(timeoutMs) * time.Millisecond}
+	httpClient := c.PeerHTTPClient()
+	fanOutTimeout := time.Duration(timeoutMs) * time.Millisecond
 
 	for _, m := range members {
 		wg.Add(1)
@@ -1047,7 +1098,7 @@ func (h *Handler) ClusterQueryLog(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			results <- remoteFanOut(httpClient, m, fwdQuery, clusterSecret)
+			results <- remoteFanOut(httpClient, fanOutTimeout, c.MemberAPIURL(m), m, fwdQuery, clusterSecret)
 		}(m)
 	}
 
@@ -1132,8 +1183,9 @@ func localFanOut(h *Handler, nodeID, client, outcome string, limit, offset int) 
 
 // remoteFanOut issues the per-node HTTP request and classifies the result.
 // clusterSecret is sent as X-Cluster-Secret — session tokens are node-local
-// and would be rejected by the target node's auth middleware.
-func remoteFanOut(client *http.Client, m cluster.Member, query, clusterSecret string) struct {
+// and would be rejected by the target node's auth middleware. base is the
+// member's URL from Cluster.MemberAPIURL; the request gives up after timeout.
+func remoteFanOut(client *http.Client, timeout time.Duration, base string, m cluster.Member, query, clusterSecret string) struct {
 	entries []mergedQueryEntry
 	status  perNodeFanOut
 } {
@@ -1141,14 +1193,14 @@ func remoteFanOut(client *http.Client, m cluster.Member, query, clusterSecret st
 		entries []mergedQueryEntry
 		status  perNodeFanOut
 	}
-	raftHost, _, _ := net.SplitHostPort(m.RaftAddress)
-	base := apiBase(m.APIAddress, raftHost)
 	url := base + "/api/v1/query-log"
 	if query != "" {
 		url += "?" + query
 	}
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return wrapped{status: perNodeFanOut{NodeID: m.NodeID, Status: "error", Error: err.Error()}}
 	}
@@ -1197,31 +1249,4 @@ func remoteFanOut(client *http.Client, m cluster.Member, query, clusterSecret st
 		entries: out,
 		status:  perNodeFanOut{NodeID: m.NodeID, Status: "ok", EntryCount: len(out)},
 	}
-}
-
-// apiBase rewrites a "host:port" or "0.0.0.0:port" listen address into a
-// reachable HTTP base URL. When the listen address is bound to 0.0.0.0 or ::,
-// the first non-empty fallbackHost is used instead of 127.0.0.1.
-func apiBase(listenAddr string, fallbackHost ...string) string {
-	if strings.HasPrefix(listenAddr, "http://") || strings.HasPrefix(listenAddr, "https://") {
-		return strings.TrimRight(listenAddr, "/")
-	}
-	host, port := listenAddr, ""
-	if idx := strings.LastIndex(listenAddr, ":"); idx >= 0 {
-		host = listenAddr[:idx]
-		port = listenAddr[idx+1:]
-	}
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		host = "127.0.0.1"
-		for _, fb := range fallbackHost {
-			if fb != "" {
-				host = fb
-				break
-			}
-		}
-	}
-	if port == "" {
-		return "http://" + host
-	}
-	return "http://" + host + ":" + port
 }

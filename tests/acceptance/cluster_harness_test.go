@@ -15,6 +15,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -64,9 +65,16 @@ type ClusterNode struct {
 	DNSPort  int
 	APIPort  int
 	RaftPort int
+	// PeerAPIPort is the internal peer API port, RaftPort+1: the default
+	// skoed derives when `node.cluster.peer_api_address` is unset, which the
+	// harness never writes. freeRaftPort reserves it.
+	PeerAPIPort int
 	// Env is passed verbatim to every Start/Restart of this node so that
 	// SKOED_TEST_* overrides survive process restarts.
-	Env    []string
+	Env []string
+	// UID is the user the skoed process runs as; 0 means the user running
+	// the tests. A non-zero UID needs root (see AddNodeAsUser).
+	UID    int
 	cmd    *exec.Cmd
 	killed bool
 }
@@ -110,6 +118,9 @@ type M2NodeConfig struct {
 	// Env passes extra environment variables to the subprocess. Used by tests
 	// that need SKOED_TEST_* overrides (token TTL, aggregate flush interval).
 	Env []string
+	// UID is copied to ClusterNode.UID: the process runs as this user when
+	// non-zero. Not written to config.yaml.
+	UID int
 	// UpstreamResolvers is written to the top-level dns.upstream_resolvers
 	// section (outside node:) so the DNS forwarder has a target. When empty
 	// the node has no upstream and returns SERVFAIL for forwarded queries.
@@ -181,7 +192,7 @@ func startClusterAcme(t *testing.T, opts AcmeOpts) *Cluster {
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 		DoHPort:  freeTCPPort(t),
 		DoTPort:  freeTCPPort(t),
 		Acme:     &opts,
@@ -225,13 +236,20 @@ func startClusterWithEnvEncrypted(t *testing.T, initialNodes int, env []string, 
 // every node it spawns (and to any future AddNode calls on the cluster).
 func startClusterWithEnv(t *testing.T, initialNodes int, env []string) *Cluster {
 	t.Helper()
+	return startClusterWithBinary(t, initialNodes, env, skoedBinary(t))
+}
+
+// startClusterWithBinary is startClusterWithEnv with the skoed binary at bin
+// instead of SKOED_BINARY. The upgrade test uses it to start a cluster on the
+// previous release, then switches to the binary under test with SetBinary.
+func startClusterWithBinary(t *testing.T, initialNodes int, env []string, bin string) *Cluster {
+	t.Helper()
 	if initialNodes < 1 {
 		t.Fatalf("startCluster: need at least 1 node, got %d", initialNodes)
 	}
 
-	bin := skoedBinary(t)
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY, or SKOED_PREVIOUS_BINARY for the previous release)", bin)
 	}
 
 	c := &Cluster{t: t, bin: bin, defaultEnv: env}
@@ -257,7 +275,7 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 		NodeID:   "node-1",
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
-		RaftPort: freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 	}
 	if c.encryptedDNS {
 		cfg.DoHPort = freeTCPPort(t)
@@ -268,7 +286,17 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 	}
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
-	waitReady(t, cn.Node)
+	c.waitNodeReady(t, cn)
+}
+
+// waitNodeReady waits until cn answers on its API and DNS ports. If the
+// process exits before, the test fails at once with the exit status and
+// the last lines the process wrote.
+func (c *Cluster) waitNodeReady(t *testing.T, cn *ClusterNode) {
+	t.Helper()
+	if err := waitReadyErr(cn.Node); err != nil {
+		t.Fatalf("node %s: %v%s", cn.NodeID, err, exitReport(cn.Node))
+	}
 }
 
 // AddNode generates a join token on the current leader and starts a fresh node
@@ -276,24 +304,33 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 // reports converged commit index.
 func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 	t.Helper()
+	return c.AddNodeAsUser(t, 0)
+}
+
+// AddNodeAsUser is AddNode with the new node's process running as uid (0 =
+// the user running the tests). The node's data dir is handed to that uid
+// before every start. Running as another uid needs root; M50 uses it so an
+// iptables owner match can cut one node's traffic only (cutUID).
+func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
+	t.Helper()
 	leader := c.Leader(t)
 	token := c.mustCreateToken(t, leader)
 
-	nodeID := fmt.Sprintf("node-%d", len(c.nodes)+1)
 	cfg := M2NodeConfig{
-		NodeID:              nodeID,
+		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
-		RaftPort:            freeTCPPort(t),
+		RaftPort:            freeRaftPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
+		UID:                 uid,
 	}
 	if c.mtls {
 		cfg.ClusterMTLSEnabled = true
 	}
 	cn := c.spawnNode(t, cfg)
 	c.nodes = append(c.nodes, cn)
-	waitReady(t, cn.Node)
+	c.waitNodeReady(t, cn)
 	// Credentials are replicated via Raft; retry login until they arrive.
 	cn.Node.sessionToken = loginWithRetry(t, cn.Node, defaultUsername, defaultPassword)
 	c.WaitConverged(t)
@@ -310,7 +347,7 @@ func (c *Cluster) AddNodeWithToken(t *testing.T, token string) *ClusterNode {
 		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
-		RaftPort:            freeTCPPort(t),
+		RaftPort:            freeRaftPort(t),
 		BootstrapLeaderAddr: leader.APIBase,
 		BootstrapToken:      token,
 	})
@@ -348,15 +385,18 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
 	}
 	cn := &ClusterNode{
-		Node:     n,
-		NodeID:   cfg.NodeID,
-		DataDir:  dir,
-		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
-		DNSPort:  cfg.DNSPort,
-		APIPort:  cfg.APIPort,
-		RaftPort: cfg.RaftPort,
-		Env:      env,
+		Node:        n,
+		NodeID:      cfg.NodeID,
+		DataDir:     dir,
+		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		DNSPort:     cfg.DNSPort,
+		APIPort:     cfg.APIPort,
+		RaftPort:    cfg.RaftPort,
+		PeerAPIPort: cfg.RaftPort + 1,
+		Env:         env,
+		UID:         cfg.UID,
 	}
+	n.ports = m2ConfigPorts(cfg)
 	c.startProcess(t, cn)
 	return cn
 }
@@ -384,17 +424,35 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 		n.DNSCryptAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DNSCryptPort)
 	}
 	cn := &ClusterNode{
-		Node:     n,
-		NodeID:   cfg.NodeID,
-		DataDir:  dir,
-		RaftAddr: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
-		DNSPort:  cfg.DNSPort,
-		APIPort:  cfg.APIPort,
-		RaftPort: cfg.RaftPort,
-		Env:      env,
+		Node:        n,
+		NodeID:      cfg.NodeID,
+		DataDir:     dir,
+		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		DNSPort:     cfg.DNSPort,
+		APIPort:     cfg.APIPort,
+		RaftPort:    cfg.RaftPort,
+		PeerAPIPort: cfg.RaftPort + 1,
+		Env:         env,
+		UID:         cfg.UID,
 	}
+	n.ports = m2ConfigPorts(cfg)
 	c.startProcess(t, cn)
 	return cn
+}
+
+// m2ConfigPorts lists every port cfg makes a node listen on, for
+// portReport.
+func m2ConfigPorts(cfg M2NodeConfig) []int {
+	ports := []int{cfg.DNSPort, cfg.APIPort, cfg.RaftPort, cfg.RaftPort + 1}
+	for _, p := range []int{cfg.DoHPort, cfg.DoTPort, cfg.DoH3Port, cfg.DNSCryptPort, cfg.APITLSHTTPSPort} {
+		if p > 0 {
+			ports = append(ports, p)
+		}
+	}
+	if cfg.Acme != nil && cfg.Acme.HTTPChallengePort > 0 {
+		ports = append(ports, cfg.Acme.HTTPChallengePort)
+	}
+	return ports
 }
 
 // startProcess starts (or restarts) the skoed process for a ClusterNode,
@@ -407,24 +465,113 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	if len(cn.Env) > 0 {
 		cmd.Env = append(os.Environ(), cn.Env...)
 	}
-	if testing.Verbose() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
+	output := captureOutput(cmd)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
-	if err := cmd.Start(); err != nil {
+	if cn.UID != 0 {
+		requireExecutableByUID(t, c.bin, cn.UID)
+		giveDataDirToUID(t, cn.DataDir, cn.UID)
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(cn.UID), Gid: uint32(cn.UID)}
+	}
+	exited, err := startReaped(cmd)
+	if err != nil {
 		t.Fatalf("start skoed (node %s): %v", cn.NodeID, err)
 	}
 	cn.cmd = cmd
 	cn.Node.cmd = cmd
+	cn.Node.exited = exited
+	cn.Node.output = output
 	cn.killed = false
 
 	t.Cleanup(func() {
 		if !cn.killed {
-			cmd.Process.Kill() //nolint:errcheck
-			cmd.Wait()         //nolint:errcheck
+			killAndReap(cmd, exited)
 		}
 	})
+}
+
+// requireExecutableByUID skips the test unless a process running as uid:uid
+// (with no supplementary groups, as startProcess sets it) can execute bin:
+// every parent directory needs the search bit and bin the execute bit for
+// that uid. Otherwise the start fails with a bare "permission denied", e.g.
+// when SKOED_BINARY points into a 0700 home directory.
+func requireExecutableByUID(t *testing.T, bin string, uid int) {
+	t.Helper()
+	abs, err := filepath.Abs(bin)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", bin, err)
+	}
+	check := func(p string) {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		if !modeAllowsExec(fi, uid) {
+			t.Skipf("the skoed binary %s (SKOED_BINARY or SKOED_PREVIOUS_BINARY) must be executable by uid %d, but %s is %v: put it where that uid can reach it (e.g. /tmp or /usr/local/bin with mode 0755)",
+				abs, uid, p, fi.Mode())
+		}
+	}
+	for p := filepath.Dir(abs); ; p = filepath.Dir(p) {
+		check(p)
+		if p == filepath.Dir(p) {
+			break
+		}
+	}
+	check(abs)
+}
+
+// modeAllowsExec reports whether uid, running with gid uid and no
+// supplementary groups, has the execute (or search) bit on fi.
+func modeAllowsExec(fi os.FileInfo, uid int) bool {
+	perm := fi.Mode().Perm()
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return perm&0o001 != 0
+	}
+	switch {
+	case int(st.Uid) == uid:
+		return perm&0o100 != 0
+	case int(st.Gid) == uid:
+		return perm&0o010 != 0
+	default:
+		return perm&0o001 != 0
+	}
+}
+
+// giveDataDirToUID chowns dir and everything under it to uid:uid, and adds
+// the search bit for others on the parent directories that t.TempDir created
+// (mode 0700, owned by the test user), so a process running as uid can reach
+// dir.
+//
+// Precondition: no process running as uid may write under dir during the
+// walk. Such a process could swap a file under dir for a symlink between the
+// walk reading it and the chown, and redirect the chown to a file outside dir
+// (Lchown only covers a symlink that is already there). startProcess calls it
+// before every start, and KillNode always waits for the process to exit, so
+// the node that owns dir is never running during the walk. Other processes
+// running as the same uid can be alive, because parallel tests use cutUID
+// too, but they are skoed processes under test from other tests: they use
+// their own data directories and do not race with this one.
+func giveDataDirToUID(t *testing.T, dir string, uid int) {
+	t.Helper()
+	err := filepath.Walk(dir, func(p string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(p, uid, uid)
+	})
+	if err != nil {
+		t.Fatalf("chown %s to uid %d: %v", dir, uid, err)
+	}
+	tmp := filepath.Clean(os.TempDir())
+	for p := filepath.Dir(dir); strings.HasPrefix(p, tmp+string(filepath.Separator)); p = filepath.Dir(p) {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		if err := os.Chmod(p, fi.Mode().Perm()|0o001); err != nil {
+			t.Fatalf("chmod o+x %s: %v", p, err)
+		}
+	}
 }
 
 // writeConfigYAML writes the per-node config.yaml consumed by an M2 node.
@@ -649,22 +796,46 @@ func (c *Cluster) Node(i int) *ClusterNode {
 	return c.nodes[i]
 }
 
+// SetBinary makes every later start of a node in this cluster (RestartNode,
+// AddNode) use the skoed binary at bin. Running nodes are not touched. The
+// upgrade test starts a cluster on the previous release, then kills, switches
+// and restarts each node in turn.
+func (c *Cluster) SetBinary(bin string) {
+	c.bin = bin
+}
+
 // Size returns the number of nodes that have ever been added (including killed).
 func (c *Cluster) Size() int { return len(c.nodes) }
 
 // KillNode stops a node's process without removing its data directory, so a
 // later RestartNode can revive it with the same Raft identity.
+//
+// If the process had already exited on its own, the test fails (without
+// stopping) with the exit status and the last lines the process wrote: a
+// node that crashes during a test must not go unnoticed.
 func (c *Cluster) KillNode(t *testing.T, i int) {
 	t.Helper()
 	n := c.Node(i)
 	if n.killed {
 		return
 	}
-	if err := n.cmd.Process.Kill(); err != nil {
+	// ErrProcessDone: the process already exited and was reaped. The exit
+	// status below tells that case apart from a kill.
+	if err := n.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		t.Fatalf("kill node %s: %v", n.NodeID, err)
 	}
-	n.cmd.Wait() //nolint:errcheck
+	<-n.Node.exited
 	n.killed = true
+	if !killedBySIGKILL(n.cmd.ProcessState) {
+		t.Errorf("node %s exited on its own before KillNode%s", n.NodeID, exitReport(n.Node))
+	}
+}
+
+// killedBySIGKILL reports whether the process ended on SIGKILL, the signal
+// KillNode sends, rather than on its own.
+func killedBySIGKILL(ps *os.ProcessState) bool {
+	ws, ok := ps.Sys().(syscall.WaitStatus)
+	return ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL
 }
 
 // RestartNode brings a previously-killed node back up using the same data dir
@@ -678,7 +849,7 @@ func (c *Cluster) RestartNode(t *testing.T, i int) {
 		t.Fatalf("RestartNode: node %s is not killed", n.NodeID)
 	}
 	c.startProcess(t, n)
-	waitReady(t, n.Node)
+	c.waitNodeReady(t, n)
 	n.Node.sessionToken = loginSession(t, n.Node, defaultUsername, defaultPassword)
 }
 
@@ -912,7 +1083,7 @@ func (c *Cluster) MustCreateBlocklist(t *testing.T, via *ClusterNode, id string,
 	resp := via.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 201 {
-		t.Fatalf("create blocklist %s via %s: status %d", id, via.NodeID, resp.StatusCode)
+		t.Fatalf("create blocklist %s via %s: status %d: %s", id, via.NodeID, resp.StatusCode, readBody(t, resp))
 	}
 	c.WaitConverged(t)
 }
