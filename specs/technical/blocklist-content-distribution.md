@@ -104,13 +104,18 @@ type BlocklistContentSetPayload struct {
     Status    string            `json:"status"`            // ok | unchanged | error
     Error     string            `json:"error,omitempty"`
     RefreshAt string            `json:"refresh_at"`        // RFC3339
+    URL       string            `json:"url"`               // source the download used
+    Format    string            `json:"format"`
 }
 ```
 
 Apply (`store.go`): read-modify-write of the stored blocklist. It sets the
 three `LastRefresh*` fields. When `Status == "ok"`, it also sets
 `Content`, sets `LastUpdated = Content.FetchedAt` and clears `Domains`.
-An unknown ID is a no-op. Entry size is under 1 KB.
+An unknown ID is a no-op, and so is a payload whose `URL` or `Format`
+differs from the stored source: a PATCH that changed the source while the
+download was in flight wins, and the list stays due. Entry size is under
+1 KB.
 
 ### 3.2 Changed: `config.import` and `blocklist.upsert`
 
@@ -239,6 +244,10 @@ New package `internal/blocklistsync`, started on every node:
 | `local_content_sha256` | hash of this node's cache file, "" when none |
 | `content_status` | `current` (equal), `out_of_date` (both set, different), `missing` (no local file) |
 
+The three fields are omitted when the list has no replicated version yet
+(`Content == nil`: never downloaded, or a legacy entry during a rolling
+upgrade), so a rolling upgrade does not report every list as out of date.
+
 `domain_count` becomes the count of this node's cache file for URL lists
 (the replicated `Content.DomainCount` when the file is current), and
 `len(Domains)` for inline lists. On a current node it equals the leader's
@@ -315,17 +324,28 @@ skoed raft compact [--config /etc/skoed/config.yaml | --data-dir /var/lib/skoed]
    means the daemon holds the lock: print
    `raft-log.bolt is locked: stop the skoed daemon first` and exit 1
    without touching any file (FS-RaftLogCompactRefusedWhileRunning).
-3. `bolt.Compact(dst, src, 64<<20)` into `raft-log.bolt.compact`, fsync.
-4. Rename the original to `raft-log.bolt.pre-compact`, then the compacted
-   file to `raft-log.bolt`. Print both sizes. Ownership and mode are copied
-   from the original.
-5. The operator deletes `raft-log.bolt.pre-compact` after the node has
+3. If `raft-log.bolt.pre-compact` already exists, refuse (exit 1) so an
+   earlier backup is never overwritten. Remove a leftover
+   `raft-log.bolt.compact` from an interrupted run (only after the lock is
+   held).
+4. Create `raft-log.bolt.compact` with the original's owner and mode, then
+   `bolt.Compact(dst, src, 64<<20)` into it, and fsync it.
+5. Hard-link the original to `raft-log.bolt.pre-compact` (`os.Link`, which
+   also fails if the backup appeared meanwhile), then rename the compacted
+   file over `raft-log.bolt`, then fsync the directory. `raft-log.bolt`
+   exists at every point, so a crash never leaves a node without its log.
+   On a link failure, remove `.compact`; on a rename failure, remove the
+   link so the next run is not refused. Print both sizes.
+6. The operator deletes `raft-log.bolt.pre-compact` after the node has
    restarted and rejoined (FS-RaftLogCompactOffline).
 
-The raft-boltdb store opened by the daemon (`raft.go:56`) gains
-`raftboltdb.NewBoltStoreWithOptions` with `BoltOptions.Timeout = 5s`, so a
-daemon started while a compaction holds the lock fails with a clear error
-instead of blocking.
+The raft-boltdb stores opened by the daemon (`raft.go:56`) use
+`raftboltdb.New(raftboltdb.Options{Path: ..., BoltOptions:
+&bolt.Options{Timeout: 5 * time.Second}})` (raft-boltdb v2), so a daemon
+started while a compaction holds the lock fails with
+`<file> is locked by another process (skoed raft compact?)` instead of
+blocking. The `raft/raft-log.bolt` path is exported from `internal/cluster`
+and used by the daemon and the command alike.
 
 Compaction only reclaims space freed by truncation, so the runbook for the
 home cluster is: deploy the new version on both nodes, wait until

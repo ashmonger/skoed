@@ -68,3 +68,9 @@ None.
 
 - **Q**: M50 — how should the blocklist copy between nodes be encrypted, and how should the acceptance test cut one follower off from the leader?
   **A**: Encrypt all peer HTTP with the existing cluster mTLS (a dedicated peer listener using the cluster CA and node certificates), implemented as its own M50 item for FS-MtlsInternalApiHTTPS; the copy endpoint uses it. Cut the follower with a real `iptables` owner-match rule in the acceptance test (root + NET_ADMIN in the Docker runner, skipped otherwise) instead of a test-only variable, and repeat the cut on Proxmox. — 2026-11-25
+
+- **Q**: M50 — the validated tests count NXDOMAIN as "blocked", but test nodes resolve recursively with internet access, so a made-up name also gets NXDOMAIN. How should the tests be fixed?
+  **A**: Create the test URL lists with `block_policy: "null"` and count only the 0.0.0.0 / `::` answer as a block in the M50 tests. — 2026-11-25
+
+- **Q**: M50 — with mTLS on, should a peer with no recorded peer address be reached over plain HTTP (sending the cluster secret in clear)?
+  **A**: Never plain HTTP. Use https on the recorded peer address, or on the default (Raft host, Raft port + 1). During a rolling upgrade, writes forwarded to an older leader fail with 503 until the leader is upgraded. — 2026-11-25

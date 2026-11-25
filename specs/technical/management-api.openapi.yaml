@@ -920,6 +920,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "503":
+          description: No refresher is available on this node (daemon starting or shutting down)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/cluster/_internal/blocklists/{id}/content:
     get:
@@ -960,12 +966,59 @@ paths:
             text/plain:
               schema:
                 type: string
+        "400":
+          description: The sha256 query parameter is missing or not 64 lowercase hex digits
         "401":
           description: Missing or wrong cluster secret
         "404":
           description: Unknown blocklist, or this node holds no copy
         "409":
           description: This node holds a different version than the one requested
+
+  /api/v1/cluster/_internal/members/self:
+    post:
+      summary: Node-to-node correction of the caller's own member record
+      description: >
+        Called by a follower on the leader when its member record does not
+        match what it advertises (peer API address, capabilities). The leader
+        writes the record through Raft only when it differs. Not for operator
+        use. See encrypted-cluster-mesh.md, "Internal API".
+      operationId: updateOwnMemberInternal
+      x-tsid: TS-EncryptedClusterMesh
+      x-fsid-links:
+        - FS-MtlsInternalApiHTTPS
+      security:
+        - clusterSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [node_id]
+              properties:
+                node_id:
+                  type: string
+                peer_api_address:
+                  type: string
+                  description: Set only when mTLS is enabled
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "204":
+          description: Record matches (written if it differed)
+        "400":
+          description: node_id missing
+        "401":
+          description: Missing or wrong cluster secret, or the secret was sent to the main listener with mTLS enabled
+        "403":
+          description: On the peer listener, the client certificate's CN does not match node_id
+        "404":
+          description: Unknown member
+        "409":
+          description: This node is not the leader
 
   # ── Allowlist ─────────────────────────────────────────────────────────────
 
@@ -1439,6 +1492,16 @@ paths:
                   type: string
                   example: "192.168.1.11:7000"
                   description: Address the leader will dial to send Raft RPCs to the new node
+                peer_api_address:
+                  type: string
+                  description: >
+                    M50. The joining node's peer mTLS listener (set only when
+                    mTLS is enabled). A node_id of "localhost" is refused with 400.
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                  description: M50. Capabilities the joining node advertises, e.g. "blocklist-content-v1"
       responses:
         "200":
           description: Enrollment accepted; node has been added as a Raft voter
