@@ -44,7 +44,13 @@ it makes a joining node crash at start.
 Option 2. `rebuildDNS` must not start a DNS server before `main` has
 started the first one: `main` creates and starts the server, then
 publishes it under a lock; `rebuildDNS` only reconfigures or restarts a
-server that `main` started, and does nothing before that. A retroactive
+server that `main` started. Before that, it keeps neither a handler nor
+a configuration, because a handler built during start-up can hold a nil
+`app` or `dhcpMgr`; `main` builds the boot handler and configuration
+from a fresh snapshot while the holder is locked, so a change applied
+earlier is in that snapshot and a later one is applied by `rebuildDNS`
+after the start (cycle 4, `decisions/20261125-M50FourthCycle.md`). A
+retroactive
 functional scenario ("a node joining a cluster starts its DNS listener
 once") is owed, recorded in TODO.md.
 

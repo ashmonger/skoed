@@ -208,8 +208,8 @@ func runDaemon(cfgPath string) {
 
 	var app *api.App
 	// The plain DNS server is started once, by main, after startup. A
-	// rebuildDNS call before that (Raft replay on a joining node) only
-	// records the latest config for the start to use.
+	// rebuildDNS call before that (Raft replay on a joining node) is
+	// ignored: the start builds its handler from a fresh snapshot.
 	var dnsServer dnsengine.ServerHolder
 	var encryptedSrv *dnsengine.EncryptedServer  // populated below; closure captures by name
 	var dnscryptSrv  *dnsengine.DNSCryptServer  // M8: populated below if DNSCryptPort > 0
@@ -526,9 +526,6 @@ func runDaemon(cfgPath string) {
 		}
 	}()
 
-	// Initial DNS handler; the server is started further down.
-	bootDNSHandler := buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
-
 	// Shadow YAML writer mirrors bbolt to <data_dir>/config.yaml.
 	shadow := cluster.NewShadowWriter(c, time.Second)
 	shadow.Start()
@@ -679,7 +676,19 @@ func runDaemon(cfgPath string) {
 		log.Printf("management API listening on %s", node.Node.APIAddress)
 	}
 
-	dnsCfg, err := dnsServer.Start(snap.DNS, bootDNSHandler)
+	// The boot handler is built here, from a fresh snapshot, once app,
+	// dhcpMgr and webhookDisp are assigned. A handler built by an earlier
+	// rebuildDNS could hold a nil app or dhcpMgr.
+	dnsCfg, err := dnsServer.Start(func() (config.DNSConfig, *dnsengine.Handler, error) {
+		bootSnap, err := c.Store().Snapshot()
+		if err != nil {
+			return config.DNSConfig{}, nil, err
+		}
+		bootSnap.Defaults()
+		mergeNodeLocal(bootSnap, node)
+		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		return bootSnap.DNS, handler, nil
+	})
 	if err != nil {
 		log.Fatalf("start dns server: %v", err)
 	}

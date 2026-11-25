@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -34,6 +35,21 @@ func portBound(t *testing.T, port int) bool {
 	return false
 }
 
+// boot returns a BootBuilder that starts with cfg and handler.
+func boot(cfg config.DNSConfig, handler *Handler) BootBuilder {
+	return func() (config.DNSConfig, *Handler, error) { return cfg, handler, nil }
+}
+
+// currentHandler returns the handler the started server answers with.
+func currentHandler(h *ServerHolder) *Handler {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.srv.wrapper.mu.RLock()
+	defer h.srv.wrapper.mu.RUnlock()
+	handler, _ := h.srv.wrapper.current.(*Handler)
+	return handler
+}
+
 func TestServerHolderRebuildBeforeStartDoesNotBind(t *testing.T) {
 	var h ServerHolder
 	defer h.Shutdown()
@@ -45,7 +61,7 @@ func TestServerHolderRebuildBeforeStartDoesNotBind(t *testing.T) {
 	if portBound(t, port) {
 		t.Fatalf("port %d bound by a rebuild before start", port)
 	}
-	if _, err := h.Start(dnsCfg(port), nil); err != nil {
+	if _, err := h.Start(boot(dnsCfg(port), nil)); err != nil {
 		t.Fatalf("start after rebuild: %v", err)
 	}
 	if !portBound(t, port) {
@@ -53,29 +69,46 @@ func TestServerHolderRebuildBeforeStartDoesNotBind(t *testing.T) {
 	}
 }
 
-func TestServerHolderStartUsesLatestPendingConfig(t *testing.T) {
+func TestServerHolderStartIgnoresPreBootRebuild(t *testing.T) {
 	var h ServerHolder
 	defer h.Shutdown()
-	bootPort, firstPort, latestPort := freePort(t), freePort(t), freePort(t)
+	rebuildPort, bootPort := freePort(t), freePort(t)
+	rebuildHandler, bootHandler := &Handler{}, &Handler{}
 
-	if err := h.Rebuild(dnsCfg(firstPort), nil); err != nil {
-		t.Fatalf("first rebuild: %v", err)
+	if err := h.Rebuild(dnsCfg(rebuildPort), rebuildHandler); err != nil {
+		t.Fatalf("rebuild before start: %v", err)
 	}
-	if err := h.Rebuild(dnsCfg(latestPort), nil); err != nil {
-		t.Fatalf("second rebuild: %v", err)
-	}
-	used, err := h.Start(dnsCfg(bootPort), nil)
+	used, err := h.Start(boot(dnsCfg(bootPort), bootHandler))
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if used.Listen.Port != latestPort {
-		t.Fatalf("start used port %d, want %d", used.Listen.Port, latestPort)
+	if used.Listen.Port != bootPort {
+		t.Fatalf("start used port %d, want %d", used.Listen.Port, bootPort)
 	}
-	if !portBound(t, latestPort) {
-		t.Fatalf("latest port %d not bound", latestPort)
+	if got := currentHandler(&h); got != bootHandler {
+		t.Fatalf("server answers with %p, want the boot handler %p (rebuild handler %p)", got, bootHandler, rebuildHandler)
 	}
-	if portBound(t, bootPort) || portBound(t, firstPort) {
-		t.Fatalf("an older port is bound (boot %d, first %d)", bootPort, firstPort)
+	if portBound(t, rebuildPort) {
+		t.Fatalf("pre-boot rebuild port %d is bound", rebuildPort)
+	}
+}
+
+func TestServerHolderStartBuildErrorDoesNotBind(t *testing.T) {
+	var h ServerHolder
+	defer h.Shutdown()
+	port := freePort(t)
+	failing := func() (config.DNSConfig, *Handler, error) {
+		return dnsCfg(port), nil, errors.New("snapshot failed")
+	}
+
+	if _, err := h.Start(failing); err == nil {
+		t.Fatal("start with a failing builder succeeded, want an error")
+	}
+	if portBound(t, port) {
+		t.Fatalf("port %d bound after a failed build", port)
+	}
+	if _, err := h.Start(boot(dnsCfg(port), nil)); err != nil {
+		t.Fatalf("start after a failed build: %v", err)
 	}
 }
 
@@ -84,10 +117,10 @@ func TestServerHolderStartTwiceFails(t *testing.T) {
 	defer h.Shutdown()
 	port := freePort(t)
 
-	if _, err := h.Start(dnsCfg(port), nil); err != nil {
+	if _, err := h.Start(boot(dnsCfg(port), nil)); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if _, err := h.Start(dnsCfg(port), nil); err == nil {
+	if _, err := h.Start(boot(dnsCfg(port), nil)); err == nil {
 		t.Fatal("second start succeeded, want an error")
 	}
 }
@@ -96,17 +129,21 @@ func TestServerHolderRebuildAfterStartMovesListener(t *testing.T) {
 	var h ServerHolder
 	defer h.Shutdown()
 	oldPort, newPort := freePort(t), freePort(t)
+	newHandler := &Handler{}
 
-	if _, err := h.Start(dnsCfg(oldPort), nil); err != nil {
+	if _, err := h.Start(boot(dnsCfg(oldPort), nil)); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if err := h.Rebuild(dnsCfg(oldPort), nil); err != nil {
 		t.Fatalf("rebuild with the same listen config: %v", err)
 	}
-	if err := h.Rebuild(dnsCfg(newPort), nil); err != nil {
+	if err := h.Rebuild(dnsCfg(newPort), newHandler); err != nil {
 		t.Fatalf("rebuild with a new port: %v", err)
 	}
 	if !portBound(t, newPort) {
 		t.Fatalf("new port %d not bound after rebuild", newPort)
+	}
+	if got := currentHandler(&h); got != newHandler {
+		t.Fatalf("server answers with %p, want the rebuilt handler %p", got, newHandler)
 	}
 }

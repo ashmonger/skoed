@@ -12,28 +12,32 @@ import (
 //
 // Replicated changes can be applied before the node finishes its startup
 // (a joining node replays the Raft log while it starts). A rebuild that
-// arrives before Start only records the latest configuration and handler,
-// so the DNS port is bound once, by Start. All methods are safe for
-// concurrent use.
+// arrives before Start keeps neither its configuration nor its handler:
+// that handler may have been built before the node's services were
+// assigned, so Start builds its own, and the DNS port is bound once, by
+// Start. All methods are safe for concurrent use.
 type ServerHolder struct {
-	mu             sync.Mutex
-	srv            *Server
-	pendingCfg     *config.DNSConfig
-	pendingHandler *Handler
+	mu  sync.Mutex
+	srv *Server
 }
 
-// Start builds and starts the server. If Rebuild was called before, the
-// configuration and handler it recorded are used instead of cfg and
-// handler. It returns the configuration the server listens with.
-func (h *ServerHolder) Start(cfg config.DNSConfig, handler *Handler) (config.DNSConfig, error) {
+// BootBuilder returns the configuration and handler the server starts
+// with. Start calls it with the holder locked, so a rebuild cannot run
+// between the build and the start: a change applied earlier is in the
+// state it reads, and a later one is applied by Rebuild after the start.
+type BootBuilder func() (config.DNSConfig, *Handler, error)
+
+// Start builds the configuration and handler with build, then starts the
+// server. It returns the configuration the server listens with.
+func (h *ServerHolder) Start(build BootBuilder) (config.DNSConfig, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.srv != nil {
-		return cfg, errors.New("dns server already started")
+		return config.DNSConfig{}, errors.New("dns server already started")
 	}
-	if h.pendingCfg != nil {
-		cfg, handler = *h.pendingCfg, h.pendingHandler
-		h.pendingCfg, h.pendingHandler = nil, nil
+	cfg, handler, err := build()
+	if err != nil {
+		return cfg, fmt.Errorf("build boot dns handler: %w", err)
 	}
 	srv := New(cfg, handler)
 	if err := srv.Start(); err != nil {
@@ -43,14 +47,13 @@ func (h *ServerHolder) Start(cfg config.DNSConfig, handler *Handler) (config.DNS
 	return cfg, nil
 }
 
-// Rebuild applies a new configuration and handler. Before Start, it only
-// records them for Start to use. After Start, it swaps the handler, or
-// restarts the listeners when the listen configuration changed.
+// Rebuild applies a new configuration and handler. Before Start, it does
+// nothing. After Start, it swaps the handler, or restarts the listeners
+// when the listen configuration changed.
 func (h *ServerHolder) Rebuild(cfg config.DNSConfig, handler *Handler) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.srv == nil {
-		h.pendingCfg, h.pendingHandler = &cfg, handler
 		return nil
 	}
 	if !h.srv.ListenCfgChanged(cfg) {
