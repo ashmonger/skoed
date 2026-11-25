@@ -71,6 +71,12 @@ type BlocklistSnapshot struct {
 	ID            string
 	LastRefreshAt time.Time // zero ⇒ never refreshed
 	Failures      uint64
+
+	// M50 — set for URL lists only; the content series are not emitted
+	// for inline lists.
+	URLContent           bool
+	ContentCurrent       bool   // this node's copy matches the replicated version
+	ContentFetchFailures uint64 // failed copies from the leader (followers)
 }
 
 // DohResolverStatusFunc returns the current state of the M6 DoH/DoT
@@ -475,6 +481,9 @@ func (c *dhcpCollector) Collect(ch chan<- prometheus.Metric) {
 var (
 	descBlocklistLastRefresh = prometheus.NewDesc("skoed_blocklist_last_refresh_seconds", "Unix timestamp of the last successful or failed refresh attempt, per blocklist id.", []string{"id"}, nil)
 	descBlocklistFailures    = prometheus.NewDesc("skoed_blocklist_refresh_failures_total", "Cumulative refresh failures since process start, per blocklist id.", []string{"id"}, nil)
+	// M50 — node-local copy of URL blocklist content.
+	descBlocklistContentCurrent       = prometheus.NewDesc("skoed_blocklist_content_current", "1 when this node's copy of a URL blocklist matches the replicated version, 0 otherwise, per blocklist id.", []string{"id"}, nil)
+	descBlocklistContentFetchFailures = prometheus.NewDesc("skoed_blocklist_content_fetch_failures_total", "Failed copies of a URL blocklist from the leader since process start, per blocklist id.", []string{"id"}, nil)
 )
 
 type blocklistCollector struct{ stats BlocklistStatusFunc }
@@ -482,6 +491,8 @@ type blocklistCollector struct{ stats BlocklistStatusFunc }
 func (b *blocklistCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- descBlocklistLastRefresh
 	ch <- descBlocklistFailures
+	ch <- descBlocklistContentCurrent
+	ch <- descBlocklistContentFetchFailures
 }
 
 func (b *blocklistCollector) Collect(ch chan<- prometheus.Metric) {
@@ -492,6 +503,14 @@ func (b *blocklistCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		ch <- prometheus.MustNewConstMetric(descBlocklistLastRefresh, prometheus.GaugeValue, ts, bl.ID)
 		ch <- prometheus.MustNewConstMetric(descBlocklistFailures, prometheus.CounterValue, float64(bl.Failures), bl.ID)
+		if bl.URLContent {
+			var current float64
+			if bl.ContentCurrent {
+				current = 1
+			}
+			ch <- prometheus.MustNewConstMetric(descBlocklistContentCurrent, prometheus.GaugeValue, current, bl.ID)
+			ch <- prometheus.MustNewConstMetric(descBlocklistContentFetchFailures, prometheus.CounterValue, float64(bl.ContentFetchFailures), bl.ID)
+		}
 	}
 }
 

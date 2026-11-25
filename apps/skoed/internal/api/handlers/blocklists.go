@@ -25,10 +25,26 @@ type blocklistResponse struct {
 	LastRefreshAt          string `json:"last_refresh_at,omitempty"`
 	LastRefreshStatus      string `json:"last_refresh_status,omitempty"`
 	LastRefreshError       string `json:"last_refresh_error,omitempty"`
+	// M50 — URL lists only: the replicated content version, this node's
+	// copy, and whether they match.
+	ContentSHA256      string `json:"content_sha256,omitempty"`
+	LocalContentSHA256 string `json:"local_content_sha256,omitempty"`
+	ContentStatus      string `json:"content_status,omitempty"`
 }
 
-func toBlocklistResponse(bl config.Blocklist) blocklistResponse {
-	return blocklistResponse{
+// Values of blocklistResponse.ContentStatus.
+const (
+	contentCurrent   = "current"
+	contentOutOfDate = "out_of_date"
+	contentMissing   = "missing"
+)
+
+// toBlocklistResponse builds the API view of bl on this node. For a URL
+// list, domain_count is the count of this node's copy; for a URL list
+// written by a previous version (domains replicated) and for an inline
+// list, it is the number of replicated domains.
+func (h *Handler) toBlocklistResponse(bl config.Blocklist) blocklistResponse {
+	resp := blocklistResponse{
 		ID:                     bl.ID,
 		Name:                   bl.Name,
 		Enabled:                bl.Enabled,
@@ -42,6 +58,29 @@ func toBlocklistResponse(bl config.Blocklist) blocklistResponse {
 		LastRefreshStatus:      bl.LastRefreshStatus,
 		LastRefreshError:       bl.LastRefreshError,
 	}
+	if bl.Source.Type != blocklistSourceURL {
+		return resp
+	}
+	if bl.Content != nil {
+		resp.ContentSHA256 = bl.Content.SHA256
+	}
+	if cache := h.app.BlocklistContent(); cache != nil {
+		if e, ok := cache.Get(bl.ID); ok {
+			resp.LocalContentSHA256 = e.SHA256
+			if bl.Content != nil {
+				resp.DomainCount = e.Count
+			}
+		}
+	}
+	switch {
+	case resp.LocalContentSHA256 == "":
+		resp.ContentStatus = contentMissing
+	case resp.LocalContentSHA256 == resp.ContentSHA256:
+		resp.ContentStatus = contentCurrent
+	default:
+		resp.ContentStatus = contentOutOfDate
+	}
+	return resp
 }
 
 // ListBlocklists handles GET /api/v1/blocklists.
@@ -49,7 +88,7 @@ func (h *Handler) ListBlocklists(w http.ResponseWriter, r *http.Request) {
 	cfg := h.app.GetCfg()
 	result := make([]blocklistResponse, len(cfg.Filtering.Blocklists))
 	for i, bl := range cfg.Filtering.Blocklists {
-		result[i] = toBlocklistResponse(bl)
+		result[i] = h.toBlocklistResponse(bl)
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -84,11 +123,17 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id := req.ID
+	if id == "" {
+		id = newID()
+	}
+
 	// Resolve the domains the list will hold. Every branch either produces a
 	// non-empty list or refuses the create: a blocklist committed enabled with
 	// no domains reads as active through the API and the web UI while
 	// filtering nothing.
 	var domains []string
+	var content *config.BlocklistContent
 	switch req.Source.Type {
 	case blocklistSourceURL:
 		if req.Source.URL == "" {
@@ -96,7 +141,13 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var err error
-		domains, err = filter.Download(req.Source.URL, req.Source.Format, 30*time.Second)
+		if ref := h.app.BlocklistRefresher(); ref != nil && ref.UsesContent() {
+			// M50: the leader keeps the domains in its own copy and
+			// replicates only their version; followers copy the file.
+			content, err = ref.FetchContent(id, req.Source.URL, req.Source.Format)
+		} else {
+			domains, err = filter.Download(req.Source.URL, req.Source.Format, 30*time.Second)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
 			return
@@ -126,10 +177,6 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := req.ID
-	if id == "" {
-		id = newID()
-	}
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -143,6 +190,12 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		Domains:                domains,
 		LastUpdated:            time.Now().UTC().Format(time.RFC3339),
 		RefreshIntervalSeconds: req.RefreshIntervalSeconds,
+	}
+	if content != nil {
+		bl.Content = content
+		bl.LastUpdated = content.FetchedAt
+		bl.LastRefreshAt = content.FetchedAt
+		bl.LastRefreshStatus = "ok"
 	}
 
 	if err := h.app.WithWriteLock(func(cfg *config.Config) error {
@@ -161,7 +214,7 @@ func (h *Handler) CreateBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toBlocklistResponse(bl))
+	writeJSON(w, http.StatusCreated, h.toBlocklistResponse(bl))
 }
 
 // GetBlocklist handles GET /api/v1/blocklists/{id}.
@@ -170,7 +223,7 @@ func (h *Handler) GetBlocklist(w http.ResponseWriter, r *http.Request) {
 	cfg := h.app.GetCfg()
 	for _, bl := range cfg.Filtering.Blocklists {
 		if bl.ID == id {
-			writeJSON(w, http.StatusOK, toBlocklistResponse(bl))
+			writeJSON(w, http.StatusOK, h.toBlocklistResponse(bl))
 			return
 		}
 	}
@@ -216,14 +269,21 @@ func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
 					cfg.Filtering.Blocklists[i].BlockPolicy = *req.BlockPolicy
 				}
 				if req.Source != nil && req.Source.URL != "" {
-					cfg.Filtering.Blocklists[i].Source.Type = blocklistSourceURL
-					cfg.Filtering.Blocklists[i].Source.URL = req.Source.URL
+					bl := &cfg.Filtering.Blocklists[i]
+					before := bl.Source
+					bl.Source.Type = blocklistSourceURL
+					bl.Source.URL = req.Source.URL
 					if req.Source.Format != "" {
-						cfg.Filtering.Blocklists[i].Source.Format = req.Source.Format
+						bl.Source.Format = req.Source.Format
 					}
-					// Invalidate cached domains — they'll be repopulated on next refresh.
-					cfg.Filtering.Blocklists[i].Domains = nil
-					cfg.Filtering.Blocklists[i].LastUpdated = ""
+					// A new URL or format invalidates the downloaded domains
+					// and their version, so the scheduler downloads the list
+					// again on its next tick.
+					if bl.Source != before {
+						bl.Domains = nil
+						bl.Content = nil
+						bl.LastUpdated = ""
+					}
 				}
 				if req.RefreshIntervalSeconds != nil {
 					if *req.RefreshIntervalSeconds < 0 {
@@ -256,7 +316,7 @@ func (h *Handler) UpdateBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toBlocklistResponse(updated))
+	writeJSON(w, http.StatusOK, h.toBlocklistResponse(updated))
 }
 
 // DeleteBlocklist handles DELETE /api/v1/blocklists/{id}.
@@ -304,7 +364,6 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 	id := urlParam(r, "id")
 	cfg := h.app.GetCfg()
 
-	var sourceURL, sourceFormat string
 	found := false
 	for _, bl := range cfg.Filtering.Blocklists {
 		if bl.ID == id {
@@ -312,8 +371,6 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "only url-type blocklists can be refreshed")
 				return
 			}
-			sourceURL = bl.Source.URL
-			sourceFormat = bl.Source.Format
 			found = true
 			break
 		}
@@ -323,38 +380,24 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	domains, err := filter.Download(sourceURL, sourceFormat, 30*time.Second)
-	if err != nil {
+	// The request reached the leader through the forward middleware. The
+	// download runs synchronously and records LastRefresh* like the
+	// scheduler (TS-BlocklistContentDistribution §4).
+	ref := h.app.BlocklistRefresher()
+	if ref == nil {
+		writeError(w, http.StatusServiceUnavailable, "blocklist refresh is not available on this node")
+		return
+	}
+	if err := ref.RefreshNow(id); err != nil {
 		writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
 		return
 	}
 
-	lastUpdated := time.Now().UTC().Format(time.RFC3339)
-	var updated config.Blocklist
-
-	if err := h.app.WithWriteLock(func(cfg *config.Config) error {
-		for i := range cfg.Filtering.Blocklists {
-			if cfg.Filtering.Blocklists[i].ID == id {
-				cfg.Filtering.Blocklists[i].Domains = domains
-				cfg.Filtering.Blocklists[i].LastUpdated = lastUpdated
-				updated = cfg.Filtering.Blocklists[i]
-				return nil
-			}
+	for _, bl := range h.app.GetCfg().Filtering.Blocklists {
+		if bl.ID == id {
+			writeJSON(w, http.StatusOK, h.toBlocklistResponse(bl))
+			return
 		}
-		return nil
-	}); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
 	}
-
-	if err := h.app.SaveConfig(); err != nil {
-		writeError(w, http.StatusInternalServerError, "save config: "+err.Error())
-		return
-	}
-	if err := h.app.RebuildFilter(); err != nil {
-		writeError(w, http.StatusInternalServerError, "rebuild filter: "+err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, toBlocklistResponse(updated))
+	writeError(w, http.StatusNotFound, "blocklist not found")
 }
