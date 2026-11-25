@@ -361,7 +361,7 @@ type Blocklist struct {
 
 // BlocklistContent identifies one downloaded version of a URL blocklist.
 type BlocklistContent struct {
-	SHA256      string `yaml:"sha256"       json:"sha256"`       // hex, of the cache file bytes
+	SHA256      string `yaml:"sha256"       json:"sha256"` // hex, of the cache file bytes
 	DomainCount int    `yaml:"domain_count" json:"domain_count"`
 	FetchedAt   string `yaml:"fetched_at"   json:"fetched_at"` // RFC3339, leader's download time
 }

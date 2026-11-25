@@ -175,10 +175,26 @@ func (s *Scheduler) FetchContent(id, url, format string) (*config.BlocklistConte
 	}, nil
 }
 
+// DownloadError is returned by RefreshNow when the list could not be
+// downloaded; the previous version is kept.
+type DownloadError struct{ Err error }
+
+func (e *DownloadError) Error() string { return e.Err.Error() }
+func (e *DownloadError) Unwrap() error { return e.Err }
+
 // RefreshNow downloads list id synchronously and records the result like
 // the scheduler does (POST /api/v1/blocklists/{id}/refresh). It must run on
-// the leader. The returned error is the download error, if any.
+// the leader. It returns:
+//
+//   - an error wrapping cluster.ErrNotLeader when this node is not the
+//     leader, or lost the leadership during the call, so the result may not
+//     be recorded;
+//   - a *DownloadError when the download failed;
+//   - any other error when the result could not be written (cache or Raft).
 func (s *Scheduler) RefreshNow(id string) error {
+	if !s.c.IsLeader() {
+		return cluster.ErrNotLeader
+	}
 	snap, err := s.c.Store().Snapshot()
 	if err != nil {
 		return err
@@ -194,9 +210,14 @@ func (s *Scheduler) RefreshNow(id string) error {
 					bl = fresh
 				}
 			}
-			return s.refreshContent(bl)
+			err = s.refreshContent(bl)
+		} else {
+			err = s.refreshLegacy(bl)
 		}
-		return s.refreshLegacy(bl)
+		if !s.c.IsLeader() {
+			return fmt.Errorf("%w: leadership lost during the refresh of %q", cluster.ErrNotLeader, id)
+		}
+		return err
 	}
 	return fmt.Errorf("blocklist %q not found", id)
 }
@@ -236,8 +257,9 @@ func (s *Scheduler) refreshDueOnLeader() {
 
 	useContent := s.UsesContent()
 	if !useContent && s.cache != nil && !s.gateLogged {
-		log.Printf("refresh: not every cluster member has capability %s; downloaded blocklist domains stay in the replicated state",
-			cluster.CapabilityBlocklistContentV1)
+		log.Printf("refresh: members without capability %s: %s; downloaded blocklist domains stay in the replicated state",
+			cluster.CapabilityBlocklistContentV1,
+			strings.Join(s.c.MembersLackingCapability(cluster.CapabilityBlocklistContentV1), ", "))
 		s.gateLogged = true
 	}
 
@@ -367,7 +389,8 @@ func (s *Scheduler) storedList(id string) (config.Blocklist, bool) {
 }
 
 // refreshContent downloads one URL list and records the result with a
-// `blocklist.content_set` entry (§4 refreshOne):
+// `blocklist.content_set` entry (§4 refreshOne). The entry carries the
+// source used, so it is ignored if the source changed meanwhile:
 //
 //   - on error, the previous copy is kept and an entry is written only when
 //     the stored status or error message differs, so a list that keeps
@@ -391,9 +414,12 @@ func (s *Scheduler) refreshContent(prior config.Blocklist) error {
 			s.OnDownloadFailed(prior.ID, prior.Name, msg)
 		}
 		if prior.LastRefreshStatus != "error" || prior.LastRefreshError != msg {
-			s.apply(cluster.BlocklistContentSetPayload{ID: prior.ID, Status: "error", Error: msg, RefreshAt: now})
+			_ = s.apply(cluster.BlocklistContentSetPayload{
+				ID: prior.ID, Status: "error", Error: msg, RefreshAt: now,
+				URL: prior.Source.URL, Format: prior.Source.Format,
+			})
 		}
-		return err
+		return &DownloadError{Err: err}
 	}
 	e, err := s.cache.Write(prior.ID, domains)
 	if err != nil {
@@ -403,13 +429,15 @@ func (s *Scheduler) refreshContent(prior config.Blocklist) error {
 		return err
 	}
 	s.recordAttempt(prior.ID, false)
-	p := cluster.BlocklistContentSetPayload{ID: prior.ID, Status: "unchanged", RefreshAt: now}
+	p := cluster.BlocklistContentSetPayload{
+		ID: prior.ID, Status: "unchanged", RefreshAt: now,
+		URL: prior.Source.URL, Format: prior.Source.Format,
+	}
 	if prior.Content == nil || prior.Content.SHA256 != e.SHA256 {
 		p.Status = "ok"
 		p.Content = &config.BlocklistContent{SHA256: e.SHA256, DomainCount: e.Count, FetchedAt: now}
 	}
-	s.apply(p)
-	return nil
+	return s.apply(p)
 }
 
 // seedLegacy records the version of a legacy URL list (domains replicated
@@ -431,23 +459,32 @@ func (s *Scheduler) seedLegacy(bl config.Blocklist) {
 	if refreshAt == "" {
 		refreshAt = fetched
 	}
-	s.apply(cluster.BlocklistContentSetPayload{
+	_ = s.apply(cluster.BlocklistContentSetPayload{
 		ID:        bl.ID,
 		Status:    "ok",
 		RefreshAt: refreshAt,
 		Content:   &config.BlocklistContent{SHA256: e.SHA256, DomainCount: e.Count, FetchedAt: fetched},
+		URL:       bl.Source.URL,
+		Format:    bl.Source.Format,
 	})
 }
 
-func (s *Scheduler) apply(p cluster.BlocklistContentSetPayload) {
-	if err := s.c.SetBlocklistContent(p); err != nil {
+// apply writes p through Raft; a failure is logged and returned.
+func (s *Scheduler) apply(p cluster.BlocklistContentSetPayload) error {
+	err := s.c.SetBlocklistContent(p)
+	if err != nil {
 		log.Printf("refresh: record %s result of %s: %v", p.Status, p.ID, err)
 	}
+	return err
 }
 
 // dueLegacy returns the URL-source blocklists whose last_refresh_at +
-// interval has passed, as before M50. Sorted by oldest-due-first so stale
-// lists get attention before the freshly-added ones.
+// interval has passed, as before M50. A list holding a content version but
+// no domains (written while the gate was met, before a rollback or the
+// join of a node running a previous version) is due whatever its
+// interval, so nodes running a previous version get domains again. Sorted
+// by oldest-due-first so stale lists get attention before the
+// freshly-added ones.
 func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Blocklist {
 	type item struct {
 		bl  config.Blocklist
@@ -456,6 +493,13 @@ func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Block
 	var items []item
 	for _, bl := range snap.Filtering.Blocklists {
 		if bl.Source.Type != "url" || bl.Source.URL == "" {
+			continue
+		}
+		if bl.Content != nil && len(bl.Domains) == 0 {
+			if _, a := s.lastRun(bl); a.failed && now.Sub(a.at) < s.retryAfter {
+				continue
+			}
+			items = append(items, item{bl: bl, age: 1<<63 - 1})
 			continue
 		}
 		if bl.RefreshIntervalSeconds == 0 {
@@ -515,8 +559,14 @@ func (s *Scheduler) refreshLegacy(prior config.Blocklist) error {
 
 	if uerr := s.c.UpsertBlocklist(updated); uerr != nil {
 		log.Printf("refresh: upsert %s: %v", prior.ID, uerr)
+		if err == nil {
+			return uerr
+		}
 	}
-	return err
+	if err != nil {
+		return &DownloadError{Err: err}
+	}
+	return nil
 }
 
 func (s *Scheduler) bumpFailure(id string) {

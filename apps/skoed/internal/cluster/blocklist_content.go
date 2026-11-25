@@ -17,6 +17,20 @@ func (c *Cluster) SetBlocklistContent(p BlocklistContentSetPayload) error {
 	return c.applyAsLeader(CmdBlocklistContentSet, p, 0)
 }
 
+// MembersLackingCapability returns the IDs of the servers in the Raft
+// configuration whose member record does not list capability. A server
+// without a member record yet is included.
+func (c *Cluster) MembersLackingCapability(capability string) []string {
+	var out []string
+	for _, s := range c.raft.Configuration().Servers {
+		m, err := c.store.MemberByID(string(s.ID))
+		if err != nil || m == nil || !containsCapability(m.Capabilities, capability) {
+			out = append(out, string(s.ID))
+		}
+	}
+	return out
+}
+
 // storedBlocklist reads one blocklist from the bucket inside tx.
 func storedBlocklist(tx *bolt.Tx, id string) (config.Blocklist, bool) {
 	v := tx.Bucket(bucketBlocklists).Get([]byte(id))
@@ -65,10 +79,16 @@ func keepStoredContent(stored, incoming config.Blocklist) config.Blocklist {
 }
 
 // applyBlocklistContentSet records one download result of the leader. An
-// unknown ID is a no-op: the list was deleted while it was downloaded.
+// unknown ID is a no-op: the list was deleted while it was downloaded. So
+// is a result for another URL or format than the stored ones: the source
+// was changed while it was downloaded, the change wins and the list stays
+// due.
 func applyBlocklistContentSet(tx *bolt.Tx, p BlocklistContentSetPayload) error {
 	bl, ok := storedBlocklist(tx, p.ID)
 	if !ok {
+		return nil
+	}
+	if bl.Source.URL != p.URL || bl.Source.Format != p.Format {
 		return nil
 	}
 	bl.LastRefreshAt = p.RefreshAt

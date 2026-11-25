@@ -18,8 +18,6 @@ const (
 	CmdBlocklistUpsert      CommandKind = "blocklist.upsert"
 	CmdBlocklistDelete      CommandKind = "blocklist.delete"
 	CmdBlocklistSetEnabled  CommandKind = "blocklist.set_enabled"
-	// M50 — version of a URL blocklist's downloaded content (no domains).
-	CmdBlocklistContentSet CommandKind = "blocklist.content_set"
 	CmdAllowlistAdd         CommandKind = "allowlist.add"
 	CmdAllowlistRemove      CommandKind = "allowlist.remove"
 	CmdSharedAllowlistUpsert CommandKind = "shared_allowlist.upsert" // M36
@@ -93,6 +91,9 @@ const (
 	CmdNewDynamicClientDismiss   CommandKind = "new_dynamic_client.dismiss"
 )
 
+// M50 — version of a URL blocklist's downloaded content (no domains).
+const CmdBlocklistContentSet CommandKind = "blocklist.content_set"
+
 // Command is the wire form of a single FSM mutation. Payload is opaque JSON
 // — its concrete type depends on Kind. We keep the version field to leave a
 // clear upgrade path if the schema ever changes.
@@ -127,6 +128,11 @@ type BlocklistContentSetPayload struct {
 	Status    string                   `json:"status"` // ok | unchanged | error
 	Error     string                   `json:"error,omitempty"`
 	RefreshAt string                   `json:"refresh_at"` // RFC3339
+	// URL and Format are the source the download used. The entry is
+	// ignored when they differ from the stored source: a PATCH that changed
+	// the source while the download ran wins.
+	URL    string `json:"url"`
+	Format string `json:"format"`
 }
 
 type BlocklistDeletePayload struct {
