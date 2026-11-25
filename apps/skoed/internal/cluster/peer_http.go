@@ -181,9 +181,10 @@ type peerNodeTransport struct {
 	transport *http.Transport
 }
 
-// peerRoundTripper sends http:// requests on a plain transport and https://
-// requests on a transport per target node, whose TLS config verifies the
-// server as that node ID.
+// peerRoundTripper sends https:// requests on a transport per target node,
+// whose TLS config verifies the server as that node ID. It sends http://
+// requests on a plain transport only with mTLS disabled: with mTLS enabled,
+// it refuses them, so no caller can send the cluster secret in clear.
 type peerRoundTripper struct {
 	c     *Cluster
 	plain *http.Transport
@@ -193,14 +194,17 @@ type peerRoundTripper struct {
 }
 
 func (t *peerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Scheme != "https" {
-		return t.plain.RoundTrip(req)
-	}
 	fail := func(err error) (*http.Response, error) {
 		if req.Body != nil {
 			req.Body.Close()
 		}
 		return nil, err
+	}
+	if req.URL.Scheme != "https" {
+		if t.c.mtlsEnabled {
+			return fail(fmt.Errorf("peer request to %s: %s:// refused with mTLS enabled", req.URL.Host, req.URL.Scheme))
+		}
+		return t.plain.RoundTrip(req)
 	}
 	cc := t.c.peer.certCache
 	if cc == nil {
@@ -262,6 +266,17 @@ func (c *Cluster) peerNodeIDForHost(hostPort string) string {
 		}
 	}
 	return ""
+}
+
+// UnpinnableNodeID reports whether id cannot identify a node to its peers:
+// "localhost" (any case, with or without a trailing dot) or an IP literal.
+// Peer clients verify a node with its ID as ServerName, and every cluster
+// leaf carries the SANs localhost, 127.0.0.1 and ::1; Go matches an IP
+// ServerName against IP SANs only, so such an ID would not identify one
+// node (TS-EncryptedClusterMesh, "Member records").
+func UnpinnableNodeID(id string) bool {
+	host := strings.TrimSuffix(id, ".")
+	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil
 }
 
 // memberURL returns the base URL peers use to reach m. With mTLS enabled,

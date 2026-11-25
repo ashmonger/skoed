@@ -1,10 +1,13 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/skoed/skoed/internal/cluster"
 )
 
 // TS-EncryptedClusterMesh "Internal API", "Tests": with mTLS enabled, the
@@ -56,6 +59,55 @@ func TestMainListenerRejectsClusterSecretWithMTLS(t *testing.T) {
 	peer := markPeerListener(rejectClusterSecretOffPeer(mtlsOn, secretChecker))
 	if rec := sendWithSecret(peer, testClusterSecret); rec.Code != http.StatusNoContent {
 		t.Errorf("peer listener, right secret: status = %d, want 204", rec.Code)
+	}
+}
+
+// testMTLSApp returns an App on a single-node cluster started with mTLS
+// enabled, as main.go builds it.
+func testMTLSApp(t *testing.T) *App {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raftAddr := ln.Addr().String()
+	ln.Close()
+	node := &cluster.NodeYAML{Node: cluster.NodeSection{
+		ID:          "node-1",
+		RaftAddress: raftAddr,
+		APIAddress:  "127.0.0.1:0",
+		DataDir:     t.TempDir(),
+	}}
+	node.Node.Cluster.MTLS.Enabled = true
+	c, err := cluster.New(node, cluster.Options{Bootstrap: true, SuppressRaftLog: true, MTLSEnabled: true})
+	if err != nil {
+		t.Fatalf("cluster.New: %v", err)
+	}
+	t.Cleanup(func() { c.Close() })
+	if !c.MTLSEnabled() {
+		t.Fatal("cluster started without mTLS")
+	}
+	return NewApp(c, nil, nil, nil)
+}
+
+// The refusal is wired into App.Router, so the main listener applies it.
+func TestRouterRejectsClusterSecretWithMTLS(t *testing.T) {
+	router := testMTLSApp(t).Router()
+
+	for _, secret := range []string{testClusterSecret, "wrong"} {
+		rec := sendWithSecret(router, secret)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("router, secret %q: status = %d, want 401", secret, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "peer mTLS listener") {
+			t.Errorf("router, secret %q: body = %q, want the peer-listener refusal", secret, rec.Body.String())
+		}
+	}
+
+	// Control: the same request marked as received on the peer listener
+	// passes the refusal and reaches the endpoint.
+	if rec := sendWithSecret(markPeerListener(router), "wrong"); strings.Contains(rec.Body.String(), "peer mTLS listener") {
+		t.Errorf("peer listener: body = %q, want the endpoint's own answer", rec.Body.String())
 	}
 }
 

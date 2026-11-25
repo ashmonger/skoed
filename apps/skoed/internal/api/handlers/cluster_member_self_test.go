@@ -140,16 +140,3 @@ func TestSelfMemberWrongSecretIs401(t *testing.T) {
 		t.Errorf("wrong secret: status = %d, %d update(s) applied; want 401 and none", rec.Code, len(f.applied))
 	}
 }
-
-func TestReservedNodeIDLocalhost(t *testing.T) {
-	for _, id := range []string{"localhost", "LocalHost"} {
-		if !reservedNodeID(id) {
-			t.Errorf("reservedNodeID(%q) = false, want true", id)
-		}
-	}
-	for _, id := range []string{"node-1", "localhost2", ""} {
-		if reservedNodeID(id) {
-			t.Errorf("reservedNodeID(%q) = true, want false", id)
-		}
-	}
-}

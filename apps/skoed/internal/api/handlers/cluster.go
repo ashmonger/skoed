@@ -307,14 +307,9 @@ func (h *Handler) NodeJoinCluster(w http.ResponseWriter, r *http.Request) {
 
 // ─── join ────────────────────────────────────────────────────────────────────
 
-const reservedNodeIDMsg = `node_id "localhost" is reserved: every cluster leaf carries it as a SAN, so peers could not verify this node`
-
-// reservedNodeID reports whether id cannot be used by a joining node. Every
-// cluster leaf certificate carries the DNS SAN "localhost", and peer clients
-// verify a node by its ID as ServerName (TS-EncryptedClusterMesh).
-func reservedNodeID(id string) bool {
-	return strings.EqualFold(id, "localhost")
-}
+// unpinnableNodeIDMsg is the 400 body for a node ID that peers could not
+// verify (cluster.UnpinnableNodeID).
+const unpinnableNodeIDMsg = `node_id must not be "localhost" or an IP address: every cluster leaf carries localhost, 127.0.0.1 and ::1 as SANs, so peers could not verify this node`
 
 // ClusterJoin handles POST /api/v1/cluster/join. Validates the token, adds
 // the new node as a Raft voter, and records it in the replicated members
@@ -333,8 +328,8 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "token, node_id and raft_address are required")
 		return
 	}
-	if reservedNodeID(req.NodeID) {
-		writeError(w, http.StatusBadRequest, reservedNodeIDMsg)
+	if cluster.UnpinnableNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, unpinnableNodeIDMsg)
 		return
 	}
 
@@ -378,8 +373,8 @@ func (h *Handler) ClusterMTLSBootstrap(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "token and node_id are required")
 		return
 	}
-	if reservedNodeID(req.NodeID) {
-		writeError(w, http.StatusBadRequest, reservedNodeIDMsg)
+	if cluster.UnpinnableNodeID(req.NodeID) {
+		writeError(w, http.StatusBadRequest, unpinnableNodeIDMsg)
 		return
 	}
 	ca, leaf, key, err := c.MintLeafForJoin(req.Token, req.NodeID)

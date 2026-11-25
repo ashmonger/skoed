@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -176,6 +177,57 @@ func TestPeerClientDoesNotFollowRedirects(t *testing.T) {
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusFound {
 			t.Errorf("%s: status = %d, want 302 returned as is", name, resp.StatusCode)
+		}
+	}
+}
+
+func TestPeerClientRefusesPlainHTTPWithMTLS(t *testing.T) {
+	var reached atomic.Bool
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Store(true)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(plain.Close)
+
+	caCert, caKey := testCA(t)
+	c := testMTLSCluster(t, caCert, caKey)
+	for name, client := range map[string]*http.Client{"PeerHTTPClient": c.PeerHTTPClient(), "PeerStreamHTTPClient": c.PeerStreamHTTPClient()} {
+		req, err := http.NewRequest(http.MethodPost, plain.URL+"/api/v1/cluster/_internal/aggregates", strings.NewReader("{}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-Cluster-Secret", "the-secret")
+		resp, err := client.Do(req)
+		if err == nil {
+			resp.Body.Close()
+			t.Errorf("%s: http:// request with mTLS on succeeded (status %d), want an error", name, resp.StatusCode)
+		}
+	}
+	if reached.Load() {
+		t.Error("an http:// request reached the server with mTLS on, want none sent")
+	}
+
+	// Control: with mTLS off, the same client sends plain HTTP.
+	off := &Cluster{}
+	resp, err := off.PeerHTTPClient().Get(plain.URL + "/")
+	if err != nil {
+		t.Fatalf("mTLS off: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("mTLS off: status = %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestUnpinnableNodeID(t *testing.T) {
+	for _, id := range []string{"localhost", "LocalHost", "localhost.", "LOCALHOST.", "127.0.0.1", "10.0.0.2", "10.0.0.2.", "::1", "fe80::1", "::ffff:10.0.0.2"} {
+		if !UnpinnableNodeID(id) {
+			t.Errorf("UnpinnableNodeID(%q) = false, want true", id)
+		}
+	}
+	for _, id := range []string{"node-1", "localhost2", "my.localhost", "node-1.example.com", "10.0.0", ""} {
+		if UnpinnableNodeID(id) {
+			t.Errorf("UnpinnableNodeID(%q) = true, want false", id)
 		}
 	}
 }

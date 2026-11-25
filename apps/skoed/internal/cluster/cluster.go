@@ -326,12 +326,14 @@ func (c *Cluster) CommitIndex() uint64 { return c.raft.CommitIndex() }
 
 // LeaderAPIAddress returns the base URL peers use to reach the current
 // leader, or "" if no leader is yet known. Looks up the leader's NodeID from
-// Raft and resolves its address from the replicated members bucket: with
-// mTLS enabled and a leader that advertises a peer API listener, it is
-// "https://<peer_api_address>" (send requests to it with PeerHTTPClient);
-// otherwise the leader's main API, e.g. "http://192.168.1.10:8080".
+// Raft and resolves its address from the replicated members bucket (see
+// memberURL). With mTLS enabled, it is always the leader's peer API listener
+// over HTTPS, never plain HTTP: "https://<peer_api_address>", or
+// "https://<raft host>:<raft port + 1>" when the leader has recorded none
+// (send requests to it with PeerHTTPClient). With mTLS disabled, it is the
+// leader's main API, e.g. "http://192.168.1.10:8080".
 func (c *Cluster) LeaderAPIAddress() string {
-	return c.leaderURL(c.raft)
+	return c.leaderURL(c.currentRaft())
 }
 
 // leaderURL is LeaderAPIAddress, with the leader read from rn.
@@ -353,7 +355,7 @@ func (c *Cluster) leaderURL(rn *raftNode) string {
 // leader is yet known. Used in responses that tell a client where the
 // leader is.
 func (c *Cluster) LeaderMainAPIAddress() string {
-	raftAddr, id := c.raft.Leader()
+	raftAddr, id := c.currentRaft().Leader()
 	if id == "" {
 		return ""
 	}
@@ -1096,10 +1098,10 @@ func (c *Cluster) MembersFromRaftConfig() []raft.Server {
 	return c.raft.Configuration().Servers
 }
 
-// MemberAPIURL resolves the base URL peers use to reach a member:
-// "https://<peer_api_address>" when mTLS is enabled and the member
-// advertises a peer API listener (send requests to it with PeerHTTPClient),
-// its main API over plain HTTP otherwise. When the stored address is bound
+// MemberAPIURL resolves the base URL peers use to reach a member (see
+// memberURL): with mTLS enabled, its peer API listener over HTTPS (send
+// requests to it with PeerHTTPClient), never plain HTTP; with mTLS
+// disabled, its main API over plain HTTP. When the stored address is bound
 // to 0.0.0.0 (the common case for single-interface nodes), the host part of
 // raft_address is used as fallback, because the Raft address always carries
 // the actual inter-node IP.

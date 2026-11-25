@@ -135,6 +135,13 @@ func runDaemon(cfgPath string) {
 	if mtlsEnabled && node.Node.PeerAPIAddress() == "" {
 		log.Fatalf("node.cluster.peer_api_address is unset and cannot be derived from raft_address %q (raft port + 1); set it explicitly", node.Node.RaftAddress)
 	}
+	// Peers verify this node with its ID as TLS ServerName, which
+	// "localhost" or an IP literal cannot pin: every leaf carries
+	// localhost, 127.0.0.1 and ::1 as SANs. Join refuses such an ID; this
+	// covers the bootstrap node, which never joins.
+	if mtlsEnabled && cluster.UnpinnableNodeID(node.Node.ID) {
+		log.Fatalf("node.id %q cannot be used with mTLS enabled: peers could not verify it (use a name, not \"localhost\" or an IP address)", node.Node.ID)
+	}
 
 	// M5.3 — when joining with mTLS enabled, fetch the cluster CA + a
 	// freshly-signed leaf cert from the leader BEFORE cluster.New so the
