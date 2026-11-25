@@ -538,7 +538,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   (FS-MtlsInternalApiHTTPS), helpers in `m50_harness_test.go`; 3 review
   cycles, merged at 7904a1a. Run on a test CT against today's binary:
   2 pass (regression checks), 15 fail because the feature is missing — 2026-11-25
-- [ ] M50 — UoR validated acceptance tests
+- [x] M50 — UoR validated acceptance tests — 2026-11-25
 - [ ] M50 — test follow-ups (MINOR, from review): pass `-w` to every
   `iptables` call in `m50_harness_test.go`; re-check `isBlocked` on every
   node after the legacy domains are cleared in
