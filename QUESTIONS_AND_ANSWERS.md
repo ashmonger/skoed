@@ -59,3 +59,6 @@ None.
 
 - **Q**: Client identification by MAC address — how to resolve IP → MAC (M3)?
   **A**: Primary = DHCP integration (supported sources: Kea DHCP REST API, dnsmasq lease file, ISC DHCP lease file, generic configurable HTTP API returning leases as JSON). Fallback = IP-only identification for clients not in the DHCP lease table or when no DHCP source is configured. — 2026-05-29
+
+- **Q**: M50 — Raft replicates only the blocklist configuration, not the downloaded domains. Where does each node get the content of a URL blocklist?
+  **A**: Each node downloads the URL itself and caches it under `data_dir`, as AdGuard Home and Pi-hole do. No peer fallback, no leader-side download. See `decisions/20261125-NodeLocalBlocklistContent.md`. — 2026-11-25

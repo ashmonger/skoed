@@ -92,7 +92,7 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
 | M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
 | M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
-| M50 | Hardening & Technical Debt | ⬜ | — | — | [audit](SECURITY_AUDIT.md) | — |
+| M50 | Hardening & Technical Debt | 🔄 | — | — | [audit](SECURITY_AUDIT.md) · [node-local-blocklists](specs/functional/node-local-blocklist-content.feature) | — |
 
 ## M12 tasks
 
@@ -511,6 +511,26 @@ functional spec in front of it either.
 - [ ] API — retroactive functional spec with `@fsid` scenarios for the
   create contract (owed by the exception)
 - [ ] API — demo note and UoR validation
+
+## M50 tasks — Node-local blocklist content (branch: `feature/m50-node-local-blocklists`)
+
+Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
+`raft-log.bolt` and an OOM loop. Decision:
+`decisions/20261125-NodeLocalBlocklistContent.md`.
+
+- [x] M50 — live mitigation: CTs 666 and 667 raised 512 MB → 2048 MB — 2026-11-25
+- [x] M50 — functional spec: `specs/functional/node-local-blocklist-content.feature` (13 FSIDs) — 2026-11-25
+- [ ] M50 — UoR validated functional spec
+- [ ] M50 — technical spec (FSM command changes, cache layout, `TrailingLogs`, `skoed raft compact`)
+- [ ] M50 — supersede FS-AutoRefreshLeaderOnly and FS-AutoRefreshUpdatesAllNodes
+- [ ] M50 — acceptance tests
+- [ ] M50 — implementation, refactoring phase, CI green
+- [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
+- [ ] M50 — demo note and UoR validation
+- [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
+  daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in
+  use` on a host with `net.ipv6.bindv6only = 0` (seen on Debian 13, also on
+  master); needs its own spec
 
 ## Backlog
 
