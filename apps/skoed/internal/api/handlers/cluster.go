@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"sort"
@@ -562,14 +563,19 @@ func (h *Handler) ClusterStatus(w http.ResponseWriter, r *http.Request) {
 		LeaderID:  leaderID,
 		Nodes:     make([]clusterNodeEntry, 0, len(servers)),
 	}
-	// The indexes only fail to read while Raft shuts down; `raft` is then
-	// left out rather than failing the whole status.
-	if idx, err := c.RaftIndexes(); err == nil {
+	// When the indexes cannot be read, `raft` is left out rather than
+	// failing the whole status. A closed store is expected while the node
+	// shuts down; any other error is logged.
+	idx, err := c.RaftIndexes()
+	switch {
+	case err == nil:
 		out.Raft = &raftIndexesResp{
 			FirstLogIndex:     idx.First,
 			LastLogIndex:      idx.Last,
 			LastSnapshotIndex: idx.LastSnapshot,
 		}
+	case !errors.Is(err, cluster.ErrRaftStoreClosed):
+		log.Printf("[cluster-status] read raft indexes: %v", err)
 	}
 
 	now := time.Now().UTC()

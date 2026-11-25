@@ -217,7 +217,7 @@ func (c *Cluster) ResetRaftForJoin() error {
 	dataDir := c.node.Node.DataDir
 
 	// Remove the Raft bolt stores.
-	for _, rel := range []string{raftLogPath, raftStablePath} {
+	for _, rel := range []string{RaftLogPath, raftStablePath} {
 		p := filepath.Join(dataDir, rel)
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove %s: %w", rel, err)

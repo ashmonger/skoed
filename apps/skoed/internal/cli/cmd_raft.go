@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -15,8 +16,6 @@ import (
 )
 
 const (
-	// raftLogRelPath is the raft-boltdb log store, relative to data_dir.
-	raftLogRelPath = "raft/raft-log.bolt"
 	// raftCompactLockTimeout bounds the wait for the bbolt file lock. The
 	// daemon holds the lock for as long as it runs, so a timeout means it
 	// is running.
@@ -53,7 +52,7 @@ rejoined the cluster.`,
 			if err != nil {
 				return err
 			}
-			return compactRaftLog(cmd, filepath.Join(dataDir, raftLogRelPath))
+			return compactRaftLog(cmd, filepath.Join(dataDir, cluster.RaftLogPath))
 		},
 	}
 	c.Flags().String("config", "config.yaml", "path to config.yaml, read for data_dir")
@@ -75,11 +74,12 @@ func raftCompactDataDir(cmd *cobra.Command) (string, error) {
 	return node.Node.DataDir, nil
 }
 
-// compactRaftLog rewrites logPath with bolt.Compact. Steps (TS §9): open the
-// original read-only, refusing when the daemon holds its lock; compact into
-// logPath.compact; rename the original to logPath.pre-compact and the
-// compacted file to logPath. The original stays open, so its lock is held,
-// until both renames are done.
+// compactRaftLog rewrites logPath with bolt.Compact (TS §9). The original
+// is opened read-only, which fails when the daemon holds its lock, and stays
+// open until the end so the lock is held throughout. The compacted copy is
+// written to logPath.compact; the original is then hard-linked to
+// logPath.pre-compact and the copy renamed over logPath, so logPath exists at
+// every point and a crash never leaves the node without its log.
 func compactRaftLog(cmd *cobra.Command, logPath string) error {
 	compactPath := logPath + ".compact"
 	preCompactPath := logPath + ".pre-compact"
@@ -98,8 +98,9 @@ func compactRaftLog(cmd *cobra.Command, logPath string) error {
 	defer src.Close()
 
 	// A previous compaction's backup is kept until the operator deletes it.
+	// os.Link below refuses it again if it appears meanwhile.
 	if _, err := os.Stat(preCompactPath); err == nil {
-		return fmt.Errorf("%s already exists: delete it once the node has rejoined, then run the compaction again", preCompactPath)
+		return errPreCompactExists(preCompactPath)
 	}
 	// Left over by an interrupted compaction; it was never renamed in place.
 	if err := os.Remove(compactPath); err != nil && !os.IsNotExist(err) {
@@ -110,12 +111,17 @@ func compactRaftLog(cmd *cobra.Command, logPath string) error {
 		os.Remove(compactPath)
 		return err
 	}
-	if err := os.Rename(logPath, preCompactPath); err != nil {
+	if err := os.Link(logPath, preCompactPath); err != nil {
 		os.Remove(compactPath)
+		if errors.Is(err, fs.ErrExist) {
+			return errPreCompactExists(preCompactPath)
+		}
 		return err
 	}
 	if err := os.Rename(compactPath, logPath); err != nil {
-		return fmt.Errorf("%w (the original is %s; rename it back to %s)", err, preCompactPath, logPath)
+		os.Remove(preCompactPath)
+		os.Remove(compactPath)
+		return err
 	}
 	if err := syncDir(filepath.Dir(logPath)); err != nil {
 		return err
@@ -130,12 +136,21 @@ func compactRaftLog(cmd *cobra.Command, logPath string) error {
 	return nil
 }
 
+func errPreCompactExists(path string) error {
+	return fmt.Errorf("%s already exists: delete it once the node has rejoined, then run the compaction again", path)
+}
+
 // writeCompactedCopy compacts src into a new bolt file at path, with the
-// mode and ownership of orig, and syncs it.
+// mode and ownership of orig, and syncs it. The mode and owner are set
+// before the data is written, so the sync covers them too.
 func writeCompactedCopy(src *bolt.DB, path string, orig os.FileInfo) error {
 	dst, err := bolt.Open(path, orig.Mode().Perm(), &bolt.Options{Timeout: raftCompactLockTimeout})
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)
+	}
+	if err := setModeAndOwner(path, orig); err != nil {
+		dst.Close()
+		return err
 	}
 	if err := bolt.Compact(dst, src, raftCompactTxMaxSize); err != nil {
 		dst.Close()
@@ -148,7 +163,12 @@ func writeCompactedCopy(src *bolt.DB, path string, orig os.FileInfo) error {
 	if err := dst.Close(); err != nil {
 		return fmt.Errorf("close %s: %w", path, err)
 	}
-	// bolt.Open applies the umask, so the mode is set again explicitly.
+	return nil
+}
+
+// setModeAndOwner gives path the mode and owner of orig. bolt.Open applies
+// the umask, so the mode is set again explicitly.
+func setModeAndOwner(path string, orig os.FileInfo) error {
 	if err := os.Chmod(path, orig.Mode().Perm()); err != nil {
 		return err
 	}

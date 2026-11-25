@@ -15,8 +15,11 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// RaftLogPath is the raft-boltdb log store, relative to data_dir. It is
+// used by the daemon and by `skoed raft compact`.
+const RaftLogPath = "raft/raft-log.bolt"
+
 const (
-	raftLogPath      = "raft/raft-log.bolt"
 	raftStablePath   = "raft/raft-stable.bolt"
 	raftSnapshotsDir = "raft/snapshots"
 
@@ -66,7 +69,7 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		return nil, fmt.Errorf("create snapshot dir: %w", err)
 	}
 
-	logStore, err := openRaftStore(filepath.Join(opts.DataDir, raftLogPath))
+	logStore, err := openRaftStore(filepath.Join(opts.DataDir, RaftLogPath))
 	if err != nil {
 		return nil, fmt.Errorf("open raft log store: %w", err)
 	}
@@ -75,6 +78,27 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		logStore.Close()
 		return nil, fmt.Errorf("open raft stable store: %w", err)
 	}
+	// Until the node is returned, every failure stops Raft and closes the
+	// transport and the stores, so the bind address and the file locks are
+	// released.
+	var (
+		r         *raft.Raft
+		transport *raft.NetworkTransport
+		created   bool
+	)
+	defer func() {
+		if created {
+			return
+		}
+		if r != nil {
+			r.Shutdown().Error()
+		}
+		if transport != nil {
+			transport.Close()
+		}
+		logStore.Close()
+		stableStore.Close()
+	}()
 
 	snaps, err := raft.NewFileSnapshotStore(filepath.Join(opts.DataDir, raftSnapshotsDir), 3, opts.Logger)
 	if err != nil {
@@ -89,7 +113,6 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve advertise %q: %w", advertise, err)
 	}
-	var transport *raft.NetworkTransport
 	if opts.TLSStreamLayer != nil {
 		// M5.3: TLS-wrapped Raft transport.
 		transport = raft.NewNetworkTransport(opts.TLSStreamLayer, 3, 10*time.Second, opts.Logger)
@@ -122,7 +145,7 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		cfg.LeaderLeaseTimeout = hb
 	}
 
-	r, err := raft.NewRaft(cfg, f, logStore, stableStore, snaps, transport)
+	r, err = raft.NewRaft(cfg, f, logStore, stableStore, snaps, transport)
 	if err != nil {
 		return nil, fmt.Errorf("create raft: %w", err)
 	}
@@ -139,6 +162,7 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		}
 	}
 
+	created = true
 	return &raftNode{
 		r:           r,
 		transport:   transport,
@@ -287,7 +311,7 @@ func (n *raftNode) LeaderCh() <-chan bool { return n.r.LeaderCh() }
 // already contain data, meaning the binary should NOT bootstrap a fresh
 // single-node cluster on this start.
 func hasExistingRaftState(dataDir string) bool {
-	for _, p := range []string{raftLogPath, raftStablePath} {
+	for _, p := range []string{RaftLogPath, raftStablePath} {
 		if fi, err := os.Stat(filepath.Join(dataDir, p)); err == nil && fi.Size() > 0 {
 			return true
 		}
