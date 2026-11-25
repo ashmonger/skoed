@@ -173,8 +173,9 @@ func getBlocklist(t *testing.T, n *ClusterNode, id string) (BlocklistView, bool)
 	return v, true
 }
 
-// createURLBlocklist posts an enabled URL blocklist in domainlist format. The
-// caller checks the status and closes the body.
+// createURLBlocklist posts an enabled URL blocklist in domainlist format with
+// block_policy "null", so a blocked name gets the A answer 0.0.0.0 that
+// isBlocked looks for. The caller checks the status and closes the body.
 func createURLBlocklist(t *testing.T, via *ClusterNode, id, url string, intervalSeconds int) *http.Response {
 	t.Helper()
 	type source struct {
@@ -187,12 +188,14 @@ func createURLBlocklist(t *testing.T, via *ClusterNode, id, url string, interval
 		Name                   string `json:"name"`
 		Enabled                bool   `json:"enabled"`
 		Source                 source `json:"source"`
+		BlockPolicy            string `json:"block_policy"`
 		RefreshIntervalSeconds int    `json:"refresh_interval_seconds"`
 	}{
 		ID:                     id,
 		Name:                   "Test " + id,
 		Enabled:                true,
 		Source:                 source{Type: "url", URL: url, Format: "domainlist"},
+		BlockPolicy:            "null",
 		RefreshIntervalSeconds: intervalSeconds,
 	}
 	return via.apiDo(t, http.MethodPost, "/api/v1/blocklists", mustJSON(t, body))
@@ -247,26 +250,29 @@ func exportConfigText(t *testing.T, n *ClusterNode) string {
 // ---------------------------------------------------------------------------
 
 // isBlocked sends an A query for domain to n and reports whether the answer
-// is a block answer: NXDOMAIN, an A record 0.0.0.0, or NOERROR without any
-// answer (NODATA). A timeout or transport error counts as not blocked.
+// is the block answer of a list with block_policy "null": an A record
+// 0.0.0.0 (or an AAAA record ::). The test nodes resolve other names
+// recursively, so a made-up name gets NXDOMAIN without being blocked:
+// NXDOMAIN, NODATA, SERVFAIL, a timeout and a transport error all count as
+// not blocked. Every list a test checks with isBlocked must therefore be
+// created with block_policy "null".
 func isBlocked(t *testing.T, n *ClusterNode, domain string) bool {
 	t.Helper()
 	c := &dns.Client{Net: "udp", Timeout: dnsQueryTimeout}
 	m := new(dns.Msg)
 	m.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	r, _, err := c.Exchange(m, n.DNSAddr)
-	if err != nil || r == nil {
+	if err != nil || r == nil || r.Rcode != dns.RcodeSuccess {
 		return false
 	}
-	switch r.Rcode {
-	case dns.RcodeNameError:
-		return true
-	case dns.RcodeSuccess:
-		if len(r.Answer) == 0 {
-			return true
-		}
-		for _, rr := range r.Answer {
-			if a, ok := rr.(*dns.A); ok && a.A.IsUnspecified() {
+	for _, rr := range r.Answer {
+		switch a := rr.(type) {
+		case *dns.A:
+			if a.A.IsUnspecified() {
+				return true
+			}
+		case *dns.AAAA:
+			if a.AAAA.IsUnspecified() {
 				return true
 			}
 		}
@@ -345,12 +351,12 @@ func requireIptables(t *testing.T) {
 		"-p", "tcp", "-d", "127.0.0.1", "--dport", "1",
 		"-j", "REJECT", "--reject-with", "tcp-reset",
 	}
-	if out, err := exec.Command("iptables", append([]string{"-I"}, rule...)...).CombinedOutput(); err != nil {
-		t.Skipf("network cut needs a working iptables with the owner match and the REJECT target (NET_ADMIN capability and the iptables package): `iptables -I %s` failed: %v: %s",
+	if out, err := exec.Command("iptables", append([]string{"-w", "-I"}, rule...)...).CombinedOutput(); err != nil {
+		t.Skipf("network cut needs a working iptables with the owner match and the REJECT target (NET_ADMIN capability and the iptables package): `iptables -w -I %s` failed: %v: %s",
 			strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
 	}
-	if out, err := exec.Command("iptables", append([]string{"-D"}, rule...)...).CombinedOutput(); err != nil {
-		t.Errorf("delete the iptables probe rule: `iptables -D %s` failed: %v: %s",
+	if out, err := exec.Command("iptables", append([]string{"-w", "-D"}, rule...)...).CombinedOutput(); err != nil {
+		t.Errorf("delete the iptables probe rule: `iptables -w -D %s` failed: %v: %s",
 			strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
 	}
 }
@@ -365,14 +371,14 @@ func blockUIDToPort(t *testing.T, uid, port int) (restore func()) {
 		"-p", "tcp", "-d", "127.0.0.1", "--dport", strconv.Itoa(port),
 		"-j", "REJECT", "--reject-with", "tcp-reset",
 	}
-	if out, err := exec.Command("iptables", append([]string{"-A"}, rule...)...).CombinedOutput(); err != nil {
-		t.Fatalf("iptables -A %s: %v: %s", strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
+	if out, err := exec.Command("iptables", append([]string{"-w", "-A"}, rule...)...).CombinedOutput(); err != nil {
+		t.Fatalf("iptables -w -A %s: %v: %s", strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
 	}
 	var once sync.Once
 	restore = func() {
 		once.Do(func() {
-			if out, err := exec.Command("iptables", append([]string{"-D"}, rule...)...).CombinedOutput(); err != nil {
-				t.Errorf("iptables -D %s: %v: %s", strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
+			if out, err := exec.Command("iptables", append([]string{"-w", "-D"}, rule...)...).CombinedOutput(); err != nil {
+				t.Errorf("iptables -w -D %s: %v: %s", strings.Join(rule, " "), err, strings.TrimSpace(string(out)))
 			}
 		})
 	}
