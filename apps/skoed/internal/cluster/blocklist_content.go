@@ -23,8 +23,7 @@ func (c *Cluster) SetBlocklistContent(p BlocklistContentSetPayload) error {
 func (c *Cluster) MembersLackingCapability(capability string) []string {
 	var out []string
 	for _, s := range c.raft.Configuration().Servers {
-		m, err := c.store.MemberByID(string(s.ID))
-		if err != nil || m == nil || !containsCapability(m.Capabilities, capability) {
+		if !c.memberHasCapability(string(s.ID), capability) {
 			out = append(out, string(s.ID))
 		}
 	}

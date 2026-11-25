@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -317,21 +318,18 @@ func (c *Cluster) AllMembersHaveCapability(capability string) bool {
 		return false
 	}
 	for _, s := range servers {
-		m, err := c.store.MemberByID(string(s.ID))
-		if err != nil || m == nil || !containsCapability(m.Capabilities, capability) {
+		if !c.memberHasCapability(string(s.ID), capability) {
 			return false
 		}
 	}
 	return true
 }
 
-func containsCapability(list []string, capability string) bool {
-	for _, v := range list {
-		if v == capability {
-			return true
-		}
-	}
-	return false
+// memberHasCapability reports whether node id has a member record that
+// lists capability.
+func (c *Cluster) memberHasCapability(id, capability string) bool {
+	m, err := c.store.MemberByID(id)
+	return err == nil && m != nil && slices.Contains(m.Capabilities, capability)
 }
 
 // SelfMemberUpdate is what a node sets in its own member record.
@@ -360,15 +358,7 @@ func (c *Cluster) selfMemberUpdate() SelfMemberUpdate {
 
 // matches reports whether m already holds the values of u.
 func (u SelfMemberUpdate) matches(m Member) bool {
-	if m.PeerAPIAddress != u.PeerAPIAddress || len(m.Capabilities) != len(u.Capabilities) {
-		return false
-	}
-	for i := range u.Capabilities {
-		if m.Capabilities[i] != u.Capabilities[i] {
-			return false
-		}
-	}
-	return true
+	return m.PeerAPIAddress == u.PeerAPIAddress && slices.Equal(m.Capabilities, u.Capabilities)
 }
 
 // selfMemberAction is what one self-correction pass does with a node's own
