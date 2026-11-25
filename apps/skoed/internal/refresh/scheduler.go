@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -357,6 +358,10 @@ func (s *Scheduler) clearLegacyAttempt(id string) {
 	s.attemptsMu.Unlock()
 }
 
+// mostOverdue is the age given to a list that is due whatever its
+// interval, so it sorts before every list due on its interval.
+const mostOverdue = time.Duration(math.MaxInt64)
+
 // dueContent returns the URL lists the leader must download (§4): the
 // interval has elapsed, or the list has no content version yet, or the
 // leader holds no copy of that version (whatever the interval, including
@@ -379,7 +384,7 @@ func (s *Scheduler) dueContent(snap *config.Config, now time.Time) []config.Bloc
 			if a.failed && now.Sub(a.at) < s.retryAfter {
 				continue
 			}
-			items = append(items, item{bl: bl, age: 1<<63 - 1})
+			items = append(items, item{bl: bl, age: mostOverdue})
 			continue
 		}
 		if bl.RefreshIntervalSeconds <= 0 {
@@ -549,7 +554,7 @@ func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Block
 				continue
 			}
 			if !a.legacy || a.failed {
-				items = append(items, item{bl: bl, age: 1<<63 - 1})
+				items = append(items, item{bl: bl, age: mostOverdue})
 				continue
 			}
 		}
