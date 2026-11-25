@@ -65,3 +65,6 @@ None.
 
 - **Q**: M50 — revisited the same day: where does each node get the content of a URL blocklist, and what triggers a leader change?
   **A**: Supersedes the previous answer. The leader downloads the full list; followers copy it from the leader over the cluster API. The leader changes only when the leader node goes down (Raft election); a failed download on a live leader keeps the previous copy and is retried at the next refresh. See `decisions/20261125-LeaderDistributedBlocklistContent.md`. — 2026-11-25
+
+- **Q**: M50 — how should the blocklist copy between nodes be encrypted, and how should the acceptance test cut one follower off from the leader?
+  **A**: Encrypt all peer HTTP with the existing cluster mTLS (a dedicated peer listener using the cluster CA and node certificates), implemented as its own M50 item for FS-MtlsInternalApiHTTPS; the copy endpoint uses it. Cut the follower with a real `iptables` owner-match rule in the acceptance test (root + NET_ADMIN in the Docker runner, skipped otherwise) instead of a test-only variable, and repeat the cut on Proxmox. — 2026-11-25

@@ -523,11 +523,20 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [x] M50 — UoR validated functional spec — 2026-11-25
 - [x] M50 — technical spec: `specs/technical/blocklist-content-distribution.md` (TS-BlocklistContentDistribution) + `management-api.openapi.yaml` — 2026-11-25
 - [ ] M50 — UoR validated technical spec
+- [ ] M50 — peer HTTP over mTLS: implement FS-MtlsInternalApiHTTPS as
+  revised in `specs/technical/encrypted-cluster-mesh.md` ("Internal API").
+  No peer HTTP client used TLS so far, so `X-Cluster-Secret` crosses the
+  network in clear on every forwarded write; the comment in
+  `tests/acceptance/encrypted_mesh_test.go:9` says the scenario is covered
+  "implicitly", which it is not
+- [ ] M50 — enable `node.cluster.mtls.enabled` on the home cluster
 - [ ] Tooling — `tools/traceability/traceability_check.sh` only recognizes
   JavaScript `it(`/`test(` calls, so it reports every FSID covered by a Go
   acceptance test as MISSING (118 on this branch, 102 on master)
 - [ ] M50 — acceptance tests
 - [ ] M50 — implementation, refactoring phase, CI green
+- [ ] M50 — real-environment validation on a Proxmox 3-node cluster,
+  including an `iptables` cut of one follower from the leader's API
 - [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
 - [ ] M50 — demo note and UoR validation
 - [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the

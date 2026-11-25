@@ -199,6 +199,10 @@ Accept-Encoding: gzip
   hash than requested (the leader moved on). `401`: bad or missing secret.
 * Served by any node that holds the file. Followers only ask the leader
   (non-goal: copying from a follower).
+* With mTLS enabled, followers call it on the leader's peer mTLS listener:
+  `Cluster.LeaderAPIAddress()` returns `https://<PeerAPIAddress>` and the
+  shared peer client presents the node's certificate
+  (`encrypted-cluster-mesh.md`, "Internal API").
 * Response streamed from the file; no full read into memory.
 
 ### 5.2 Sync worker
@@ -350,29 +354,45 @@ each node in turn.
 
 ## 12. Security
 
-* The content endpoint is reachable only with the cluster secret, like the
-  other `/_internal/` routes. It is plain HTTP, as all peer HTTP is today;
-  the SHA-256 check stops a corrupted or truncated transfer, but not an
-  attacker who can modify traffic and holds the secret.
+* The content endpoint requires the cluster secret, like the other
+  `/_internal/` routes. With `node.cluster.mtls.enabled: true` it is served
+  and called over the peer mTLS listener (`encrypted-cluster-mesh.md`,
+  "Internal API"), so the content and the secret are encrypted and both
+  ends are authenticated by the cluster CA. With mTLS disabled it is plain
+  HTTP, like all peer HTTP; the SHA-256 check then catches a corrupted or
+  truncated transfer only.
 * `{id}` is matched against the replicated list IDs before any file path is
   built; an unknown ID returns 404, so no path traversal through `id`.
 * Cache files are 0600 under the 0700 data directory.
 
 ## 13. Test hooks
 
-The acceptance tests need to run without the internet and to cut one node
-off. They use what exists, plus one addition:
+No new test-only switch in the binary. The acceptance tests run without
+the internet and use:
 
-* A local `httptest` server serves the list and counts requests per
-  client IP, so a test can tell which node downloaded
-  (FS-BlocklistContentOnlyLeaderDownloads).
-* `SKOED_TEST_MODE=1` already shortens ticks. The addition is
-  `SKOED_TEST_BLOCK_PEER_API=<node_id>`, which makes the sync worker treat
-  the named peer as unreachable. It follows the existing test-mode
-  convention, and the `skoed_testmode` build-tag work in M50 will cover it
-  too.
+* A local `httptest` server that serves the list. `filter.Download` sends
+  `User-Agent: skoed/<version> (node <node_id>)`, so the server counts
+  requests per node even though all test nodes connect from 127.0.0.1
+  (FS-BlocklistContentOnlyLeaderDownloads). The header also tells list
+  hosts which software is downloading.
+* `SKOED_TEST_MODE=1`, which already shortens ticks.
+* **A real network cut** for FS-BlocklistContentFollowerCannotReachLeader:
+  * The harness starts the follower to cut off under its own uid
+    (`SysProcAttr.Credential`, uid 65534), with a data dir it owns.
+  * The test adds
+    `iptables -A OUTPUT -m owner --uid-owner 65534 -p tcp -d 127.0.0.1 --dport <leader API port> -j REJECT`,
+    so only that follower loses the leader's API while Raft keeps
+    replicating. It removes the rule to restore access.
+  * `tests/acceptance/run-in-docker.sh` adds `--cap-add NET_ADMIN` and
+    installs `iptables` in the container.
+  * Without root or without `iptables`, the test is skipped with a message
+    saying so; it never passes silently.
 * `GET /api/v1/cluster/status` (§8) and `GET /api/v1/blocklists` (§5.3)
   expose everything the assertions read.
+
+Real-environment validation repeats the cut on a Proxmox 3-node cluster:
+on one follower CT, `iptables` rejects TCP to the leader's API port (and its
+peer API port with mTLS on) while the Raft port stays open.
 
 ## 14. Out of scope
 

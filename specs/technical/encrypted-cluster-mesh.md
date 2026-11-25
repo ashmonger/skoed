@@ -64,16 +64,42 @@ TLS layer.
 
 ## Internal API
 
-Reuses the M4.6 HTTPS listener. When `mtls.enabled=true`:
+Revised 2026-11-25 (M50). Until then no peer HTTP client used TLS:
+`apiBaseURL` (`internal/cluster/cluster.go:1001`) always returned
+`http://`, so the `X-Cluster-Secret` header, which grants `cluster:admin`,
+went over plain HTTP on every forwarded write. The earlier text reused
+the M4.6 HTTPS listener, which serves the operator's certificate and may
+be disabled, so it cannot verify cluster peers.
 
-- The `/api/v1/cluster/_internal/aggregates` and `/api/v1/cluster/join`
-  endpoints are wrapped in a middleware that verifies the request's
-  client cert is signed by the cluster CA.
-- Forwarders (`internal/cluster/cluster.go` — `forwardAggregate`,
-  `joinExistingCluster`) build their HTTP client with the cluster
-  CA in `RootCAs` and the node's leaf cert in `Certificates`.
-- The cluster_secret header is still sent for defense-in-depth and to
-  keep the audit log's `actor` field meaningful.
+When `mtls.enabled=true`:
+
+- **Peer listener.** Each node opens a second HTTP server on
+  `node.cluster.peer_api_address`, default `<raft host>:<raft port + 1>`.
+  It uses `BuildClusterTLSConfigDynamic` (`internal/cluster/mtls_reload.go:96`)
+  with `ClientAuth: tls.RequireAndVerifyClientCert` and the cluster CA as
+  `ClientCAs`, so certificate rotation applies to it as it does to Raft.
+  It serves the same router as the main API.
+- **Member record.** `Member` gains `PeerAPIAddress`, set by each node when
+  it upserts its own record. `Cluster.LeaderAPIAddress()` and
+  `MemberAPIURL` return `https://<PeerAPIAddress>` when mTLS is enabled.
+- **Peer clients.** `ForwardWrite`, `forwardAggregate`, the query-log
+  fan-out, the cluster upgrade calls and the blocklist sync worker share
+  one `*http.Client` whose `tls.Config` has the cluster CA in `RootCAs`,
+  the node's leaf through `GetClientCertificate`, and `ServerName` set to
+  the target's node ID (the leaf's CN and DNS SAN), so a valid
+  certificate for another node is rejected.
+- **Secret only over TLS.** With mTLS enabled, the main API listener
+  rejects requests that carry `X-Cluster-Secret` (401), so the secret is
+  never accepted over plain HTTP. On the peer listener the secret is still
+  required in addition to the client certificate, and keeps the audit
+  log's `actor` field meaningful.
+- **Join and bootstrap.** `/api/v1/cluster/join` and
+  `/api/v1/cluster/mtls-bootstrap` stay on the main listener: a joining
+  node has no leaf yet. They are authenticated by the single-use join
+  token, as today.
+
+With `mtls.enabled=false` (the default) peer HTTP stays plain, as before;
+the docs state that the cluster secret then crosses the network in clear.
 
 ## Bootstrap & join
 
