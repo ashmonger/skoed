@@ -342,18 +342,18 @@ func loginSessionMaybe(t *testing.T, n *Node, username, password string) string 
 }
 
 // loginWithRetry retries POST /api/v1/auth/login until it returns a token or
-// the timeout expires. Used by cluster nodes that may be waiting for credentials
+// readyTimeout expires. Used by cluster nodes that may be waiting for credentials
 // to be replicated from the leader before login is possible.
 func loginWithRetry(t *testing.T, n *Node, username, password string) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(readyTimeout)
 	for time.Now().Before(deadline) {
 		if tok := loginSessionMaybe(t, n, username, password); tok != "" {
 			return tok
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("could not login to %s within 10s — credentials not yet replicated?", n.APIBase)
+	t.Fatalf("could not login to %s within %s — credentials not yet replicated?", n.APIBase, readyTimeout)
 	return ""
 }
 
@@ -669,4 +669,16 @@ func freeUDPPort(t *testing.T) int {
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
 	return int(portCounter.Add(1))
+}
+
+// freeRaftPort returns a Raft port and also reserves the port right after it.
+// skoed's internal peer API listens on <raft port + 1> by default
+// (specs/technical/encrypted-cluster-mesh.md, "Internal API"), and the
+// harness does not write `node.cluster.peer_api_address`, so that default is
+// the one exercised. Without the reservation, the next allocation (often the
+// next node's DNS port) would be RaftPort+1 and collide with that listener.
+// Use it for every RaftPort.
+func freeRaftPort(t *testing.T) int {
+	t.Helper()
+	return int(portCounter.Add(2)) - 1
 }

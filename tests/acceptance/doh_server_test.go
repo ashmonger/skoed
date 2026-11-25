@@ -349,7 +349,7 @@ func startClusterEncryptedWithCert(t *testing.T, certFile, keyFile string) *Clus
 		NodeID:      "node-1",
 		DNSPort:     freeUDPPort(t),
 		APIPort:     freeTCPPort(t),
-		RaftPort:    freeTCPPort(t),
+		RaftPort:    freeRaftPort(t),
 		DoHPort:     freeTCPPort(t),
 		DoTPort:     freeTCPPort(t),
 		TLSCertFile: certFile,

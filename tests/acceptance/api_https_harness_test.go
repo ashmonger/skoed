@@ -33,7 +33,7 @@ func startClusterAPIHTTPS(t *testing.T, opts APITLSOpts) *Cluster {
 		NodeID:         "node-1",
 		DNSPort:        freeUDPPort(t),
 		APIPort:        apiPort,
-		RaftPort:       freeTCPPort(t),
+		RaftPort:       freeRaftPort(t),
 		TLSCertFile:    opts.CertFile,
 		TLSKeyFile:     opts.KeyFile,
 		APITLSEnabled:  opts.Enabled,

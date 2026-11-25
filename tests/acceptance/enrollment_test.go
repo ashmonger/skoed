@@ -225,7 +225,7 @@ func TestNodeEnrollmentM1ConfigMigration(t *testing.T) {
 	dir := t.TempDir()
 	dnsPort := freeUDPPort(t)
 	apiPort := freeTCPPort(t)
-	raftPort := freeTCPPort(t)
+	raftPort := freeRaftPort(t)
 
 	cfg := M2NodeConfig{
 		NodeID:            "legacy-1",
