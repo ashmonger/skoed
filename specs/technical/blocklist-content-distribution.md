@@ -325,17 +325,21 @@ skoed raft compact [--config /etc/skoed/config.yaml | --data-dir /var/lib/skoed]
    `raft-log.bolt is locked: stop the skoed daemon first` and exit 1
    without touching any file (FS-RaftLogCompactRefusedWhileRunning).
 3. If `raft-log.bolt.pre-compact` already exists, refuse (exit 1) so an
-   earlier backup is never overwritten. Remove a leftover
-   `raft-log.bolt.compact` from an interrupted run (only after the lock is
-   held).
-4. Create `raft-log.bolt.compact` with the original's owner and mode, then
-   `bolt.Compact(dst, src, 64<<20)` into it, and fsync it.
+   earlier backup is never overwritten. If `raft-log.bolt.compact` already
+   exists, refuse too: another compaction is running, or one was
+   interrupted; the message tells the operator to delete it when no
+   compaction is running.
+4. Create `raft-log.bolt.compact` exclusively (`O_CREATE|O_EXCL`) with the
+   original's owner and mode, then `bolt.Compact(dst, src, 64<<20)` into
+   it, and fsync it.
 5. Hard-link the original to `raft-log.bolt.pre-compact` (`os.Link`, which
    also fails if the backup appeared meanwhile), then rename the compacted
    file over `raft-log.bolt`, then fsync the directory. `raft-log.bolt`
    exists at every point, so a crash never leaves a node without its log.
    On a link failure, remove `.compact`; on a rename failure, remove the
-   link so the next run is not refused. Print both sizes.
+   link so the next run is not refused. If the directory fsync fails after
+   the rename, report that the log was compacted and the original kept as
+   `.pre-compact`. Print both sizes.
 6. The operator deletes `raft-log.bolt.pre-compact` after the node has
    restarted and rejoined (FS-RaftLogCompactOffline).
 
