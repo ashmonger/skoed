@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -82,8 +83,12 @@ type Node struct {
 	// exited is closed once cmd has exited and been reaped (startReaped).
 	// nil for a Node whose process the harness does not start.
 	exited <-chan struct{}
+	// output keeps the last lines the process wrote to stdout and stderr,
+	// for the report of a process that exited on its own. nil for a Node
+	// whose process the harness does not start.
+	output *tailBuffer
 	// ports lists every port written to the node's config.yaml, for the
-	// report logged when the process exits before it is ready.
+	// report of a process that exited on a bind error.
 	ports []int
 }
 
@@ -117,9 +122,8 @@ func skoedBinary(t *testing.T) string {
 // startNode starts a skoed node. The test is skipped if the binary is missing.
 // Cleanup (process kill) is registered automatically via t.Cleanup.
 //
-// If the process exits before it is ready, e.g. with "bind: address already
-// in use" on a port something outside the harness holds, the node is started
-// again in a fresh directory on fresh ports, up to maxNodeStarts times.
+// If the process exits before it is ready, the test fails at once with the
+// exit status and the last lines the process wrote.
 func startNode(t *testing.T, cfg NodeConfig) *Node {
 	t.Helper()
 
@@ -128,6 +132,10 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
 
+	dir := t.TempDir()
+	dnsPort := freeUDPPort(t)
+	apiPort := freeTCPPort(t)
+
 	if cfg.Mode == "" {
 		cfg.Mode = "forwarding"
 	}
@@ -135,66 +143,100 @@ func startNode(t *testing.T, cfg NodeConfig) *Node {
 		cfg.BlockPolicy = "nxdomain"
 	}
 	// M26: assign a unique block page port when policy is redirect and no port set.
-	autoBlockPagePort := cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0
-
-	for attempt := 1; ; attempt++ {
-		dir := t.TempDir()
-		dnsPort := freeUDPPort(t)
-		apiPort := freeTCPPort(t)
-		if autoBlockPagePort {
-			cfg.BlockPagePort = freeTCPPort(t)
-		}
-
-		writeConfig(t, dir, cfg, dnsPort, apiPort)
-
-		cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
-		cmd.Dir = dir
-		if len(cfg.Env) > 0 {
-			cmd.Env = append(os.Environ(), cfg.Env...)
-		}
-		if testing.Verbose() {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
-		cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
-		exited, err := startReaped(cmd)
-		if err != nil {
-			t.Fatalf("start skoed: %v", err)
-		}
-
-		blockPageURL := ""
-		ports := []int{dnsPort, apiPort}
-		if cfg.BlockPolicy == "redirect" {
-			blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
-			ports = append(ports, cfg.BlockPagePort)
-		}
-
-		n := &Node{
-			DNSAddr:      fmt.Sprintf("127.0.0.1:%d", dnsPort),
-			APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
-			BlockPageURL: blockPageURL,
-			cmd:          cmd,
-			exited:       exited,
-			ports:        ports,
-		}
-
-		t.Cleanup(func() { killAndReap(cmd, exited) })
-
-		err = waitReadyErr(n)
-		if err == nil {
-			setupAuth(t, n) // also calls loginSession and sets n.sessionToken
-			return n
-		}
-		if !errors.Is(err, errExitedBeforeReady) || attempt == maxNodeStarts {
-			t.Fatalf("%v%s", err, exitReport(n))
-		}
-		t.Logf("start %d of %d: %v; starting the node again on fresh ports%s", attempt, maxNodeStarts, err, exitReport(n))
+	if cfg.BlockPolicy == "redirect" && cfg.BlockPagePort == 0 {
+		cfg.BlockPagePort = freeTCPPort(t)
 	}
+
+	writeConfig(t, dir, cfg, dnsPort, apiPort)
+
+	cmd := exec.Command(bin, "--config", filepath.Join(dir, "config.yaml"))
+	cmd.Dir = dir
+	if len(cfg.Env) > 0 {
+		cmd.Env = append(os.Environ(), cfg.Env...)
+	}
+	output := captureOutput(cmd)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+	exited, err := startReaped(cmd)
+	if err != nil {
+		t.Fatalf("start skoed: %v", err)
+	}
+	t.Cleanup(func() { killAndReap(cmd, exited) })
+
+	blockPageURL := ""
+	ports := []int{dnsPort, apiPort}
+	if cfg.BlockPolicy == "redirect" {
+		blockPageURL = fmt.Sprintf("http://127.0.0.1:%d", cfg.BlockPagePort)
+		ports = append(ports, cfg.BlockPagePort)
+	}
+
+	n := &Node{
+		DNSAddr:      fmt.Sprintf("127.0.0.1:%d", dnsPort),
+		APIBase:      fmt.Sprintf("http://127.0.0.1:%d", apiPort),
+		BlockPageURL: blockPageURL,
+		cmd:          cmd,
+		exited:       exited,
+		output:       output,
+		ports:        ports,
+	}
+
+	waitReady(t, n)
+	setupAuth(t, n) // also calls loginSession and sets n.sessionToken
+	return n
 }
 
-// maxNodeStarts bounds how many times the harness starts a node whose
-// process exits before it is ready.
-const maxNodeStarts = 3
+// outputTailLines is how many of the last lines a skoed process wrote
+// the harness keeps for the report of a process that exited on its own.
+const outputTailLines = 40
+
+// tailBuffer is an io.Writer that keeps the last outputTailLines lines
+// written to it. It is safe for concurrent use.
+type tailBuffer struct {
+	mu      sync.Mutex
+	lines   []string
+	partial string
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	parts := strings.Split(b.partial+string(p), "\n")
+	b.partial = parts[len(parts)-1]
+	b.lines = append(b.lines, parts[:len(parts)-1]...)
+	if extra := len(b.lines) - outputTailLines; extra > 0 {
+		b.lines = append(b.lines[:0], b.lines[extra:]...)
+	}
+	return len(p), nil
+}
+
+// String returns the kept lines, each prefixed with two spaces.
+func (b *tailBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	lines := b.lines
+	if b.partial != "" {
+		lines = append(lines[:len(lines):len(lines)], b.partial)
+	}
+	if len(lines) == 0 {
+		return "  (no output)"
+	}
+	return "  " + strings.Join(lines, "\n  ")
+}
+
+// captureOutput sends the stdout and stderr of cmd to a new tailBuffer,
+// and also to os.Stdout and os.Stderr under -v. It returns the buffer.
+func captureOutput(cmd *exec.Cmd) *tailBuffer {
+	tail := &tailBuffer{}
+	cmd.Stdout = tail
+	cmd.Stderr = tail
+	if testing.Verbose() {
+		cmd.Stdout = io.MultiWriter(os.Stdout, tail)
+		cmd.Stderr = io.MultiWriter(os.Stderr, tail)
+	}
+	// The output is copied through a pipe, and cmd.Wait waits for that
+	// copy to end. Bound it, in case a child of skoed keeps the pipe open.
+	cmd.WaitDelay = 5 * time.Second
+	return tail
+}
 
 // errExitedBeforeReady is returned by waitReadyErr when the skoed process
 // exits before it answers on its API and DNS ports.
@@ -236,14 +278,23 @@ func (n *Node) hasExited() bool {
 	}
 }
 
-// exitReport describes how the node's process ended and which sockets use
-// its ports, for the message of a node that exited before it was ready.
+// exitReport describes how the node's process ended and the last lines it
+// wrote, for the message of a node that exited on its own. When the output
+// reports a port in use, it also lists the sockets on the node's ports.
 // It is empty while the process runs.
 func exitReport(n *Node) string {
 	if !n.hasExited() {
 		return ""
 	}
-	return fmt.Sprintf("\nprocess: %s\n%s", n.cmd.ProcessState, portReport(n.ports))
+	out := "(not captured)"
+	if n.output != nil {
+		out = n.output.String()
+	}
+	report := fmt.Sprintf("\nprocess: %s\nlast %d lines of output:\n%s", n.cmd.ProcessState, outputTailLines, out)
+	if strings.Contains(out, "address already in use") {
+		report += "\n" + portReport(n.ports)
+	}
+	return report
 }
 
 // portReport lists the sockets that use any of ports, from `ss -tuanp`

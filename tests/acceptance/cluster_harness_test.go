@@ -269,68 +269,34 @@ func startClusterWithBinary(t *testing.T, initialNodes int, env []string, bin st
 
 // bootstrapFirst starts node-1 with no peers configured. The node initializes
 // itself as a single-node Raft cluster and is immediately the leader.
-//
-// If the process exits before it is ready, node-1 is started again in a
-// fresh data directory on fresh ports, up to maxNodeStarts times: nothing
-// outside its data directory knows it yet.
 func (c *Cluster) bootstrapFirst(t *testing.T) {
 	t.Helper()
-	for attempt := 1; ; attempt++ {
-		cfg := M2NodeConfig{
-			NodeID:   "node-1",
-			DNSPort:  freeUDPPort(t),
-			APIPort:  freeTCPPort(t),
-			RaftPort: freeRaftPort(t),
-		}
-		if c.encryptedDNS {
-			cfg.DoHPort = freeTCPPort(t)
-			cfg.DoTPort = freeTCPPort(t)
-		}
-		if c.mtls {
-			cfg.ClusterMTLSEnabled = true
-		}
-		cn := c.spawnNode(t, cfg)
-		err := waitReadyErr(cn.Node)
-		if err == nil {
-			c.nodes = append(c.nodes, cn)
-			return
-		}
-		c.checkRestartable(t, cn, attempt, err, "fresh ports")
+	cfg := M2NodeConfig{
+		NodeID:   "node-1",
+		DNSPort:  freeUDPPort(t),
+		APIPort:  freeTCPPort(t),
+		RaftPort: freeRaftPort(t),
 	}
+	if c.encryptedDNS {
+		cfg.DoHPort = freeTCPPort(t)
+		cfg.DoTPort = freeTCPPort(t)
+	}
+	if c.mtls {
+		cfg.ClusterMTLSEnabled = true
+	}
+	cn := c.spawnNode(t, cfg)
+	c.nodes = append(c.nodes, cn)
+	c.waitNodeReady(t, cn)
 }
 
-// checkRestartable fails the test unless err says that cn's process exited
-// before it was ready and attempt is below maxNodeStarts. Otherwise it logs
-// the exit and how the node is started again (how).
-func (c *Cluster) checkRestartable(t *testing.T, cn *ClusterNode, attempt int, err error, how string) {
+// waitNodeReady waits until cn answers on its API and DNS ports. If the
+// process exits before, the test fails at once with the exit status and
+// the last lines the process wrote.
+func (c *Cluster) waitNodeReady(t *testing.T, cn *ClusterNode) {
 	t.Helper()
-	if !errors.Is(err, errExitedBeforeReady) || attempt == maxNodeStarts {
+	if err := waitReadyErr(cn.Node); err != nil {
 		t.Fatalf("node %s: %v%s", cn.NodeID, err, exitReport(cn.Node))
 	}
-	t.Logf("node %s, start %d of %d: %v; starting it again on %s%s",
-		cn.NodeID, attempt, maxNodeStarts, err, how, exitReport(cn.Node))
-}
-
-// isRaftMember reports whether an alive node lists nodeID in its Raft
-// configuration. It does not ask the leader: a second node that joined then
-// exited leaves 1 of 2 voters, so the cluster has no leader any more.
-func (c *Cluster) isRaftMember(t *testing.T, nodeID string) bool {
-	t.Helper()
-	for _, n := range c.nodes {
-		if n.killed {
-			continue
-		}
-		s, ok := c.tryStatus(t, n)
-		if !ok {
-			continue
-		}
-		for _, e := range s.Nodes {
-			if e.NodeID == nodeID {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // AddNode generates a join token on the current leader and starts a fresh node
@@ -345,60 +311,26 @@ func (c *Cluster) AddNode(t *testing.T) *ClusterNode {
 // the user running the tests). The node's data dir is handed to that uid
 // before every start. Running as another uid needs root; M50 uses it so an
 // iptables owner match can cut one node's traffic only (cutUID).
-//
-// If the process exits before it is ready, the node is started again, up to
-// maxNodeStarts times. The node joins in the background while it starts its
-// listeners, so it may already be a Raft member when it exits. A member is
-// started again in its data directory with the same Raft and API ports, the
-// addresses the cluster recorded for it, and a fresh DNS port; removing it
-// instead could need a quorum the cluster no longer has (a second node that
-// joined then exited leaves 1 of 2 voters). A node that is not a member is
-// started again from scratch: fresh data directory, ports and join token.
 func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
 	t.Helper()
-	nodeID := fmt.Sprintf("node-%d", len(c.nodes)+1)
-	freshCfg := func() M2NodeConfig {
-		leader := c.Leader(t)
-		token := c.mustCreateToken(t, leader)
-		cfg := M2NodeConfig{
-			NodeID:              nodeID,
-			DNSPort:             freeUDPPort(t),
-			APIPort:             freeTCPPort(t),
-			RaftPort:            freeRaftPort(t),
-			BootstrapLeaderAddr: leader.APIBase,
-			BootstrapToken:      token,
-			UID:                 uid,
-		}
-		if c.mtls {
-			cfg.ClusterMTLSEnabled = true
-		}
-		return cfg
+	leader := c.Leader(t)
+	token := c.mustCreateToken(t, leader)
+
+	cfg := M2NodeConfig{
+		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
+		DNSPort:             freeUDPPort(t),
+		APIPort:             freeTCPPort(t),
+		RaftPort:            freeRaftPort(t),
+		BootstrapLeaderAddr: leader.APIBase,
+		BootstrapToken:      token,
+		UID:                 uid,
 	}
-	cfg := freshCfg()
+	if c.mtls {
+		cfg.ClusterMTLSEnabled = true
+	}
 	cn := c.spawnNode(t, cfg)
-	for attempt := 1; ; attempt++ {
-		err := waitReadyErr(cn.Node)
-		if err == nil {
-			break
-		}
-		// Let a join the leader was still handling when the process
-		// exited finish, so the membership check sees it.
-		if errors.Is(err, errExitedBeforeReady) {
-			time.Sleep(2 * time.Second)
-		}
-		if errors.Is(err, errExitedBeforeReady) && c.isRaftMember(t, nodeID) {
-			c.checkRestartable(t, cn, attempt, err, "the same Raft and API ports and a fresh DNS port")
-			cfg.DNSPort = freeUDPPort(t)
-			dir := cn.DataDir
-			writeConfigYAML(t, dir, cfg)
-			cn = c.spawnNodeInDir(t, dir, cfg)
-			continue
-		}
-		c.checkRestartable(t, cn, attempt, err, "fresh ports with a fresh data directory and join token")
-		cfg = freshCfg()
-		cn = c.spawnNode(t, cfg)
-	}
 	c.nodes = append(c.nodes, cn)
+	c.waitNodeReady(t, cn)
 	// Credentials are replicated via Raft; retry login until they arrive.
 	cn.Node.sessionToken = loginWithRetry(t, cn.Node, defaultUsername, defaultPassword)
 	c.WaitConverged(t)
@@ -533,10 +465,7 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	if len(cn.Env) > 0 {
 		cmd.Env = append(os.Environ(), cn.Env...)
 	}
-	if testing.Verbose() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
+	output := captureOutput(cmd)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	if cn.UID != 0 {
 		requireExecutableByUID(t, c.bin, cn.UID)
@@ -550,6 +479,7 @@ func (c *Cluster) startProcess(t *testing.T, cn *ClusterNode) {
 	cn.cmd = cmd
 	cn.Node.cmd = cmd
 	cn.Node.exited = exited
+	cn.Node.output = output
 	cn.killed = false
 
 	t.Cleanup(func() {
@@ -879,43 +809,47 @@ func (c *Cluster) Size() int { return len(c.nodes) }
 
 // KillNode stops a node's process without removing its data directory, so a
 // later RestartNode can revive it with the same Raft identity.
+//
+// If the process had already exited on its own, the test fails (without
+// stopping) with the exit status and the last lines the process wrote: a
+// node that crashes during a test must not go unnoticed.
 func (c *Cluster) KillNode(t *testing.T, i int) {
 	t.Helper()
 	n := c.Node(i)
 	if n.killed {
 		return
 	}
-	// ErrProcessDone: the process already exited on its own and was reaped.
+	// ErrProcessDone: the process already exited and was reaped. The exit
+	// status below tells that case apart from a kill.
 	if err := n.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		t.Fatalf("kill node %s: %v", n.NodeID, err)
 	}
 	<-n.Node.exited
 	n.killed = true
+	if !killedBySIGKILL(n.cmd.ProcessState) {
+		t.Errorf("node %s exited on its own before KillNode%s", n.NodeID, exitReport(n.Node))
+	}
+}
+
+// killedBySIGKILL reports whether the process ended on SIGKILL, the signal
+// KillNode sends, rather than on its own.
+func killedBySIGKILL(ps *os.ProcessState) bool {
+	ws, ok := ps.Sys().(syscall.WaitStatus)
+	return ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL
 }
 
 // RestartNode brings a previously-killed node back up using the same data dir
 // (so it rejoins as the same Raft member) and the same env vars.
 // The in-memory session store is cleared on restart, so the session token is
 // refreshed here so subsequent apiDo calls on this node continue to work.
-//
-// If the process exits before it is ready, it is started again on the same
-// ports one second later, up to maxNodeStarts times: the Raft address is the
-// node's identity in the cluster, and tests keep its other addresses.
 func (c *Cluster) RestartNode(t *testing.T, i int) {
 	t.Helper()
 	n := c.Node(i)
 	if !n.killed {
 		t.Fatalf("RestartNode: node %s is not killed", n.NodeID)
 	}
-	for attempt := 1; ; attempt++ {
-		c.startProcess(t, n)
-		err := waitReadyErr(n.Node)
-		if err == nil {
-			break
-		}
-		c.checkRestartable(t, n, attempt, err, "the same ports")
-		time.Sleep(time.Second)
-	}
+	c.startProcess(t, n)
+	c.waitNodeReady(t, n)
 	n.Node.sessionToken = loginSession(t, n.Node, defaultUsername, defaultPassword)
 }
 
