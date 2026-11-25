@@ -41,23 +41,25 @@ it makes a joining node crash at start.
 
 ## Decision
 
-Option 2. `rebuildDNS` must not start a DNS server before `main` has
-started the first one: `main` creates and starts the server, then
-publishes it under a lock; `rebuildDNS` only reconfigures or restarts a
-server that `main` started. Before that, it keeps neither a handler nor
-a configuration, because a handler built during start-up can hold a nil
-`app` or `dhcpMgr`; `main` builds the boot handler and configuration
-from a fresh snapshot while the holder is locked, so a change applied
-earlier is in that snapshot and a later one is applied by `rebuildDNS`
-after the start (cycle 4, `decisions/20261125-M50FourthCycle.md`). A
-retroactive
-functional scenario ("a node joining a cluster starts its DNS listener
-once") is owed, recorded in TODO.md.
+Option 2. The plain DNS server lives in a `dnsengine.ServerHolder` that
+`main` starts once. `ServerHolder.Start` takes the holder's lock and
+calls a builder from `main`, which takes a fresh store snapshot, builds
+the handler and returns the DNS configuration; the server is then
+started with them. Before that start, `rebuildDNS` keeps neither a
+handler nor a configuration, because a handler built during start-up can
+hold a nil `app` or `dhcpMgr`. A change applied before the builder's
+snapshot is in it; one applied later waits for the lock and is applied
+by `rebuildDNS` after the start (cycle 4,
+`decisions/20261125-M50FourthCycle.md`). A retroactive functional
+scenario ("a node joining a cluster starts its DNS listener once") is
+owed, recorded in TODO.md.
 
 ## Consequences
 
-* The startup flake disappears from the acceptance suite; the harness
-  retry added in M50 stays as a safety net and reports the cause.
+* The startup failure no longer appears in the acceptance suite (0
+  occurrences in the full runs after the fix). The acceptance harness
+  does not retry a failed start; it fails at once and prints the node's
+  last output lines.
 * No behavior change after start.
 
 ## Related hypotheses

@@ -523,12 +523,8 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [x] M50 — UoR validated functional spec — 2026-11-25
 - [x] M50 — technical spec: `specs/technical/blocklist-content-distribution.md` (TS-BlocklistContentDistribution) + `management-api.openapi.yaml` — 2026-11-25
 - [x] M50 — UoR validated technical spec (blocklist content distribution + peer mTLS) — 2026-11-25
-- [ ] M50 — peer HTTP over mTLS: implement FS-MtlsInternalApiHTTPS as
-  revised in `specs/technical/encrypted-cluster-mesh.md` ("Internal API").
-  No peer HTTP client used TLS so far, so `X-Cluster-Secret` crosses the
-  network in clear on every forwarded write; the comment in
-  `tests/acceptance/encrypted_mesh_test.go:9` says the scenario is covered
-  "implicitly", which it is not
+- [x] M50 — peer HTTP over mTLS (FS-MtlsInternalApiHTTPS), no plain-HTTP
+  fallback, unpinnable node IDs refused with mTLS on — merged at 4df4e71 — 2026-11-25
 - [ ] M50 — enable `node.cluster.mtls.enabled` on the home cluster
 - [ ] Tooling — `tools/traceability/traceability_check.sh` only recognizes
   JavaScript `it(`/`test(` calls, so it reports every FSID covered by a Go
@@ -539,17 +535,47 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   cycles, merged at 7904a1a. Run on a test CT against today's binary:
   2 pass (regression checks), 15 fail because the feature is missing — 2026-11-25
 - [x] M50 — UoR validated acceptance tests — 2026-11-25
-- [ ] M50 — test follow-ups (MINOR, from review): pass `-w` to every
-  `iptables` call in `m50_harness_test.go`; re-check `isBlocked` on every
-  node after the legacy domains are cleared in
-  TestBlocklistContentUpgradeKeepsFiltering
+- [x] M50 — test follow-ups: `iptables -w`; upgrade test re-checks blocking — 2026-11-25
 - [ ] API — the audit middleware reads at most 8 KB of every write body and
   passes only that on (`apps/skoed/internal/api/audit_middleware.go:34-39`),
   so any JSON write over 8 KB fails with 400 "invalid JSON" (e.g. an inline
   blocklist of more than about 250 domains); needs its own spec
 - [ ] Tooling — `gofmt -l` lists 35 files under `tests/acceptance` that
   were already unformatted on master
-- [ ] M50 — implementation, refactoring phase, CI green
+- [x] M50 — implementation: 4 review cycles (the 4th under
+  `decisions/20261125-M50FourthCycle.md`), merged at 993a997. Full suite
+  on test CT 101: 599 pass, 32 skip, 1 known flake
+  (TestLeaseReplLeasesEndpointExposesSnapshot, passes 3/3 alone);
+  `go test -race ./...` clean; no "address already in use" — 2026-11-25
+- [x] DNS — the plain DNS server could start twice at boot and crash a
+  joining node; fixed under `decisions/20261125-DirectFixDnsServerDoubleStart.md` — 2026-11-25
+- [ ] DNS — retroactive functional scenario owed by that exception: a node
+  joining a cluster starts its DNS listener once
+- [ ] M50 — refactoring phase, then full suite again
+- [ ] M50 — CI green on GitHub
+- [ ] M50 follow-ups (MINOR, from review, not blocking):
+  * legacy attempt record survives two leader changes around a gate loss
+    (`refresh/scheduler.go`); tie the attempt to `Content.SHA256`
+  * an empty legacy download is recorded as "unchanged" while the stored
+    version still holds the old domains
+  * `raft compact`: print both sizes when the final directory fsync fails
+  * test gaps: tick-level `clearLegacyAttempt`, a `Rebuild` during the boot
+    builder, mtls-bootstrap refusal with mTLS off, holder port release
+  * `LeaderMainAPIAddress` read twice in the refresh handler (tiny window
+    for a 409 with an empty leader address)
+  * node IDs that differ only by case or a trailing dot verify each
+    other's leaves; join has no duplicate-ID check
+- [ ] mTLS — Raft over mTLS probably fails between real hosts:
+  `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`) sets no
+  `ServerName`, and leaves carry only the node ID, localhost, 127.0.0.1 and
+  ::1; tests run on 127.0.0.1 only. Check in the Proxmox demo
+- [ ] mTLS — `ResetRaftForJoin` rebuilds Raft without the TLS stream layer
+- [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
+  `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
+  rebuild can start DNSCrypt with a handler built before `main` finished
+- [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
+  TestDotAppliesFilter (query log read right after the query),
+  TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
 - [ ] M50 — real-environment validation on a Proxmox 3-node cluster,
   including an `iptables` cut of one follower from the leader's API
 - [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
