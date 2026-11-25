@@ -2,6 +2,13 @@
 
 Enable mutual TLS so that all inter-node traffic — Raft replication and API request forwarding — is encrypted and authenticated.
 
+> **Known limitation:** mTLS currently works only when every node runs on
+> the same host (Raft addresses on 127.0.0.1). Between real hosts, Raft
+> rejects the peers' certificates (`x509: certificate is valid for
+> 127.0.0.1, ::1, not <node IP>`) and a join leaves the cluster without a
+> leader. Keep `mtls.enabled: false` on multi-host clusters until this is
+> fixed.
+
 ---
 
 ## What It Does
@@ -58,7 +65,7 @@ node:
     peer_api_address: 10.0.0.11:7001   # optional
 ```
 
-Open this port between cluster nodes in the firewall: it is a new port when you upgrade an mTLS cluster from a version without the peer listener. The main API listener then refuses requests carrying the cluster secret (`X-Cluster-Secret`), and peers are always called over HTTPS, never plain HTTP, so the secret never travels in clear. Joining a node still goes through the main API, authenticated by the join token. A node ID of `localhost` is refused at join, because every cluster certificate carries that name.
+Open this port between cluster nodes in the firewall: it is a new port when you upgrade an mTLS cluster from a version without the peer listener. The main API listener then refuses requests carrying the cluster secret (`X-Cluster-Secret`), and peers are always called over HTTPS, never plain HTTP, so the secret never travels in clear. Joining a node still goes through the main API, authenticated by the join token. With mTLS enabled, a node ID of `localhost` or an IP address is refused at join and at start, because every cluster certificate carries the names `localhost`, 127.0.0.1 and ::1.
 
 If `peer_api_address` is not set and cannot be derived from `raft_address` (unparseable address, or Raft port 65535), the node refuses to start.
 

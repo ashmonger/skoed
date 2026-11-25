@@ -551,7 +551,6 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   joining node; fixed under `decisions/20261125-DirectFixDnsServerDoubleStart.md` — 2026-11-25
 - [ ] DNS — retroactive functional scenario owed by that exception: a node
   joining a cluster starts its DNS listener once
-- [ ] M50 — refactoring phase, then full suite again
 - [ ] M50 — CI green on GitHub
 - [ ] M50 follow-ups (MINOR, from review, not blocking):
   * legacy attempt record survives two leader changes around a gate loss
@@ -565,10 +564,20 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
     for a 409 with an empty leader address)
   * node IDs that differ only by case or a trailing dot verify each
     other's leaves; join has no duplicate-ID check
-- [ ] mTLS — Raft over mTLS probably fails between real hosts:
-  `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`) sets no
-  `ServerName`, and leaves carry only the node ID, localhost, 127.0.0.1 and
-  ::1; tests run on 127.0.0.1 only. Check in the Proxmox demo
+- [ ] mTLS — **confirmed in the M50 demo**: Raft over mTLS fails between
+  real hosts (`x509: certificate is valid for 127.0.0.1, ::1, not
+  192.168.1.192`). `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`)
+  sets no `ServerName`, and leaves carry only the node ID, localhost,
+  127.0.0.1 and ::1; tests run on 127.0.0.1 only. A join then adds a voter
+  that never receives Raft traffic, so a 2-voter cluster loses its leader.
+  Needs its own spec; docs warn about it
+- [ ] Cluster — a joining node with an empty bootstrap token silently starts
+  its own single-node cluster
+- [ ] Cluster — the used `bootstrap:` token stays in config.yaml and every
+  start logs "detected cluster seed in config.yaml; will migrate after
+  bootstrap"
+- [ ] Docs — `docs/src/cluster/bootstrap.md` shows `curl -u admin:…`, but
+  HTTP Basic auth returns 401; only a Bearer token from `/auth/login` works
 - [ ] mTLS — `ResetRaftForJoin` rebuilds Raft without the TLS stream layer
 - [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
@@ -576,10 +585,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
-- [ ] M50 — real-environment validation on a Proxmox 3-node cluster,
-  including an `iptables` cut of one follower from the leader's API
+- [x] M50 — refactoring phase (3 commits up to 7f4150b), full suite again:
+  599 pass, 1 known flake (passes 3/3 alone), `-race` clean — 2026-11-25
+- [x] M50 — real-environment validation on a Proxmox 3-node cluster:
+  `demos/m50/DEMO_NOTE.md` (0.3.2 → final rolling upgrade, compaction,
+  iptables cut, failover pass; cross-host mTLS fails, pre-existing) — 2026-11-25
 - [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
-- [ ] M50 — demo note and UoR validation
+- [x] M50 — demo note and UoR validation — 2026-11-25
 - [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
   daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in
   use` on a host with `net.ipv6.bindv6only = 0` (seen on Debian 13, also on
