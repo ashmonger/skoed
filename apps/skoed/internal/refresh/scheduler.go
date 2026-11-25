@@ -62,6 +62,13 @@ type Scheduler struct {
 	// logged during the current leadership term.
 	gateLogged bool
 
+	// download, upsertBlocklist and setBlocklistContent are the downloads
+	// and Raft writes of the scheduler. New sets them to filter.Download
+	// and the cluster methods; unit tests replace them.
+	download            func(url, format string, timeout time.Duration) ([]string, error)
+	upsertBlocklist     func(bl config.Blocklist) error
+	setBlocklistContent func(p cluster.BlocklistContentSetPayload) error
+
 	// OnDownloadFailed is an optional hook called after a blocklist download
 	// fails. Receives the blocklist ID, its human-readable name, and the
 	// short error string. Nil disables the hook. Set before calling Start.
@@ -112,6 +119,10 @@ func New(c *cluster.Cluster, opts Options) *Scheduler {
 		failures:   map[string]uint64{},
 		attempts:   map[string]attempt{},
 		idLocks:    map[string]*sync.Mutex{},
+
+		download:            filter.Download,
+		upsertBlocklist:     c.UpsertBlocklist,
+		setBlocklistContent: c.SetBlocklistContent,
 	}
 }
 
@@ -162,7 +173,7 @@ func (s *Scheduler) FetchContent(id, url, format string) (*config.BlocklistConte
 	if s.cache == nil {
 		return nil, fmt.Errorf("no blocklist cache on this node")
 	}
-	domains, err := filter.Download(url, format, s.httpTimeout)
+	domains, err := s.download(url, format, s.httpTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -275,6 +286,8 @@ func (s *Scheduler) refreshDueOnLeader() {
 		for _, bl := range snap.Filtering.Blocklists {
 			if bl.IsLegacyURLContent() {
 				s.seedLegacy(bl)
+			} else {
+				s.clearLegacyAttempt(bl.ID)
 			}
 		}
 		due = s.dueContent(snap, now)
@@ -327,6 +340,20 @@ func (s *Scheduler) recordAttempt(id string, failed bool) {
 func (s *Scheduler) setAttempt(id string, a attempt) {
 	s.attemptsMu.Lock()
 	s.attempts[id] = a
+	s.attemptsMu.Unlock()
+}
+
+// clearLegacyAttempt marks the last attempt on list id as not made by
+// refreshLegacy, keeping its time: the content path now handles the list,
+// so if the gate is lost again, dueLegacy must download it at once instead
+// of waiting for its interval. The time is kept because dueContent
+// measures the interval from it (lastRun).
+func (s *Scheduler) clearLegacyAttempt(id string) {
+	s.attemptsMu.Lock()
+	if a, ok := s.attempts[id]; ok && a.legacy {
+		a.legacy = false
+		s.attempts[id] = a
+	}
 	s.attemptsMu.Unlock()
 }
 
@@ -415,7 +442,7 @@ func (s *Scheduler) refreshContent(prior config.Blocklist) error {
 	if fresh, ok := s.storedList(prior.ID); ok {
 		prior = fresh
 	}
-	domains, err := filter.Download(prior.Source.URL, prior.Source.Format, s.httpTimeout)
+	domains, err := s.download(prior.Source.URL, prior.Source.Format, s.httpTimeout)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if err != nil {
 		msg := trimError(err)
@@ -454,7 +481,8 @@ func (s *Scheduler) refreshContent(prior config.Blocklist) error {
 // seedLegacy records the version of a legacy URL list (domains replicated
 // by a previous version) from the leader's own copy of those domains,
 // without downloading (§6 step 3). This clears the domains from the
-// replicated state.
+// replicated state. The list is now handled by the content path, so the
+// legacy flag of its attempt record is cleared (clearLegacyAttempt).
 func (s *Scheduler) seedLegacy(bl config.Blocklist) {
 	defer s.lockID(bl.ID)()
 	e, err := s.cache.WriteLegacy(bl)
@@ -470,7 +498,7 @@ func (s *Scheduler) seedLegacy(bl config.Blocklist) {
 	if refreshAt == "" {
 		refreshAt = fetched
 	}
-	_ = s.apply(cluster.BlocklistContentSetPayload{
+	err = s.apply(cluster.BlocklistContentSetPayload{
 		ID:        bl.ID,
 		Status:    "ok",
 		RefreshAt: refreshAt,
@@ -478,11 +506,14 @@ func (s *Scheduler) seedLegacy(bl config.Blocklist) {
 		URL:       bl.Source.URL,
 		Format:    bl.Source.Format,
 	})
+	if err == nil {
+		s.clearLegacyAttempt(bl.ID)
+	}
 }
 
 // apply writes p through Raft; a failure is logged and returned.
 func (s *Scheduler) apply(p cluster.BlocklistContentSetPayload) error {
-	err := s.c.SetBlocklistContent(p)
+	err := s.setBlocklistContent(p)
 	if err != nil {
 		log.Printf("refresh: record %s result of %s: %v", p.Status, p.ID, err)
 	}
@@ -498,7 +529,8 @@ func (s *Scheduler) apply(p cluster.BlocklistContentSetPayload) error {
 // refresh on this node succeeds: a download with no domains leaves the
 // content version in place (keepStoredContent), so the list is then due on
 // its interval instead of on every tick. Attempts made while the gate was
-// met do not count, so a gate loss is handled on the next tick. Sorted
+// met do not count (seedLegacy and the content path clear the legacy flag),
+// so a gate loss is handled on the next tick. Sorted
 // by oldest-due-first so stale lists get attention before the
 // freshly-added ones.
 func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Blocklist {
@@ -551,7 +583,7 @@ func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Block
 // fields are updated; the prior Domains slice is preserved.
 func (s *Scheduler) refreshLegacy(prior config.Blocklist) error {
 	defer s.lockID(prior.ID)()
-	domains, err := filter.Download(prior.Source.URL, prior.Source.Format, s.httpTimeout)
+	domains, err := s.download(prior.Source.URL, prior.Source.Format, s.httpTimeout)
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	updated := prior
@@ -575,7 +607,7 @@ func (s *Scheduler) refreshLegacy(prior config.Blocklist) error {
 		updated.Content = nil
 	}
 
-	uerr := s.c.UpsertBlocklist(updated)
+	uerr := s.upsertBlocklist(updated)
 	s.setAttempt(prior.ID, attempt{at: time.Now(), failed: err != nil || uerr != nil, legacy: true})
 	if uerr != nil {
 		log.Printf("refresh: upsert %s: %v", prior.ID, uerr)
