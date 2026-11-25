@@ -533,7 +533,22 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] Tooling — `tools/traceability/traceability_check.sh` only recognizes
   JavaScript `it(`/`test(` calls, so it reports every FSID covered by a Go
   acceptance test as MISSING (118 on this branch, 102 on master)
-- [ ] M50 — acceptance tests
+- [x] M50 — acceptance tests: `blocklist_content_distribution_test.go` (13),
+  `raft_log_bounds_test.go` (3), `encrypted_mesh_test.go`
+  (FS-MtlsInternalApiHTTPS), helpers in `m50_harness_test.go`; 3 review
+  cycles, merged at 7904a1a. Run on a test CT against today's binary:
+  2 pass (regression checks), 15 fail because the feature is missing — 2026-11-25
+- [ ] M50 — UoR validated acceptance tests
+- [ ] M50 — test follow-ups (MINOR, from review): pass `-w` to every
+  `iptables` call in `m50_harness_test.go`; re-check `isBlocked` on every
+  node after the legacy domains are cleared in
+  TestBlocklistContentUpgradeKeepsFiltering
+- [ ] API — the audit middleware reads at most 8 KB of every write body and
+  passes only that on (`apps/skoed/internal/api/audit_middleware.go:34-39`),
+  so any JSON write over 8 KB fails with 400 "invalid JSON" (e.g. an inline
+  blocklist of more than about 250 domains); needs its own spec
+- [ ] Tooling — `gofmt -l` lists 35 files under `tests/acceptance` that
+  were already unformatted on master
 - [ ] M50 — implementation, refactoring phase, CI green
 - [ ] M50 — real-environment validation on a Proxmox 3-node cluster,
   including an `iptables` cut of one follower from the leader's API
