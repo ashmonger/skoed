@@ -426,13 +426,17 @@ func (h *Handler) RefreshBlocklist(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, cluster.ErrNotLeader):
 			// Leadership moved while the request was served: the result
-			// may not be recorded, so the caller retries on the leader.
+			// may not be recorded, so the caller retries on the leader. The
+			// 409 body carries LeaderMainAPIAddress, so the status is
+			// chosen from that address.
 			c := h.app.GetCluster()
-			if c == nil || c.LeaderAPIAddress() == "" {
+			if c == nil || c.LeaderMainAPIAddress() == "" {
 				writeError(w, http.StatusServiceUnavailable, "no leader: "+err.Error())
 				return
 			}
 			writeLeaderRedirect(w, c, err.Error())
+		case errors.Is(err, refresh.ErrBlocklistNotFound):
+			writeError(w, http.StatusNotFound, "blocklist not found")
 		case errors.As(err, &dl):
 			writeError(w, http.StatusBadGateway, "failed to download blocklist: "+err.Error())
 		default:

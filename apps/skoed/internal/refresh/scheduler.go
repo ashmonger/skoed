@@ -13,6 +13,7 @@ package refresh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -70,6 +71,7 @@ type Scheduler struct {
 type attempt struct {
 	at     time.Time
 	failed bool
+	legacy bool // made by refreshLegacy (capability gate not met)
 }
 
 // Options bundles configuration knobs.
@@ -175,6 +177,10 @@ func (s *Scheduler) FetchContent(id, url, format string) (*config.BlocklistConte
 	}, nil
 }
 
+// ErrBlocklistNotFound is returned by RefreshNow when the list does not
+// exist, e.g. it was deleted after the handler looked it up.
+var ErrBlocklistNotFound = errors.New("blocklist not found")
+
 // DownloadError is returned by RefreshNow when the list could not be
 // downloaded; the previous version is kept.
 type DownloadError struct{ Err error }
@@ -189,6 +195,7 @@ func (e *DownloadError) Unwrap() error { return e.Err }
 //   - an error wrapping cluster.ErrNotLeader when this node is not the
 //     leader, or lost the leadership during the call, so the result may not
 //     be recorded;
+//   - ErrBlocklistNotFound when the list does not exist;
 //   - a *DownloadError when the download failed;
 //   - any other error when the result could not be written (cache or Raft).
 func (s *Scheduler) RefreshNow(id string) error {
@@ -219,7 +226,7 @@ func (s *Scheduler) RefreshNow(id string) error {
 		}
 		return err
 	}
-	return fmt.Errorf("blocklist %q not found", id)
+	return fmt.Errorf("%w: %q", ErrBlocklistNotFound, id)
 }
 
 func (s *Scheduler) loop(ctx context.Context) {
@@ -314,8 +321,12 @@ func (s *Scheduler) lastRun(bl config.Blocklist) (time.Time, attempt) {
 }
 
 func (s *Scheduler) recordAttempt(id string, failed bool) {
+	s.setAttempt(id, attempt{at: time.Now(), failed: failed})
+}
+
+func (s *Scheduler) setAttempt(id string, a attempt) {
 	s.attemptsMu.Lock()
-	s.attempts[id] = attempt{at: time.Now(), failed: failed}
+	s.attempts[id] = a
 	s.attemptsMu.Unlock()
 }
 
@@ -482,7 +493,12 @@ func (s *Scheduler) apply(p cluster.BlocklistContentSetPayload) error {
 // interval has passed, as before M50. A list holding a content version but
 // no domains (written while the gate was met, before a rollback or the
 // join of a node running a previous version) is due whatever its
-// interval, so nodes running a previous version get domains again. Sorted
+// interval, so nodes running a previous version get domains again. Such a
+// list is downloaded at most once per retryAfter, and only until a legacy
+// refresh on this node succeeds: a download with no domains leaves the
+// content version in place (keepStoredContent), so the list is then due on
+// its interval instead of on every tick. Attempts made while the gate was
+// met do not count, so a gate loss is handled on the next tick. Sorted
 // by oldest-due-first so stale lists get attention before the
 // freshly-added ones.
 func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Blocklist {
@@ -496,11 +512,14 @@ func (s *Scheduler) dueLegacy(snap *config.Config, now time.Time) []config.Block
 			continue
 		}
 		if bl.Content != nil && len(bl.Domains) == 0 {
-			if _, a := s.lastRun(bl); a.failed && now.Sub(a.at) < s.retryAfter {
+			_, a := s.lastRun(bl)
+			if a.legacy && now.Sub(a.at) < s.retryAfter {
 				continue
 			}
-			items = append(items, item{bl: bl, age: 1<<63 - 1})
-			continue
+			if !a.legacy || a.failed {
+				items = append(items, item{bl: bl, age: 1<<63 - 1})
+				continue
+			}
 		}
 		if bl.RefreshIntervalSeconds == 0 {
 			// Explicit zero = "don't auto-refresh". Inherit-from-default is
@@ -534,7 +553,6 @@ func (s *Scheduler) refreshLegacy(prior config.Blocklist) error {
 	defer s.lockID(prior.ID)()
 	domains, err := filter.Download(prior.Source.URL, prior.Source.Format, s.httpTimeout)
 	now := time.Now().UTC().Format(time.RFC3339)
-	s.recordAttempt(prior.ID, err != nil)
 
 	updated := prior
 	updated.LastRefreshAt = now
@@ -557,7 +575,9 @@ func (s *Scheduler) refreshLegacy(prior config.Blocklist) error {
 		updated.Content = nil
 	}
 
-	if uerr := s.c.UpsertBlocklist(updated); uerr != nil {
+	uerr := s.c.UpsertBlocklist(updated)
+	s.setAttempt(prior.ID, attempt{at: time.Now(), failed: err != nil || uerr != nil, legacy: true})
+	if uerr != nil {
 		log.Printf("refresh: upsert %s: %v", prior.ID, uerr)
 		if err == nil {
 			return uerr
