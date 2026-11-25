@@ -144,7 +144,9 @@ that receives `blocklist.content_set` rejects it with
 * **Due lists.** A URL list is due when any of these holds:
   * `RefreshIntervalSeconds > 0` and `LastRefreshAt + interval <= now`
     (unchanged rule);
-  * `Content == nil` (never downloaded, or imported: fixes the import gap);
+  * `Content == nil` (never downloaded, or imported: fixes the import gap),
+    except for a legacy entry (§2.1): the leader seeds it from its local
+    copy as described in §6 step 3 and does not download it;
   * the leader's cache does not hold `Content.SHA256`
     (FS-BlocklistContentNewLeaderWithoutCopy). This rule applies whatever
     the interval, including 0.
