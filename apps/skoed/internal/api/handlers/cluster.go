@@ -328,7 +328,9 @@ func (h *Handler) ClusterJoin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "token, node_id and raft_address are required")
 		return
 	}
-	if cluster.UnpinnableNodeID(req.NodeID) {
+	// Only mTLS pins a peer by its node ID; without it, such an ID still
+	// works (TS-EncryptedClusterMesh, "Member records").
+	if c.MTLSEnabled() && cluster.UnpinnableNodeID(req.NodeID) {
 		writeError(w, http.StatusBadRequest, unpinnableNodeIDMsg)
 		return
 	}

@@ -220,12 +220,12 @@ func TestPeerClientRefusesPlainHTTPWithMTLS(t *testing.T) {
 }
 
 func TestUnpinnableNodeID(t *testing.T) {
-	for _, id := range []string{"localhost", "LocalHost", "localhost.", "LOCALHOST.", "127.0.0.1", "10.0.0.2", "10.0.0.2.", "::1", "fe80::1", "::ffff:10.0.0.2"} {
+	for _, id := range []string{"localhost", "LocalHost", "localhost.", "LOCALHOST.", "127.0.0.1", "10.0.0.2", "10.0.0.2.", "::1", "fe80::1", "::ffff:10.0.0.2", "[::1]", "[127.0.0.1]", "::1%lo", "[::1%eth0]", "[::1]."} {
 		if !UnpinnableNodeID(id) {
 			t.Errorf("UnpinnableNodeID(%q) = false, want true", id)
 		}
 	}
-	for _, id := range []string{"node-1", "localhost2", "my.localhost", "node-1.example.com", "10.0.0", ""} {
+	for _, id := range []string{"node-1", "localhost2", "my.localhost", "node-1.example.com", "10.0.0", "", "skoed1", "10.0.0.5.example", "[node-1]", "[", "[]"} {
 		if UnpinnableNodeID(id) {
 			t.Errorf("UnpinnableNodeID(%q) = true, want false", id)
 		}

@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"sync"
@@ -269,14 +270,22 @@ func (c *Cluster) peerNodeIDForHost(hostPort string) string {
 }
 
 // UnpinnableNodeID reports whether id cannot identify a node to its peers:
-// "localhost" (any case, with or without a trailing dot) or an IP literal.
-// Peer clients verify a node with its ID as ServerName, and every cluster
-// leaf carries the SANs localhost, 127.0.0.1 and ::1; Go matches an IP
-// ServerName against IP SANs only, so such an ID would not identify one
-// node (TS-EncryptedClusterMesh, "Member records").
+// "localhost" (any case, with or without a trailing dot) or anything x509's
+// VerifyHostname treats as an IP literal, including bracketed and zoned
+// forms ("[::1]", "::1%lo"). Peer clients verify a node with its ID as
+// ServerName, and every cluster leaf carries the SANs localhost, 127.0.0.1
+// and ::1; Go matches an IP ServerName against IP SANs only, so such an ID
+// would not identify one node (TS-EncryptedClusterMesh, "Member records").
 func UnpinnableNodeID(id string) bool {
 	host := strings.TrimSuffix(id, ".")
-	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	if len(host) >= 2 && host[0] == '[' && host[len(host)-1] == ']' {
+		host = host[1 : len(host)-1]
+	}
+	_, err := netip.ParseAddr(host)
+	return err == nil
 }
 
 // memberURL returns the base URL peers use to reach m. With mTLS enabled,
