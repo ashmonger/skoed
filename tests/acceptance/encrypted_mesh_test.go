@@ -3,12 +3,20 @@
 // FSIDs covered:
 //   FS-MtlsDefaultOff               → TestMtlsDefaultOffPlainStillWorks
 //   FS-MtlsClusterFormsWhenEnabled  → TestMtlsClusterFormsAndReplicates ← 3-node
+//                                   → TestMtlsClusterFormsAcrossAddresses ← 3-node
 //   FS-MtlsClusterCAGenerated       → verified inside the same 3-node test
 //   FS-MtlsJoinDistributesCA        → verified inside the same 3-node test
 //   FS-MtlsInternalApiHTTPS         → TestMtlsInternalApiHTTPS ← 3-node
+//   FS-MtlsRejectsUntrustedPeer     → TestMtlsRejectsUntrustedPeerAcrossAddresses
 //
-// FS-MtlsRejectsUntrustedPeer is exercised implicitly: a 3-node cluster
+// FS-MtlsRejectsUntrustedPeer is also exercised implicitly: a 3-node cluster
 // booting with mTLS requires every Raft TLS handshake to verify.
+//
+// The tests named "AcrossAddresses" put each node on its own loopback
+// address (startClusterMTLSAcrossAddresses). On 127.0.0.1 only, a peer
+// certificate checked against the dialed address passes, because every leaf
+// carries 127.0.0.1, and the cross-host failure recorded in
+// decisions/20261126-MtlsServerNameByNodeId.md does not show.
 //
 // FS-MtlsInternalApiHTTPS was listed here as covered implicitly until M50,
 // which was wrong: no peer HTTP client used TLS (`apiBaseURL` always
@@ -24,12 +32,13 @@ package acceptance
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -124,7 +133,7 @@ func TestMtlsClusterFormsAndReplicates(t *testing.T) {
 // "Internal API"); the harness reserves that port as PeerAPIPort so no other
 // listener of the test run takes it.
 func peerAPIAddr(n *ClusterNode) string {
-	return fmt.Sprintf("127.0.0.1:%d", n.PeerAPIPort)
+	return net.JoinHostPort(n.Host, strconv.Itoa(n.PeerAPIPort))
 }
 
 // tlsRefusal matches the error a TLS client gets when the server ends the
@@ -247,4 +256,133 @@ func TestMtlsInternalApiHTTPS(t *testing.T) {
 			cut.NodeID, resp.StatusCode, b)
 	}
 	waitForBlocklist(t, leader, "mtls-forwarded-bl", 10*time.Second)
+}
+
+// @fsid:FS-MtlsClusterFormsWhenEnabled
+// The scenario on nodes with distinct addresses, as across hosts: the
+// cluster forms with one leader, a write on the leader reaches both
+// followers, and a follower killed and restarted rejoins and catches up on a
+// write made while it was down.
+func TestMtlsClusterFormsAcrossAddresses(t *testing.T) {
+	t.Parallel()
+	c := startClusterMTLSAcrossAddresses(t, 3)
+
+	leader := c.Leader(t)
+	st := c.Status(t, leader)
+	if len(st.Nodes) != 3 {
+		t.Fatalf("cluster status on %s lists %d nodes, want 3: %+v", leader.NodeID, len(st.Nodes), st.Nodes)
+	}
+	leaders := 0
+	for _, e := range st.Nodes {
+		if e.Role == "leader" {
+			leaders++
+		}
+	}
+	if leaders != 1 {
+		t.Errorf("cluster status on %s lists %d leaders, want 1: %+v", leader.NodeID, leaders, st.Nodes)
+	}
+	// The test means something only if each node is known to the others by
+	// its own address.
+	hosts := map[string]string{}
+	for _, cn := range c.nodes {
+		if other, dup := hosts[cn.Host]; dup {
+			t.Fatalf("nodes %s and %s share the address %s", other, cn.NodeID, cn.Host)
+		}
+		hosts[cn.Host] = cn.NodeID
+		found := false
+		for _, e := range st.Nodes {
+			if e.NodeID == cn.NodeID {
+				found = true
+				if e.RaftAddress != cn.RaftAddr {
+					t.Errorf("node %s: raft_address %q in cluster status, want %q", cn.NodeID, e.RaftAddress, cn.RaftAddr)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("node %s missing from the cluster status on %s", cn.NodeID, leader.NodeID)
+		}
+	}
+
+	// A write on the leader replicates to both followers. MustCreateBlocklist
+	// waits until every node reaches the leader's commit index.
+	c.MustCreateBlocklist(t, leader, "mtls-across-bl", "across.mtls.example.com")
+	followers := c.Followers(t)
+	if len(followers) != 2 {
+		t.Fatalf("%d followers, want 2", len(followers))
+	}
+	for _, f := range followers {
+		waitForBlocklist(t, f, "mtls-across-bl", 10*time.Second)
+	}
+
+	// A follower killed and restarted rejoins and catches up on a write
+	// made while it was down.
+	down := -1
+	for i, cn := range c.nodes {
+		if cn == followers[0] {
+			down = i
+		}
+	}
+	c.KillNode(t, down)
+	c.MustCreateBlocklist(t, leader, "mtls-across-bl-2", "across2.mtls.example.com")
+	c.RestartNode(t, down)
+	waitForBlocklist(t, c.Node(down), "mtls-across-bl-2", 30*time.Second)
+	c.WaitConverged(t)
+}
+
+// @fsid:FS-MtlsRejectsUntrustedPeer
+// On distinct addresses, the Raft listener of a cluster refuses a peer that
+// presents a leaf signed by another cluster's CA during the TLS handshake,
+// and accepts the same connection made with a leaf of its own cluster. The
+// foreign leaf comes from a second cluster, which has its own CA. The dial
+// comes from another loopback address, as from another host.
+//
+// "node-1's log records a TLS verification error" is not checked: the test
+// checks the refusal the peer receives.
+func TestMtlsRejectsUntrustedPeerAcrossAddresses(t *testing.T) {
+	t.Parallel()
+	c := startClusterMTLSAcrossAddresses(t, 1)
+	foreign := startClusterMTLSAcrossAddresses(t, 1)
+	target := c.Leader(t)
+	stranger := foreign.Leader(t)
+
+	caA, err := os.ReadFile(filepath.Join(target.DataDir, "tls", "cluster", "ca.crt"))
+	if err != nil {
+		t.Fatalf("read ca.crt of %s: %v", target.NodeID, err)
+	}
+	caB, err := os.ReadFile(filepath.Join(stranger.DataDir, "tls", "cluster", "ca.crt"))
+	if err != nil {
+		t.Fatalf("read ca.crt of the foreign %s: %v", stranger.NodeID, err)
+	}
+	if string(caA) == string(caB) {
+		t.Fatalf("the two clusters share their CA, so the foreign leaf is trusted")
+	}
+
+	// Raft waits for the peer to speak first, so a read on an accepted
+	// connection times out, while a refused one gets the server's alert.
+	// With TLS 1.3, the server checks the client certificate after the
+	// client side of the handshake, so the alert can come on that read.
+	raftDial := func(certDir string) error {
+		cfg := peerHTTPClient(t, target.DataDir, certDir, target.NodeID).Transport.(*http.Transport).TLSClientConfig
+		dialer := &net.Dialer{
+			Timeout:   5 * time.Second,
+			LocalAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.250")},
+		}
+		conn, err := tls.DialWithDialer(dialer, "tcp", target.RaftAddr, cfg)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, err = conn.Read(make([]byte, 1))
+		return err
+	}
+
+	if err := raftDial(stranger.DataDir); err == nil || !tlsRefusal.MatchString(err.Error()) {
+		t.Errorf("Raft on %s with a foreign leaf: got %v, want a TLS alert from the server", target.RaftAddr, err)
+	}
+	err = raftDial(target.DataDir)
+	var nerr net.Error
+	if !errors.As(err, &nerr) || !nerr.Timeout() {
+		t.Errorf("Raft on %s with a leaf of the cluster: got %v, want the read to time out on an accepted connection", target.RaftAddr, err)
+	}
 }
