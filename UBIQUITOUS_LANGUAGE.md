@@ -36,6 +36,12 @@ This document defines shared terms used throughout the repository. All specs, te
 | **Client group** | A named set of rules (blocklists, allowlists) that can be assigned to one or more clients. A client may belong to multiple groups; effective rules are the union of all assigned group rules. |
 | **Default group** | The built-in group whose rules apply to any client not assigned to any explicit group. |
 | **DHCP integration** | An optional connection to a DHCP server that allows skoed to resolve client IP addresses to MAC addresses and hostnames using current lease data. Supported sources: Kea DHCP REST API, dnsmasq lease file, ISC DHCP lease file, generic HTTP API. |
+| **Leader / Follower** | The terms in use in the specs for the Primary node and a Replica node: the leader is the node the Raft election chose, the followers are the other nodes. **Leader election** is the Raft vote that chooses a new leader. *(Draft, awaiting UoR validation.)* |
+| **Answer** | A DNS response that resolves the query or applies a filtering rule to it (upstream or cached records, a local DNS entry, a block response such as NXDOMAIN). A node **answers** a query when it sends such a response. *(Draft, awaiting UoR validation.)* |
+| **Refuse** | To send a REFUSED response instead of an answer. A node refuses a query when the client is not allowed to query it, when it is overloaded, or when its DNS state is "starting". *(Draft, awaiting UoR validation.)* |
+| **DNS capacity** | The number of DNS queries per second a node answers at most. Queries above it are refused. *(Draft, awaiting UoR validation.)* |
+| **Overloaded** | The state of a node that receives more DNS queries per second than its DNS capacity. *(Draft, awaiting UoR validation.)* |
+| **DNS state** | The state of a node's DNS service shown in the cluster status: **starting** while the node has not loaded its blocklists, allowlists and local DNS entries and refuses every query; **ready** once it answers queries with every rule applied. *(Draft, awaiting UoR validation.)* |
 
 ## Forbidden and Ambiguous Terms
 
