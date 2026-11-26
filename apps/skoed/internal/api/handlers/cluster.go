@@ -276,6 +276,33 @@ func (h *Handler) NodeJoinCluster(w http.ResponseWriter, r *http.Request) {
 		Capabilities:   self.Capabilities,
 	})
 
+	// On an mTLS cluster, take the cluster CA and a leaf for our node ID
+	// from the leader before resetting Raft, so the reset Raft transport
+	// and the peer API use them. A failed fetch changes nothing: the node
+	// stays a single-node cluster with its own CA.
+	if c.MTLSEnabled() {
+		bundle, err := cluster.FetchMTLSBundle(req.LeaderAddress, req.Token, node.Node.ID)
+		if err != nil {
+			var rej *cluster.MTLSBootstrapRejectedError
+			if errors.As(err, &rej) && rej.StatusCode == http.StatusForbidden {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write(rej.Body)
+				return
+			}
+			writeError(w, http.StatusBadGateway, "mtls bootstrap: "+err.Error())
+			return
+		}
+		if err := cluster.InstallMTLSBundle(node.Node.DataDir, bundle); err != nil {
+			writeError(w, http.StatusInternalServerError, "install mtls bundle: "+err.Error())
+			return
+		}
+		if err := c.ReloadClusterCerts(); err != nil {
+			writeError(w, http.StatusInternalServerError, "reload cluster certificates: "+err.Error())
+			return
+		}
+	}
+
 	// Reset local Raft state before calling the leader. The leader's AddVoter
 	// waits for the joining node to catch up, so the joining node must be
 	// running a clean Raft (no existing log/snapshot) that is ready to accept
