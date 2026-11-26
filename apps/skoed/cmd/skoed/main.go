@@ -672,7 +672,7 @@ func runDaemon(cfgPath string) {
 	defer webhookDisp.Stop()
 	// Stopped before webhookDisp (defers run in reverse order), so the
 	// worker never fires an event on a stopped dispatcher.
-	deviceNewQueue := deviceNewHook(webhookDisp, c)
+	deviceNewQueue := deviceNewHook(webhookDisp, c, prom)
 	defer deviceNewQueue.Stop()
 	onDeviceNew = deviceNewQueue.Notify
 
@@ -1121,14 +1121,15 @@ func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
 // deviceNewHook returns the queue behind HandlerConfig.OnDeviceNew. Its
 // worker forwards each queued client IP to the dispatcher's deduplication
 // path and persists it to the new-dynamic-client alert list (M35), off the
-// DNS path and one IP at a time. disp must not be nil.
-func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster) *dnsengine.DeviceNewQueue {
+// DNS path and one IP at a time. IPs dropped because the queue is full are
+// counted in skoed_device_new_dropped_total. disp must not be nil.
+func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster, m *metrics.Metrics) *dnsengine.DeviceNewQueue {
 	return dnsengine.NewDeviceNewQueue(func(clientIP string) {
 		disp.NotifyDeviceNew(clientIP)
 		if clu != nil {
 			clu.TrackNewDynamicClient(clientIP, time.Now())
 		}
-	})
+	}, m.ObserveDeviceNewDropped)
 }
 
 // runPauseExpiryWatcher polls all profiles every 5 seconds and fires a

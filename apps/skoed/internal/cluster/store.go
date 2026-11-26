@@ -690,8 +690,9 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		// Write a replicated tombstone instead of deleting: local per-node
-		// tracking (TrackNewDynamicClient) runs for every client IP at least
-		// every 10 minutes and would re-insert a deleted IP. The tombstone makes tracking
+		// tracking (TrackNewDynamicClient) runs again about every 10 minutes
+		// for a client IP that keeps querying, and would re-insert a
+		// deleted IP. The tombstone makes tracking
 		// skip the IP permanently. DismissedAt comes from the payload so all
 		// nodes store an identical value (FSM determinism).
 		bkt := tx.Bucket(bucketNewDynamicClients)

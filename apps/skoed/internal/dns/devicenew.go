@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	// deviceNewCheckInterval is how long a client IP is skipped after it
-	// was queued. It matches the webhook dispatcher's 10-minute dedupe, and
-	// it bounds the delay before an IP whose new-dynamic-client entry was
-	// removed (e.g. by a Raft snapshot restore) is recorded again.
+	// deviceNewCheckInterval is how long a client IP is skipped after the
+	// worker ran the callback for it. It matches the webhook dispatcher's
+	// 10-minute dedupe, and it bounds the delay before an IP whose
+	// new-dynamic-client entry was removed (e.g. by a Raft snapshot
+	// restore) is recorded again.
 	deviceNewCheckInterval = 10 * time.Minute
 	// deviceNewQueueSize is the number of IPs waiting for the worker.
 	// When the queue is full, new IPs are dropped and queued by a later
@@ -26,12 +27,18 @@ const (
 // goroutine runs the callback for each queued IP, one at a time.
 type DeviceNewQueue struct {
 	work       func(clientIP string)
+	onDrop     func() // optional, called when the queue is full
 	queue      chan string
 	maxChecked int
 	now        func() time.Time
 
-	mu      sync.Mutex
-	checked map[string]time.Time // IP → when it was queued
+	mu sync.Mutex
+	// IP → when it was queued, then when its callback returned. The
+	// interval starts when the callback returns, because the dispatcher
+	// starts its own dedupe inside the callback: starting it at queue
+	// time would let the next query be skipped by the dispatcher and
+	// stretch the device.new cadence of an active client to 20 minutes.
+	checked map[string]time.Time
 
 	stop     chan struct{}
 	stopOnce sync.Once
@@ -39,16 +46,19 @@ type DeviceNewQueue struct {
 }
 
 // NewDeviceNewQueue returns a DeviceNewQueue and starts its worker, which
-// runs work for each queued IP until Stop is called.
-func NewDeviceNewQueue(work func(clientIP string)) *DeviceNewQueue {
-	q := newDeviceNewQueue(work, deviceNewQueueSize, deviceNewMaxChecked)
+// runs work for each queued IP until Stop is called. onDrop, when not nil,
+// is called for each IP dropped because the queue is full; it must return
+// immediately.
+func NewDeviceNewQueue(work func(clientIP string), onDrop func()) *DeviceNewQueue {
+	q := newDeviceNewQueue(work, onDrop, deviceNewQueueSize, deviceNewMaxChecked)
 	go q.run()
 	return q
 }
 
-func newDeviceNewQueue(work func(string), size, maxChecked int) *DeviceNewQueue {
+func newDeviceNewQueue(work func(string), onDrop func(), size, maxChecked int) *DeviceNewQueue {
 	return &DeviceNewQueue{
 		work:       work,
+		onDrop:     onDrop,
 		queue:      make(chan string, size),
 		maxChecked: maxChecked,
 		now:        time.Now,
@@ -71,9 +81,27 @@ func (q *DeviceNewQueue) Notify(clientIP string) {
 	select {
 	case q.queue <- clientIP:
 	default:
+		if q.onDrop != nil {
+			q.onDrop()
+		}
 		return
 	}
-	if len(q.checked) >= q.maxChecked {
+	q.mark(clientIP, now)
+}
+
+// process runs the callback for clientIP, then marks the IP as checked
+// again so its interval starts after the dispatcher's dedupe.
+func (q *DeviceNewQueue) process(clientIP string) {
+	q.work(clientIP)
+	now := q.now()
+	q.mu.Lock()
+	q.mark(clientIP, now)
+	q.mu.Unlock()
+}
+
+// mark records clientIP as checked at now. The caller holds q.mu.
+func (q *DeviceNewQueue) mark(clientIP string, now time.Time) {
+	if _, ok := q.checked[clientIP]; !ok && len(q.checked) >= q.maxChecked {
 		q.prune(now)
 	}
 	q.checked[clientIP] = now
@@ -107,7 +135,7 @@ func (q *DeviceNewQueue) run() {
 		case <-q.stop:
 			return
 		case ip := <-q.queue:
-			q.work(ip)
+			q.process(ip)
 		}
 	}
 }

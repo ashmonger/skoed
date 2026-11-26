@@ -43,7 +43,7 @@ func queued(q *DeviceNewQueue) []string {
 
 func newTestQueue(size, maxChecked int) (*DeviceNewQueue, *fakeClock) {
 	clk := &fakeClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	q := newDeviceNewQueue(func(string) {}, size, maxChecked)
+	q := newDeviceNewQueue(func(string) {}, nil, size, maxChecked)
 	q.now = clk.now
 	return q, clk
 }
@@ -82,15 +82,44 @@ func TestDeviceNewQueueRequeuesAfterInterval(t *testing.T) {
 	}
 }
 
+// TestDeviceNewQueueIntervalStartsWhenWorkRuns checks that the check
+// interval of an IP starts when the worker has run the callback, not when
+// the IP was queued. The webhook dispatcher starts its own 10-minute dedupe
+// inside the callback, so the next query queued after the interval always
+// passes that dedupe and an active client gets a device.new event every
+// 10 minutes, not every 20.
+func TestDeviceNewQueueIntervalStartsWhenWorkRuns(t *testing.T) {
+	q, clk := newTestQueue(16, 100)
+	q.Notify("192.0.2.1")
+	clk.advance(5 * time.Second) // time spent waiting in the queue
+	for _, ip := range queued(q) {
+		q.process(ip)
+	}
+	clk.advance(deviceNewCheckInterval - time.Second)
+	q.Notify("192.0.2.1")
+	if got := queued(q); len(got) != 0 {
+		t.Fatalf("queued %v less than the interval after the work ran, want none", got)
+	}
+	clk.advance(time.Second)
+	q.Notify("192.0.2.1")
+	if got := queued(q); len(got) != 1 {
+		t.Fatalf("queued %v the interval after the work ran, want one item", got)
+	}
+}
+
 // TestDeviceNewQueueDropsWhenFull checks that Notify drops an IP instead of
-// blocking when the queue is full, and does not mark it as checked so a
-// later query queues it.
+// blocking when the queue is full, counts the drop, and does not mark the IP
+// as checked so a later query queues it.
 func TestDeviceNewQueueDropsWhenFull(t *testing.T) {
-	q, _ := newTestQueue(1, 100)
+	var dropped int
+	q := newDeviceNewQueue(func(string) {}, func() { dropped++ }, 1, 100)
 	q.Notify("192.0.2.1")
 	q.Notify("192.0.2.2") // queue full: dropped
 	if got := queued(q); fmt.Sprint(got) != "[192.0.2.1]" {
 		t.Fatalf("queued %v, want [192.0.2.1]", got)
+	}
+	if dropped != 1 {
+		t.Fatalf("%d drops counted, want 1", dropped)
 	}
 	q.Notify("192.0.2.2")
 	if got := queued(q); fmt.Sprint(got) != "[192.0.2.2]" {
@@ -121,11 +150,10 @@ func TestDeviceNewQueueBoundsCheckedIPs(t *testing.T) {
 }
 
 // TestDeviceNewQueueRunsWork checks that the worker started by
-// NewDeviceNewQueue runs the callback for a queued IP, and that Stop waits
-// for it to finish.
+// NewDeviceNewQueue runs the callback for a queued IP.
 func TestDeviceNewQueueRunsWork(t *testing.T) {
 	done := make(chan string, 1)
-	q := NewDeviceNewQueue(func(ip string) { done <- ip })
+	q := NewDeviceNewQueue(func(ip string) { done <- ip }, nil)
 	q.Notify("192.0.2.1")
 	select {
 	case ip := <-done:
@@ -138,6 +166,36 @@ func TestDeviceNewQueueRunsWork(t *testing.T) {
 	q.Stop()
 	q.Stop()              // idempotent
 	q.Notify("192.0.2.2") // after Stop: must not block or panic
+}
+
+// TestDeviceNewQueueStopWaitsForWork checks that Stop returns only once a
+// callback that is still running has returned, so the callback never runs
+// after the webhook dispatcher is stopped.
+func TestDeviceNewQueueStopWaitsForWork(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	q := NewDeviceNewQueue(func(string) {
+		close(started)
+		<-release
+	}, nil)
+	q.Notify("192.0.2.1")
+	<-started
+	stopped := make(chan struct{})
+	go func() {
+		q.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned while the callback was still running")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return after the callback returned")
+	}
 }
 
 // fakeWriter is a minimal dns.ResponseWriter for handler tests.
@@ -166,7 +224,7 @@ func TestServeDNSCallsOnDeviceNewSynchronously(t *testing.T) {
 // BenchmarkDeviceNewQueueNotifyKnown measures the per-query cost for an IP
 // already checked within the interval.
 func BenchmarkDeviceNewQueueNotifyKnown(b *testing.B) {
-	q := NewDeviceNewQueue(func(string) {})
+	q := NewDeviceNewQueue(func(string) {}, nil)
 	defer q.Stop()
 	q.Notify("192.0.2.1")
 	b.ReportAllocs()
