@@ -122,7 +122,8 @@ func (l *QueryLog) Append(e Entry) {
 
 // Subscribe registers a new SSE stream subscriber. Returns an id used to
 // Unsubscribe and a channel that receives each appended entry. The channel is
-// buffered; slow consumers may miss entries if they fall behind.
+// buffered; slow consumers may miss entries if they fall behind. The channel
+// is never closed, so consumers stop on their own signal (e.g. a context).
 func (l *QueryLog) Subscribe() (uint64, <-chan Entry) {
 	ch := make(chan Entry, 64)
 	l.mu.Lock()
@@ -134,13 +135,15 @@ func (l *QueryLog) Subscribe() (uint64, <-chan Entry) {
 	return id, ch
 }
 
-// Unsubscribe removes and closes the subscriber channel registered under id.
+// Unsubscribe removes the subscriber channel registered under id. It does not
+// close the channel: an Append that read the subscriber list before the
+// removal may still send to it after releasing the lock, and a send on a
+// closed channel panics.
 func (l *QueryLog) Unsubscribe(id uint64) {
 	l.mu.Lock()
-	if ch, ok := l.subscribers[id]; ok {
+	if _, ok := l.subscribers[id]; ok {
 		delete(l.subscribers, id)
 		l.rebuildSubs()
-		close(ch)
 	}
 	l.mu.Unlock()
 }
@@ -174,11 +177,14 @@ func (l *QueryLog) at(i int) Entry {
 // limit=0 means no cap on the number of results returned.
 // total is the count of matching entries before the limit/offset are applied.
 func (l *QueryLog) Query(client, outcome string, limit, offset int) (entries []Entry, total int) {
-	// Collect matching entries in reverse chronological order (newest first).
 	l.mu.Lock()
-	matched := make([]Entry, 0, len(l.entries))
-	for i := len(l.entries) - 1; i >= 0; i-- {
-		e := l.at(i)
+	snapshot := l.newest(len(l.entries))
+	l.mu.Unlock()
+
+	// Collect matching entries in reverse chronological order (newest first).
+	matched := make([]Entry, 0, len(snapshot))
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		e := snapshot[i]
 		if client != "" && e.Client != client {
 			continue
 		}
@@ -187,7 +193,6 @@ func (l *QueryLog) Query(client, outcome string, limit, offset int) (entries []E
 		}
 		matched = append(matched, e)
 	}
-	l.mu.Unlock()
 
 	total = len(matched)
 

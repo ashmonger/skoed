@@ -291,7 +291,12 @@ func TestQueryLogConcurrent(t *testing.T) {
 		others.Add(1)
 		go func(ch <-chan Entry) {
 			defer others.Done()
-			for range ch {
+			for {
+				select {
+				case <-ch:
+				case <-stop:
+					return
+				}
 			}
 		}(ch)
 	}
