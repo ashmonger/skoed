@@ -561,13 +561,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
     for a 409 with an empty leader address)
   * node IDs that differ only by case or a trailing dot verify each
     other's leaves; join has no duplicate-ID check
-- [ ] mTLS — **confirmed in the M50 demo**: Raft over mTLS fails between
-  real hosts (`x509: certificate is valid for 127.0.0.1, ::1, not
-  192.168.1.192`). `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`)
-  sets no `ServerName`, and leaves carry only the node ID, localhost,
-  127.0.0.1 and ::1; tests run on 127.0.0.1 only. A join then adds a voter
-  that never receives Raft traffic, so a 2-voter cluster loses its leader.
-  Needs its own spec; docs warn about it
+- [x] mTLS — Raft over mTLS between real hosts: the Raft dial sets
+  `ServerName` to the peer's node ID, `ResetRaftForJoin` keeps TLS, and a
+  web-UI join installs the leader's CA and leaf
+  (`decisions/20261126-MtlsServerNameByNodeId.md`, FS-ClusterJoinWebUiMtls);
+  validated on three Proxmox hosts, `demos/mtls-cross-host/DEMO_NOTE.md` — 2026-11-26
+- [ ] Cluster — a join that adds a voter which cannot be reached leaves a
+  2-voter cluster without a leader
 - [ ] Cluster — a joining node with an empty bootstrap token silently starts
   its own single-node cluster
 - [ ] Cluster — the used `bootstrap:` token stays in config.yaml and every
@@ -575,7 +575,11 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   bootstrap"
 - [ ] Docs — `docs/src/cluster/bootstrap.md` shows `curl -u admin:…`, but
   HTTP Basic auth returns 401; only a Bearer token from `/auth/login` works
-- [ ] mTLS — `ResetRaftForJoin` rebuilds Raft without the TLS stream layer
+- [ ] Cluster — at first start, a node logs `members without capability
+  blocklist-content-v1` naming itself (once, before its record is written)
+- [ ] Cluster — `cluster_id` is empty in the join responses and in
+  `/cluster/status`, and `api_address` reports the listen address
+  (`0.0.0.0:8080`) instead of a reachable one
 - [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
   rebuild can start DNSCrypt with a handler built before `main` finished
