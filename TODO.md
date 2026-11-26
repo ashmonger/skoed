@@ -82,7 +82,6 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M37 | Schedule Binding Web UI + Bulk Operations | ✅ | v0.3.3 | [note](demos/m37/DEMO_NOTE.md) · [report](demos/m37/test-report.html) | — | — |
 | M38 | Per-Profile DNSSEC Policy | ✅ | v0.3.3 | [note](demos/m38/DEMO_NOTE.md) · [report](demos/m38/test-report.html) | — | — |
 | M39 | Prometheus Histograms + Grafana | ✅ | v0.3.3 | [note](demos/m39/DEMO_NOTE.md) · [report](demos/m39/test-report.html) | — | — |
-| M40 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 | M41 | Cluster-wide Live Query Stream | ✅ | v0.3.4 | [note](demos/m41/DEMO_NOTE.md) · [report](demos/m41/test-report.html) | [cluster-stream](specs/functional/cluster-wide-live-query-stream.feature) | [cluster-stream](tests/acceptance/cluster_wide_stream_test.go) |
 | M42 | Query Log Stream Enhancements (Backfill + WebSocket) | ✅ | v0.3.4 | [note](demos/m42/DEMO_NOTE.md) · [report](demos/m42/test-report.html) | [stream-enh](specs/functional/query-log-stream-enhancements.feature) | [stream-enh](tests/acceptance/query_log_stream_enhancements_test.go) |
 | M43 | DNSSEC Detail on Query Stream | ✅ | v0.3.4 | [note](demos/m43/DEMO_NOTE.md) · [report](demos/m43/test-report.html) | [dnssec-stream](specs/functional/dnssec-detail-query-stream.feature) | [dnssec-stream](tests/acceptance/dnssec_detail_stream_test.go) |
@@ -90,8 +89,6 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M45 | API Token Enhancements | ⬜ | — | — | — | — |
 | M46 | High-Cardinality Metrics | ⬜ | — | — | — | — |
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
-| M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
-| M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
 | M50 | Hardening & Technical Debt | 🔄 | — | — | [audit](SECURITY_AUDIT.md) · [blocklist-content](specs/functional/blocklist-content-distribution.feature) | — |
 
 ## M12 tasks

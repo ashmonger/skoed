@@ -1206,47 +1206,6 @@ Node certificate rotation:
 
 ---
 
-### Milestone 40 — Companion / Remote-Admin App
-
-**Outcome**: Authorized operators can view the query log, browse aggregated stats, manage profiles, and toggle filtering pause from a mobile browser or native app when away from the LAN, using an API token for authentication.
-
-**Capabilities:**
-- Progressive Web App (PWA) hosted at `/app` on each skoed node: installable from browser on Android and iOS, works offline for last-fetched data.
-- Query log viewer: paginated list with domain, client, outcome, timestamp; filter by outcome (blocked/forwarded/local) and time range; deep-link to blocklist detail for blocked entries.
-- Cluster-wide aggregate stats card (reuses M19 `/api/v1/query-log/aggregates`): block rate, unique clients, top blocked domains.
-- Profile list: show active schedules, pause status, blocklist count per profile; toggle per-profile pause (requires write-scoped token).
-- Global filtering pause toggle (requires admin-scoped token); countdown chip with "Resume now" action.
-- Authentication: Bearer token (API token from M7/M20); stored in browser credential store or OS keychain. No username/password on the app — token only.
-- Remote access: app works over the internet when the operator exposes the skoed API port (or sets up a reverse proxy); no skoed-side relay or TURN server is added.
-
-**Non-goals:**
-- Full configuration management (blocklist add/delete, local DNS entry management, cluster ops) — those remain in the existing web admin at `/`
-- Push notifications for pause expiry or new device detection
-- Self-hosted relay / zero-config remote access (operator is responsible for port exposure or VPN)
-
-**Dependencies:** M7 API tokens; M19 query log aggregates; M20 token scoping (companion uses read or write token, never admin); M23 Skoed4Phone (shares PWA infrastructure with the companion app).
-
-### Milestone 41 — Cluster-wide Live Query Stream ✅ shipped v0.3.4
-
-**Outcome**: An admin opens a single SSE connection to any cluster node and receives real-time DNS query events from all nodes in the Raft cluster, not just the node they connected to.
-
-**Capabilities:**
-- The connected node acts as an aggregator: it subscribes to its own `QueryLog` and opens a fan-in subscription to every peer node's `/api/v1/query-log/stream` endpoint using the cluster inter-node Bearer token.
-- Events from all nodes are merged and forwarded to the client in arrival order. Each event carries a `node_id` field identifying which cluster node processed the query.
-- Deduplication: leader re-elections or momentary double-subscription must not produce duplicate events on the client stream. Use a short (100 ms) dedup window keyed on `(node_id, domain, client_ip, timestamp)`.
-- Filters (`?profile_id=`, `?result=`, `?domain=`) are applied after fan-in, before delivery.
-- Graceful degradation: if a peer node's stream subscription fails (node down, network partition), the aggregator logs the failure and continues streaming from the remaining nodes. A synthetic `event: node_unavailable` frame is sent to the client.
-- Keep-alive comments are sent every 15 s as in M29.
-
-**Non-goals:**
-- Cross-cluster (multi-cluster) aggregation
-- WebSocket transport (covered by M42)
-- Historical replay (covered by M42)
-
-**Dependencies:** M29 Live Query Stream (per-node SSE); M2 Raft cluster (peer address discovery); M20 cluster security (inter-node Bearer token).
-
----
-
 ### Milestone 42 — Query Log Stream Enhancements (Backfill + WebSocket) ✅ shipped v0.3.4
 
 **Outcome**: The live query stream is more useful in two operational scenarios: (1) operators connecting mid-session see recent context immediately; (2) operators in corporate environments where SSE is stripped by reverse proxies can use a WebSocket transport instead.
@@ -1609,47 +1568,6 @@ Node certificate rotation:
 - OS-level package upgrade (binary swap only; `apt upgrade skoed` is separate)
 
 **Dependencies:** M16 Binary Swap (the swap and backup mechanism); M18 Rolling Cluster Upgrade (the orchestrator and status polling endpoint); M22 Webhooks (for rollback and signature-failure events).
-
----
-
-### Milestone 48 — Skoed4Phone: DNS-over-VPN
-
-**Outcome**: Mobile devices (iOS and Android) can have all their DNS traffic silently routed to the user's skoed cluster over a local VPN tunnel, receiving the same filtering and profile enforcement as any other device on the network — even when off-site.
-
-**Capabilities:**
-- **Android VPN service**: an Android app that activates the system `VpnService`, routes only port-53 UDP/TCP traffic into the tunnel, and forwards queries to the user's skoed cluster via DoH3. No root required; standard Android VPN profile. Uses the existing M7 API token for cluster authentication.
-- **iOS Network Extension**: equivalent implementation using the iOS `NEPacketTunnelProvider` API (App Store distribution), routing only DNS traffic.
-- **LAN detection**: when the device is connected to a network whose prefix matches the configured `home_network` (e.g., `10.0.0.0/24`), the VPN tunnel is suspended and DNS resolves normally via the LAN. Resumes automatically when the device leaves the LAN.
-- **On-device blocklist cache**: a periodic background fetch of the cluster's active blocklist snapshot, stored on-device. When the cluster is unreachable, the app answers DNS queries from the local cache (forwarding allowed domains to `1.1.1.1`). Cache TTL configurable (default 24 h).
-- **Battery and data optimization**: queries are batched into the existing DoH3 connection; no persistent socket kept open. Blocklist cache sync uses conditional HTTP (`ETag` / `If-None-Match`).
-- **Companion-app pairing**: uses the same QR-code pairing flow as M40's companion app; the user scans a QR code from the skoed web UI to provision the API token and cluster address.
-
-**Non-goals:**
-- Full skoed cluster participation from the phone (the phone is a DNS client only, not a cluster node)
-- Traffic proxying beyond DNS (HTTP/HTTPS content filtering is out of scope)
-- App Store / Play Store distribution automation (manual submission only; automated pipeline is M49)
-- Windows or macOS VPN clients
-
-**Dependencies:** M7 API Tokens; M8 DoH3 server; M40 Companion App (shares pairing flow and QR provisioning).
-
----
-
-### Milestone 49 — Browser Extension Distribution
-
-**Outcome**: The skoed browser extension (shipped in M22.5 for Firefox + Chrome desktop) is automatically submitted to AMO and the Chrome Web Store on every release, and a Firefox for Android version ships alongside the desktop extension.
-
-**Capabilities:**
-- **AMO automated submission**: the goreleaser pipeline gains a post-release hook that submits the Firefox extension `.zip` to `addons.mozilla.org` via the AMO API (`SIGNING_KEY` / `SIGNING_SECRET` CI secrets). The submission is signed and published automatically; no manual upload step.
-- **Chrome Web Store automated submission**: a separate CI step submits the Chrome extension `.zip` to the CWS Publish API (`CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`). Triggers only on non-pre-release tags.
-- **Firefox for Android (MV2)**: the existing desktop extension source (MV2-compatible) is adapted for Android via the same Vite + WXT build. The Android build target adds the `android` platform key and disables features not supported on mobile (popup size constraints, service worker fallbacks). The `.xpi` artifact is included in the AMO submission as a multi-platform extension.
-- **Version consistency gate**: CI blocks the extension submission if the extension manifest version does not match the goreleaser binary version tag.
-
-**Non-goals:**
-- Safari extension (requires Apple Developer Program enrollment; not planned)
-- Extension settings sync across browser profiles
-- DNS filtering rule changes from the browser popup (the extension is a notification bridge only; filtering management is via the web UI)
-
-**Dependencies:** M22.5 Browser Extension (the extension source tree and build pipeline); M11 Distribution (the goreleaser release pipeline).
 
 ---
 
