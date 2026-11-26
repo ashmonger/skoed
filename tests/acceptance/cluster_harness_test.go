@@ -177,6 +177,33 @@ func startClusterMTLSAcrossAddresses(t *testing.T, initialNodes int) *Cluster {
 	return startClusterMTLSOn(t, initialNodes, true)
 }
 
+// startSingleNodeMTLSOn starts one node with mTLS enabled as its own
+// single-node cluster, bound to host: the node generates its own cluster CA
+// at start. nodeID must differ from the node IDs of any cluster it joins
+// later. As with startClusterMTLSAcrossAddresses, the TLS errors in the
+// node's output are logged if the test fails.
+func startSingleNodeMTLSOn(t *testing.T, nodeID, host string) *Cluster {
+	t.Helper()
+	bin := skoedBinary(t)
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
+	}
+	c := &Cluster{t: t, bin: bin, mtls: true, distinctHosts: true}
+	t.Cleanup(func() { c.logTLSErrorsOnFailure(t) })
+	cn := c.spawnNode(t, M2NodeConfig{
+		NodeID:             nodeID,
+		Host:               host,
+		DNSPort:            freeUDPPort(t),
+		APIPort:            freeTCPPort(t),
+		RaftPort:           freeRaftPort(t),
+		ClusterMTLSEnabled: true,
+	})
+	c.nodes = append(c.nodes, cn)
+	c.waitNodeReady(t, cn)
+	setupAuth(t, cn.Node)
+	return c
+}
+
 func startClusterMTLSOn(t *testing.T, initialNodes int, distinctHosts bool) *Cluster {
 	t.Helper()
 	if initialNodes < 1 {
@@ -500,7 +527,9 @@ func (c *Cluster) nextHost() string {
 
 // logTLSErrorsOnFailure logs, when t has failed, the lines of each node's
 // last output that report a TLS error, once per node and message: Raft
-// retries a failing dial several times a second.
+// retries a failing dial several times a second. "unknown rpc type 22" is
+// included: it is a Raft listener without TLS reading a TLS handshake
+// record (type 22), so a peer dials with TLS a node that does not use it.
 func (c *Cluster) logTLSErrorsOnFailure(t *testing.T) {
 	if !t.Failed() {
 		return
@@ -511,7 +540,8 @@ func (c *Cluster) logTLSErrorsOnFailure(t *testing.T) {
 		}
 		seen := map[string]bool{}
 		for _, line := range strings.Split(cn.Node.output.String(), "\n") {
-			if !strings.Contains(line, "tls:") && !strings.Contains(line, "x509:") {
+			if !strings.Contains(line, "tls:") && !strings.Contains(line, "x509:") &&
+				!strings.Contains(line, "unknown rpc type 22") {
 				continue
 			}
 			// Drop the leading timestamp to compare the messages.
