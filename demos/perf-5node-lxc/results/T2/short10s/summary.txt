@@ -1,0 +1,3 @@
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+hits10s_n3.txt                               23756   3.86   8.904   6.143  50.175    106.8  NOERROR 238982 (100.00%)
+hits10s_n4.txt                               19994   4.59   9.833   5.375  69.631    390.9  NOERROR 200320 (100.00%)

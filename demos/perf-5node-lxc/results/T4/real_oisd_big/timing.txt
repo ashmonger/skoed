@@ -1,0 +1,7 @@
+leader=n4 create http=201 returned after 1.32 s
+n1 current domain_count=11 after 2.04 s
+n2 current domain_count=11 after 2.04 s
+n3 current domain_count=11 after 2.03 s
+n4 current domain_count=11 after 1.36 s
+n5 current domain_count=11 after 2.02 s
+{"id":"oisd_big","domain_count":11,"content_status":"current","source":{"type":"url","url":"https://big.oisd.nl/"}}

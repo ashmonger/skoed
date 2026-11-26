@@ -583,6 +583,21 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
   rebuild can start DNSCrypt with a handler built before `main` finished
+- [ ] Perf — memory grows without limit under DNS load (≥ 5,000 qps per
+  node): 2 GB containers OOM-killed, 39 kills in the 5-node run; throughput
+  capped at about one core. Suspect: `QueryLog.Append` shifts the ring
+  under a global mutex on every query, goroutines pile up. Needs a heap
+  profile first (`demos/perf-5node-lxc/REPORT.md`) — 2026-11-26
+- [ ] DNS — a node answers queries before its blocklists are loaded (after a
+  rejoin or a restart), so blocked names resolve for a few seconds
+- [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
+  slow down as records accumulate (132 → 11 writes/s at 12,000 records)
+- [ ] Blocklists — OISD in auto format loads 11 junk entries: `detectFormat`
+  decides on the `[Adblock Plus]` header line, sees a space, picks hosts
+- [ ] Blocklists — a deleted URL list's file stays on disk; after a restart
+  `blocklistsync` logs `leader answered 404` for it
+- [ ] Packaging — after a container reboot skoed starts before the IP is
+  set (`bind: cannot assign requested address`), restarted by systemd
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)

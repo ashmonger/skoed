@@ -1,0 +1,11 @@
+target=10.10.10.14 n=2000 conc=1 elapsed=48.00s writes/s=41.7 p50=23.5ms p99=55.0ms max=72.8ms codes={201: 2000}
+target=10.10.10.11 n=2000 conc=1 elapsed=131.84s writes/s=15.2 p50=63.6ms p99=122.3ms max=157.7ms codes={201: 2000}
+target=10.10.10.14 n=2000 conc=8 elapsed=147.83s writes/s=13.5 p50=589.8ms p99=720.1ms max=775.5ms codes={201: 2000}
+target=10.10.10.11 n=2000 conc=8 elapsed=164.39s writes/s=12.2 p50=657.8ms p99=807.7ms max=859.2ms codes={201: 2000}
+target=10.10.10.14 n=2000 conc=32 elapsed=173.64s writes/s=11.5 p50=2785.4ms p99=3007.1ms max=3156.5ms codes={201: 2000}
+target=10.10.10.11 n=2000 conc=32 elapsed=182.19s writes/s=11.0 p50=2921.5ms p99=3159.6ms max=3513.7ms codes={201: 2000}
+follower=10.10.10.11 samples=50 p50=40.2ms p90=52.1ms p99=57.4ms max=57.4ms mean=35.9ms
+follower=10.10.10.12 samples=50 p50=38.9ms p90=55.9ms p99=72.4ms max=72.4ms mean=38.3ms
+follower=10.10.10.13 samples=50 p50=38.9ms p90=55.1ms p99=58.8ms max=58.8ms mean=37.4ms
+follower=10.10.10.15 samples=50 p50=31.6ms p90=52.4ms p99=72.6ms max=72.6ms mean=32.8ms
+[{"first_log_index":23860,"last_log_index":24234,"last_snapshot_index":24082},[24234,24234,24234,24234,24234]]

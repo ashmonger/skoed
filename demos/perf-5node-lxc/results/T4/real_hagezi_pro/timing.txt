@@ -1,0 +1,7 @@
+leader=n4 create http=201 returned after 1.67 s
+n1 current domain_count=504794 after 2.60 s
+n2 current domain_count=504794 after 2.84 s
+n3 current domain_count=504794 after 2.83 s
+n4 current domain_count=504794 after 1.69 s
+n5 current domain_count=504794 after 2.80 s
+{"id":"hagezi_pro","domain_count":504794,"content_status":"current","source":{"type":"url","url":"https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/domains/pro.txt","format":"auto"}}

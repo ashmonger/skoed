@@ -1,0 +1,3 @@
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+rate_10000.txt                                9812   1.86   3.790   0.399  75.775    197.3  NOERROR 196271 (100.00%)
+rate_5000.txt                                 4992   0.15   1.083   0.287  23.551     84.4  NOERROR 99849 (100.00%)

@@ -1,0 +1,9 @@
+mode=service leader=n5 load on n1 n2, writes to n1
+stop issued at +15.00s, returned after 1.66s
+API on followers reports new leader n4 after 270.04s
+journal: n4 entering leader state at +41.66s after stop
+writes to n1: first 2xx after stop at +0.03s, failed writes after stop: 9
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+old leader n5 back in sync after 539.86s (commit 24345)
+old leader n5 blocks sample domain after 540.63s

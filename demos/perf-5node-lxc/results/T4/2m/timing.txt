@@ -1,0 +1,14 @@
+leader=n4 create http=201 returned after 2.41 s
+leader API domain_count=2000000 after 2.42 s
+n1 blocks after 4.90 s
+n2 blocks after 5.12 s
+n3 blocks after 5.09 s
+n4 blocks after 2.49 s
+n5 blocks after 5.11 s
+n1 {"domain_count":2000000,"content_status":"current"}
+n2 {"domain_count":2000000,"content_status":"current"}
+n3 {"domain_count":2000000,"content_status":"current"}
+n4 {"domain_count":2000000,"content_status":"current"}
+n5 {"domain_count":2000000,"content_status":"current"}
+{"first_log_index":1,"last_log_index":76,"last_snapshot_index":69}
+window 1795690329 1795690349
