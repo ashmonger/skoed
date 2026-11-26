@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/skoed/skoed/internal/config"
@@ -59,6 +60,9 @@ type Cluster struct {
 	mtlsCA       []byte
 	mtlsLeafCert []byte
 	mtlsLeafKey  []byte
+	// raftTLSConfig is the TLS config of the Raft stream layer built in
+	// New; ResetRaftForJoin builds the new stream layer with it.
+	raftTLSConfig *tls.Config
 
 	// M50 — peer HTTP over the cluster mTLS (peer_http.go).
 	peer peerState
@@ -170,6 +174,7 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		c.mtlsCA = caCertPEM
 		c.mtlsLeafCert = leafCertPEM
 		c.mtlsLeafKey = leafKeyPEM
+		c.raftTLSConfig = tlsCfg
 		c.mtlsEnabled = true
 		// Seed this node's cert expiry at startup so CertStatus() can return
 		// per-node data before the first explicit cert rotation.
@@ -255,20 +260,49 @@ func (c *Cluster) ResetRaftForJoin() error {
 		c.applyCounter.Add(1)
 		c.fireSubscribers()
 	})
+	// On an mTLS cluster, the new node needs its own TLS stream layer: the
+	// old one was closed with the old transport in Shutdown.
+	var streamLayer *TLSStreamLayer
+	if c.mtlsEnabled {
+		advAddr, err := net.ResolveTCPAddr("tcp", c.node.Node.RaftAddress)
+		if err != nil {
+			return fmt.Errorf("resolve raft advertise: %w", err)
+		}
+		streamLayer, err = listenRaftTLS(c.node.Node.RaftAddress, advAddr, c.raftTLSConfig)
+		if err != nil {
+			return fmt.Errorf("tls stream layer: %w", err)
+		}
+	}
 	rn, err := newRaftNode(raftOptions{
-		NodeID:        c.node.Node.ID,
-		BindAddr:      c.node.Node.RaftAddress,
-		AdvertiseAddr: c.node.Node.RaftAddress,
-		DataDir:       dataDir,
-		Bootstrap:     false,
+		NodeID:         c.node.Node.ID,
+		BindAddr:       c.node.Node.RaftAddress,
+		AdvertiseAddr:  c.node.Node.RaftAddress,
+		DataDir:        dataDir,
+		Bootstrap:      false,
+		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
+		// newRaftNode has closed streamLayer.
 		return fmt.Errorf("restart raft: %w", err)
 	}
 	c.raftMu.Lock()
 	c.raft = rn
 	c.raftMu.Unlock()
 	return nil
+}
+
+// listenRaftTLS creates the TLS stream layer on bindAddr. Shutdown closes
+// the old listener before returning, so the address is normally free; a
+// short, bounded retry on EADDRINUSE covers a slow release.
+func listenRaftTLS(bindAddr string, advertise net.Addr, cfg *tls.Config) (*TLSStreamLayer, error) {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		sl, err := NewTLSStreamLayer(bindAddr, advertise, cfg)
+		if err == nil || !errors.Is(err, syscall.EADDRINUSE) || time.Now().After(deadline) {
+			return sl, err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // currentRaft returns the Raft node, read under raftMu.
