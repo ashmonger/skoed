@@ -7,6 +7,7 @@ x-fsid-links:
   - FS-MtlsJoinDistributesCA
   - FS-MtlsRejectsUntrustedPeer
   - FS-MtlsInternalApiHTTPS
+  - FS-ClusterJoinWebUiMtls
 ---
 
 # TS-EncryptedClusterMesh — mTLS for Raft + internal API
@@ -182,6 +183,34 @@ cluster secret are covered by Go unit tests in `internal/cluster` and
 4. Joining node writes the bundle to its `<data_dir>/tls/cluster/`,
    then proceeds with the existing Raft enrolment flow — its Raft
    transport now uses TLS.
+
+**Join through the web UI** (`POST /api/v1/node/join-cluster`,
+FS-ClusterJoinWebUiMtls; added 2026-11-26). The node is a running
+single-node cluster that generated its own CA at start. With
+`mtls.enabled`, before it resets its Raft state, it:
+
+1. POSTs `{token, node_id}` to the leader's
+   `/api/v1/cluster/mtls-bootstrap` (main API, same call as the config
+   bootstrap path in `cmd/skoed/main.go`) and receives the cluster CA, a
+   leaf for its node ID and the leaf key. If this fails, nothing is
+   changed and the handler returns the error; the node stays a working
+   single-node cluster with its own CA.
+2. Writes the bundle to `<data_dir>/tls/cluster/` (tmp file + rename for
+   each file) and removes its own CA key, which no longer signs anything.
+3. Reloads the cluster certificates in the running process: the peer
+   listener and the peer clients switch to the new CA and leaf (the peer
+   server takes its client-CA pool from the current certificate cache per
+   handshake, and the peer client transports are rebuilt when the cache's
+   CA changes).
+4. `ResetRaftForJoin` builds the Raft TLS config from the files on disk
+   (`LoadClusterCA`, `EnsureNodeLeaf`, `BuildClusterTLSConfig`), never
+   from a copy taken at start, so it uses the cluster CA (and a rotated
+   leaf after a rotation).
+5. Sends `/api/v1/cluster/join` as today.
+
+If the join fails after step 2, the node keeps the cluster CA and leaf
+and its reset Raft state, as a failed join does today; the administrator
+retries with a new token.
 
 **Joining without a leader available:** the existing token TTL +
 single-use guarantees apply unchanged. A token leaked to an attacker

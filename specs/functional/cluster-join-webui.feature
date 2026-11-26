@@ -66,3 +66,14 @@ Feature: Cluster join via web UI
     When the administrator pastes an invalid or incomplete payload and clicks "Join"
     Then a validation error is shown before the join request is sent
     And the node remains in single-node mode
+
+  @fsid:FS-ClusterJoinWebUiMtls
+  Scenario: A node joins an mTLS cluster through its web UI
+    Given the leader runs with mTLS enabled
+    And a second skoed node with mTLS enabled runs as a single-node cluster on another address
+    And the administrator has a valid join payload copied from the leader
+    When the administrator pastes the join payload into the new node's join dialog and clicks "Join"
+    Then within 30 seconds the new node appears in the nodes table of both nodes
+    And the new node's blocklist configuration matches the leader's
+    And a configuration change sent to the new node is applied on the leader
+    And the new node holds the cluster's CA and a certificate for its own node ID, not the CA it generated as a single node
