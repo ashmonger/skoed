@@ -82,7 +82,7 @@ func (c *Cluster) initPeer() error {
 	if !c.mtlsEnabled {
 		return nil
 	}
-	cc, err := NewCertCache(c.mtlsCA, c.mtlsLeafCert, c.mtlsLeafKey)
+	cc, err := NewCertCache(c.mtlsMaterial())
 	if err != nil {
 		return fmt.Errorf("peer cert cache: %w", err)
 	}
@@ -124,12 +124,13 @@ func (c *Cluster) SelfPeerAPIURL() string {
 
 // PeerServerTLSConfig returns the TLS config of the peer API listener: this
 // node's leaf from the cert cache, and a client certificate signed by the
-// cluster CA required from every client.
+// cluster CA required from every client. Both are read from the cert cache
+// at each handshake, so ReloadClusterCerts applies to new connections.
 func (c *Cluster) PeerServerTLSConfig() (*tls.Config, error) {
 	if !c.mtlsEnabled || c.peer.certCache == nil {
 		return nil, errors.New("mTLS is not enabled on this node")
 	}
-	cfg, err := BuildClusterTLSConfigDynamic(c.peer.certCache, c.mtlsCA)
+	cfg, err := BuildClusterTLSConfigDynamic(c.peer.certCache)
 	if err != nil {
 		return nil, err
 	}
