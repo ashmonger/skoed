@@ -86,16 +86,23 @@ var (
 
 // TestQueryLogMatchesReference runs random sequences of Append,
 // SetMaxEntries, Query, Snapshot and MaxEntries against QueryLog and the
-// reference model and requires identical results, nil-ness included.
+// reference model and requires identical results, nil-ness included. It
+// also counts the ring buffer states the sequences reach, so a change to the
+// generator cannot silently stop covering them.
 func TestQueryLogMatchesReference(t *testing.T) {
+	var wraps, shrinksWhileWrapped, growsAfterShrink int
 	for seed := int64(1); seed <= 200; seed++ {
 		rng := rand.New(rand.NewSource(seed))
 		initial := rng.Intn(12) - 2 // -2..9: covers negative and zero
 		got, want := New(initial), newRefLog(initial)
 		seq := 0
+		shrunk := false
 		for step := 0; step < 400; step++ {
 			switch op := rng.Intn(20); {
 			case op < 12:
+				if got.maxEntries > 0 && len(got.entries) == got.maxEntries {
+					wraps++
+				}
 				seq++
 				e := Entry{
 					ID:        fmt.Sprintf("id-%d", seq),
@@ -108,6 +115,14 @@ func TestQueryLogMatchesReference(t *testing.T) {
 				want.Append(e)
 			case op < 14:
 				n := rng.Intn(14) - 2
+				if n < len(got.entries) {
+					shrunk = true
+					if got.start != 0 {
+						shrinksWhileWrapped++
+					}
+				} else if shrunk && n > got.maxEntries {
+					growsAfterShrink++
+				}
 				got.SetMaxEntries(n)
 				want.SetMaxEntries(n)
 				if got.MaxEntries() != want.maxEntries {
@@ -130,6 +145,11 @@ func TestQueryLogMatchesReference(t *testing.T) {
 				}
 			}
 		}
+	}
+	t.Logf("wraps=%d shrinksWhileWrapped=%d growsAfterShrink=%d", wraps, shrinksWhileWrapped, growsAfterShrink)
+	if wraps == 0 || shrinksWhileWrapped == 0 || growsAfterShrink == 0 {
+		t.Fatalf("sequences missed a state: wraps=%d shrinksWhileWrapped=%d growsAfterShrink=%d",
+			wraps, shrinksWhileWrapped, growsAfterShrink)
 	}
 }
 
@@ -165,8 +185,51 @@ func TestZeroMaxEntriesStillNotifies(t *testing.T) {
 		t.Fatalf("subscriber got %+v", e)
 	}
 	l.Unsubscribe(id)
-	if _, ok := <-ch; ok {
-		t.Fatal("channel still open after Unsubscribe")
+	l.Append(Entry{Domain: "b.example"})
+	select {
+	case e, ok := <-ch:
+		t.Fatalf("got %+v (open=%v) after Unsubscribe, want nothing", e, ok)
+	default:
+	}
+}
+
+// TestUnsubscribeDuringAppend unsubscribes while other goroutines append.
+// Append sends to the channels it read under the lock after releasing it,
+// so Unsubscribe must not close a channel that Append may still send to:
+// a send on a closed channel panics, even in a select with a default case.
+func TestUnsubscribeDuringAppend(t *testing.T) {
+	l := New(100)
+	stop := make(chan struct{})
+	panics := make(chan any, 4)
+	var wg sync.WaitGroup
+	for w := 0; w < 4; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					panics <- r
+				}
+			}()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				l.Append(Entry{ID: "fixed"})
+			}
+		}()
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(panics) == 0 {
+		id, _ := l.Subscribe()
+		l.Unsubscribe(id)
+	}
+	close(stop)
+	wg.Wait()
+	if len(panics) > 0 {
+		t.Fatalf("Append panicked: %v", <-panics)
 	}
 }
 
