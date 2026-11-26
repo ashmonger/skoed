@@ -4,17 +4,20 @@ Build `skoed v0.5.0-15-gfd5fa72` (commit fd5fa72, go1.27.4, branch
 `feature/mtls-cross-host`), five nodes in LXC containers on
 `ns3081405.ip-147-135-254.eu`. Raw summaries are under `results/`; the
 full outputs, the scripts and a 1 s per-container sampler CSV are on the
-host in `/root/perf/`.
+host in `/root/perf/`. `test-report.html` has the same results with
+graphs.
 
 ## Summary
 
 * **The DNS path runs out of memory under sustained load.** Above about
   5,000 qps per node, a 2 GB container fills its RAM and 512 MB swap within
-  seconds to a minute and skoed is OOM-killed. 39 OOM kills were recorded
-  over the run. Each kill moves leadership if it hits the leader, and the
-  restarted node answers queries unfiltered until its blocklists are loaded
-  again. This is the main finding and it blocks any capacity claim above a
-  few thousand qps.
+  seconds to a minute and skoed is OOM-killed: 36 kills over the run. Each
+  kill moves leadership if it hits the leader, and the restarted node
+  answers queries unfiltered until its blocklists are loaded again. In the
+  15-minute soak every node stopped answering after 2–5 minutes, and 45
+  minutes after the load stopped the nodes still held 2.0 GB and used about
+  one core each. This is the main finding and it blocks any capacity claim
+  above a few thousand qps.
 * **Throughput is capped at about one core per node.** A single node peaks
   at 17,000–24,000 qps for cached or blocked names and 5,500–7,500 qps for
   cache misses, using 1–1.3 of its 2 cores. At 5,000 qps p50 is 0.29 ms; at
@@ -97,8 +100,8 @@ follower.
 | cached | 9,186–10,641 qps | 49,780 qps | 3.4–3.8 % | 12–14 / 76–135 |
 | 70 % cached, 20 % miss, 10 % blocked | 7,453–8,063 qps | 39,487 qps | 4.3–4.6 % | 19–24 / 84–147 |
 
-The host CPU was saturated. 4 OOM kills during the cached run, 5 in the
-minute after the mixed run ended.
+The host CPU was saturated. 9 OOM kills: 4 during the cached run, 1 just
+after it, 4 in the minute after the mixed run ended.
 
 ### T4 — Blocklist size (each list replaces the previous one)
 
@@ -188,19 +191,42 @@ answers DNS after 2.4 s, blocks after 2.3 s and has caught up after 10.8 s
 
 ### T10 — Soak, 15 min (public lists, target 4,000 qps per node)
 
-The nodes reached 1.9 GB of RSS in the first minute, then stayed at
-2.0 GB with swap full and 100–120 % CPU for the whole run, serving only
-295–628 qps each (loss 2.4–5.5 %, p99 72–401 ms). 1 OOM kill. Disk did not
-grow (`/var/lib/skoed` 19.6 MB, the query log is in memory only). The
-blocked share of this mix and the write loop are not valid (list deleted
-before the run, script error), so this test only shows the memory
-behavior.
+Answered queries per second, per minute (dnsperf `-S 60`):
+
+| node | min 1 | min 2 | min 3 | min 4 | min 5–14 |
+|---|---|---|---|---|---|
+| n1 | 3,853 | 3,623 | 1,792 | 144 | 0 |
+| n2 | 3,785 | 539 | 16 | 76 | 0–1 |
+| n3 | 3,773 | 1,028 | 0 | 0 | 0 |
+| n4 | 3,718 | 1,229 | 0 | 46 | 0 |
+| n5 | 3,815 | 1,395 | 43 | 10 | 0 |
+
+Every node served the target in the first minute, then stopped answering.
+dnsperf's averages for the run (295–628 qps, loss 2.4–5.5 %) hide this,
+because it sends few queries once they all time out. The nodes reached
+1.9 GB of RSS in the first minute and stayed at 2.0 GB with swap full and
+100–120 % CPU for the whole run.
+
+The memory is not released when the load stops (13:36:20). n2 was killed
+at 13:46:49, 10 minutes later. The four other nodes kept 2.0 GB of RSS,
+swap full and still slowly growing, and used 88–112 % CPU with no DNS load
+until the cluster was rebuilt for T6, 45 minutes later:
+
+```
+time  ct   skoed unit memory  skoed RSS
+13:50 201  2019 MiB           2,042,740 kB
+14:28 201  2032 MiB           2,065,636 kB
+```
+
+Disk did not grow (`/var/lib/skoed` 19.6 MB, the query log is in memory
+only). The blocked share of this mix and the write loop are not valid
+(list deleted before the run, script error).
 
 ## Findings
 
 1. **Memory grows without limit on the DNS path under load.** RSS climbs
-   at 50–200 MB/s from 5,000–10,000 qps and keeps climbing for a while
-   after the load stops:
+   at 50–200 MB/s from 5,000–10,000 qps and is not released when the load
+   stops (T10: 2.0 GB and about one core per node, 45 minutes later):
 
    ```
    Memory cgroup out of memory: Killed process 33539 (skoed) total-vm:3876392kB, anon-rss:2053504kB

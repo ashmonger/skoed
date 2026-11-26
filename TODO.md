@@ -584,8 +584,9 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
   rebuild can start DNSCrypt with a handler built before `main` finished
 - [ ] Perf — memory grows without limit under DNS load (≥ 5,000 qps per
-  node): 2 GB containers OOM-killed, 39 kills in the 5-node run; throughput
-  capped at about one core. Suspect: `QueryLog.Append` shifts the ring
+  node): 2 GB containers OOM-killed, 36 kills in the 5-node run; the
+  memory is not released after the load stops (2.0 GB and one core busy 45
+  min later); throughput capped at about one core. Suspect: `QueryLog.Append` shifts the ring
   under a global mutex on every query, goroutines pile up. Needs a heap
   profile first (`demos/perf-5node-lxc/REPORT.md`) — 2026-11-26
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
