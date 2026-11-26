@@ -159,6 +159,18 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create raft: %w", err)
 	}
+	if opts.TLSStreamLayer != nil {
+		// Raft dials only servers of its latest configuration. In
+		// hashicorp/raft v1.8.0, GetConfiguration reads that configuration
+		// from an atomic value instead of asking the main loop, so calling
+		// it from Raft's own replication and election goroutines cannot
+		// deadlock, and the leader stores a new configuration before it
+		// starts replicating to an added voter. A dial made before this
+		// point fails and Raft retries it.
+		opts.TLSStreamLayer.SetServerIDResolver(func(address raft.ServerAddress) (raft.ServerID, bool) {
+			return serverIDByAddress(r.GetConfiguration().Configuration(), address)
+		})
+	}
 
 	if opts.Bootstrap {
 		fut := r.BootstrapCluster(raft.Configuration{
