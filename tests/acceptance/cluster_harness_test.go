@@ -54,13 +54,22 @@ type Cluster struct {
 	// mtls opt-in: when true, every node spawned in this cluster gets
 	// node.cluster.mtls.enabled=true. M5.3 tests flip this via startClusterMTLS.
 	mtls bool
+	// distinctHosts opt-in: when true, the n-th node of the cluster binds its
+	// Raft, peer and main API listeners to its own loopback address,
+	// 127.0.0.(n+1), instead of 127.0.0.1, as nodes on separate hosts would.
+	// startClusterMTLSAcrossAddresses flips it.
+	distinctHosts bool
 }
 
 // ClusterNode wraps a Node with the bookkeeping needed to kill and restart it.
 type ClusterNode struct {
 	*Node
-	NodeID   string
-	DataDir  string
+	NodeID  string
+	DataDir string
+	// Host is the address the node's Raft, peer and main API listeners
+	// bind to: 127.0.0.1, or the node's own loopback address when the
+	// cluster uses distinct hosts. DNS listens on every address.
+	Host     string
 	RaftAddr string // host:port for Raft RPC
 	DNSPort  int
 	APIPort  int
@@ -81,7 +90,10 @@ type ClusterNode struct {
 
 // M2NodeConfig drives the config.yaml written before starting an M2 node.
 type M2NodeConfig struct {
-	NodeID   string
+	NodeID string
+	// Host is written to raft_address and api_address; empty means
+	// 127.0.0.1. The peer API keeps its default, <raft host>:<raft port + 1>.
+	Host     string
 	DNSPort  int
 	APIPort  int
 	RaftPort int
@@ -148,6 +160,25 @@ func startClusterEncrypted(t *testing.T, initialNodes int) *Cluster {
 // response. M5.3 tests use this.
 func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
 	t.Helper()
+	return startClusterMTLSOn(t, initialNodes, false)
+}
+
+// startClusterMTLSAcrossAddresses is startClusterMTLS with every node on its
+// own loopback address (node-1 on 127.0.0.2, node-2 on 127.0.0.3, ...), so
+// that Raft and the peer API dial a different address for each peer, as
+// they do across hosts. Linux routes all of 127.0.0.0/8 to the loopback
+// interface, so no setup or root is needed.
+//
+// If the test fails, the TLS errors in each node's last lines of output are
+// logged: across addresses, a peer certificate check by address shows up
+// there and nowhere else.
+func startClusterMTLSAcrossAddresses(t *testing.T, initialNodes int) *Cluster {
+	t.Helper()
+	return startClusterMTLSOn(t, initialNodes, true)
+}
+
+func startClusterMTLSOn(t *testing.T, initialNodes int, distinctHosts bool) *Cluster {
+	t.Helper()
 	if initialNodes < 1 {
 		t.Fatalf("startClusterMTLS: need at least 1 node, got %d", initialNodes)
 	}
@@ -155,7 +186,10 @@ func startClusterMTLS(t *testing.T, initialNodes int) *Cluster {
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
 		t.Skipf("skoed binary not found at %s (set SKOED_BINARY to override)", bin)
 	}
-	c := &Cluster{t: t, bin: bin, mtls: true}
+	c := &Cluster{t: t, bin: bin, mtls: true, distinctHosts: distinctHosts}
+	if distinctHosts {
+		t.Cleanup(func() { c.logTLSErrorsOnFailure(t) })
+	}
 	c.bootstrapFirst(t)
 	setupAuth(t, c.nodes[0].Node)
 	// setupAuth already called loginSession and set sessionToken.
@@ -273,6 +307,7 @@ func (c *Cluster) bootstrapFirst(t *testing.T) {
 	t.Helper()
 	cfg := M2NodeConfig{
 		NodeID:   "node-1",
+		Host:     c.nextHost(),
 		DNSPort:  freeUDPPort(t),
 		APIPort:  freeTCPPort(t),
 		RaftPort: freeRaftPort(t),
@@ -318,6 +353,7 @@ func (c *Cluster) AddNodeAsUser(t *testing.T, uid int) *ClusterNode {
 
 	cfg := M2NodeConfig{
 		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
+		Host:                c.nextHost(),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
 		RaftPort:            freeRaftPort(t),
@@ -345,6 +381,7 @@ func (c *Cluster) AddNodeWithToken(t *testing.T, token string) *ClusterNode {
 	leader := c.Leader(t)
 	cn := c.spawnNode(t, M2NodeConfig{
 		NodeID:              fmt.Sprintf("node-%d", len(c.nodes)+1),
+		Host:                c.nextHost(),
 		DNSPort:             freeUDPPort(t),
 		APIPort:             freeTCPPort(t),
 		RaftPort:            freeRaftPort(t),
@@ -370,7 +407,7 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 
 	n := &Node{
 		DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
-		APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
+		APIBase: fmt.Sprintf("http://%s", net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.APIPort))),
 	}
 	if cfg.DoHPort > 0 {
 		n.DoHAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoHPort)
@@ -388,7 +425,8 @@ func (c *Cluster) spawnNode(t *testing.T, cfg M2NodeConfig) *ClusterNode {
 		Node:        n,
 		NodeID:      cfg.NodeID,
 		DataDir:     dir,
-		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		Host:        nodeHost(cfg),
+		RaftAddr:    net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.RaftPort)),
 		DNSPort:     cfg.DNSPort,
 		APIPort:     cfg.APIPort,
 		RaftPort:    cfg.RaftPort,
@@ -409,7 +447,7 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 	env = append(env, cfg.Env...)
 	n := &Node{
 		DNSAddr: fmt.Sprintf("127.0.0.1:%d", cfg.DNSPort),
-		APIBase: fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort),
+		APIBase: fmt.Sprintf("http://%s", net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.APIPort))),
 	}
 	if cfg.DoHPort > 0 {
 		n.DoHAddr = fmt.Sprintf("127.0.0.1:%d", cfg.DoHPort)
@@ -427,7 +465,8 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 		Node:        n,
 		NodeID:      cfg.NodeID,
 		DataDir:     dir,
-		RaftAddr:    fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
+		Host:        nodeHost(cfg),
+		RaftAddr:    net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.RaftPort)),
 		DNSPort:     cfg.DNSPort,
 		APIPort:     cfg.APIPort,
 		RaftPort:    cfg.RaftPort,
@@ -438,6 +477,51 @@ func (c *Cluster) spawnNodeInDir(t *testing.T, dir string, cfg M2NodeConfig) *Cl
 	n.ports = m2ConfigPorts(cfg)
 	c.startProcess(t, cn)
 	return cn
+}
+
+// nodeHost is the address cfg binds the Raft and main API listeners to.
+func nodeHost(cfg M2NodeConfig) string {
+	if cfg.Host == "" {
+		return "127.0.0.1"
+	}
+	return cfg.Host
+}
+
+// nextHost returns the address of the next node added to c: empty (that is,
+// 127.0.0.1) unless c uses distinct hosts, then 127.0.0.(n+1) for the n-th
+// node, so node-1 gets 127.0.0.2 and no node shares 127.0.0.1 with the other
+// listeners of the test run.
+func (c *Cluster) nextHost() string {
+	if !c.distinctHosts {
+		return ""
+	}
+	return fmt.Sprintf("127.0.0.%d", len(c.nodes)+2)
+}
+
+// logTLSErrorsOnFailure logs, when t has failed, the lines of each node's
+// last output that report a TLS error, once per node and message: Raft
+// retries a failing dial several times a second.
+func (c *Cluster) logTLSErrorsOnFailure(t *testing.T) {
+	if !t.Failed() {
+		return
+	}
+	for _, cn := range c.nodes {
+		if cn.Node.output == nil {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, line := range strings.Split(cn.Node.output.String(), "\n") {
+			if !strings.Contains(line, "tls:") && !strings.Contains(line, "x509:") {
+				continue
+			}
+			// Drop the leading timestamp to compare the messages.
+			_, msg, _ := strings.Cut(strings.TrimSpace(line), " ")
+			if !seen[msg] {
+				seen[msg] = true
+				t.Logf("node %s (%s): %s", cn.NodeID, cn.Host, line)
+			}
+		}
+	}
 }
 
 // m2ConfigPorts lists every port cfg makes a node listen on, for
@@ -655,8 +739,8 @@ func writeConfigYAML(t *testing.T, dir string, cfg M2NodeConfig) {
 	doc := configYAML{
 		Node: nodeSection{
 			ID:          cfg.NodeID,
-			RaftAddress: fmt.Sprintf("127.0.0.1:%d", cfg.RaftPort),
-			APIAddress:  fmt.Sprintf("127.0.0.1:%d", cfg.APIPort),
+			RaftAddress: net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.RaftPort)),
+			APIAddress:  net.JoinHostPort(nodeHost(cfg), strconv.Itoa(cfg.APIPort)),
 			DNS: dnsSection{
 				Listen: listenSection{
 					Port: cfg.DNSPort, IPv4: true, IPv6: false,
@@ -1196,6 +1280,3 @@ func httpDefaultClient() *http.Client { return http.DefaultClient }
 func freePortStr(t *testing.T) string {
 	return strconv.Itoa(freeTCPPort(t))
 }
-
-// _ keeps net imported even if a future change drops the only use above.
-var _ = net.IPv4zero
