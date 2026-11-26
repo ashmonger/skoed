@@ -265,6 +265,8 @@ func runDaemon(cfgPath string) {
 	// M22 — webhook push-alert dispatcher. Declared early so rebuildDNS
 	// and the refresh scheduler can reference it via closures.
 	var webhookDisp *webhook.Dispatcher
+	// OnDeviceNew hook of every DNS handler; nil until webhookDisp starts.
+	var onDeviceNew func(string)
 
 	// M5.1 — Prometheus exporter. Built before the App so we can pass it
 	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
@@ -383,7 +385,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -668,6 +670,11 @@ func runDaemon(cfgPath string) {
 	app.SetWebhookDispatcher(webhookDisp)
 	webhookDisp.Start()
 	defer webhookDisp.Stop()
+	// Stopped before webhookDisp (defers run in reverse order), so the
+	// worker never fires an event on a stopped dispatcher.
+	deviceNewQueue := deviceNewHook(webhookDisp, c)
+	defer deviceNewQueue.Stop()
+	onDeviceNew = deviceNewQueue.Notify
 
 	// M35: pause-expiry watcher — fires filter.pause_expired when a profile
 	// pause reaches its deadline. Runs only on the leader to avoid duplicate events.
@@ -751,7 +758,7 @@ func runDaemon(cfgPath string) {
 		}
 		bootSnap.Defaults()
 		mergeNodeLocal(bootSnap, node)
-		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6)
 		return bootSnap.DNS, handler, nil
 	})
 	if err != nil {
@@ -824,7 +831,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -863,7 +870,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)
@@ -1111,21 +1118,17 @@ func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
 	log.Printf("DNSCrypt keypair rotated (expires %s)", newKeys.ExpiresAt.Format(time.RFC3339))
 }
 
-// deviceNewHook returns a function suitable for HandlerConfig.OnDeviceNew that
-// forwards to the dispatcher's deduplication path and also persists the client
-// to the new-dynamic-client alert list (M35). When disp is nil (e.g. in unit
-// tests that don't wire the dispatcher) the returned value is nil, which the
-// DNS handler treats as "no hook".
-func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster) func(string) {
-	if disp == nil {
-		return nil
-	}
-	return func(clientIP string) {
+// deviceNewHook returns the queue behind HandlerConfig.OnDeviceNew. Its
+// worker forwards each queued client IP to the dispatcher's deduplication
+// path and persists it to the new-dynamic-client alert list (M35), off the
+// DNS path and one IP at a time. disp must not be nil.
+func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster) *dnsengine.DeviceNewQueue {
+	return dnsengine.NewDeviceNewQueue(func(clientIP string) {
 		disp.NotifyDeviceNew(clientIP)
 		if clu != nil {
 			clu.TrackNewDynamicClient(clientIP, time.Now())
 		}
-	}
+	})
 }
 
 // runPauseExpiryWatcher polls all profiles every 5 seconds and fires a
