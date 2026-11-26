@@ -232,16 +232,37 @@ only). The blocked share of this mix and the write loop are not valid
    Memory cgroup out of memory: Killed process 33539 (skoed) total-vm:3876392kB, anon-rss:2053504kB
    ```
 
-   The cause is not confirmed (the goroutine dump was truncated by
-   journald and no heap profile was taken). The most likely explanation is
-   that every query goes through `QueryLog.Append`
-   (`apps/skoed/internal/log/query.go:84`), which shifts the 10,000-entry
-   ring with `copy()` under one global mutex. miekg/dns runs each query in
-   its own goroutine, so when queries arrive faster than that mutex
-   lets them through, goroutines pile up. This would also explain the
-   ceiling of about one core. `Aggregator.Observe`
-   (`apps/skoed/internal/log/aggregates.go:108`) also keeps every distinct
-   domain of the hour in a map, which grows with cache misses.
+   Root cause, confirmed with pprof on n2 (a debug build, 10,000 qps of
+   cached names, `results/diag/`): the memory is goroutine stacks, not
+   heap. miekg/dns runs each query in its own goroutine with no limit, and
+   every query goes through two steps that run one at a time:
+
+   1. `ServeDNS` starts `go h.onDeviceNew(ip)` for every query
+      (`apps/skoed/internal/dns/handler.go:95`). The hook
+      (`deviceNewHook`, `apps/skoed/cmd/skoed/main.go:1119`) calls
+      `TrackNewDynamicClient` (`apps/skoed/internal/cluster/store.go:1983`),
+      which opens a bbolt write transaction every time, even when the IP
+      is already recorded; only the webhook call before it deduplicates.
+      bbolt runs one write transaction at a time and commits each to disk.
+   2. `QueryLog.Append` (`apps/skoed/internal/log/query.go:84`) shifts the
+      10,000-entry ring with `copy()` under one mutex: 60 % of the CPU
+      under load is this `memmove`, which is also the one-core ceiling.
+
+   When queries arrive faster than these two steps let them through,
+   goroutines pile up: 274,239 after 24 s, RSS 1.9 GB, while the heap in
+   use was 160 MB. Of 305,269 goroutines, 169,574 waited for the bbolt
+   write lock and 135,655 for the query-log mutex. Once the load stopped,
+   they drained in about 2 minutes on this node; under swap (T10) the same
+   backlog kept the nodes busy for 45 minutes.
+
+   ```
+   +0s   goroutines=36      rss_kb=52656
+   +5s   goroutines=63531   rss_kb=456336
+   +14s  goroutines=166544  rss_kb=1004480
+   +24s  goroutines=274239  rss_kb=1544292
+   load stopped
+   +120s goroutines=33      rss_kb=458388
+   ```
 2. **Nodes answer DNS before their blocklists are loaded** — after a
    rejoin (3 s in T8) and after every OOM restart — so blocked names are
    resolved during that time.

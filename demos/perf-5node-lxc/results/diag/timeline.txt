@@ -1,0 +1,9 @@
+1795709691 +0s goroutines=36 rss_kb=52656
+1795709706 +5s goroutines=63531 rss_kb=456336
+1795709715 +14s goroutines=166544 rss_kb=1004480
+1795709726 +24s goroutines=274239 rss_kb=1544292
+RSS 1884432 kB > 1.8 GB at +24s: stopping the load
+load stopped at 1795709732
+1795709744 +after+5s goroutines=289739 rss_kb=1978604
+1795709772 +after+30s goroutines=66365 rss_kb=1995756
+1795709863 +after+120s goroutines=33 rss_kb=458388

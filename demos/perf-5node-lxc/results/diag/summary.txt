@@ -1,0 +1,32 @@
+# goroutine groups at +24 s under 10,000 qps (n2, debug build with pprof)
+goroutine profile: total 305269
+169574  < internal/sync.runtime_SemacquireMutex < internal/sync.(*Mutex).lockSlow < internal/sync.(*Mutex).Lock < sync.(*Mutex).Lock < go.etcd.io/bbolt.(*DB).beginRWTx < go.etcd.io/bbolt.(*DB).Begin < go.etcd.io/bbolt.(*DB).Update < internal/cluster.(*Store).TrackNewDynamicClient < internal/cluster.(*Cluster).TrackNewDynamicClient < main.deviceNewHook.1
+135655  < internal/sync.runtime_SemacquireMutex < internal/sync.(*Mutex).lockSlow < internal/sync.(*Mutex).Lock < sync.(*Mutex).Lock < internal/log.(*QueryLog).Append < internal/dns.(*Handler).logCategorised < internal/dns.(*Handler).logEntry < internal/dns.(*Handler).ServeDNS < internal/dns.(*swappableHandler).ServeDNS < github.com/miekg/dns.(*Server).serveDNS
+
+# CPU, 10 s under load
+Time: 2026-11-26 17:15:17 CET
+Duration: 10s, Total samples = 15.27s (152.66%)
+Showing nodes accounting for 10.67s, 69.88% of 15.27s total
+Dropped 322 nodes (cum <= 0.08s)
+Showing top 12 nodes out of 162
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%     11.07s 72.50%  github.com/miekg/dns.(*Server).serveUDPPacket
+     0.01s 0.065% 0.065%     11.03s 72.23%  github.com/miekg/dns.(*Server).serveDNS
+     0.01s 0.065%  0.13%     10.73s 70.27%  github.com/skoed/skoed/internal/dns.(*swappableHandler).ServeDNS
+     0.01s 0.065%   0.2%     10.72s 70.20%  github.com/skoed/skoed/internal/dns.(*Handler).ServeDNS
+         0     0%   0.2%      9.15s 59.92%  github.com/skoed/skoed/internal/dns.(*Handler).logCategorised
+         0     0%   0.2%      9.15s 59.92%  github.com/skoed/skoed/internal/dns.(*Handler).logEntry (inline)
+     0.01s 0.065%  0.26%      9.15s 59.92%  github.com/skoed/skoed/internal/log.(*QueryLog).Append
+     0.01s 0.065%  0.33%      8.96s 58.68%  runtime.typedslicecopy
+     8.65s 56.65% 56.97%      8.65s 56.65%  runtime.memmove
+     1.96s 12.84% 69.81%      1.96s 12.84%  internal/runtime/syscall/linux.Syscall6
+         0     0% 69.81%      1.89s 12.38%  syscall.RawSyscall6
+
+# heap in use under load
+Showing nodes accounting for 128.59MB, 80.53% of 159.68MB total
+Dropped 41 nodes (cum <= 0.80MB)
+Showing top 4 nodes out of 124
+      flat  flat%   sum%        cum   cum%
+   95.56MB 59.85% 59.85%    95.56MB 59.85%  runtime.mallocgc
+   20.50MB 12.84% 72.68%    20.50MB 12.84%  internal/sync.runtime_SemacquireMutex
+       7MB  4.38% 77.07%        7MB  4.38%  strings.(*Builder).Write
