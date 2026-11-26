@@ -948,64 +948,15 @@ func countOpenAnomalies(anomalies []dhcp.Anomaly) int {
 // /api/v1/cluster/join call (kicked off post-cluster.New) consumes the
 // token and runs AddVoter once our Raft is up.
 func mtlsBootstrapFromLeader(node *cluster.NodeYAML) error {
-	body, err := json.Marshal(map[string]string{
-		"token":   node.Bootstrap.Token,
-		"node_id": node.Node.ID,
-	})
+	b, err := cluster.FetchMTLSBundle(node.Bootstrap.LeaderAddress, node.Bootstrap.Token, node.Node.ID)
 	if err != nil {
 		return err
 	}
-	url := node.Bootstrap.LeaderAddress + "/api/v1/cluster/mtls-bootstrap"
-	deadline := time.Now().Add(30 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		buf, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			var r struct {
-				CACertPEM   []byte `json:"ca_cert_pem"`
-				LeafCertPEM []byte `json:"leaf_cert_pem"`
-				LeafKeyPEM  []byte `json:"leaf_key_pem"`
-			}
-			if err := json.Unmarshal(buf, &r); err != nil {
-				return fmt.Errorf("decode mtls-bootstrap response: %w", err)
-			}
-			dir := cluster.MtlsDir(node.Node.DataDir)
-			if err := os.MkdirAll(dir, 0700); err != nil {
-				return err
-			}
-			p := cluster.MtlsPaths(node.Node.DataDir)
-			if err := os.WriteFile(p.CACertFile, r.CACertPEM, 0644); err != nil {
-				return err
-			}
-			if err := os.WriteFile(p.NodeCert, r.LeafCertPEM, 0644); err != nil {
-				return err
-			}
-			if err := os.WriteFile(p.NodeKey, r.LeafKeyPEM, 0600); err != nil {
-				return err
-			}
-			log.Printf("mTLS bundle from %s persisted under %s", node.Bootstrap.LeaderAddress, dir)
-			return nil
-		}
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			return fmt.Errorf("mtls-bootstrap rejected (status %d): %s", resp.StatusCode, string(buf))
-		}
-		lastErr = fmt.Errorf("mtls-bootstrap status %d: %s", resp.StatusCode, string(buf))
-		time.Sleep(500 * time.Millisecond)
+	if err := cluster.InstallMTLSBundle(node.Node.DataDir, b); err != nil {
+		return err
 	}
-	return fmt.Errorf("mtls-bootstrap: %w", lastErr)
+	log.Printf("mTLS bundle from %s persisted under %s", node.Bootstrap.LeaderAddress, cluster.MtlsDir(node.Node.DataDir))
+	return nil
 }
 
 // mergeNodeLocal overlays the node-local DNS listen settings onto a
