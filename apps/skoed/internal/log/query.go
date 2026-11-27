@@ -50,12 +50,20 @@ func newEntryID() string {
 // QueryLog is a bounded in-memory ring buffer of DNS query entries.
 // It is safe for concurrent use.
 type QueryLog struct {
-	mu          sync.Mutex
+	mu sync.Mutex
+	// entries holds at most maxEntries entries. Until it is full, it grows
+	// with append and start is 0. Once full, start is the index of the
+	// oldest entry, and Append overwrites that slot and moves start on, so
+	// the chronological order is entries[start:] followed by entries[:start].
 	entries     []Entry
+	start       int
 	maxEntries  int
-	observer    func(Entry)        // optional fan-out for cluster aggregator
+	observer    func(Entry) // optional fan-out for cluster aggregator
 	subscribers map[uint64]chan Entry
-	nextSubID   uint64
+	// subs lists the channels of subscribers. It is replaced, never
+	// modified, so Append can read it under the lock and send without it.
+	subs      []chan Entry
+	nextSubID uint64
 }
 
 // New creates a QueryLog with the given maximum number of entries.
@@ -72,7 +80,8 @@ func New(maxEntries int) *QueryLog {
 
 // SetObserver registers fn to be called after every Append. Used by the
 // cluster aggregator to count events as they happen without polling the log.
-// fn must be fast (it runs under Append's lock); offload heavy work.
+// fn runs on the goroutine that calls Append, so it must be fast; offload
+// heavy work.
 func (l *QueryLog) SetObserver(fn func(Entry)) {
 	l.mu.Lock()
 	l.observer = fn
@@ -87,18 +96,18 @@ func (l *QueryLog) Append(e Entry) {
 	}
 	l.mu.Lock()
 	if l.maxEntries > 0 {
-		if len(l.entries) >= l.maxEntries {
-			copy(l.entries, l.entries[1:])
-			l.entries = l.entries[:len(l.entries)-1]
+		if len(l.entries) < l.maxEntries {
+			l.entries = append(l.entries, e)
+		} else {
+			l.entries[l.start] = e
+			l.start++
+			if l.start == len(l.entries) {
+				l.start = 0
+			}
 		}
-		l.entries = append(l.entries, e)
 	}
 	obs := l.observer
-	// Snapshot subscriber channels while holding the lock, then send without it.
-	subs := make([]chan Entry, 0, len(l.subscribers))
-	for _, ch := range l.subscribers {
-		subs = append(subs, ch)
-	}
+	subs := l.subs
 	l.mu.Unlock()
 	if obs != nil {
 		obs(e)
@@ -113,25 +122,54 @@ func (l *QueryLog) Append(e Entry) {
 
 // Subscribe registers a new SSE stream subscriber. Returns an id used to
 // Unsubscribe and a channel that receives each appended entry. The channel is
-// buffered; slow consumers may miss entries if they fall behind.
+// buffered; slow consumers may miss entries if they fall behind. The channel
+// is never closed, so consumers stop on their own signal (e.g. a context).
 func (l *QueryLog) Subscribe() (uint64, <-chan Entry) {
 	ch := make(chan Entry, 64)
 	l.mu.Lock()
 	id := l.nextSubID
 	l.nextSubID++
 	l.subscribers[id] = ch
+	l.rebuildSubs()
 	l.mu.Unlock()
 	return id, ch
 }
 
-// Unsubscribe removes and closes the subscriber channel registered under id.
+// Unsubscribe removes the subscriber channel registered under id. It does not
+// close the channel: an Append that read the subscriber list before the
+// removal may still send to it after releasing the lock, and a send on a
+// closed channel panics.
 func (l *QueryLog) Unsubscribe(id uint64) {
 	l.mu.Lock()
-	if ch, ok := l.subscribers[id]; ok {
+	if _, ok := l.subscribers[id]; ok {
 		delete(l.subscribers, id)
-		close(ch)
+		l.rebuildSubs()
 	}
 	l.mu.Unlock()
+}
+
+// rebuildSubs replaces l.subs with a new slice of the subscriber channels.
+// The caller must hold l.mu.
+func (l *QueryLog) rebuildSubs() {
+	if len(l.subscribers) == 0 {
+		l.subs = nil
+		return
+	}
+	subs := make([]chan Entry, 0, len(l.subscribers))
+	for _, ch := range l.subscribers {
+		subs = append(subs, ch)
+	}
+	l.subs = subs
+}
+
+// at returns the i-th oldest entry (0 is the oldest). The caller must hold
+// l.mu.
+func (l *QueryLog) at(i int) Entry {
+	i += l.start
+	if i >= len(l.entries) {
+		i -= len(l.entries)
+	}
+	return l.entries[i]
 }
 
 // Query returns entries matching the optional filters in reverse chronological
@@ -140,8 +178,7 @@ func (l *QueryLog) Unsubscribe(id uint64) {
 // total is the count of matching entries before the limit/offset are applied.
 func (l *QueryLog) Query(client, outcome string, limit, offset int) (entries []Entry, total int) {
 	l.mu.Lock()
-	snapshot := make([]Entry, len(l.entries))
-	copy(snapshot, l.entries)
+	snapshot := l.newest(len(l.entries))
 	l.mu.Unlock()
 
 	// Collect matching entries in reverse chronological order (newest first).
@@ -180,14 +217,22 @@ func (l *QueryLog) Query(client, outcome string, limit, offset int) (entries []E
 // Used by the backfill feature (M42) to replay recent history on stream connect.
 func (l *QueryLog) Snapshot(n int) []Entry {
 	l.mu.Lock()
-	snap := make([]Entry, len(l.entries))
-	copy(snap, l.entries)
-	l.mu.Unlock()
-
-	if n <= 0 || n >= len(snap) {
-		return snap
+	defer l.mu.Unlock()
+	if n <= 0 || n > len(l.entries) {
+		n = len(l.entries)
 	}
-	return snap[len(snap)-n:]
+	return l.newest(n)
+}
+
+// newest returns a copy of the newest n entries in chronological order,
+// n <= len(l.entries). The caller must hold l.mu.
+func (l *QueryLog) newest(n int) []Entry {
+	out := make([]Entry, n)
+	first := len(l.entries) - n
+	for i := range out {
+		out[i] = l.at(first + i)
+	}
+	return out
 }
 
 // SetMaxEntries updates the retention limit. If the log currently holds more
@@ -199,10 +244,10 @@ func (l *QueryLog) SetMaxEntries(n int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.maxEntries = n
-	if len(l.entries) > n {
-		excess := len(l.entries) - n
-		l.entries = l.entries[excess:]
-	}
+	// Store the entries kept in chronological order from index 0, so a log
+	// that is not full has start 0 and grows with append.
+	l.entries = l.newest(min(n, len(l.entries)))
+	l.start = 0
 }
 
 // MaxEntries returns the current retention limit.
