@@ -2,6 +2,7 @@
 
 ## Decisions log
 
+- **2026-11-27** — Under 400–3,000 qps in the DNS overload acceptance tests (branch `work/2/overload-tests`), node-2 exited with `fatal error: concurrent map iteration and map write` in the stats aggregator (`apps/skoed/internal/log/aggregates.go`, `tryFlush` → `buildAggregate` → `topN`): the flush iterates the hour bucket's maps without the lock while every query's `Observe` writes them. Present since v0.1.0. The UoR approved a direct fix without a functional specification (detach the bucket under the lock, merge it back on commit failure) and a hotfix release v0.5.2; see `decisions/20261127-DirectFixAggregatorMapRace.md`.
 - **2026-11-27** — skoed exited on `bind: cannot assign requested address` after a reboot of a Proxmox LXC container, started by systemd before the container's IP was set: once in the 5-node performance run (`demos/perf-5node-lxc/REPORT.md` T8, `tls listen 10.10.10.14:7000`) and twice in the journal of CT 221 during the AdGuard Home comparison runs (`start raft: raft transport: listen tcp 10.10.10.21:7000`; results on the perf host in `/root/perf/results/adguard-compare/`). The UoR approved a direct fix, with an acceptance test in place of a functional specification: skoed waits up to 60 s for a listen address that is not assigned yet; see `decisions/20261127-WaitForUnassignedListenAddress.md`.
 - **2026-11-26** — The UoR removed three planned milestones from the roadmap: M40 Companion / Remote-Admin App, M48 Skoed4Phone (DNS over VPN) and M49 Browser Extension Distribution. None had specs, tests or code; their sections are gone from `ROADMAP.md` and their rows from the `TODO.md` milestone index.
 - **2026-09-17** — v0.4.3 was validated on a 3-node Proxmox cluster built from the published release. DNS forwarding, blocklist replication and leader failover passed, and the `/var/lib/skoed/bin` relocation was confirmed in the `.deb`. Two defects were found that no specification covers: an enabled blocklist with zero domains is accepted and silently filters nothing, and the Alpine provisioning script creates a `skoed` user and then runs the daemon as root. The UoR approved fixing both directly, with acceptance tests in place of a functional specification; see `decisions/20260917-DirectFixForValidationDefects.md`. The audit findings M-15, H-5 and M-5 were also reproduced live on the cluster.
@@ -47,6 +48,12 @@
 - Canonical decisions and exceptions are recorded in `decisions/YYYYMMDD-<CamelCaseName>.md`.
 
 ## Exception pointers (optional)
+
+- **2026-11-27 — Direct fix for the stats aggregator map race** (Rule 5)
+  - Scope: `tryFlush` and the merge on commit failure in `apps/skoed/internal/log/aggregates.go`; see `decisions/20261127-DirectFixAggregatorMapRace.md`.
+  - Rationale: an internal defect with a known cause that makes a node exit under DNS load; the only user-visible behavior is that the daemon stops, so a functional spec would not settle anything in question.
+  - Mitigation: the DNS overload acceptance tests found it and are expected to run without the crash after the fix; no retroactive functional scenario is owed.
+  - UoR approval: inline (UoR approved the fix directly on 2026-11-27 and asked for a hotfix release v0.5.2).
 
 - **2026-11-27 — Wait for an unassigned listen address** (Rule 5)
   - Scope: the bounded bind retry for every listener bound to a specific IP (Raft plain and mTLS, peer API, main API, dual-port HTTPS) and `tests/acceptance/startup_unassigned_address_test.go`; see `decisions/20261127-WaitForUnassignedListenAddress.md`.
