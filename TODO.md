@@ -565,7 +565,8 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `ServerName` to the peer's node ID, `ResetRaftForJoin` keeps TLS, and a
   web-UI join installs the leader's CA and leaf
   (`decisions/20261126-MtlsServerNameByNodeId.md`, FS-ClusterJoinWebUiMtls);
-  validated on three Proxmox hosts, `demos/mtls-cross-host/DEMO_NOTE.md` — 2026-11-26
+  validated with three Proxmox containers on separate LAN addresses,
+  `demos/mtls-cross-host/DEMO_NOTE.md` — 2026-11-26
 - [ ] Cluster — a join that adds a voter which cannot be reached leaves a
   2-voter cluster without a leader
 - [ ] Cluster — a joining node with an empty bootstrap token silently starts
@@ -583,7 +584,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
   rebuild can start DNSCrypt with a handler built before `main` finished
-- [ ] Perf — memory grows without limit under DNS load (≥ 5,000 qps per
+- [x] Perf — memory grows without limit under DNS load (≥ 5,000 qps per
   node): 2 GB containers OOM-killed, 36 kills in the 5-node run; the
   memory is not released after the load stops (2.0 GB and one core busy 45
   min later); throughput capped at about one core. Root cause confirmed
@@ -591,6 +592,12 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   bbolt write transaction (`TrackNewDynamicClient` on every query) or on
   the `QueryLog.Append` mutex (a 10,000-entry `copy()` per query); the
   memory is goroutine stacks (`demos/perf-5node-lxc/REPORT.md`) — 2026-11-26
+  — fixed by 80dfa23 (query log ring buffer), 574e7ba, dfd6be2 and 9b7709a
+  (device-new queue) on feature/dns-hot-path, 2026-11-27; measured
+  afterwards on a single node with 1 core (512 MB and 1 GB) during the
+  AdGuard Home comparison: 17,500–25,000 qps on the 70/20/10 mix with RSS
+  under 260 MB, no OOM kill (results on the perf host in
+  /root/perf/results/adguard-compare/, not in the repo)
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
 - [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
@@ -621,7 +628,8 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `systemctl start skoed`, wait until it has rejoined, delete
   `raft/raft-log.bolt.pre-compact`. Then lower the CTs back from 2 GB
 - [x] Scripts — `scripts/proxmox-create.sh`, `proxmox-create-alpine.sh` and
-  `proxmox-cluster.sh` still default `SKOED_VERSION` to 0.4.4; now 0.5.1 — 2026-11-27
+  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.1 (was 0.4.4)
+  — 2026-11-27
 - [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
   release run 40; delete it on GitHub if present
 - [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
