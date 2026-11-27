@@ -33,8 +33,9 @@
 //   - a blocklist "ads", block policy NXDOMAIN, holding
 //     "tracker.example.com" and 99 other names;
 //   - forwarding mode, so the trusted subnets do not apply;
-//   - the load generator of dnsload_harness_test.go, over UDP at an even
-//     rate, with the 70 / 20 / 10 mix of overloadNames.mix.
+//   - the load client shared with tools/dnsload (skoed/dnsload/loadgen,
+//     through the adapters of dnsload_harness_test.go), over UDP at an
+//     even rate, with the 70 / 20 / 10 mix of overloadNames.mix.
 //
 // The capacity is set through the real API (PATCH /api/v1/settings,
 // dns.capacity_qps, TS § 7). "Given the DNS capacity of each node is C"
@@ -61,6 +62,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"skoed/dnsload/loadgen"
 )
 
 const (
@@ -102,16 +104,19 @@ func newOverloadNames() overloadNames {
 
 // mix is the query mix of the Background: of every 10 queries, 7 are for
 // cached names, 2 for names never queried before and 1 for a blocked name.
-func (n overloadNames) mix(seq int) loadQuery {
-	k, r := seq/10, seq%10
-	switch {
-	case r < 7:
-		return loadQuery{Name: n.cached[(k*7+r)%len(n.cached)], Kind: queryCached}
-	case r < 9:
-		return loadQuery{Name: fmt.Sprintf("m%d.%s.miss.overload.test", seq, n.runID), Kind: queryMiss}
-	default:
-		return loadQuery{Name: n.blocked[k%len(n.blocked)], Kind: queryBlocked}
-	}
+// The sequence is fixed, so every run of a test sends the same queries.
+func (n overloadNames) mix() loadgen.Source {
+	return loadgen.SourceFunc(func(seq int64) (string, loadgen.Kind) {
+		k, r := int(seq/10), int(seq%10)
+		switch {
+		case r < 7:
+			return n.cached[(k*7+r)%len(n.cached)], loadgen.KindCached
+		case r < 9:
+			return fmt.Sprintf("m%d.%s.miss.overload.test", seq, n.runID), loadgen.KindMiss
+		default:
+			return n.blocked[k%len(n.blocked)], loadgen.KindBlocked
+		}
+	})
 }
 
 // overloadCluster is the cluster of the Background.
@@ -184,10 +189,19 @@ func (oc *overloadCluster) follower(t *testing.T) *ClusterNode {
 // 70 % of the mix are names in n's DNS cache.
 func (oc *overloadCluster) warmCache(t *testing.T, n *ClusterNode) {
 	t.Helper()
-	for _, name := range oc.names.cached {
-		if rc := rcodeOf(n.DNSAddr, name); rc != dns.RcodeSuccess {
-			t.Fatalf("warming the cache of %s: %s got RCODE %d, want NOERROR", n.NodeID, name, rc)
-		}
+	answered, err := loadgen.Warm(context.Background(), n.DNSAddr, oc.names.cached, dnsQueryTimeout)
+	if err != nil || answered != len(oc.names.cached) {
+		t.Fatalf("warming the cache of %s: %d of %d names answered (%v)", n.NodeID, answered, len(oc.names.cached), err)
+	}
+}
+
+// checkStillRunning reports a node that exited during a load run, with
+// the last lines it wrote. Otherwise a crash would show only as queries
+// with no response.
+func checkStillRunning(t *testing.T, n *ClusterNode) {
+	t.Helper()
+	if n.Node.hasExited() {
+		t.Errorf("node %s exited during the run%s", n.NodeID, exitReport(n.Node))
 	}
 }
 
@@ -285,8 +299,9 @@ func TestDnsOverloadCapacityConfigurable(t *testing.T) {
 
 	node := oc.follower(t)
 	oc.warmCache(t, node)
-	run := runDNSLoadNow(t, node.DNSAddr, []loadPhase{{Rate: rate, Duration: time.Minute}}, oc.names.mix)
+	run := runDNSLoad(t, node.DNSAddr, []loadPhase{{Rate: rate, Duration: time.Minute}}, oc.names.mix(), loadOptions{})
 	run.logPerSecond(t)
+	checkStillRunning(t, node)
 	run.checkRate(t, 0, time.Minute, rate)
 
 	rest := run.stats(2*time.Second, time.Minute)
@@ -297,7 +312,7 @@ func TestDnsOverloadCapacityConfigurable(t *testing.T) {
 	}
 	whole := run.all()
 	t.Logf("whole minute: %s", whole)
-	if limit := 60*capacity + capacity; whole.Answered > limit {
+	if limit := int64(60*capacity + capacity); whole.Answered > limit {
 		t.Errorf("over the minute, %s answered %d queries; want at most %d", node.NodeID, whole.Answered, limit)
 	}
 }
@@ -314,8 +329,9 @@ func TestDnsOverloadAnswersUpToCapacity(t *testing.T) {
 	node := oc.follower(t)
 	oc.warmCache(t, node)
 
-	run := runDNSLoadNow(t, node.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix)
+	run := runDNSLoad(t, node.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix(), loadOptions{})
 	run.logPerSecond(t)
+	checkStillRunning(t, node)
 	run.checkRate(t, 0, overloadRunDuration, 2*overloadCapacity)
 
 	for m := time.Duration(0); m < overloadRunDuration; m += time.Minute {
@@ -350,8 +366,9 @@ func TestDnsOverloadRefusesExcess(t *testing.T) {
 	node := oc.follower(t)
 	oc.warmCache(t, node)
 
-	run := runDNSLoadNow(t, node.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix)
+	run := runDNSLoad(t, node.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix(), loadOptions{})
 	run.logPerSecond(t)
+	checkStillRunning(t, node)
 	run.checkRate(t, 0, overloadRunDuration, 2*overloadCapacity)
 
 	all := run.all()
@@ -385,26 +402,28 @@ func TestDnsOverloadFilteringKept(t *testing.T) {
 
 	// The background load starts first and goes on after the 10 s of
 	// tracker queries, so they all arrive while the node is overloaded.
+	// Both runs are aligned on start.
 	const lead = 2 * time.Second
+	start := time.Now()
 	var background *loadRun
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		background = runDNSLoadNow(t, node.DNSAddr,
-			[]loadPhase{{Rate: 2 * overloadCapacity, Duration: lead + 12*time.Second}}, oc.names.mix)
-	}()
-	time.Sleep(lead)
-	tracker := runDNSLoadNow(t, node.DNSAddr, []loadPhase{{Rate: 100, Duration: 10 * time.Second}},
-		func(int) loadQuery { return loadQuery{Name: overloadBlockedName, Kind: queryBlocked} })
+	wg.Go(func() {
+		background = runDNSLoad(t, node.DNSAddr,
+			[]loadPhase{{Rate: 2 * overloadCapacity, Duration: lead + 12*time.Second}}, oc.names.mix(),
+			loadOptions{Start: start})
+	})
+	tracker := runDNSLoad(t, node.DNSAddr, []loadPhase{{Rate: 100, Duration: 10 * time.Second}},
+		loadgen.SourceFunc(func(int64) (string, loadgen.Kind) { return overloadBlockedName, loadgen.KindBlocked }),
+		loadOptions{Start: start.Add(lead), Records: true})
 	wg.Wait()
 	t.Logf("background: %s", background.all())
+	checkStillRunning(t, node)
 	t.Logf("%s queries: %s", overloadBlockedName, tracker.all())
 	tracker.checkRate(t, 0, 10*time.Second, 100)
 
 	nxdomain, refused, lost := 0, 0, 0
-	for _, q := range tracker.Records {
-		if q.Outcome == outcomeLost {
+	for _, q := range tracker.Queries {
+		if q.Outcome == loadgen.OutcomeLost || q.Outcome == loadgen.OutcomeSendError {
 			lost++
 			continue
 		}
@@ -421,9 +440,9 @@ func TestDnsOverloadFilteringKept(t *testing.T) {
 			t.Errorf("query for %s sent at %s received addresses %v", overloadBlockedName, q.Sent.Round(time.Millisecond), q.Addrs)
 		}
 	}
-	t.Logf("%d queries for %s: %d NXDOMAIN, %d REFUSED, %d lost", len(tracker.Records), overloadBlockedName, nxdomain, refused, lost)
-	if len(tracker.Records) != 1000 {
-		t.Errorf("sent %d queries for %s; want 1,000", len(tracker.Records), overloadBlockedName)
+	t.Logf("%d queries for %s: %d NXDOMAIN, %d REFUSED, %d no response", len(tracker.Queries), overloadBlockedName, nxdomain, refused, lost)
+	if len(tracker.Queries) != 1000 {
+		t.Errorf("sent %d queries for %s; want 1,000", len(tracker.Queries), overloadBlockedName)
 	}
 	if nxdomain == 0 {
 		t.Errorf("no query for %s received NXDOMAIN", overloadBlockedName)
@@ -546,7 +565,7 @@ func TestDnsOverloadMemoryBounded(t *testing.T) {
 	t.Logf("leader %s, term %d, memory with no DNS load: %.1f MB", leader.NodeID, before.RaftTerm, float64(base)/megabyte)
 
 	watch := watchCluster(oc.Cluster, leader)
-	run := runDNSLoadNow(t, leader.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix)
+	run := runDNSLoad(t, leader.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix(), loadOptions{})
 	watch.Stop()
 	run.logPerSecond(t)
 	run.checkRate(t, 0, overloadRunDuration, 2*overloadCapacity)
@@ -609,10 +628,10 @@ func TestDnsOverloadRecoversWhenLoadDrops(t *testing.T) {
 	loadDone := make(chan struct{})
 	go func() {
 		defer close(loadDone)
-		run = runDNSLoad(context.Background(), t, node.DNSAddr, start, []loadPhase{
+		run = runDNSLoad(t, node.DNSAddr, []loadPhase{
 			{Rate: 2 * overloadCapacity, Duration: drop},
 			{Rate: lowRate, Duration: lowPhase},
-		}, oc.names.mix)
+		}, oc.names.mix(), loadOptions{Start: start})
 	}()
 
 	// The memory is read at the end of the 25 % phase, while the load is
@@ -637,8 +656,8 @@ func TestDnsOverloadRecoversWhenLoadDrops(t *testing.T) {
 	if after.Refused != 0 {
 		t.Errorf("%d queries received REFUSED from 5 s after the drop; want none", after.Refused)
 	}
-	if float64(after.Lost) >= 0.001*float64(after.Sent) {
-		t.Errorf("%d of %d queries sent from 5 s after the drop received no response; want less than 0.1 %%", after.Lost, after.Sent)
+	if float64(after.NoResponse) >= 0.001*float64(after.Sent) {
+		t.Errorf("%d of %d queries sent from 5 s after the drop received no response; want less than 0.1 %%", after.NoResponse, after.Sent)
 	}
 	switch {
 	case rssErr != nil:
@@ -670,8 +689,9 @@ func TestDnsOverloadNoRefusalBelowCapacity(t *testing.T) {
 	}
 
 	rate := overloadCapacity * 3 / 4
-	run := runDNSLoadNow(t, node.DNSAddr, []loadPhase{{Rate: rate, Duration: overloadRunDuration}}, oc.names.mix)
+	run := runDNSLoad(t, node.DNSAddr, []loadPhase{{Rate: rate, Duration: overloadRunDuration}}, oc.names.mix(), loadOptions{})
 	run.logPerSecond(t)
+	checkStillRunning(t, node)
 	run.checkRate(t, 0, overloadRunDuration, rate)
 
 	all := run.all()
@@ -679,8 +699,8 @@ func TestDnsOverloadNoRefusalBelowCapacity(t *testing.T) {
 	if all.Refused != 0 {
 		t.Errorf("%d queries received REFUSED at 75 %% of C; want none", all.Refused)
 	}
-	if float64(all.Lost) >= 0.001*float64(all.Sent) {
-		t.Errorf("%d of %d queries received no response; want less than 0.1 %%", all.Lost, all.Sent)
+	if float64(all.NoResponse) >= 0.001*float64(all.Sent) {
+		t.Errorf("%d of %d queries received no response; want less than 0.1 %%", all.NoResponse, all.Sent)
 	}
 }
 
@@ -790,9 +810,10 @@ func TestDnsOverloadVisibleToAdministrator(t *testing.T) {
 
 	logs := watchLog(t, node, overloadLogLine)
 	start := time.Now()
-	run := runDNSLoad(context.Background(), t, node.DNSAddr, start,
-		[]loadPhase{{Rate: 2 * overloadCapacity, Duration: time.Minute}}, oc.names.mix)
+	run := runDNSLoad(t, node.DNSAddr,
+		[]loadPhase{{Rate: 2 * overloadCapacity, Duration: time.Minute}}, oc.names.mix(), loadOptions{Start: start})
 	run.logPerSecond(t)
+	checkStillRunning(t, node)
 	run.checkRate(t, 0, time.Minute, 2*overloadCapacity)
 	all := run.all()
 	t.Logf("whole run: %s", all)

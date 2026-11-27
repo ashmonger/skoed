@@ -9,6 +9,7 @@ require (
 	github.com/miekg/dns v1.1.73
 	github.com/quic-go/quic-go v0.66.0
 	gopkg.in/yaml.v3 v3.0.1
+	skoed/dnsload v0.0.0
 )
 
 require (
@@ -20,3 +21,5 @@ require (
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 )
+
+replace skoed/dnsload => ../../tools/dnsload
