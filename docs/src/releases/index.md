@@ -17,7 +17,7 @@ a Proxmox cluster validation run.
 - **DNS memory growth under load, fixed**: in the 5-node LXC run, each
   query waited for the query-log mutex and a bbolt write transaction, so
   goroutines piled up: 274,239 goroutines and 1.5–1.9 GB of RSS at +24 s
-  at 10,000 qps (`results/diag/timeline.txt`); the two changes below
+  at 10,000 qps (`demos/perf-5node-lxc/results/diag/timeline.txt`); the two changes below
   remove both waits. Measured afterwards on a single node with 1 core
   (512 MB and 1 GB): 17,500–25,000 qps on the 70/20/10 mix with RSS at most
   262 MB and no OOM kill (results on the perf host, not in the repo) ([performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md))
