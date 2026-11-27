@@ -58,3 +58,5 @@
   - Rationale: these deliverables are documentation only — they describe observable product behavior but do not themselves implement it. Changes have no effect on test outcomes.
   - Mitigation: documentation accuracy is validated against the already-shipped implementation and FSID catalog; any claim in the docs maps to a spec or demo output.
   - UoR approval: inline (UoR requested M11 explicitly including "full wiki" and "nice README.md").
+
+- **2026-11-27 — Fourth review cycle for the DNS overload and startup specs** (Rule 14): see `decisions/20261127-FourthSpecReviewCycle.md`.
