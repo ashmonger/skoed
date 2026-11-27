@@ -598,6 +598,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   AdGuard Home comparison: 17,500–25,000 qps on the 70/20/10 mix with RSS
   at most 262 MB, no OOM kill (results on the perf host in
   /root/perf/results/adguard-compare/, not in the repo)
+- [ ] Stats — the hourly aggregator crashes the daemon under DNS load
+  (`fatal error: concurrent map iteration and map write`, node-2 in the
+  overload acceptance tests at 400–3,000 qps): `tryFlush` builds the top-N
+  from the bucket's maps without the lock while `Observe` writes them;
+  present since v0.1.0 — fix in progress on fix/aggregator-race under
+  `decisions/20261127-DirectFixAggregatorMapRace.md`
+- [ ] Stats — demo note and UoR validation of the aggregator fix
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
 - [x] Specs — DNS overload protection: functional spec validated by the
@@ -642,14 +649,17 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `systemctl start skoed`, wait until it has rejoined, delete
   `raft/raft-log.bolt.pre-compact`. Then lower the CTs back from 2 GB
 - [x] Scripts — `scripts/proxmox-create.sh`, `proxmox-create-alpine.sh` and
-  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.1 (was 0.4.4)
-  — 2026-11-27
+  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.2 (0.4.4 → 0.5.1
+  → 0.5.2) — 2026-11-27
 - [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
   release run 40; delete it on GitHub if present
-- [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
-  wait (branch fix/boot-bind-retry)
+- [x] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
+  wait (branch fix/boot-bind-retry) — tagged 2026-11-27 (c948813)
+- [ ] Release v0.5.2 — hotfix: stats aggregator crash (branch
+  fix/aggregator-race)
 - [ ] Tests — `tests/acceptance/run-in-docker.sh` still upgrades from
-  `SKOED_PREVIOUS_REF=v0.4.4`; move it to v0.5.1 once v0.5.1 is tagged
+  `SKOED_PREVIOUS_REF=v0.4.4`; move it to the latest release (v0.5.1 or
+  later) in a separate change
 - [ ] Docs — the install pages use github.com/skoed/skoed while the scripts
   and README use ashmonger/skoed
 - [x] M50 — demo note and UoR validation — 2026-11-25

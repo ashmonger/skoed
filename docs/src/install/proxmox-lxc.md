@@ -9,8 +9,8 @@ git clone https://github.com/skoed/skoed.git
 cd skoed
 
 # Grab a .deb (or build one with `make deb`).
-DEB=/root/skoed_0.5.1_amd64.deb
-wget -O "$DEB" https://github.com/skoed/skoed/releases/download/v0.5.1/skoed_0.5.1_amd64.deb
+DEB=/root/skoed_0.5.2_amd64.deb
+wget -O "$DEB" https://github.com/skoed/skoed/releases/download/v0.5.2/skoed_0.5.2_amd64.deb
 
 # Provision LXC 200 named skoed-1 on default storage + bridge.
 scripts/proxmox-create.sh --id 200 --hostname skoed-1 --deb "$DEB"
