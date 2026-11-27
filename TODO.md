@@ -602,8 +602,10 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   rejoin or a restart), so blocked names resolve for a few seconds
 - [x] Specs — DNS overload protection: functional spec validated by the
   UoR — 2026-11-27
-- [ ] DNS overload protection (v0.6.0): technical spec, then acceptance
-  tests, implementation, default capacity measured on 2 cores / 2 GB
+- [ ] DNS overload protection (v0.6.0): technical spec
+  `specs/technical/dns-overload-protection.md` validated by the UoR —
+  2026-11-27; next acceptance tests, then implementation, load generator,
+  default capacity measured on 2 cores / 2 GB
   (branch `feature/dns-overload-protection`)
 - [ ] Specs — DNS startup readiness: decisions validated 2026-11-27,
   functional spec awaiting final UoR validation

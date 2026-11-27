@@ -13,8 +13,11 @@ x-fsid-links:
 
 # TS-DnsOverloadProtection — DNS capacity and admission on the plain UDP listeners
 
+Validated by the UoR on 2026-11-27.
+
 Functional spec: `specs/functional/dns-overload-protection.feature`
-(validated 2026-11-27). Target release: v0.6.0.
+(validated 2026-11-27). Target release: v0.6.0. UoR decisions on the
+design choices: § 11.
 
 ## 1. Context
 
@@ -63,7 +66,7 @@ goroutine is started for them.
 
 `Config.Defaults()` does not fill the field: a cluster where the
 administrator never set it follows the shipped default, including when a
-later release changes the default (open question OQ-2).
+later release changes the default (decision D-2).
 
 `Config.Validate()` rejects a value that is not 0 and outside
 100–1,000,000. The same check runs on `PATCH /api/v1/settings` and on
@@ -118,10 +121,14 @@ ReadUDP(conn, timeout):
     if err: return err                                   // miekg/dns handles it as today
     if n < 12: hand the packet to miekg/dns as today (not counted)
     if QR bit set: drop it, continue loop (not counted)
-    if admission.Allow(): copy buf[:n] into a new slice, return it to miekg/dns
+    if admission.inFlight.Load() < 4096 and admission.Allow():
+          copy buf[:n] into a new slice, return it to miekg/dns
     else: write REFUSED in place in buf (§ 3.4), dns.WriteToSessionUDP(conn, buf[:m], session),
           admission.refused.Add(1), continue loop
 ```
+
+The in-flight check comes first, so a query refused by the cap does not
+take a token (§ 4, decision D-1).
 
 `buf` is 512 bytes, the size miekg/dns uses today: skoed sets no
 `UDPSize`, so miekg/dns reads into `MinMsgSize` (512) buffers, and a
@@ -277,7 +284,7 @@ same response"; its technical spec should call the same function.
 ## 4. Memory bound
 
 FS-DnsOverloadMemoryBounded allows 200 MB of growth over the level with
-lists loaded and no DNS load. The bound comes from three points:
+lists loaded and no DNS load. The bound comes from four points:
 
 1. **Refused queries hold no memory.** They are answered on the reader
    goroutine from a buffer the reader reuses (§ 3.3). Packets the
@@ -295,10 +302,31 @@ lists loaded and no DNS load. The bound comes from three points:
    log at 10,000 entries each (about 10 MB and 3 MB when full), the
    device-new queue at 1,024 IPs and its checked map at 65,536.
 
-Outside the Background, point 2 depends on the upstream: with an
-upstream that times out (3 s by default), C × 3 s goroutines wait, e.g.
-30,000 at C = 10,000, several hundred MB. A cap on admitted queries in
-flight is open question OQ-1.
+4. **At most 4,096 admitted queries are in flight** (decision D-1).
+   Without it, point 2 depends on the upstream: with an upstream that
+   times out (3 s by default), C × 3 s goroutines wait, e.g. 30,000 at
+   C = 10,000, several hundred MB. With it, they hold at most
+   4,096 × 32 KB = 128 MB of stacks.
+
+The in-flight count is `Admission.inFlight`, an `atomic.Int64`. Today
+the UDP and TCP `dns.Server`s share one handler, `s.wrapper`
+(`swappableHandler`). The UDP servers get their own handler,
+`udpHandler`, which wraps `s.wrapper`: it adds 1 to `inFlight` when
+`ServeDNS` starts and subtracts 1 when it returns (`defer`). The TCP
+server keeps `s.wrapper` and is not counted. The reader reads
+`inFlight` before admitting a packet (§ 3.1); when it is 4,096 or more,
+the packet receives REFUSED and is counted in
+`skoed_dns_overload_refused_total` like a refusal above the capacity.
+
+Counting in the handler, not in the reader, keeps the count right for
+packets that miekg/dns rejects before calling the handler (header
+refused by `MsgAcceptFunc`, unpack error). The cost is that packets
+handed to miekg/dns whose goroutine has not entered `ServeDNS` yet are
+not counted, so the cap can be exceeded by those few; they are still
+limited to C per second by the bucket. The cap is fixed, not a setting.
+Below capacity with a normal upstream it is never reached (point 2: a
+few hundred at most), so it does not cause refusals below capacity
+(FS-DnsOverloadNoRefusalBelowCapacity).
 
 **GOMEMLIMIT.** When the `GOMEMLIMIT` environment variable is not set,
 `main` sets `debug.SetMemoryLimit` at start to 80 % of the smaller of:
@@ -319,7 +347,7 @@ can use, so the result can only be too high, never too low. The value
 and its source (`cgroup` or `meminfo`) are logged once at start, on the
 same line as `runtime.GOMAXPROCS(0)`. The other 20 % is left for memory the Go runtime
 does not manage (bbolt's mmap, Raft log files in the page cache). This
-does not create the 200 MB bound (points 1–3 do); it makes the garbage
+does not create the 200 MB bound (points 1–4 do); it makes the garbage
 collector run harder before the cgroup kills the process if something
 else grows. When the operator sets `GOMEMLIMIT`, it is used as is.
 
@@ -365,8 +393,10 @@ the last refusal, at most once per 5 minutes.
 | `skoed_dns_overload_refused_total` | counter | — |
 
 Help: "DNS queries refused on the plain UDP listeners because the node
-was above its DNS capacity." It counts only refusals for overload, not
-those for clients outside the trusted subnets or (later) during startup.
+was above its DNS capacity or had 4096 queries in flight." It counts
+only refusals for overload (above the capacity, § 3.2, or at the
+in-flight cap, § 4), not those for clients outside the trusted subnets
+or (later) during startup.
 `metrics.New` runs before `ServerHolder.Start` creates the `Admission`,
 so the collector gets a func in `metrics.Options`
 (`OverloadRefused func() uint64`, like `CacheStats`) and calls it at
@@ -424,6 +454,20 @@ management-api.openapi.yaml, with `x-tsid: TS-DnsOverloadProtection`):
   responses now use `dnsSettingsResp`, which embeds `config.DNSConfig`
   and adds `capacity_qps_effective` and `capacity_qps_default`.
 
+### 7.1 Web UI (decision D-4)
+
+The DNS settings page gets a number field "DNS capacity (queries per
+second)", next to the other DNS settings:
+
+* It shows `capacity_qps` when it is not 0. When it is 0, the field is
+  empty and its placeholder shows `capacity_qps_default`, with the hint
+  "Default: <capacity_qps_default>".
+* Saving sends `capacity_qps` with the field value, or 0 when the field
+  is empty, so a form saved without touching the field keeps following
+  the default.
+* A 400 from the PATCH is shown next to the field, as for the other DNS
+  settings.
+
 ## 8. Failure modes and non-goals
 
 * **Above what the reader can refuse.** One reader goroutine per
@@ -435,8 +479,8 @@ management-api.openapi.yaml, with `x-tsid: TS-DnsOverloadProtection`):
   (non-goal). A flood on them can still slow the node, and their queries
   are not counted against C.
 * **Capacity set too high.** If the administrator sets C above what the
-  node answers, admitted queries pile up as in v0.5.1 (bounded only by
-  OQ-1 if accepted), and the CPU left for Raft heartbeats shrinks, so a
+  node answers, admitted queries wait for CPU (at most 4,096 in flight,
+  § 4, then REFUSED), and the CPU left for Raft heartbeats shrinks, so a
   leader can lose its leadership. The default is measured with the
   leader under 2 × C (FS-DnsOverloadMemoryBounded, "no leader election")
   so this does not happen on 2 cores / 2 GB at the default; above it,
@@ -521,8 +565,8 @@ the load generator runs on a host that does not share CPU with the
 nodes. On this 4-core host that holds for the node under test only: the
 load generator and Knot share cores with the two other nodes, including
 the leader in the follower scenarios, whose Raft heartbeats can be
-slowed. Every result recorded in § 9.1 states this deviation. Whether
-to accept it is open question OQ-5.
+slowed. The UoR accepted this bench with the deviation recorded
+(decision D-5): every result recorded in § 9.1 states it.
 
 Scenarios at a candidate C, each at 2 × C:
 FS-DnsOverloadAnswersUpToCapacity and FS-DnsOverloadRefusesExcess on a
@@ -543,71 +587,44 @@ None. The acceptance tests set a low capacity through the real API
 (`PATCH /api/v1/settings` with `dns.capacity_qps`, minimum 100), read
 `skoed_dns_overload_refused_total` from `/metrics` and the log line from
 the node's standard log as existing tests do. No `SKOED_TEST_MODE`
-behavior is added. How the 15-minute and memory scenarios run in CI is
-open question OQ-3.
+behavior is added.
 
-## 11. Open questions for the UoR
+Durations in CI (decision D-3): the acceptance test covers all eight
+FSIDs at C = 200 on a 3-node cluster. The 15-minute runs
+(FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess,
+FS-DnsOverloadMemoryBounded, FS-DnsOverloadNoRefusalBelowCapacity) and
+the 5-minute phases of FS-DnsOverloadRecoversWhenLoadDrops are cut to
+1 minute; the 1-minute and 10-second runs keep their durations. Every
+other criterion of the functional spec is unchanged, including the
+first second excluded at 2 × C and the 5-second window after the drop.
+The full-length runs at the default C are the bench runs of § 9.2,
+kept as the demo evidence.
 
-* **OQ-1 — Cap on admitted queries in flight.** The 200 MB bound holds
-  with the Background's 10 ms upstream (§ 4). With a slow or unreachable
-  upstream, C × upstream timeout goroutines wait (30,000 at C = 10,000
-  and 3 s).
-  * A: no cap; the bound holds only under the Background.
-  * B: a fixed cap of 4,096 admitted queries in flight (4,096 × 32 KB =
-    128 MB at most); above it the reader sends REFUSED and counts it in
-    `skoed_dns_overload_refused_total`. Below capacity with a normal
-    upstream the cap is never reached (§ 4: a few hundred).
-  * C: as B, with the cap as a second setting.
-  * Recommendation: B. It makes the memory bound independent of the
-    upstream, and needs no new setting.
-  * B and C need the in-flight count to be decremented by a handler
-    used only by the UDP servers: today `s.wrapper` (`swappableHandler`)
-    is shared by the UDP and TCP `dns.Server`s, so the UDP servers get
-    their own wrapper around it that decrements the count when
-    `ServeDNS` returns.
-* **OQ-2 — Clusters that never set the capacity follow the shipped
-  default when it changes.** The provisional 10,000 will be replaced by
-  the measured value, and later releases may change it.
-  * A: a stored 0 means "follow the shipped default"; the GET shows the
-    stored value, the effective value and the default (this spec, § 7).
-  * B: the default is written into the cluster settings at bootstrap or
-    upgrade and never changes afterwards.
-  * Recommendation: A.
-* **OQ-3 — Scenario durations in CI.** Five scenarios run 1 to 15
-  minutes at 2 × C on a 3-node cluster with 2 cores per node, which CI
-  cannot provide.
-  * A: CI runs all eight FSIDs at C = 200 with the durations of the
-    functional spec (about 72 minutes, about 57 if
-    FS-DnsOverloadAnswersUpToCapacity and FS-DnsOverloadRefusesExcess
-    share one 15-minute run).
-  * B: CI runs all eight FSIDs at C = 200, with the 15-minute and
-    5-minute runs shortened to 1 minute; the full-length runs at the
-    default C are the bench runs of § 9, kept as the demo evidence.
-  * C: only the bench runs.
-  * Recommendation: B.
-* **OQ-4 — Web UI.** The functional spec says the administrator reads
-  and sets the capacity in the DNS settings, without naming the web UI.
-  * A: API only in v0.6.0.
-  * B: also a "DNS capacity (queries per second)" field on the DNS
-    settings page.
-  * Recommendation: B, so the setting is visible where the other DNS
-    settings are.
-* **OQ-5 — Bench that departs from the Background.** The Background
-  puts the load generator on a host that does not share CPU with the
-  nodes; on the 4-core perf host it shares cores with Knot and the two
-  other nodes (§ 9.2).
-  * A: measure on the perf host with the node under test pinned to 2
-    physical cores, the load generator and Knot pinned to the other 2,
-    the other two nodes on the same cores as Knot, and the deviation
-    recorded with the result.
-  * B: put the load generator on a second physical host (none is
-    available today).
-  * C: find C on a single-node bench (no Raft), then check the 2 × C
-    scenarios once on 3 nodes at that C.
-  * Recommendation: A. The node under test, whose CPU sets the
-    capacity, gets its own cores as the Background asks; the generator
-    and Knot use little CPU at these rates (Knot reached 224,000 qps on
-    2 cores in the 2026-11-26 run); it needs no new hardware; and unlike
-    C, it measures the leader scenario with Raft running. The risk is a
-    lower C if the shared cores slow the leader's heartbeats, which
-    errs on the safe side.
+## 11. Decisions (UoR, 2026-11-27)
+
+The UoR chose the recommended option for each open question of the
+draft (QUESTIONS_AND_ANSWERS.md).
+
+* **D-1 — Cap on admitted queries in flight: fixed cap of 4,096**
+  (option B of 3). Above it the reader sends REFUSED and counts it in
+  `skoed_dns_overload_refused_total`; the count is kept by a UDP-only
+  handler (§ 4). Rejected: no cap (the memory bound would hold only
+  with the Background's 10 ms upstream), a cap as a second setting.
+* **D-2 — A cluster that never set the capacity follows the shipped
+  default when a release changes it** (option A of 2). A stored 0 means
+  "follow the default"; the GET shows the stored, effective and default
+  values (§ 2.1, § 7). Rejected: writing the default into the cluster
+  settings at bootstrap or upgrade.
+* **D-3 — CI durations** (option B of 3): all eight FSIDs at C = 200,
+  with the 15-minute and 5-minute runs cut to 1 minute; the full-length
+  runs at the default C are the bench runs, kept as the demo evidence
+  (§ 10). Rejected: the full durations in CI (about 72 minutes), bench
+  runs only.
+* **D-4 — Web UI** (option B of 2): a "DNS capacity (queries per
+  second)" field on the DNS settings page (§ 7.1). Rejected: API only.
+* **D-5 — Bench** (option A of 3): the perf host, with the node under
+  test pinned to 2 physical cores, the load generator and Knot on the
+  other 2 with the other two nodes, and the deviation from the
+  Background recorded with each result (§ 9.2). Rejected: a second
+  physical host for the load generator (none available), a single-node
+  bench without Raft.

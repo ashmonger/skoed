@@ -128,3 +128,21 @@ None.
 
 - **Q**: DNS overload protection — is the functional specification (specs/functional/dns-overload-protection.feature) validated, and is it the next feature to implement?
   **A**: Yes: "add the overload protection", for the next release (v0.6.0). The startup readiness specification stays pending. — UoR, 2026-11-27
+
+- **Q**: DNS overload technical spec — should the admitted queries in flight be capped, since with a slow upstream C × the upstream timeout goroutines wait?
+  **A**: Yes, a fixed cap of 4,096 admitted queries in flight, not a setting; above it the node sends REFUSED and counts it with the other overload refusals. — UoR, 2026-11-27
+
+- **Q**: DNS overload technical spec — does a cluster that never set the DNS capacity follow the shipped default when a release changes it?
+  **A**: Yes. A stored 0 means "follow the shipped default"; the DNS settings show the stored, effective and default values. — UoR, 2026-11-27
+
+- **Q**: DNS overload technical spec — how long do the scenarios run in CI?
+  **A**: All eight FSIDs at C = 200, with the 15-minute and 5-minute runs cut to 1 minute; the full-length runs at the default C come from the bench and are kept as demo evidence. — UoR, 2026-11-27
+
+- **Q**: DNS overload technical spec — does the web UI show the DNS capacity?
+  **A**: Yes, a "DNS capacity (queries per second)" field on the DNS settings page. — UoR, 2026-11-27
+
+- **Q**: DNS overload technical spec — the perf host bench shares CPU between the load generator and two nodes, unlike the Background; is it accepted?
+  **A**: Yes. Measure on the perf host with the node under test pinned to 2 physical cores, the load generator and Knot on the other 2 with the other nodes, and record the deviation with each result. — UoR, 2026-11-27
+
+- **Q**: DNS overload protection — is the technical specification TS-DnsOverloadProtection (specs/technical/dns-overload-protection.md) validated?
+  **A**: Yes, with the recommended answers to its five open questions. — UoR, 2026-11-27

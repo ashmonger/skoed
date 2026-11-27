@@ -106,7 +106,8 @@ internet-facing nodes and leave it open on LAN-only nodes.
   same place the query-log row is written, so the two never diverge.
 - `skoed_dns_overload_refused_total` (TS-DnsOverloadProtection § 6.1,
   FS-DnsOverloadVisibleToAdministrator) counts the queries refused on
-  the plain UDP listeners because the node was above its DNS capacity.
+  the plain UDP listeners because the node was above its DNS capacity
+  or had 4,096 admitted queries in flight.
   Those queries never reach the handler, so they are not in
   `skoed_dns_queries_total`. It is read at scrape time from the
   admission counter, which lives as long as the process.

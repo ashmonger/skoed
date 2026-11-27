@@ -17,9 +17,9 @@
 
 | Order | Step | Outcome | Depends on | FSIDs | TSIDs | Acceptance tests | Status |
 |-------|------|---------|-----------|-------|-------|-----------------|--------|
-| 1 | Technical spec validation | UoR validates TS-DnsOverloadProtection and answers its open questions (in-flight cap, default following, CI durations, web UI, bench) | Functional spec validated | all 8 FS-DnsOverload* | TS-DnsOverloadProtection, TS-PrometheusMetrics | — | In review |
-| 2 | Acceptance tests | One test file covering the 8 FSIDs at a low capacity set through the API; UoR validates them | Step 1 | FS-DnsOverloadCapacityConfigurable, FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadFilteringKept, FS-DnsOverloadMemoryBounded, FS-DnsOverloadRecoversWhenLoadDrops, FS-DnsOverloadNoRefusalBelowCapacity, FS-DnsOverloadVisibleToAdministrator | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
-| 3 | Implementation | `dns.capacity_qps` setting and validation, `Admission` token bucket in a UDP `DecorateReader`, in-place REFUSED, counter and log line, `GOMEMLIMIT` from the cgroup limit or `/proc/meminfo` MemTotal, whichever is lower; scope also depends on the answers to OQ-1 (in-flight cap) and OQ-4 (web UI field); acceptance tests green, refactoring phase done | Step 2 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
+| 1 | Technical spec validation | UoR validated TS-DnsOverloadProtection and chose the recommended answer to its 5 open questions (TS § 11, D-1 to D-5) | Functional spec validated | all 8 FS-DnsOverload* | TS-DnsOverloadProtection, TS-PrometheusMetrics | — | Done (2026-11-27) |
+| 2 | Acceptance tests | One test file covering the 8 FSIDs at C = 200 set through the API, with the 15- and 5-minute runs cut to 1 minute (TS § 10, D-3); UoR validates them | Step 1 | FS-DnsOverloadCapacityConfigurable, FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadFilteringKept, FS-DnsOverloadMemoryBounded, FS-DnsOverloadRecoversWhenLoadDrops, FS-DnsOverloadNoRefusalBelowCapacity, FS-DnsOverloadVisibleToAdministrator | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
+| 3 | Implementation | `dns.capacity_qps` setting and validation, `Admission` token bucket in a UDP `DecorateReader`, fixed cap of 4,096 admitted queries in flight counted by a UDP-only handler (D-1), in-place REFUSED, counter and log line, `GOMEMLIMIT` from the cgroup limit or `/proc/meminfo` MemTotal, whichever is lower, "DNS capacity (queries per second)" field on the web UI DNS settings page (D-4); acceptance tests green, refactoring phase done | Step 2 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
 | 4 | Load generator | Standalone Go binary `tools/dnsload` sharing its client code with the acceptance test: even-rate UDP sending, RCODE and latency recorded per query, per-second answered / REFUSED / lost counts, p99 of answers and p99.9 of all responses (dnsperf's `-O latency-histogram` does not separate answers from refusals) | Step 2 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | — | Planned |
 | 5 | Default capacity measurement | Binary search then 15-minute confirmation of the 2 × C scenarios on the Proxmox LXC bench (3 nodes, 2 cores / 2 GB, no swap); result and the bench's deviation from the Background recorded in TS-DnsOverloadProtection § 9.1 and set as `DefaultDNSCapacityQPS` | Steps 3, 4 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | Bench run of `tools/dnsload` (TS § 9.2) | Planned |
 | 6 | Demo note | Bench results of the 8 scenarios at the measured default, implemented and not implemented scope, limitations; UoR validates | Step 5 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | — | Planned |
@@ -27,9 +27,9 @@
 
 - Critical path: technical spec validation → acceptance tests → implementation and load generator → default capacity measurement → demo note → release
 - Owners: implementation and measurement by agents on the feature branch; validations by the UoR
-- Blockers: the open questions of TS-DnsOverloadProtection § 11 must be answered before step 2
+- Blockers: none
 - Validation checkpoints:
-  - [ ] Technical spec validated by UoR
+  - [x] Technical spec validated by UoR (2026-11-27)
   - [ ] Acceptance tests validated by UoR
   - [ ] Implementation done, acceptance tests green, CI green
   - [ ] Refactoring validated (acceptance + full tests green after refactor)
@@ -37,7 +37,7 @@
   - [ ] Demo validated by UoR
 - Risks:
   - The memory may not go back within 50 MB in 5 minutes through the Go scavenger alone. Response: the `debug.FreeOSMemory` fallback of TS § 5.
-  - The bench host has 4 physical cores for 3 nodes, the upstream and the load generator, so the load generator shares CPU with two nodes, unlike the Background. Response: pin the node under test to 2 physical cores, record the deviation with the result (TS § 9.2, OQ-5) and check the cache hit ratio of each run.
+  - The bench host has 4 physical cores for 3 nodes, the upstream and the load generator, so the load generator shares CPU with two nodes, unlike the Background. Response: pin the node under test to 2 physical cores, record the deviation with the result (TS § 9.2, D-5) and check the cache hit ratio of each run.
 
 ---
 
@@ -122,6 +122,7 @@
 
 ## Change log
 
+- 2026-11-27: TS-DnsOverloadProtection validated by the UoR (decisions D-1 to D-5); next step: acceptance tests.
 - 2026-11-27: Delivery slice added for DNS overload protection (v0.6.0), TS-DnsOverloadProtection.
 - 2026-06-30: M34.5 (Configurable Session Timeout) shipped. `SnapshotThreshold=64` / `SnapshotInterval=30s` infrastructure fix applied to `internal/cluster/raft.go` — eliminates 30-second full log replay on restart caused by hashicorp/raft v1.7.3 not persisting `lastApplied`. 19/19 Proxmox checks pass. Operational plan from M11 onward is tracked in `TODO.md` (per-milestone task sections), not here.
 - 2026-05-29: Initial plan created for Milestone 1.
