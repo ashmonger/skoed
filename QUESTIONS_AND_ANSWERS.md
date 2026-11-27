@@ -146,3 +146,6 @@ None.
 
 - **Q**: DNS overload protection — is the technical specification TS-DnsOverloadProtection (specs/technical/dns-overload-protection.md) validated?
   **A**: Yes, with the recommended answers to its five open questions. — UoR, 2026-11-27
+
+- **Q**: DNS overload acceptance tests — D-3 cuts the 5-minute phases to 1 minute; does that include the 5 minutes in which the memory must come back after the load drops (FS-DnsOverloadRecoversWhenLoadDrops), given that the Go runtime can take longer than 1 minute to return freed memory?
+  **A**: Yes, D-3 applies literally: in CI the memory must be back within 50 MB 1 minute after the drop. The full 5-minute window is checked by the bench run on the perf host. — UoR, 2026-11-27

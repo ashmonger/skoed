@@ -597,6 +597,8 @@ the 5-minute phases of FS-DnsOverloadRecoversWhenLoadDrops are cut to
 1 minute; the 1-minute and 10-second runs keep their durations. Every
 other criterion of the functional spec is unchanged, including the
 first second excluded at 2 × C and the 5-second window after the drop.
+The window in which the memory must be back within 50 MB after the drop
+is also 1 minute in CI (UoR, 2026-11-27).
 The full-length runs at the default C are the bench runs of § 9.2,
 kept as the demo evidence.
 

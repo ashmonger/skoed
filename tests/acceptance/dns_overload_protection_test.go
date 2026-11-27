@@ -17,11 +17,10 @@
 //
 // Durations (TS § 10, decision D-3): every scenario runs at C = 200
 // queries per second on a 3-node cluster, and the 15-minute runs and the
-// 5-minute phases are cut to 1 minute. The other criteria are those of the
-// functional spec. One exception, explained at
-// TestDnsOverloadRecoversWhenLoadDrops: the memory of that scenario is
-// given the full 5 minutes of the functional spec to come back, because
-// the Go runtime can take longer than 1 minute to return freed memory.
+// 5-minute phases are cut to 1 minute, including the window in which the
+// memory of FS-DnsOverloadRecoversWhenLoadDrops must come back (UoR,
+// 2026-11-27; the bench run of TS § 9.2 checks the full 5 minutes). The
+// other criteria are those of the functional spec.
 //
 // Background, as the harness sets it up (startOverloadCluster):
 //   - a 3-node cluster from the cluster harness, all processes on the test
@@ -231,7 +230,10 @@ func readCapacitySettings(t *testing.T, n *ClusterNode) capacitySettings {
 // with t.Errorf so that the test goes on with the load.
 func (oc *overloadCluster) setCapacity(t *testing.T, qps int) {
 	t.Helper()
-	resp := oc.Leader(t).apiDo(t, "PATCH", "/api/v1/settings", mustJSON(t, map[string]any{
+	via := oc.Leader(t)
+	// The 5 s are counted from the request, so they include the PATCH.
+	deadline := time.Now().Add(capacityPropagation)
+	resp := via.apiDo(t, "PATCH", "/api/v1/settings", mustJSON(t, map[string]any{
 		"dns": map[string]any{"capacity_qps": qps},
 	}))
 	body := readBody(t, resp)
@@ -240,7 +242,6 @@ func (oc *overloadCluster) setCapacity(t *testing.T, qps int) {
 		t.Errorf("PATCH /api/v1/settings dns.capacity_qps=%d: status %d: %s", qps, resp.StatusCode, body)
 		return
 	}
-	deadline := time.Now().Add(capacityPropagation)
 	for _, n := range oc.nodes {
 		for {
 			s := readCapacitySettings(t, n)
@@ -249,7 +250,7 @@ func (oc *overloadCluster) setCapacity(t *testing.T, qps int) {
 				break
 			}
 			if time.Now().After(deadline) {
-				t.Errorf("%s after the PATCH, node %s shows %s; want capacity_qps and capacity_qps_effective %d",
+				t.Errorf("%s after the PATCH request, node %s shows %s; want capacity_qps and capacity_qps_effective %d",
 					capacityPropagation, n.NodeID, s, qps)
 				break
 			}
@@ -428,7 +429,8 @@ func TestDnsOverloadFilteringKept(t *testing.T) {
 		t.Errorf("no query for %s received NXDOMAIN", overloadBlockedName)
 	}
 	if refused == 0 {
-		t.Logf("note: no query for %s received REFUSED, so the node was not refusing during the 10 s", overloadBlockedName)
+		t.Errorf("no query for %s received REFUSED, so the node was not refusing during the 10 s; the run does not test the scenario",
+			overloadBlockedName)
 	}
 }
 
@@ -463,7 +465,7 @@ type clusterWatch struct {
 	statuses int
 }
 
-func watchCluster(t *testing.T, c *Cluster, n *ClusterNode) *clusterWatch {
+func watchCluster(c *Cluster, n *ClusterNode) *clusterWatch {
 	w := &clusterWatch{stop: make(chan struct{}), done: make(chan struct{}), terms: map[int]bool{}, leaders: map[string]bool{}}
 	pid := n.cmd.Process.Pid
 	go func() {
@@ -479,7 +481,7 @@ func watchCluster(t *testing.T, c *Cluster, n *ClusterNode) *clusterWatch {
 				w.maxRSS = max(w.maxRSS, rss)
 			}
 			for _, cn := range c.nodes {
-				if s, ok := c.tryStatus(t, cn); ok {
+				if s, ok := statusWithin(cn, 3*time.Second); ok {
 					w.statuses++
 					w.terms[s.RaftTerm] = true
 					if s.LeaderID != "" {
@@ -495,6 +497,29 @@ func watchCluster(t *testing.T, c *Cluster, n *ClusterNode) *clusterWatch {
 		}
 	}()
 	return w
+}
+
+// statusWithin is Cluster.tryStatus with a client timeout, so a node that
+// does not answer under load does not stop the sampling.
+func statusWithin(n *ClusterNode, timeout time.Duration) (ClusterStatus, bool) {
+	req, err := http.NewRequest(http.MethodGet, n.Node.APIBase+"/api/v1/cluster/status", nil)
+	if err != nil {
+		return ClusterStatus{}, false
+	}
+	req.Header.Set("Authorization", "Bearer "+n.Node.sessionToken)
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
+	if err != nil {
+		return ClusterStatus{}, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ClusterStatus{}, false
+	}
+	var s ClusterStatus
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		return ClusterStatus{}, false
+	}
+	return s, true
 }
 
 func (w *clusterWatch) Stop() {
@@ -520,7 +545,7 @@ func TestDnsOverloadMemoryBounded(t *testing.T) {
 	base := baselineRSS(t, leader)
 	t.Logf("leader %s, term %d, memory with no DNS load: %.1f MB", leader.NodeID, before.RaftTerm, float64(base)/megabyte)
 
-	watch := watchCluster(t, oc.Cluster, leader)
+	watch := watchCluster(oc.Cluster, leader)
 	run := runDNSLoadNow(t, leader.DNSAddr, []loadPhase{{Rate: 2 * overloadCapacity, Duration: overloadRunDuration}}, oc.names.mix)
 	watch.Stop()
 	run.logPerSecond(t)
@@ -556,22 +581,18 @@ func TestDnsOverloadMemoryBounded(t *testing.T) {
 // @fsid:FS-DnsOverloadRecoversWhenLoadDrops
 //
 // The memory of a follower is recorded with its lists loaded and no DNS
-// load. 2 × C queries per second go to it for 1 minute (5 in the spec,
-// decision D-3), then the load drops to 25 % of C. From 5 s after the
-// drop to the end of the run, no query receives REFUSED and less than
-// 0.1 % receive no response. The memory must be back within 50 MB of its
-// level before the load within 5 minutes of the drop.
+// load. 2 × C queries per second go to it for 1 minute, then the load
+// drops to 25 % of C for 1 minute (5 minutes each in the spec, decision
+// D-3). From 5 s after the drop to the end of the run, no query receives
+// REFUSED and less than 0.1 % receive no response. At the end of the
+// 25 % phase, 1 minute after the drop, the memory is back within 50 MB
+// of its level before the load.
 //
-// Why the memory is given 5 minutes, not 1: freed heap and stack memory
-// goes back to the system through the Go runtime's background scavenger,
-// once a garbage collection has lowered the heap goal; with no load a
-// collection is forced only every 2 minutes (TS § 5). A 1-minute window
-// would then fail on a correct build depending on when the last
-// collection ran, so the test keeps the functional spec's window for
-// this one criterion. It does not wait for the 5 minutes: the 25 % load
-// goes on for at least 1 minute (decision D-3) and then until the memory
-// is back, checked every second, or until 5 minutes after the drop. With
-// C = 200 the growth is small and the run usually ends at 1 minute.
+// The memory window is 1 minute too, not the 5 minutes of the spec: the
+// UoR applied D-3 literally on 2026-11-27, and the bench run of TS § 9.2
+// checks the full window. On a build where the Go scavenger has not yet
+// returned the freed memory 1 minute after the drop (TS § 5), this check
+// can fail although the 5-minute criterion holds.
 func TestDnsOverloadRecoversWhenLoadDrops(t *testing.T) {
 	oc := startOverloadCluster(t)
 	oc.setCapacity(t, overloadCapacity)
@@ -580,67 +601,54 @@ func TestDnsOverloadRecoversWhenLoadDrops(t *testing.T) {
 	base := baselineRSS(t, node)
 	t.Logf("node %s, memory with no DNS load: %.1f MB", node.NodeID, float64(base)/megabyte)
 
-	const (
-		lowPhaseMin = time.Minute
-		memWindow   = 5 * time.Minute
-	)
 	drop := overloadRunDuration
+	lowPhase := overloadRunDuration
 	lowRate := overloadCapacity / 4
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	start := time.Now()
 	var run *loadRun
 	loadDone := make(chan struct{})
 	go func() {
 		defer close(loadDone)
-		run = runDNSLoad(ctx, t, node.DNSAddr, start, []loadPhase{
+		run = runDNSLoad(context.Background(), t, node.DNSAddr, start, []loadPhase{
 			{Rate: 2 * overloadCapacity, Duration: drop},
-			{Rate: lowRate, Duration: memWindow},
+			{Rate: lowRate, Duration: lowPhase},
 		}, oc.names.mix)
 	}()
 
-	time.Sleep(time.Until(start.Add(drop + lowPhaseMin)))
-	var rss int64
-	var back time.Duration = -1
-	for {
-		var err error
-		if rss, err = processRSS(node.cmd.Process.Pid); err != nil {
-			t.Errorf("memory of %s: %v", node.NodeID, err)
-			break
-		}
-		since := time.Since(start) - drop
-		if rss <= base+50*megabyte {
-			back = since
-			break
-		}
-		if since >= memWindow {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	cancel()
+	// The memory is read at the end of the 25 % phase, while the load is
+	// still at that rate.
+	time.Sleep(time.Until(start.Add(drop + lowPhase)))
+	rss, rssErr := processRSS(node.cmd.Process.Pid)
 	<-loadDone
 	run.logPerSecond(t)
 	run.checkRate(t, 0, drop, 2*overloadCapacity)
-	run.checkRate(t, drop+time.Second, run.Duration-time.Second, lowRate)
+	run.checkRate(t, drop+time.Second, drop+lowPhase, lowRate)
 
 	if node.Node.hasExited() {
 		t.Fatalf("node %s exited during the run%s", node.NodeID, exitReport(node.Node))
 	}
-	t.Logf("overload phase: %s", run.stats(0, drop))
+	overload := run.stats(0, drop)
+	t.Logf("overload phase: %s", overload)
+	if overload.Refused == 0 {
+		t.Errorf("no query received REFUSED before the drop; the run does not test the scenario")
+	}
 	after := run.stats(drop+5*time.Second, run.Duration+time.Second)
-	t.Logf("from 5 s after the drop to the end (%s after the drop): %s", (run.Duration - drop).Round(time.Second), after)
+	t.Logf("from 5 s after the drop to the end: %s", after)
 	if after.Refused != 0 {
 		t.Errorf("%d queries received REFUSED from 5 s after the drop; want none", after.Refused)
 	}
 	if float64(after.Lost) >= 0.001*float64(after.Sent) {
 		t.Errorf("%d of %d queries sent from 5 s after the drop received no response; want less than 0.1 %%", after.Lost, after.Sent)
 	}
-	if back < 0 {
-		t.Errorf("%s after the drop, the memory of %s is %.1f MB, %.1f MB over its level before the load; want within 50 MB within 5 minutes",
-			(time.Since(start) - drop).Round(time.Second), node.NodeID, float64(rss)/megabyte, float64(rss-base)/megabyte)
-	} else {
-		t.Logf("memory back within 50 MB %s after the drop: %.1f MB", back.Round(time.Second), float64(rss)/megabyte)
+	switch {
+	case rssErr != nil:
+		t.Errorf("memory of %s: %v", node.NodeID, rssErr)
+	case rss > base+50*megabyte:
+		t.Errorf("1 minute after the drop, the memory of %s is %.1f MB, %.1f MB over its level before the load; want within 50 MB",
+			node.NodeID, float64(rss)/megabyte, float64(rss-base)/megabyte)
+	default:
+		t.Logf("1 minute after the drop, the memory of %s is %.1f MB, %.1f MB over its level before the load",
+			node.NodeID, float64(rss)/megabyte, float64(rss-base)/megabyte)
 	}
 }
 
@@ -695,21 +703,36 @@ func overloadRefusedTotal(body string) (float64, bool) {
 // wrote, so they are collected while the run goes on.
 type logWatch struct {
 	stop, done chan struct{}
+	once       sync.Once
 	seen       map[string]bool
 	lines      []string
 }
 
-func watchLog(n *ClusterNode, re *regexp.Regexp) *logWatch {
+// completeLines returns the lines of b that end with a newline. The last,
+// unterminated line is left out: it can still grow, and counting it now
+// and again once complete would count one line twice.
+func completeLines(b *tailBuffer) []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := make([]string, len(b.lines))
+	for i, line := range b.lines {
+		out[i] = strings.TrimSpace(line)
+	}
+	return out
+}
+
+// watchLog starts a logWatch on n's output. It is stopped at the end of
+// the test if the test does not stop it before.
+func watchLog(t *testing.T, n *ClusterNode, re *regexp.Regexp) *logWatch {
 	w := &logWatch{stop: make(chan struct{}), done: make(chan struct{}), seen: map[string]bool{}}
 	// Lines already written before the watch are not counted.
-	for _, line := range strings.Split(n.Node.output.String(), "\n") {
-		w.seen[strings.TrimSpace(line)] = true
+	for _, line := range completeLines(n.Node.output) {
+		w.seen[line] = true
 	}
 	go func() {
 		defer close(w.done)
 		for {
-			for _, line := range strings.Split(n.Node.output.String(), "\n") {
-				line = strings.TrimSpace(line)
+			for _, line := range completeLines(n.Node.output) {
 				if re.MatchString(line) && !w.seen[line] {
 					w.seen[line] = true
 					w.lines = append(w.lines, line)
@@ -722,11 +745,14 @@ func watchLog(n *ClusterNode, re *regexp.Regexp) *logWatch {
 			}
 		}
 	}()
+	t.Cleanup(func() { w.Stop() })
 	return w
 }
 
+// Stop stops the watch and returns the lines collected. It can be called
+// more than once.
 func (w *logWatch) Stop() []string {
-	close(w.stop)
+	w.once.Do(func() { close(w.stop) })
 	<-w.done
 	return w.lines
 }
@@ -762,7 +788,7 @@ func TestDnsOverloadVisibleToAdministrator(t *testing.T) {
 		t.Errorf("before the run, /metrics of %s has no skoed_dns_overload_refused_total", node.NodeID)
 	}
 
-	logs := watchLog(node, overloadLogLine)
+	logs := watchLog(t, node, overloadLogLine)
 	start := time.Now()
 	run := runDNSLoad(context.Background(), t, node.DNSAddr, start,
 		[]loadPhase{{Rate: 2 * overloadCapacity, Duration: time.Minute}}, oc.names.mix)

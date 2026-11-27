@@ -627,6 +627,9 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
+- [ ] Tools — tools/traceability/traceability_check.sh only recognizes
+  JS-style it(/test(; every Go acceptance test shows TODO_ONLY, so the
+  check reports 0 OK and exits 1 (CI does not run it)
 - [x] M50 — refactoring phase (3 commits up to 7f4150b), full suite again:
   599 pass, 1 known flake (passes 3/3 alone), `-race` clean — 2026-11-25
 - [x] M50 — real-environment validation on a Proxmox 3-node cluster:
