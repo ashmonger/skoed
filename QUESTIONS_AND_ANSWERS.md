@@ -80,3 +80,48 @@ None.
 
 - **Q**: M50 — should join refuse node IDs a certificate cannot pin (localhost, IP literals) when mTLS is off?
   **A**: No. Refuse them only on an mTLS cluster; mtls-bootstrap and the start-time check keep refusing them with mTLS on. — 2026-11-25
+
+- **Q**: DNS overload — who sets the DNS capacity of a node?
+  **A**: A cluster-wide setting the administrator can change, with a default that skoed ships. Not derived from the node's CPU and memory. — UoR, 2026-11-27
+
+- **Q**: DNS overload — what is the default DNS capacity?
+  **A**: The highest C for which the 2 × C scenarios of `dns-overload-protection.feature` pass on a node with 2 cores and 2 GB running the fixed code with the spec's query mix, measured under that overload and recorded in the technical spec. Not 4,000 qps (in T10 nodes failed at 4,000 with the current code). — UoR, 2026-11-27
+
+- **Q**: DNS overload — how far above its capacity is a node loaded in the scenarios?
+  **A**: 2 × C. — UoR, 2026-11-27
+
+- **Q**: DNS overload — what tolerance applies to UDP loss?
+  **A**: Above capacity, the node answers at least 90 % of C per second and at least 98 % of the queries sent receive an answer or a REFUSED response; below capacity, less than 0.1 % of the queries sent receive no response. Derived from T2. — UoR, 2026-11-27
+
+- **Q**: DNS overload — what latency bound applies during overload?
+  **A**: p99 of the answers below 50 ms, and p99.9 of all responses (answers and refusals) below 1 second. — UoR, 2026-11-27
+
+- **Q**: DNS overload — what does a client receive for a query above the capacity?
+  **A**: A REFUSED response, the same as from a node that is not ready (decided together with the startup question below). — UoR, 2026-11-27
+
+- **Q**: DNS overload — are clients expected to fall back to another node?
+  **A**: Yes. The administrator gives clients at least two nodes, and skoed documents it. — UoR, 2026-11-27
+
+- **Q**: DNS overload — how much may the memory of an overloaded node grow?
+  **A**: At most 200 MB over its level with no DNS load (the 160 MB of heap in use in the perf report's Findings 1, plus a margin). — UoR, 2026-11-27
+
+- **Q**: DNS overload — how soon after the load drops must a node be back to normal?
+  **A**: From 5 seconds after the drop it refuses no query, and within 5 minutes its memory is back within 50 MB of its level before the load. — UoR, 2026-11-27
+
+- **Q**: DNS overload — how is the DNS capacity counted?
+  **A**: Per second, with a burst allowance of one second's worth of queries. — UoR, 2026-11-27
+
+- **Q**: DNS overload — how does the administrator see that a node is overloaded?
+  **A**: A count of refused queries per node in the metrics endpoint, and a log line at most once per minute while the node refuses queries. — UoR, 2026-11-27
+
+- **Q**: DNS startup readiness — what does a client receive from a node that has not loaded its lists yet?
+  **A**: A REFUSED response, the same as for a query above the capacity. — UoR, 2026-11-27
+
+- **Q**: DNS startup readiness — what does a node do when it cannot load one of its lists at startup?
+  **A**: It waits at most 60 seconds for that list, then answers with the lists it could load, shows DNS state "ready" and reports the missing list as not loaded. — UoR, 2026-11-27
+
+- **Q**: DNS startup readiness — is a restart of the whole cluster at once covered?
+  **A**: Yes. A node that holds a copy of every list loads it from disk and answers without the leader and without internet access. — UoR, 2026-11-27
+
+- **Q**: DNS startup readiness — how does the administrator see that a node is not ready yet?
+  **A**: The cluster status shows the node with DNS state "starting" until it answers queries, then "ready", and the node logs when it starts answering. — UoR, 2026-11-27

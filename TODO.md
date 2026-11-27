@@ -593,6 +593,9 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   memory is goroutine stacks (`demos/perf-5node-lxc/REPORT.md`) — 2026-11-26
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
+- [ ] Specs — DNS overload protection and startup readiness: decisions
+  validated 2026-11-27, functional specs awaiting final UoR validation
+  (branch `feature/dns-overload-protection`)
 - [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
   slow down as records accumulate (132 → 11 writes/s at 12,000 records)
 - [ ] Blocklists — OISD in auto format loads 11 junk entries: `detectFormat`
