@@ -10,6 +10,7 @@ x-fsid-links:
   - FS-MetricsDhcpGaugesWhenEnabled
   - FS-MetricsOpenByDefault
   - FS-MetricsOptionalAuthGate
+  - FS-DnsOverloadVisibleToAdministrator
 ---
 
 # TS-PrometheusMetrics — `/metrics` exporter
@@ -38,6 +39,7 @@ is enabled (M4.6), `/metrics` is reachable over the same scheme.
 | `skoed_dns_queries_total`                       | counter   | outcome, transport      |
 | `skoed_dns_query_duration_seconds`              | histogram | outcome                 |
 | `skoed_device_new_dropped_total`                | counter   | —                       |
+| `skoed_dns_overload_refused_total`              | counter   | —                       |
 | `skoed_dns_cache_size`                          | gauge     | —                       |
 | `skoed_dns_cache_max_entries`                   | gauge     | —                       |
 | `skoed_dns_cache_hits_total`                    | counter   | —                       |
@@ -102,3 +104,9 @@ internet-facing nodes and leave it open on LAN-only nodes.
   collection time. No background goroutine.
 - The DNS counters are incremented in the existing query handler at the
   same place the query-log row is written, so the two never diverge.
+- `skoed_dns_overload_refused_total` (TS-DnsOverloadProtection § 6.1,
+  FS-DnsOverloadVisibleToAdministrator) counts the queries refused on
+  the plain UDP listeners because the node was above its DNS capacity.
+  Those queries never reach the handler, so they are not in
+  `skoed_dns_queries_total`. It is read at scrape time from the
+  admission counter, which lives as long as the process.

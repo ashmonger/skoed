@@ -410,6 +410,25 @@ components:
                   type: boolean
                 max_entries:
                   type: integer
+            capacity_qps:
+              type: integer
+              minimum: 100
+              maximum: 1000000
+              x-tsid: TS-DnsOverloadProtection
+              x-fsid-links:
+                - FS-DnsOverloadCapacityConfigurable
+              description: >
+                DNS capacity of each node, in queries per second, on the
+                plain UDP listeners. Cluster-wide. Effective value: the
+                value the administrator set, or capacity_qps_default when
+                none is set. Queries above it receive REFUSED.
+            capacity_qps_default:
+              type: integer
+              readOnly: true
+              x-tsid: TS-DnsOverloadProtection
+              x-fsid-links:
+                - FS-DnsOverloadCapacityConfigurable
+              description: The DNS capacity skoed ships with, used when capacity_qps was never set or was set to 0.
         filtering:
           type: object
           properties:
@@ -469,6 +488,19 @@ components:
                   type: boolean
                 max_entries:
                   type: integer
+            capacity_qps:
+              type: integer
+              minimum: 0
+              maximum: 1000000
+              x-tsid: TS-DnsOverloadProtection
+              x-fsid-links:
+                - FS-DnsOverloadCapacityConfigurable
+              description: >
+                Sets the DNS capacity of every node, in queries per second.
+                0 clears it so the shipped default applies; any other value
+                must be between 100 and 1000000, otherwise 400 with
+                "dns.capacity_qps must be 0 (default) or between 100 and
+                1000000" and nothing is committed.
         filtering:
           type: object
           properties:

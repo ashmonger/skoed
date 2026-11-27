@@ -8,6 +8,38 @@
 
 ---
 
+## Delivery slice — DNS overload protection (v0.6.0)
+- Planning scope: DNS overload protection, release v0.6.0, branch `feature/dns-overload-protection`
+- Roadmap links: demos/perf-5node-lxc/REPORT.md Findings 1; TODO.md "DNS overload protection (v0.6.0)"
+- Scope summary: A node answers DNS queries on its plain UDP listeners up to a cluster-wide DNS capacity (token bucket, rate C, burst C) and sends REFUSED for the rest, before starting a goroutine for them, so its memory stays bounded and it recovers when the load drops. The capacity is set through `PATCH /api/v1/settings`; refused queries are counted in `/metrics` and logged at most once per 60 s. The shipped default is measured on 2 cores / 2 GB.
+- Functional spec: specs/functional/dns-overload-protection.feature (validated 2026-11-27)
+- Technical spec: specs/technical/dns-overload-protection.md (TS-DnsOverloadProtection), management-api.openapi.yaml (`dns.capacity_qps`), prometheus-metrics.md (`skoed_dns_overload_refused_total`)
+
+| Order | Step | Outcome | Depends on | FSIDs | TSIDs | Acceptance tests | Status |
+|-------|------|---------|-----------|-------|-------|-----------------|--------|
+| 1 | Technical spec validation | UoR validates TS-DnsOverloadProtection and answers its open questions (in-flight cap, default following, CI durations, web UI) | Functional spec validated | all 8 FS-DnsOverload* | TS-DnsOverloadProtection, TS-PrometheusMetrics | — | In review |
+| 2 | Acceptance tests | One test file covering the 8 FSIDs at a low capacity set through the API; UoR validates them | Step 1 | FS-DnsOverloadCapacityConfigurable, FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadFilteringKept, FS-DnsOverloadMemoryBounded, FS-DnsOverloadRecoversWhenLoadDrops, FS-DnsOverloadNoRefusalBelowCapacity, FS-DnsOverloadVisibleToAdministrator | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
+| 3 | Implementation | `dns.capacity_qps` setting and validation, `Admission` token bucket in a UDP `DecorateReader`, in-place REFUSED, counter and log line, `GOMEMLIMIT` from the cgroup limit; acceptance tests green, refactoring phase done | Step 2 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
+| 4 | Default capacity measurement | Binary search then 15-minute confirmation of the 2 × C scenarios on the Proxmox LXC bench (3 nodes, 2 cores / 2 GB, no swap); result recorded in TS-DnsOverloadProtection § 9.1 and set as `DefaultDNSCapacityQPS` | Step 3 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | Bench run of the load generator (TS § 9.2) | Planned |
+| 5 | Demo note | Bench results of the 8 scenarios at the measured default, implemented and not implemented scope, limitations; UoR validates | Step 4 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | — | Planned |
+| 6 | Release v0.6.0 | Merge to master after demo validation, tag, changelog; documentation tells administrators to give clients at least two nodes | Step 5 | — | — | — | Planned |
+
+- Critical path: technical spec validation → acceptance tests → implementation → default capacity measurement → demo note → release
+- Owners: implementation and measurement by agents on the feature branch; validations by the UoR
+- Blockers: the open questions of TS-DnsOverloadProtection § 11 must be answered before step 2
+- Validation checkpoints:
+  - [ ] Technical spec validated by UoR
+  - [ ] Acceptance tests validated by UoR
+  - [ ] Implementation done, acceptance tests green, CI green
+  - [ ] Refactoring validated (acceptance + full tests green after refactor)
+  - [ ] Default capacity measured and recorded
+  - [ ] Demo validated by UoR
+- Risks:
+  - The memory may not go back within 50 MB in 5 minutes through the Go scavenger alone. Response: the `debug.FreeOSMemory` fallback of TS § 5.
+  - The bench host has 4 physical cores for 3 nodes, the upstream and the load generator. Response: pin the node under test to 2 physical cores (TS § 9.2) and check the cache hit ratio of each run.
+
+---
+
 ## Previous milestone — Milestone 1 (DONE)
 - Planning scope: Milestone 1 — Single Node Foundation
 - Roadmap links: ROADMAP.md § Milestone 1
@@ -89,6 +121,7 @@
 
 ## Change log
 
+- 2026-11-27: Delivery slice added for DNS overload protection (v0.6.0), TS-DnsOverloadProtection.
 - 2026-06-30: M34.5 (Configurable Session Timeout) shipped. `SnapshotThreshold=64` / `SnapshotInterval=30s` infrastructure fix applied to `internal/cluster/raft.go` — eliminates 30-second full log replay on restart caused by hashicorp/raft v1.7.3 not persisting `lastApplied`. 19/19 Proxmox checks pass. Operational plan from M11 onward is tracked in `TODO.md` (per-milestone task sections), not here.
 - 2026-05-29: Initial plan created for Milestone 1.
 - 2026-05-29: Milestone 1 complete; plan updated for Milestone 2.
