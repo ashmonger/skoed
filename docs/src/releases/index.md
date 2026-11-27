@@ -5,12 +5,28 @@ a Proxmox cluster validation run.
 
 | Release | Feature | Test report |
 |---------|---------|-------------|
+| v0.5.2 | Hotfix: stats aggregator crash under DNS load | — |
 | v0.5.1 | DNS hot path, mTLS across hosts, startup address wait | [Performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md) |
 | [v0.5.0](https://github.com/ashmonger/skoed/releases/tag/v0.5.0) | M50 — Blocklist content distributed by the leader, bounded Raft log, peer HTTP over mTLS | [Demo note](https://github.com/ashmonger/skoed/blob/master/demos/m50/DEMO_NOTE.md) |
 | — (pending) | M15 — Test suite cleanup + keepalived VIP | [Test report](m15-test-report.html) |
 | [v0.1.2](https://github.com/ashmonger/skoed/releases/tag/v0.1.2) | M14 — Block dynamic-lease clients | [Test report](m14-test-report.html) |
 | [v0.1.1](https://github.com/ashmonger/skoed/releases/tag/v0.1.1) | M13 — Filtering pause | — |
 | [v0.1.0](https://github.com/ashmonger/skoed/releases/tag/v0.1.0) | M11 — Distribution & packaging | — |
+
+## v0.5.2 — Hotfix: stats aggregator crash under DNS load
+
+- **Daemon crash under DNS load, fixed**: under sustained DNS load, the
+  daemon could exit with `fatal error: concurrent map iteration and map
+  write`, which stopped DNS, DHCP and the API on that node. The hourly
+  stats aggregator built its top domains and top clients from the current
+  hour's counters without holding their lock, while every DNS query kept
+  updating them. It now detaches the counters under the lock before
+  building the aggregate, and keeps them, with the queries counted since,
+  for the next attempt if the commit fails.
+- **Query counts**: queries counted while an aggregate was being committed
+  were dropped from the hourly stats; they are now kept for the next one.
+- Every node running v0.5.1 or earlier has this defect (it is present
+  since v0.1.0) and should be upgraded.
 
 ## v0.5.1 — DNS hot path, mTLS across hosts, startup address wait
 
