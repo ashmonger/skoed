@@ -601,6 +601,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `blocklistsync` logs `leader answered 404` for it
 - [ ] Packaging — after a container reboot skoed starts before the IP is
   set (`bind: cannot assign requested address`), restarted by systemd
+  — fix in progress on fix/boot-bind-retry under
+  `decisions/20261127-WaitForUnassignedListenAddress.md`
+- [ ] Packaging — retroactive functional scenario with an `@fsid` owed by
+  that exception: a node whose listen address is assigned after start
+  waits for it
+- [ ] Packaging — demo note and UoR validation of the wait for an
+  unassigned listen address
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
