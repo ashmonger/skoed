@@ -39,6 +39,11 @@
 #   ./tests/acceptance/run-in-docker.sh                 # run full suite
 #   ./tests/acceptance/run-in-docker.sh -run TestDoh    # filter
 #   ./tests/acceptance/run-in-docker.sh -v -count=1 -run 'TestAcme'
+#
+# The DNS overload tests (dns_overload_protection_test.go) take about
+# 10 minutes on their own, so without -run or -skip the suite is run with
+# -skip '^TestDnsOverload', as in CI. Run them with:
+#   ./tests/acceptance/run-in-docker.sh -v -run '^TestDnsOverload'
 
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -66,6 +71,17 @@ if git -C "$ROOT" rev-parse -q --verify "${PREV_REF}^{commit}" >/dev/null; then
   prev_mount="-v ${PREV_DIR}:/prev:ro"
 else
   echo "warning: ${PREV_REF} not found, the upgrade test will skip" >&2
+fi
+
+# Skip the DNS overload tests unless the caller selects tests itself.
+filtered=0
+for arg in "$@"; do
+  case "$arg" in
+    -run|-run=*|--run|--run=*|-skip|-skip=*|--skip|--skip=*) filtered=1 ;;
+  esac
+done
+if [ "$filtered" = 0 ]; then
+  set -- -skip '^TestDnsOverload' "$@"
 fi
 
 cache_mounts=""

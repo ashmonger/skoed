@@ -80,11 +80,13 @@ jobs:
         # in harness_test.go is 120s to cover CI runner disk-I/O contention.
         # -json + tee: structured output written to /tmp/acc.json for the
         # "show failures" step below; the python3 filter prints only FAIL lines.
+        # -skip '^TestDnsOverload': the DNS overload tests run serially for
+        # about 10 minutes, so they have their own job, acceptance-overload.
         env:
           SKOED_BINARY: ${{ github.workspace }}/apps/skoed/skoed
         run: |
           cd tests/acceptance
-          go test -timeout 1200s -parallel 4 -json ./... | tee /tmp/acc.json \
+          go test -timeout 1200s -parallel 4 -skip '^TestDnsOverload' -json ./... | tee /tmp/acc.json \
             | python3 -c "
           import sys, json
           for line in sys.stdin:
@@ -104,6 +106,65 @@ jobs:
           import json, sys
           fails = []
           with open('/tmp/acc.json') as f:
+              for line in f:
+                  try:
+                      e = json.loads(line)
+                      if e.get('Action') == 'fail' and e.get('Test'):
+                          fails.append(f\"FAIL: {e['Test']} ({e.get('Elapsed',0):.1f}s)\")
+                  except Exception:
+                      pass
+          print('\n'.join(fails) if fails else 'no individual test failures found (suite-level error)')
+          " 2>/dev/null || echo "could not parse test output"
+
+  acceptance-overload:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache: true
+          cache-dependency-path: tests/acceptance/go.sum
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: web npm ci
+        run: cd web && npm ci --no-audit --no-fund
+
+      - name: make build
+        run: make build
+
+      - name: DNS overload acceptance tests
+        # Only the tests of dns_overload_protection_test.go. Each one puts a
+        # node under DNS load for about 1 minute and they run serially,
+        # about 10 minutes in all, so they have their own job and timeout;
+        # the acceptance job skips them. Same runner setup and output
+        # handling as the acceptance job.
+        env:
+          SKOED_BINARY: ${{ github.workspace }}/apps/skoed/skoed
+        run: |
+          cd tests/acceptance
+          go test -timeout 1200s -parallel 4 -run '^TestDnsOverload' -json ./... | tee /tmp/acc-overload.json \
+            | python3 -c "
+          import sys, json
+          for line in sys.stdin:
+              try:
+                  e = json.loads(line)
+                  if e.get('Action') in ('fail','pass') and e.get('Test'):
+                      print(f\"{e['Action'].upper()}: {e['Test']} ({e.get('Elapsed',0):.2f}s)\")
+              except Exception:
+                  pass
+          "
+          exit ${PIPESTATUS[0]}
+
+      - name: show failing tests
+        if: failure()
+        run: |
+          python3 -c "
+          import json, sys
+          fails = []
+          with open('/tmp/acc-overload.json') as f:
               for line in f:
                   try:
                       e = json.loads(line)
