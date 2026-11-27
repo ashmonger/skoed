@@ -41,13 +41,14 @@ Feature: DNS startup readiness
     And a local DNS entry "nas.home.arpa" with address "192.168.1.10"
     And every node holds the leader's copy of "ads"
     And every client sending queries is inside the trusted subnets of the nodes
+    And the upstream resolver answers "safe.tracker.example.com" with the address "203.0.113.20"
 
   # DECISION: What a client receives from a node that has not loaded its lists yet — options: A (recommended) a REFUSED response, so its resolver moves to its next configured server at once / B no answer, the node does not listen on its DNS port until it is ready / C a SERVFAIL response. This is decided together with the response to excess queries of FS-DnsOverloadRefusesExcess (dns-overload-protection.feature), so that a client sees one behavior for "this node cannot answer now".
   @fsid:FS-DnsStartupRefusesUntilReady
   Scenario: A starting node refuses queries until its lists are loaded
     Given a client sends an A query for "tracker.example.com" to a follower every 50 ms
     When that follower is stopped and started again
-    Then from the moment the follower is stopped, the responses are zero or more REFUSED responses followed only by NXDOMAIN responses
+    Then from the moment the stop has completed (the skoed process has exited), the responses are zero or more REFUSED responses followed only by NXDOMAIN responses
     And queries sent while the skoed process is down may receive no response
     And no query receives a NOERROR response
 
@@ -62,16 +63,17 @@ Feature: DNS startup readiness
   Scenario: A node that rejoins the cluster with no data never answers unfiltered
     Given each node has 2 CPU cores and 2 GB of memory, as in T8
     And the blocklists of the cluster hold 2,800,000 domains
-    When a node with no data joins the cluster with a new join token
-    And from the moment the join completes, a client sends an A query for "tracker.example.com" to that node every 50 ms
-    Then no query receives a NOERROR response
+    And a client sends an A query for "tracker.example.com" every 50 ms to the address of a node with no data
+    When that node joins the cluster with a new join token
+    Then the responses are zero or more REFUSED responses or no response, followed only by NXDOMAIN responses
+    And no query receives a NOERROR response
     And within 30 seconds of joining the queries receive a NXDOMAIN response
 
   @fsid:FS-DnsStartupAllRulesApplyFromFirstAnswer
   Scenario: Allowlists and local DNS entries apply from the first answer
     Given clients send queries for "safe.tracker.example.com" and "nas.home.arpa" to a follower every 50 ms
     When that follower is stopped and started again
-    Then from the moment the follower is stopped, the first response other than REFUSED for "safe.tracker.example.com" is the upstream answer
+    Then from the moment the stop has completed (the skoed process has exited), the first response other than REFUSED for "safe.tracker.example.com" contains the address "203.0.113.20"
     And the first response other than REFUSED for "nas.home.arpa" contains the address "192.168.1.10"
     And no query for "nas.home.arpa" is forwarded to an upstream resolver
 
@@ -102,8 +104,9 @@ Feature: DNS startup readiness
   Scenario: The cluster status shows a node that is not ready yet
     Given a blocklist "extra" that a follower holds no copy of
     And neither the URL of "extra" nor the leader is reachable from that follower
+    And a client sends an A query for "tracker.example.com" to that follower every 50 ms
     When that follower restarts
-    And the administrator requests the cluster status from that follower 10 seconds after the restart
+    And the administrator requests the cluster status on that follower 10 seconds after the restart
     Then the entry of that follower has DNS state "starting"
-    And that follower answers queries for "tracker.example.com" with REFUSED
+    And the queries sent at that time receive a REFUSED response
     And once the follower answers "tracker.example.com" with NXDOMAIN, its entry has DNS state "ready" within 5 seconds

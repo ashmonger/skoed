@@ -49,8 +49,8 @@ Feature: DNS overload protection
     And unless a scenario says otherwise, the queries sent are 70 % names in the DNS cache, 20 % names not in the DNS cache and 10 % names blocked by "ads"
 
   # DECISION: Who sets the DNS capacity of a node — options: A (recommended) a cluster-wide setting the administrator can change, with a default that skoed ships / B derived automatically by each node from its CPU and memory / C both, the administrator value overriding the derived one
-  # DECISION: What the default DNS capacity is — options: A (recommended) the highest rate at which a node with 2 cores and 2 GB, running the fixed code with the query mix of this Background, loses less than 1 % and stays within the latency bound of FS-DnsOverloadAnswersUpToCapacity, measured once and recorded in the technical spec / B 4,000 queries per second (not a healthy measurement: in T10 nodes failed at 4,000 with the current code) / C no default, no limit until the administrator sets one
-  # Derived: 5 seconds matches the configuration propagation bound of cluster-config-sync.feature.
+  # DECISION: What the default DNS capacity is — options: A (recommended) the highest C for which the 2 × C scenarios of this feature (FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded) pass on a node with 2 cores and 2 GB running the fixed code with the query mix of this Background, measured under that overload, because refusing queries also uses CPU, and recorded in the technical spec / B 4,000 queries per second (not a healthy measurement: in T10 nodes failed at 4,000 with the current code) / C no default, no limit until the administrator sets one
+  # Derived: 5 seconds matches the configuration propagation bound of cluster-config-sync.feature. The first second is excluded because the burst allowance of the recommended counting (see FS-DnsOverloadNoRefusalBelowCapacity) lets a node answer up to twice its capacity in that second; the 2 % above 2,000 is for the jitter of measuring per second on the client side.
   @fsid:FS-DnsOverloadCapacityConfigurable
   Scenario: A cluster has a default DNS capacity that the administrator can change
     Given a new cluster where the administrator has not set a DNS capacity
@@ -58,16 +58,18 @@ Feature: DNS overload protection
     Then the DNS settings show the default DNS capacity
     When the administrator sets the DNS capacity to 2,000 queries per second
     Then within 5 seconds the DNS settings of every node show a DNS capacity of 2,000 queries per second
-    And a node receiving 3,000 queries per second answers between 1,800 and 2,000 of them per second
+    When clients send 3,000 queries per second to one node for 1 minute
+    Then from the second second of the run, the node answers between 1,800 and 2,040 queries per second, averaged over the rest of the minute
+    And over the whole minute the node answers at most 122,000 queries (60 seconds at capacity plus one second's worth of burst allowance)
 
   # DECISION: How far above its capacity a node is loaded in these scenarios — options: A (recommended) 2 × C / B 4 × C / C the highest rate the load generator reaches
   # DECISION: What tolerance applies to UDP loss — options: A (recommended) above capacity, the node answers at least 90 % of C per second and at least 98 % of the queries sent receive an answer or a REFUSED response; below capacity, less than 0.1 % of the queries sent receive no response / B stricter: 95 %, 99 % and 0.01 % / C looser: 80 %, 95 % and 1 %. Derived from T2 (cached names only): loss 0.15 % at 5,000 qps, 1.86 % at 10,000 qps, 4.7 % at the 19,000 qps maximum.
-  # DECISION: What latency bound applies during overload — options: A (recommended) p99 of the answers below 50 ms and p99.9 of all responses (answers and refusals) below 1 second / B p99 below 25 ms and p99.9 below 500 ms / C no latency bound. Derived from T2, which measured cached names only: p99 23.6 ms at 5,000 qps and 56–61 ms at the maximum rate; A leaves room for the 20 % of cache misses and the 10 ms upstream of this Background.
+  # DECISION: What latency bound applies during overload — options: A (recommended) p99 of the answers below 50 ms and p99.9 of all responses (answers and refusals) below 1 second / B p99 below 25 ms and p99.9 below 500 ms / C no latency bound. Derived from T2, which measured cached names only: p99 23.6 ms at 5,000 qps, 75.8 ms at 10,000 qps, and 60–61 ms at the maximum rate (56 ms for blocked names); the figures above 5,000 qps include the backlog this feature removes. A leaves room for the 20 % of cache misses and the 10 ms upstream of this Background.
   @fsid:FS-DnsOverloadAnswersUpToCapacity
   Scenario: An overloaded node keeps answering up to its capacity
     Given the DNS capacity of each node is C
     When clients send 2 × C queries per second to one node for 15 minutes
-    Then in every minute of the run the node answers at least 90 % of C queries per second
+    Then in every minute of the run, excluding its first second, the node answers at least 90 % of C queries per second
     And the 99th percentile latency of the answers stays below 50 ms
 
   # DECISION: What a client receives for a query above the capacity — options: A (recommended) a REFUSED response, so its resolver moves to its next configured server at once / B a SERVFAIL response / C no answer, the client waits for its own timeout. This is decided together with the not-ready response of FS-DnsStartupRefusesUntilReady (dns-startup-readiness.feature), so that a client sees one behavior for "this node cannot answer now".
@@ -100,15 +102,15 @@ Feature: DNS overload protection
     And the leader is never killed for lack of memory
     And the leader stays the leader and no leader election takes place during the run
 
-  # DECISION: How soon after the load drops a node must be back to normal — options: A (recommended) it refuses no query within 5 seconds, and its memory is back within 50 MB of its level before the load within 5 minutes / B the same, memory within 60 seconds / C only refusals are bounded, memory stays within the bound of FS-DnsOverloadMemoryBounded but need not go back down. Risk for A and B: the memory going back down depends on the Go runtime returning freed memory to the system; in Findings 1 the node still held 458 MB against 52 MB before the load, 120 s after the backlog had drained, so B probably needs skoed to force the release.
+  # DECISION: How soon after the load drops a node must be back to normal — options: A (recommended) it refuses no query within 5 seconds, and its memory is back within 50 MB of its level before the load within 5 minutes / B the same, memory within 60 seconds / C only refusals are bounded, memory stays within the bound of FS-DnsOverloadMemoryBounded but need not go back down. Risk for A and B: the memory going back down depends on the Go runtime returning freed memory to the system; in Findings 1 the node still held 458 MB against 52 MB before the load 120 s after the load stopped, when the backlog had just drained, so B probably needs skoed to force the release.
   @fsid:FS-DnsOverloadRecoversWhenLoadDrops
   Scenario: A node recovers as soon as the load goes below its capacity
     Given the DNS capacity of each node is C
     And the memory used by the node with its lists loaded and no DNS load is recorded
     And clients have sent 2 × C queries per second to one node for 5 minutes
     When the load drops to 25 % of C queries per second
-    Then from 5 seconds after the drop no query receives a REFUSED response
-    And less than 0.1 % of the queries sent from 5 seconds after the drop receive no response
+    Then from 5 seconds until 5 minutes after the drop, no query receives a REFUSED response
+    And less than 0.1 % of the queries sent in that time receive no response
     And within 5 minutes the memory used by the node is back within 50 MB of its level before the load
 
   # DECISION: How the DNS capacity is counted — options: A (recommended) per second, with a burst allowance of one second's worth of queries, so a node under its capacity on average never refuses / B over a 10-second window, no burst allowance / C per 100 ms, no burst allowance
@@ -128,5 +130,6 @@ Feature: DNS overload protection
     And clients sent 2 × C queries per second to one node for 1 minute
     When the administrator reads the metrics of that node
     Then the metrics show a count of the queries the node refused because it was overloaded
-    And that count equals, within 1 %, the number of REFUSED responses the clients received
+    And the increase of that count during the run is at least the number of REFUSED responses the clients received
+    And it exceeds that number by at most 2 % of the queries sent, the share of responses FS-DnsOverloadRefusesExcess allows to be lost on the way back
     And the node's log has at least one line, and at most one per minute, saying it refused queries and how many
