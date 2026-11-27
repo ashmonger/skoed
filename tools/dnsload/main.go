@@ -119,10 +119,24 @@ func run() error {
 		return err
 	}
 	printResult(os.Stdout, res, cpuTime()-cpu0)
+	if ctx.Err() != nil {
+		fmt.Printf("cancelled: the run stopped sending at %.1f s; the rows and summaries cover only the queries sent before, and the seconds after are empty\n",
+			lastSend(res.Seconds))
+	}
 	if o.csvPath != "" {
 		return writeCSVFile(o.csvPath, res.Seconds)
 	}
 	return nil
+}
+
+// lastSend is the end of the last second in which queries were sent.
+func lastSend(seconds []loadgen.Second) float64 {
+	for i := len(seconds) - 1; i >= 0; i-- {
+		if seconds[i].Sent > 0 {
+			return float64(i + 1)
+		}
+	}
+	return 0
 }
 
 // writeCSVFile writes one row per second of the run, from the final

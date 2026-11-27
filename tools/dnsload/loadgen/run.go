@@ -84,10 +84,21 @@ type conn interface {
 
 // Run sends the queries of cfg and waits for their responses or their
 // timeout. Cancelling ctx stops the sending; the queries already sent
-// still get their outcome. onSecond, when not nil, is called with each
-// second of the run, in order, once all the queries sent in it have
-// their outcome; the seconds it receives are those of Result.Seconds.
+// still get their outcome, and the seconds after the cancellation are
+// empty.
+//
+// onSecond, when not nil, is called with each second of the run, in
+// order, for live display. It is best effort: a second is passed once
+// the timeout of the queries scheduled in it has passed, so a worker
+// still catching up on its schedule can send, receive or time out a
+// query of that second afterwards, and the row then misses it. The
+// last second is passed from the final counts. Result.Seconds,
+// Result.Phases and Result.Queries are final: use them, not the
+// onSecond rows, for any figure that matters.
 func Run(ctx context.Context, cfg Config, onSecond func(Second)) (*Result, error) {
+	if err := ValidatePhases(cfg.Phases); err != nil {
+		return nil, err
+	}
 	sched := NewSchedule(cfg.Phases)
 	if cfg.Timeout <= 0 {
 		return nil, errors.New("timeout must be positive")

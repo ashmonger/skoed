@@ -3,6 +3,7 @@ package loadgen
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -385,5 +386,137 @@ func TestWarm(t *testing.T) {
 	}
 	if answered != 2 {
 		t.Errorf("Warm answered %d, want 2", answered)
+	}
+}
+
+func TestRunValidatesPhases(t *testing.T) {
+	for _, phases := range [][]Phase{
+		nil,
+		{{Rate: -1, Duration: time.Second}},
+		{{Rate: math.NaN(), Duration: time.Second}},
+		{{Rate: math.Inf(1), Duration: time.Second}},
+		{{Rate: 100, Duration: 0}},
+		{{Rate: 100, Duration: -time.Second}},
+		{{Rate: 100, Duration: time.Second, Settle: time.Second}},
+		{{Rate: 100, Duration: time.Second, Settle: -time.Second}},
+		{{Rate: 100, Duration: time.Second}, {Rate: 100, Duration: 0}},
+	} {
+		_, err := Run(context.Background(), Config{
+			Server: "127.0.0.1:53", Phases: phases, Timeout: time.Second, Source: testMix(t),
+		}, nil)
+		if err == nil {
+			t.Errorf("phases %+v: want an error", phases)
+		}
+	}
+}
+
+func TestRunWaitsForStart(t *testing.T) {
+	addr := startServer(t, func(_ int64, req *dns.Msg) *dns.Msg { return answerA(req) })
+	start := time.Now().Add(500 * time.Millisecond)
+	res, err := Run(context.Background(), Config{
+		Server: addr, Phases: []Phase{{Rate: 100, Duration: time.Second}},
+		Timeout: 500 * time.Millisecond, Source: testMix(t), Start: start, Records: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Queries) != 100 {
+		t.Fatalf("%d queries, want 100", len(res.Queries))
+	}
+	for _, q := range res.Queries {
+		if q.Sent < 0 {
+			t.Fatalf("query %d sent %v before the start", q.N, -q.Sent)
+		}
+	}
+	if res.Seconds[0].Sent != 100 || res.Phases[0].Summary.Answered() != 100 {
+		t.Errorf("second 0 sent %d, answered %d, want 100 and 100", res.Seconds[0].Sent, res.Phases[0].Summary.Answered())
+	}
+}
+
+func TestTwoRunsAtOnce(t *testing.T) {
+	addr := startServer(t, func(_ int64, req *dns.Msg) *dns.Msg { return answerA(req) })
+	var wg sync.WaitGroup
+	results := make([]*Result, 2)
+	errs := make([]error, 2)
+	for i := range results {
+		wg.Go(func() {
+			mix, _ := NewMix(MixConfig{Zone: "perf.test", Percent: [3]int{0, 100, 0}, RunID: string(rune('a' + i)), Seed: uint64(i)})
+			results[i], errs[i] = Run(context.Background(), Config{
+				Server: addr, Phases: []Phase{{Rate: 300, Duration: time.Second}},
+				Timeout: 500 * time.Millisecond, Source: mix,
+			}, nil)
+		})
+	}
+	wg.Wait()
+	for i, res := range results {
+		if errs[i] != nil {
+			t.Fatalf("run %d: %v", i, errs[i])
+		}
+		s := res.Phases[0].Summary
+		if s.Sent != 300 || s.Answered() != 300 || res.Late != 0 {
+			t.Errorf("run %d: sent %d answered %d late %d, want 300 300 0", i, s.Sent, s.Answered(), res.Late)
+		}
+	}
+}
+
+func TestRunCancelled(t *testing.T) {
+	addr := startServer(t, func(_ int64, req *dns.Msg) *dns.Msg { return answerA(req) })
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	res, err := Run(ctx, Config{
+		Server: addr, Phases: []Phase{{Rate: 200, Duration: 3 * time.Second}},
+		Timeout: 500 * time.Millisecond, Source: testMix(t), Records: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tot := Summarize(res.Seconds, 0, len(res.Seconds))
+	// About 100 queries before the cancellation, not the 600 planned.
+	if tot.Sent < 50 || tot.Sent > 150 || int64(len(res.Queries)) != tot.Sent {
+		t.Fatalf("sent %d, %d records, want about 100 and the same number", tot.Sent, len(res.Queries))
+	}
+	if tot.Answered() != tot.Sent || tot.Lost != 0 {
+		t.Errorf("answered %d lost %d of %d sent: the queries sent must keep their outcome", tot.Answered(), tot.Lost, tot.Sent)
+	}
+	for i, q := range res.Queries {
+		if q.Outcome != OutcomeAnswer {
+			t.Errorf("record %d (query %d): outcome %d, want an answer", i, q.N, q.Outcome)
+		}
+	}
+	if res.Seconds[2].Sent != 0 {
+		t.Errorf("second 2 sent %d after the cancellation", res.Seconds[2].Sent)
+	}
+}
+
+func TestRunInvalidNameIsASendError(t *testing.T) {
+	addr := startServer(t, func(_ int64, req *dns.Msg) *dns.Msg { return answerA(req) })
+	src := SourceFunc(func(n int64) (string, Kind) {
+		if n%4 == 0 {
+			return "bad..name", KindMiss
+		}
+		return "c1.perf.test", KindCached
+	})
+	res, err := Run(context.Background(), Config{
+		Server: addr, Phases: []Phase{{Rate: 200, Duration: time.Second}},
+		Timeout: 500 * time.Millisecond, Source: src, Records: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := res.Phases[0].Summary
+	if s.Sent != 200 || s.SendErrors != 50 || s.Answered() != 150 || s.Lost != 0 {
+		t.Errorf("sent %d send errors %d answered %d lost %d, want 200 50 150 0", s.Sent, s.SendErrors, s.Answered(), s.Lost)
+	}
+	if len(res.Queries) != 200 {
+		t.Fatalf("%d records, want 200", len(res.Queries))
+	}
+	for _, q := range res.Queries {
+		want := OutcomeAnswer
+		if q.N%4 == 0 {
+			want = OutcomeSendError
+		}
+		if q.Outcome != want {
+			t.Errorf("query %d: outcome %d, want %d", q.N, q.Outcome, want)
+		}
 	}
 }

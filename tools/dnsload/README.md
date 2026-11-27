@@ -64,8 +64,16 @@ A response is matched to its query by DNS ID and question name; one
 that matches no query in flight (duplicate, after the timeout, other
 question) is counted in the final warning line, not in the rows. A
 second's row is printed once the timeout of its last query has passed,
-so rows lag the run by the timeout; `-csv` is written at the end from
-the same final rows.
+so rows lag the run by the timeout. These printed rows are for watching
+the run: a query of a second that a busy worker sends, receives or
+times out after its row is printed is missing from that row. The
+`-csv` file and the phase summaries are written at the end from the
+final counts and are the figures to record.
+
+After Ctrl-C, dnsload stops sending, waits for the outcome of the
+queries sent and prints the summaries with a line saying the run was
+cancelled: they cover only the queries sent, and the seconds after the
+cancellation are empty.
 
 Each phase summary covers the whole phase, except the answers per
 second, which leave out the first `-settle` of the phase (default 1 s,

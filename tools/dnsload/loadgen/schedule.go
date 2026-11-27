@@ -42,12 +42,39 @@ func ParsePhases(s string, settle time.Duration) ([]Phase, error) {
 				return nil, fmt.Errorf("phase %q: bad settle time", part)
 			}
 		}
-		if p.Settle >= p.Duration {
-			return nil, fmt.Errorf("phase %q: settle time is not shorter than the phase", part)
+		if err := validatePhase(p); err != nil {
+			return nil, fmt.Errorf("phase %q: %w", part, err)
 		}
 		phases = append(phases, p)
 	}
 	return phases, nil
+}
+
+// ValidatePhases checks that there is at least one phase and that each
+// has a rate that is a finite number not below 0, a positive duration
+// and a settle time from 0 to below the duration.
+func ValidatePhases(phases []Phase) error {
+	if len(phases) == 0 {
+		return fmt.Errorf("no phase")
+	}
+	for i, p := range phases {
+		if err := validatePhase(p); err != nil {
+			return fmt.Errorf("phase %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+func validatePhase(p Phase) error {
+	switch {
+	case p.Rate < 0 || math.IsInf(p.Rate, 0) || math.IsNaN(p.Rate):
+		return fmt.Errorf("bad rate %v", p.Rate)
+	case p.Duration <= 0:
+		return fmt.Errorf("duration %v is not positive", p.Duration)
+	case p.Settle < 0 || p.Settle >= p.Duration:
+		return fmt.Errorf("settle time %v is not from 0 to below the duration %v", p.Settle, p.Duration)
+	}
+	return nil
 }
 
 // Schedule gives the send time of every query of a run. Query k of a
