@@ -1,0 +1,4 @@
+leader=n1 rejoin n5
+start 1795696618.742723684
+first DNS answer (NXDOMAIN) after 136.29s
+blocks sample after 136.30s

@@ -2,13 +2,6 @@
 
 Enable mutual TLS so that all inter-node traffic — Raft replication and API request forwarding — is encrypted and authenticated.
 
-> **Known limitation:** mTLS currently works only when every node runs on
-> the same host (Raft addresses on 127.0.0.1). Between real hosts, Raft
-> rejects the peers' certificates (`x509: certificate is valid for
-> 127.0.0.1, ::1, not <node IP>`) and a join leaves the cluster without a
-> leader. Keep `mtls.enabled: false` on multi-host clusters until this is
-> fixed.
-
 ---
 
 ## What It Does

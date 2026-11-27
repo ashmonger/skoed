@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/skoed/skoed/internal/bindwait"
 )
 
 // Server wraps net/http.Server and binds it to the App's router. M4.6
@@ -111,7 +113,7 @@ func (s *Server) Start() error {
 	errCh := make(chan error, 2)
 
 	// Primary listener on Addr.
-	ln, err := net.Listen("tcp", s.httpServer.Addr)
+	ln, err := bindwait.Listen("tcp", s.httpServer.Addr)
 	if err != nil {
 		return fmt.Errorf("api server: listen %s: %w", s.httpServer.Addr, err)
 	}
@@ -129,8 +131,13 @@ func (s *Server) Start() error {
 
 	// Optional secondary HTTPS listener (dual_port).
 	if s.httpsServer != nil {
+		httpsLn, err := bindwait.Listen("tcp", s.httpsServer.Addr)
+		if err != nil {
+			_ = s.httpServer.Close()
+			return fmt.Errorf("api server: listen %s: %w", s.httpsServer.Addr, err)
+		}
 		go func() {
-			if err := s.httpsServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := s.httpsServer.ServeTLS(httpsLn, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errCh <- err
 			}
 		}()

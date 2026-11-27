@@ -1,0 +1,5 @@
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+knot_ceiling_hits.txt                       215196   0.17   0.789     nan     nan      5.3  NOERROR 4304711 (100.00%)
+knot_ceiling_miss.txt                       211659   0.17   0.789     nan     nan      4.8  NOERROR 4233958 (100.00%)
+knot_hits.txt                               225810   0.16   0.843   0.879   1.599      5.7  NOERROR 3387441 (100.00%)
+knot_miss.txt                               224303   0.16   0.933   0.975   1.599      4.7  NOERROR 3365386 (100.00%)

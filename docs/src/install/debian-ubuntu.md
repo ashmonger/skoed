@@ -8,7 +8,7 @@ Tested on Debian 12 (bookworm), Debian 13 (trixie), Ubuntu 24.04 LTS.
 ```sh
 # Grab the latest .deb from the GitHub releases page.
 ARCH=$(dpkg --print-architecture)          # amd64 or arm64
-VERSION=0.5.0
+VERSION=0.5.1
 curl -fsSLO "https://github.com/skoed/skoed/releases/download/v${VERSION}/skoed_${VERSION}_${ARCH}.deb"
 
 # Install (apt auto-resolves the adduser dependency).

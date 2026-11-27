@@ -265,6 +265,8 @@ func runDaemon(cfgPath string) {
 	// M22 — webhook push-alert dispatcher. Declared early so rebuildDNS
 	// and the refresh scheduler can reference it via closures.
 	var webhookDisp *webhook.Dispatcher
+	// OnDeviceNew hook of every DNS handler; nil until webhookDisp starts.
+	var onDeviceNew func(string)
 
 	// M5.1 — Prometheus exporter. Built before the App so we can pass it
 	// into NewApp / buildDNSHandler. Reads cache/cluster/dhcp state via
@@ -383,7 +385,7 @@ func runDaemon(cfgPath string) {
 		if app != nil {
 			app.SetDNSCache(dnsCache)
 		}
-		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		newHandler := buildDNSHandler(newCfg, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6)
 		// M4: DoH and DoT must see the same fresh handler the plain UDP/TCP
 		// server is about to get — otherwise local-DNS / blocklist / SafeSearch
 		// changes via the API only take effect on UDP, and DoH keeps serving
@@ -668,6 +670,11 @@ func runDaemon(cfgPath string) {
 	app.SetWebhookDispatcher(webhookDisp)
 	webhookDisp.Start()
 	defer webhookDisp.Stop()
+	// Stopped before webhookDisp (defers run in reverse order), so the
+	// worker never fires an event on a stopped dispatcher.
+	deviceNewQueue := deviceNewHook(webhookDisp, c, prom)
+	defer deviceNewQueue.Stop()
+	onDeviceNew = deviceNewQueue.Notify
 
 	// M35: pause-expiry watcher — fires filter.pause_expired when a profile
 	// pause reaches its deadline. Runs only on the leader to avoid duplicate events.
@@ -751,7 +758,7 @@ func runDaemon(cfgPath string) {
 		}
 		bootSnap.Defaults()
 		mergeNodeLocal(bootSnap, node)
-		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6)
+		handler := buildDNSHandler(bootSnap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6)
 		return bootSnap.DNS, handler, nil
 	})
 	if err != nil {
@@ -824,7 +831,7 @@ func runDaemon(cfgPath string) {
 		}
 
 		encryptedSrv, err = dnsengine.NewEncryptedServer(
-			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
+			buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6),
 			snap.DNS.Listen.DoHPort,
 			snap.DNS.Listen.DoTPort,
 			node.Node.DNS.Listen.DoH3Port,
@@ -863,7 +870,7 @@ func runDaemon(cfgPath string) {
 		if dnscryptSrv == nil {
 			if keys, kerr := c.GetDNSCryptKeys(); kerr == nil && keys != nil {
 				dnscryptSrv, err = dnsengine.NewDNSCryptServer(
-					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, deviceNewHook(webhookDisp, c), app.GetBlockPageIP, app.GetBlockPageV6),
+					buildDNSHandler(snap, app.GetFilterEng, queryLog, dhcpMgr, dnsCache, prom, onDeviceNew, app.GetBlockPageIP, app.GetBlockPageV6),
 					node.Node.DNS.Listen.DNSCryptPort,
 					keys.Config,
 				)
@@ -948,64 +955,15 @@ func countOpenAnomalies(anomalies []dhcp.Anomaly) int {
 // /api/v1/cluster/join call (kicked off post-cluster.New) consumes the
 // token and runs AddVoter once our Raft is up.
 func mtlsBootstrapFromLeader(node *cluster.NodeYAML) error {
-	body, err := json.Marshal(map[string]string{
-		"token":   node.Bootstrap.Token,
-		"node_id": node.Node.ID,
-	})
+	b, err := cluster.FetchMTLSBundle(node.Bootstrap.LeaderAddress, node.Bootstrap.Token, node.Node.ID)
 	if err != nil {
 		return err
 	}
-	url := node.Bootstrap.LeaderAddress + "/api/v1/cluster/mtls-bootstrap"
-	deadline := time.Now().Add(30 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		buf, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			var r struct {
-				CACertPEM   []byte `json:"ca_cert_pem"`
-				LeafCertPEM []byte `json:"leaf_cert_pem"`
-				LeafKeyPEM  []byte `json:"leaf_key_pem"`
-			}
-			if err := json.Unmarshal(buf, &r); err != nil {
-				return fmt.Errorf("decode mtls-bootstrap response: %w", err)
-			}
-			dir := cluster.MtlsDir(node.Node.DataDir)
-			if err := os.MkdirAll(dir, 0700); err != nil {
-				return err
-			}
-			p := cluster.MtlsPaths(node.Node.DataDir)
-			if err := os.WriteFile(p.CACertFile, r.CACertPEM, 0644); err != nil {
-				return err
-			}
-			if err := os.WriteFile(p.NodeCert, r.LeafCertPEM, 0644); err != nil {
-				return err
-			}
-			if err := os.WriteFile(p.NodeKey, r.LeafKeyPEM, 0600); err != nil {
-				return err
-			}
-			log.Printf("mTLS bundle from %s persisted under %s", node.Bootstrap.LeaderAddress, dir)
-			return nil
-		}
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			return fmt.Errorf("mtls-bootstrap rejected (status %d): %s", resp.StatusCode, string(buf))
-		}
-		lastErr = fmt.Errorf("mtls-bootstrap status %d: %s", resp.StatusCode, string(buf))
-		time.Sleep(500 * time.Millisecond)
+	if err := cluster.InstallMTLSBundle(node.Node.DataDir, b); err != nil {
+		return err
 	}
-	return fmt.Errorf("mtls-bootstrap: %w", lastErr)
+	log.Printf("mTLS bundle from %s persisted under %s", node.Bootstrap.LeaderAddress, cluster.MtlsDir(node.Node.DataDir))
+	return nil
 }
 
 // mergeNodeLocal overlays the node-local DNS listen settings onto a
@@ -1160,21 +1118,18 @@ func dnscryptRotateOnce(c *cluster.Cluster, certTTL time.Duration) {
 	log.Printf("DNSCrypt keypair rotated (expires %s)", newKeys.ExpiresAt.Format(time.RFC3339))
 }
 
-// deviceNewHook returns a function suitable for HandlerConfig.OnDeviceNew that
-// forwards to the dispatcher's deduplication path and also persists the client
-// to the new-dynamic-client alert list (M35). When disp is nil (e.g. in unit
-// tests that don't wire the dispatcher) the returned value is nil, which the
-// DNS handler treats as "no hook".
-func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster) func(string) {
-	if disp == nil {
-		return nil
-	}
-	return func(clientIP string) {
+// deviceNewHook returns the queue behind HandlerConfig.OnDeviceNew. Its
+// worker forwards each queued client IP to the dispatcher's deduplication
+// path and persists it to the new-dynamic-client alert list (M35), off the
+// DNS path and one IP at a time. IPs dropped because the queue is full are
+// counted in skoed_device_new_dropped_total. disp must not be nil.
+func deviceNewHook(disp *webhook.Dispatcher, clu *cluster.Cluster, m *metrics.Metrics) *dnsengine.DeviceNewQueue {
+	return dnsengine.NewDeviceNewQueue(func(clientIP string) {
 		disp.NotifyDeviceNew(clientIP)
 		if clu != nil {
 			clu.TrackNewDynamicClient(clientIP, time.Now())
 		}
-	}
+	}, m.ObserveDeviceNewDropped)
 }
 
 // runPauseExpiryWatcher polls all profiles every 5 seconds and fires a

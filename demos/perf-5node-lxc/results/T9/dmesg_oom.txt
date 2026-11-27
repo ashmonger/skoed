@@ -1,0 +1,654 @@
+[Thu Nov 26 10:35:33 2026] Memory cgroup out of memory: Killed process 31810 (skoed) total-vm:3810000kB, anon-rss:2032656kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5108kB oom_score_adj:0
+[Thu Nov 26 10:35:51 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:35:51 2026] CPU: 6 UID: 100000 PID: 33543 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:35:51 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:35:51 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:35:51 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:35:51 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:35:51 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:35:51 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:35:51 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:35:51 2026] [  11710] 100000 11710     5872      820      809       11         0    86016       95             0 systemd
+[Thu Nov 26 10:35:51 2026] [  11889] 100000 11889     1197       56       54        2         0    49152        4             0 agetty
+[Thu Nov 26 10:35:51 2026] [  11890] 100000 11890     1197       59       57        2         0    53248        0             0 agetty
+--
+[Thu Nov 26 10:35:51 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=33539,uid=100000
+[Thu Nov 26 10:35:51 2026] Memory cgroup out of memory: Killed process 33539 (skoed) total-vm:3876392kB, anon-rss:2053504kB, file-rss:22656kB, shmem-rss:0kB, UID:100000 pgtables:5136kB oom_score_adj:0
+[Thu Nov 26 10:39:04 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:39:04 2026] CPU: 2 UID: 100000 PID: 17329 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:39:04 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:39:04 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:39:04 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:39:04 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:39:04 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:39:04 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:39:04 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:39:04 2026] [  11269] 100000 11269     5873      914      903       11         0    90112        0             0 systemd
+[Thu Nov 26 10:39:04 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:39:04 2026] [  11458] 100000 11458     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 10:39:04 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=17316,uid=100000
+[Thu Nov 26 10:39:04 2026] Memory cgroup out of memory: Killed process 17316 (skoed) total-vm:3810348kB, anon-rss:2043476kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5100kB oom_score_adj:0
+[Thu Nov 26 10:39:39 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:39:39 2026] CPU: 2 UID: 100000 PID: 51575 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:39:39 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:39:39 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:39:39 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:39:39 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:39:39 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:39:39 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:39:39 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:39:39 2026] [  11269] 100000 11269     5873      914      903       11         0    90112        0             0 systemd
+[Thu Nov 26 10:39:39 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:39:39 2026] [  11458] 100000 11458     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 10:39:39 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=51566,uid=100000
+[Thu Nov 26 10:39:39 2026] Memory cgroup out of memory: Killed process 51566 (skoed) total-vm:3879576kB, anon-rss:2070028kB, file-rss:22656kB, shmem-rss:0kB, UID:100000 pgtables:5176kB oom_score_adj:0
+[Thu Nov 26 10:40:20 2026] systemd invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:40:20 2026] CPU: 2 UID: 100000 PID: 11269 Comm: systemd Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:40:20 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:40:20 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:40:20 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:40:20 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:40:20 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:40:20 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:40:20 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:40:20 2026] [  11269] 100000 11269     5873      817      806       11         0    90112       97             0 systemd
+[Thu Nov 26 10:40:20 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:40:20 2026] [  11458] 100000 11458     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 10:40:20 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=54455,uid=100000
+[Thu Nov 26 10:40:20 2026] Memory cgroup out of memory: Killed process 54455 (skoed) total-vm:3877304kB, anon-rss:2038092kB, file-rss:22656kB, shmem-rss:0kB, UID:100000 pgtables:5112kB oom_score_adj:0
+[Thu Nov 26 10:41:27 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:41:27 2026] CPU: 0 UID: 100000 PID: 17641 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:41:27 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:41:27 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:41:27 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:41:27 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:41:27 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:41:27 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:41:27 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:41:27 2026] [  12146] 100000 12146     5872      848      837       11         0    90112       64             0 systemd
+[Thu Nov 26 10:41:27 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 10:41:27 2026] [  12312] 100000 12312     1197       46       44        2         0    49152       14             0 agetty
+--
+[Thu Nov 26 10:41:27 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/system.slice/skoed.service,task=skoed,pid=17641,uid=100000
+[Thu Nov 26 10:41:27 2026] Memory cgroup out of memory: Killed process 17641 (skoed) total-vm:3810512kB, anon-rss:2024688kB, file-rss:22644kB, shmem-rss:0kB, UID:100000 pgtables:5076kB oom_score_adj:0
+[Thu Nov 26 10:42:44 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:42:44 2026] CPU: 4 UID: 100000 PID: 66577 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:42:44 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:42:44 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:42:44 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:42:44 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:42:44 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:42:44 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:42:44 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:42:44 2026] [  12557] 100000 12557     5852      342      331       11         0    90112      516             0 systemd
+[Thu Nov 26 10:42:44 2026] [  12716] 100000 12716     1197       51       49        2         0    53248        9             0 agetty
+[Thu Nov 26 10:42:44 2026] [  12717] 100000 12717     1197       59       57        2         0    53248        0             0 agetty
+--
+[Thu Nov 26 10:42:44 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/204,task_memcg=/lxc/204/ns/system.slice/skoed.service,task=skoed,pid=17711,uid=100000
+[Thu Nov 26 10:42:44 2026] Memory cgroup out of memory: Killed process 17711 (skoed) total-vm:3881688kB, anon-rss:2072804kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:5116kB oom_score_adj:0
+[Thu Nov 26 10:46:53 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:46:53 2026] CPU: 1 UID: 100000 PID: 17822 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:46:53 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:46:53 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:46:53 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:46:53 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:46:53 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:46:53 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:46:53 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:46:53 2026] [  12966] 100000 12966     5863      927      916       11         0    90112        0             0 systemd
+[Thu Nov 26 10:46:53 2026] [  13128] 100000 13128     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:46:53 2026] [  13129] 100000 13129     1197       60       58        2         0    53248        0             0 agetty
+--
+[Thu Nov 26 10:46:53 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/205,task_memcg=/lxc/205/ns/system.slice/skoed.service,task=skoed,pid=17814,uid=100000
+[Thu Nov 26 10:46:53 2026] Memory cgroup out of memory: Killed process 17814 (skoed) total-vm:3875544kB, anon-rss:2064068kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:5176kB oom_score_adj:0
+[Thu Nov 26 10:46:54 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:46:54 2026] CPU: 2 UID: 100000 PID: 88943 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:46:54 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:46:54 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:46:54 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:46:54 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:46:54 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:46:54 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:46:54 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:46:54 2026] [  11269] 100000 11269     5873      822      811       11         0    90112       92             0 systemd
+[Thu Nov 26 10:46:54 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:46:54 2026] [  11458] 100000 11458     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 10:46:54 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=57966,uid=100000
+[Thu Nov 26 10:46:54 2026] Memory cgroup out of memory: Killed process 57966 (skoed) total-vm:3875764kB, anon-rss:2064612kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5168kB oom_score_adj:0
+[Thu Nov 26 10:46:55 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:46:55 2026] CPU: 4 UID: 100000 PID: 88878 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:46:55 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:46:55 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:46:55 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:46:55 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:46:55 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:46:55 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:46:55 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:46:55 2026] [  12557] 100000 12557     5852      499      488       11         0    90112      361             0 systemd
+[Thu Nov 26 10:46:55 2026] [  12716] 100000 12716     1197       51       49        2         0    53248        9             0 agetty
+[Thu Nov 26 10:46:55 2026] [  12717] 100000 12717     1197       59       57        2         0    53248        0             0 agetty
+--
+[Thu Nov 26 10:46:55 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/204,task_memcg=/lxc/204/ns/system.slice/skoed.service,task=skoed,pid=70367,uid=100000
+[Thu Nov 26 10:46:55 2026] Memory cgroup out of memory: Killed process 70367 (skoed) total-vm:3874748kB, anon-rss:2064340kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5172kB oom_score_adj:0
+[Thu Nov 26 10:46:56 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:46:56 2026] CPU: 5 UID: 100000 PID: 82289 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:46:56 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:46:56 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:46:56 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:46:56 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:46:56 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:46:56 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:46:56 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:46:56 2026] [  11710] 100000 11710     5912      662      651       11         0    86016      259             0 systemd
+[Thu Nov 26 10:46:56 2026] [  11889] 100000 11889     1197       54       52        2         0    49152        6             0 agetty
+[Thu Nov 26 10:46:56 2026] [  11890] 100000 11890     1197       56       54        2         0    53248        3             0 agetty
+--
+[Thu Nov 26 10:46:56 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=82289,uid=100000
+[Thu Nov 26 10:46:56 2026] Memory cgroup out of memory: Killed process 82289 (skoed) total-vm:3874452kB, anon-rss:2060600kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5168kB oom_score_adj:0
+[Thu Nov 26 10:47:17 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:47:17 2026] CPU: 0 UID: 100000 PID: 88771 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:47:17 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:47:17 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:47:17 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:47:17 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:47:17 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:47:17 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:47:17 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:47:17 2026] [  12146] 100000 12146     5872      651      640       11         0    90112      261             0 systemd
+[Thu Nov 26 10:47:17 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 10:47:17 2026] [  12312] 100000 12312     1197       46       44        2         0    49152       14             0 agetty
+--
+[Thu Nov 26 10:47:17 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/system.slice/skoed.service,task=skoed,pid=63765,uid=100000
+[Thu Nov 26 10:47:17 2026] Memory cgroup out of memory: Killed process 63765 (skoed) total-vm:3811984kB, anon-rss:2040476kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:5124kB oom_score_adj:0
+[Thu Nov 26 10:49:18 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:49:18 2026] CPU: 0 UID: 100000 PID: 96420 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:49:18 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:49:18 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:49:18 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:49:18 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:49:18 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:49:18 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:49:18 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:49:18 2026] [  12146] 100000 12146     5872      746      735       11         0    90112      166             0 systemd
+[Thu Nov 26 10:49:18 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 10:49:18 2026] [  12312] 100000 12312     1197       46       44        2         0    49152       14             0 agetty
+--
+[Thu Nov 26 10:49:18 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/system.slice/skoed.service,task=skoed,pid=93497,uid=100000
+[Thu Nov 26 10:49:18 2026] Memory cgroup out of memory: Killed process 93497 (skoed) total-vm:3747080kB, anon-rss:1975504kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:4992kB oom_score_adj:0
+[Thu Nov 26 10:49:19 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:49:19 2026] CPU: 3 UID: 100000 PID: 96802 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:49:19 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:49:19 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:49:19 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:49:19 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:49:19 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:49:19 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:49:19 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:49:19 2026] [  11269] 100000 11269     5873      815      804       11         0    90112       99             0 systemd
+[Thu Nov 26 10:49:19 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:49:19 2026] [  11458] 100000 11458     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 10:49:19 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=91608,uid=100000
+[Thu Nov 26 10:49:19 2026] Memory cgroup out of memory: Killed process 91608 (skoed) total-vm:3811632kB, anon-rss:1996128kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5040kB oom_score_adj:0
+[Thu Nov 26 10:49:28 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:49:28 2026] CPU: 2 UID: 100000 PID: 91546 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:49:28 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:49:28 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:49:28 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:49:28 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:49:28 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:49:28 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:49:28 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:49:28 2026] [  12966] 100000 12966     5855      340      329       11         0    90112      520             0 systemd
+[Thu Nov 26 10:49:28 2026] [  13128] 100000 13128     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 10:49:28 2026] [  13129] 100000 13129     1197       42       40        2         0    53248       18             0 agetty
+--
+[Thu Nov 26 10:49:28 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/205,task_memcg=/lxc/205/ns/system.slice/skoed.service,task=skoed,pid=91539,uid=100000
+[Thu Nov 26 10:49:28 2026] Memory cgroup out of memory: Killed process 91539 (skoed) total-vm:3813296kB, anon-rss:2037532kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:5120kB oom_score_adj:0
+[Thu Nov 26 10:49:37 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:49:37 2026] CPU: 5 UID: 100000 PID: 96415 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:49:37 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:49:37 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:49:37 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:49:37 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:49:37 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:49:37 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:49:37 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:49:37 2026] [  11710] 100000 11710     5912      519      508       11         0    86016      402             0 systemd
+[Thu Nov 26 10:49:37 2026] [  11889] 100000 11889     1197       54       52        2         0    49152        6             0 agetty
+[Thu Nov 26 10:49:37 2026] [  11890] 100000 11890     1197       56       54        2         0    53248        3             0 agetty
+--
+[Thu Nov 26 10:49:37 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=91775,uid=100000
+[Thu Nov 26 10:49:37 2026] Memory cgroup out of memory: Killed process 91775 (skoed) total-vm:3883544kB, anon-rss:2065528kB, file-rss:22648kB, shmem-rss:0kB, UID:100000 pgtables:5168kB oom_score_adj:0
+[Thu Nov 26 10:53:07 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:53:07 2026] CPU: 6 UID: 100000 PID: 105019 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:53:07 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:53:07 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:53:07 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:53:07 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:53:07 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:53:07 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:53:07 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:53:07 2026] [  11710] 100000 11710     5912      627      616       11         0    86016      294             0 systemd
+[Thu Nov 26 10:53:07 2026] [  11889] 100000 11889     1197       54       52        2         0    49152        6             0 agetty
+[Thu Nov 26 10:53:07 2026] [  11890] 100000 11890     1197       56       54        2         0    53248        3             0 agetty
+--
+[Thu Nov 26 10:53:07 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=105014,uid=100000
+[Thu Nov 26 10:53:07 2026] Memory cgroup out of memory: Killed process 105014 (skoed) total-vm:3808252kB, anon-rss:2039524kB, file-rss:22652kB, shmem-rss:0kB, UID:100000 pgtables:5124kB oom_score_adj:0
+[Thu Nov 26 10:53:22 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:53:22 2026] CPU: 5 UID: 100000 PID: 125945 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:53:22 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:53:22 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:53:22 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:53:22 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:53:22 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:53:22 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:53:22 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:53:22 2026] [  11710] 100000 11710     5912      627      616       11         0    86016      294             0 systemd
+[Thu Nov 26 10:53:22 2026] [  11889] 100000 11889     1197       54       52        2         0    49152        6             0 agetty
+[Thu Nov 26 10:53:22 2026] [  11890] 100000 11890     1197       56       54        2         0    53248        3             0 agetty
+--
+[Thu Nov 26 10:53:22 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=125855,uid=100000
+[Thu Nov 26 10:53:22 2026] Memory cgroup out of memory: Killed process 125855 (skoed) total-vm:3874708kB, anon-rss:2071648kB, file-rss:22724kB, shmem-rss:0kB, UID:100000 pgtables:5176kB oom_score_adj:0
+[Thu Nov 26 10:53:47 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 10:53:47 2026] CPU: 5 UID: 100000 PID: 127204 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:53:47 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:53:47 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:53:47 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:53:47 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:53:47 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:53:47 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:53:47 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:53:47 2026] [  11710] 100000 11710     5912      628      617       11         0    86016      293             0 systemd
+[Thu Nov 26 10:53:47 2026] [  11889] 100000 11889     1197       54       52        2         0    49152        6             0 agetty
+[Thu Nov 26 10:53:47 2026] [  11890] 100000 11890     1197       56       54        2         0    53248        3             0 agetty
+--
+[Thu Nov 26 10:53:47 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=127196,uid=100000
+[Thu Nov 26 10:53:47 2026] Memory cgroup out of memory: Killed process 127196 (skoed) total-vm:3808364kB, anon-rss:2070688kB, file-rss:22712kB, shmem-rss:0kB, UID:100000 pgtables:5140kB oom_score_adj:0
+[Thu Nov 26 10:54:38 2026] skoed invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 10:54:38 2026] CPU: 6 UID: 100000 PID: 129384 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 10:54:38 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 10:54:38 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 10:54:38 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 10:54:38 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 10:54:38 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 10:54:38 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 10:54:38 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 10:54:38 2026] [  11710] 100000 11710     5848      644      633       11         0    86016      215             0 systemd
+[Thu Nov 26 10:54:38 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 10:54:38 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 10:54:38 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=129377,uid=100000
+[Thu Nov 26 10:54:38 2026] Memory cgroup out of memory: Killed process 129377 (skoed) total-vm:3814032kB, anon-rss:2060992kB, file-rss:22720kB, shmem-rss:0kB, UID:100000 pgtables:5124kB oom_score_adj:0
+[Thu Nov 26 11:14:43 2026] perf: interrupt took too long (2501 > 2500), lowering kernel.perf_event_max_sample_rate to 79000
+[Thu Nov 26 11:21:40 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 11:21:40 2026] CPU: 2 UID: 100000 PID: 103409 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 11:21:40 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 11:21:40 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 11:21:40 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 11:21:40 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 11:21:40 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 11:21:40 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 11:21:40 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 11:21:40 2026] [  11269] 100000 11269     5873      146      135       11         0    90112      777             0 systemd
+[Thu Nov 26 11:21:40 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 11:21:40 2026] [  11458] 100000 11458     1197       57       55        2         0    49152        2             0 agetty
+--
+[Thu Nov 26 11:21:40 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=103399,uid=100000
+[Thu Nov 26 11:21:40 2026] Memory cgroup out of memory: Killed process 103399 (skoed) total-vm:4868716kB, anon-rss:2059136kB, file-rss:22640kB, shmem-rss:0kB, UID:100000 pgtables:6204kB oom_score_adj:0
+[Thu Nov 26 11:22:09 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 11:22:09 2026] CPU: 5 UID: 100000 PID: 133603 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 11:22:09 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 11:22:09 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 11:22:09 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 11:22:09 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 11:22:09 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 11:22:09 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 11:22:09 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 11:22:09 2026] [  11710] 100000 11710     5857      316      304       12         0    86016      557             0 systemd
+[Thu Nov 26 11:22:09 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 11:22:09 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 11:22:09 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=133600,uid=100000
+[Thu Nov 26 11:22:09 2026] Memory cgroup out of memory: Killed process 133600 (skoed) total-vm:4950488kB, anon-rss:2077156kB, file-rss:22708kB, shmem-rss:0kB, UID:100000 pgtables:6280kB oom_score_adj:0
+[Thu Nov 26 11:40:32 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 11:40:32 2026] CPU: 3 UID: 100000 PID: 310361 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 11:40:32 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 11:40:32 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 11:40:32 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 11:40:32 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 11:40:32 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 11:40:32 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 11:40:32 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 11:40:32 2026] [  11269] 100000 11269     5873      308      297       11         0    90112      615             0 systemd
+[Thu Nov 26 11:40:32 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 11:40:32 2026] [  11458] 100000 11458     1197       57       55        2         0    49152        2             0 agetty
+--
+[Thu Nov 26 11:40:32 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=310361,uid=100000
+[Thu Nov 26 11:40:32 2026] Memory cgroup out of memory: Killed process 310361 (skoed) total-vm:4866240kB, anon-rss:2031060kB, file-rss:22712kB, shmem-rss:0kB, UID:100000 pgtables:5188kB oom_score_adj:0
+[Thu Nov 26 11:59:13 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 11:59:13 2026] CPU: 5 UID: 100000 PID: 312645 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 11:59:13 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 11:59:13 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 11:59:13 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 11:59:13 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 11:59:13 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 11:59:13 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 11:59:13 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 11:59:13 2026] [  11710] 100000 11710     5857      355      344       11         0    86016      513             0 systemd
+[Thu Nov 26 11:59:13 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 11:59:13 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 11:59:13 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=312645,uid=100000
+[Thu Nov 26 11:59:13 2026] Memory cgroup out of memory: Killed process 312645 (skoed) total-vm:4950808kB, anon-rss:2075900kB, file-rss:22712kB, shmem-rss:0kB, UID:100000 pgtables:5400kB oom_score_adj:0
+[Thu Nov 26 11:59:49 2026] systemd invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 11:59:49 2026] CPU: 2 UID: 100000 PID: 11269 Comm: systemd Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 11:59:49 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 11:59:49 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 11:59:49 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 11:59:49 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 11:59:49 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 11:59:49 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 11:59:49 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 11:59:49 2026] [  11269] 100000 11269     5873      249      238       11         0    90112      674             0 systemd
+[Thu Nov 26 11:59:49 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 11:59:49 2026] [  11458] 100000 11458     1197       57       55        2         0    49152        2             0 agetty
+--
+[Thu Nov 26 11:59:49 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=405090,uid=100000
+[Thu Nov 26 11:59:49 2026] Memory cgroup out of memory: Killed process 405090 (skoed) total-vm:4946776kB, anon-rss:2073380kB, file-rss:22708kB, shmem-rss:0kB, UID:100000 pgtables:5540kB oom_score_adj:0
+[Thu Nov 26 12:17:35 2026] vmbr1: port 5(veth205i0) entered disabled state
+[Thu Nov 26 12:17:35 2026] veth205i0 (unregistering): left allmulticast mode
+[Thu Nov 26 12:17:35 2026] veth205i0 (unregistering): left promiscuous mode
+--
+[Thu Nov 26 12:18:21 2026] skoed invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 12:18:21 2026] CPU: 5 UID: 100000 PID: 590633 Comm: skoed Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:18:21 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:18:21 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:18:21 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:18:21 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:18:21 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:18:21 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 12:18:21 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:18:21 2026] [  11710] 100000 11710     5857      504      493       11         0    86016      373             0 systemd
+[Thu Nov 26 12:18:21 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 12:18:21 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 12:18:21 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=499270,uid=100000
+[Thu Nov 26 12:18:21 2026] Memory cgroup out of memory: Killed process 499270 (skoed) total-vm:4935220kB, anon-rss:2061584kB, file-rss:22712kB, shmem-rss:0kB, UID:100000 pgtables:5344kB oom_score_adj:0
+[Thu Nov 26 12:22:10 2026] loop4: detected capacity change from 0 to 16777216
+[Thu Nov 26 12:22:10 2026] EXT4-fs (loop4): mounted filesystem e6e08bc7-a923-48e7-bdaf-794b582d48ba r/w with ordered data mode. Quota mode: none.
+[Thu Nov 26 12:22:11 2026] audit: type=1400 audit(1795695729.217:135): apparmor="STATUS" operation="profile_load" profile="/usr/bin/lxc-start" name="lxc-205_</var/lib/lxc>" pid=611316 comm="apparmor_parser"
+--
+[Thu Nov 26 12:41:44 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:44 2026] CPU: 6 UID: 0 PID: 721765 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:44 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:44 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:44 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:44 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:44 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:44 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:44 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:44 2026] [  11269] 100000 11269     5856      370      359       11         0    90112      501             0 systemd
+[Thu Nov 26 12:41:44 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 12:41:44 2026] [  11458] 100000 11458     1197       57       55        2         0    49152        2             0 agetty
+--
+[Thu Nov 26 12:41:44 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/system.slice/skoed.service,task=skoed,pid=502043,uid=100000
+[Thu Nov 26 12:41:44 2026] Memory cgroup out of memory: Killed process 502043 (skoed) total-vm:4885008kB, anon-rss:734168kB, file-rss:22708kB, shmem-rss:0kB, UID:100000 pgtables:4892kB oom_score_adj:0
+[Thu Nov 26 12:41:44 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:44 2026] CPU: 0 UID: 0 PID: 721765 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:44 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:44 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:44 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:44 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:44 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:44 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:44 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:44 2026] [  11269] 100000 11269     5856      370      359       11         0    90112      501             0 systemd
+[Thu Nov 26 12:41:44 2026] [  11457] 100000 11457     1197       60       58        2         0    49152        0             0 agetty
+[Thu Nov 26 12:41:44 2026] [  11458] 100000 11458     1197       57       55        2         0    49152        2             0 agetty
+--
+[Thu Nov 26 12:41:44 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/201,task_memcg=/lxc/201/ns/init.scope,task=systemd,pid=11269,uid=100000
+[Thu Nov 26 12:41:44 2026] Memory cgroup out of memory: Killed process 11269 (systemd) total-vm:23424kB, anon-rss:1436kB, file-rss:44kB, shmem-rss:0kB, UID:100000 pgtables:88kB oom_score_adj:0
+[Thu Nov 26 12:41:45 2026] vmbr1: port 1(veth201i0) entered disabled state
+[Thu Nov 26 12:41:45 2026] veth201i0 (unregistering): left allmulticast mode
+[Thu Nov 26 12:41:45 2026] veth201i0 (unregistering): left promiscuous mode
+--
+[Thu Nov 26 12:41:45 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 3 UID: 0 PID: 721860 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:45 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:45 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:45 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] [  11710] 100000 11710     5857      512      501       11         0    86016      365             0 systemd
+[Thu Nov 26 12:41:45 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 12:41:45 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/skoed.service,task=skoed,pid=594902,uid=100000
+[Thu Nov 26 12:41:45 2026] Memory cgroup out of memory: Killed process 594902 (skoed) total-vm:3012772kB, anon-rss:565540kB, file-rss:22708kB, shmem-rss:0kB, UID:100000 pgtables:1452kB oom_score_adj:0
+[Thu Nov 26 12:41:45 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 0 UID: 0 PID: 721860 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:45 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:45 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:45 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] [  11710] 100000 11710     5857      512      501       11         0    86016      365             0 systemd
+[Thu Nov 26 12:41:45 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+--
+[Thu Nov 26 12:41:45 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/init.scope,task=systemd,pid=11710,uid=100000
+[Thu Nov 26 12:41:45 2026] Memory cgroup out of memory: Killed process 11710 (systemd) total-vm:23428kB, anon-rss:2004kB, file-rss:44kB, shmem-rss:0kB, UID:100000 pgtables:84kB oom_score_adj:0
+[Thu Nov 26 12:41:45 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 0 UID: 0 PID: 721860 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:45 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:45 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:45 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11797] 100000 11797     8648       78       75        2         1    98304      213             0 systemd-journal
+--
+[Thu Nov 26 12:41:45 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/systemd-networkd.service,task=systemd-network,pid=11975,uid=100998
+[Thu Nov 26 12:41:45 2026] Memory cgroup out of memory: Killed process 11975 (systemd-network) total-vm:20584kB, anon-rss:112kB, file-rss:8kB, shmem-rss:0kB, UID:100998 pgtables:80kB oom_score_adj:0
+[Thu Nov 26 12:41:45 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 0 UID: 0 PID: 721860 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:45 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:45 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:45 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] [  11889] 100000 11889     1197       52       50        2         0    49152        8             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11890] 100000 11890     1197       54       52        2         0    53248        5             0 agetty
+[Thu Nov 26 12:41:45 2026] [  11797] 100000 11797     8648       78       75        2         1    98304      213             0 systemd-journal
+--
+[Thu Nov 26 12:41:45 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/ssh.service,task=sshd,pid=11895,uid=100000
+[Thu Nov 26 12:41:45 2026] Memory cgroup out of memory: Killed process 11895 (sshd) total-vm:11776kB, anon-rss:692kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:60kB oom_score_adj:0
+[Thu Nov 26 12:41:45 2026] dbus-daemon invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 6 UID: 100989 PID: 11861 Comm: dbus-daemon Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:45 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:45 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:45 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] [  11861] 100989 11861     2077       72       70        2         0    65536       68             0 dbus-daemon
+[Thu Nov 26 12:41:45 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/202,task_memcg=/lxc/202/ns/system.slice/systemd-journald.service,task=systemd-journal,pid=11797,uid=100000
+[Thu Nov 26 12:41:45 2026] Memory cgroup out of memory: OOM victim 11797 (systemd-journal) is already exiting. Skip killing the task
+[Thu Nov 26 12:41:45 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:45 2026] CPU: 0 UID: 0 PID: 721860 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:45 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:45 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:45 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:45 2026] Out of memory and no killable processes...
+[Thu Nov 26 12:41:46 2026] vmbr1: port 2(veth202i0) entered disabled state
+[Thu Nov 26 12:41:46 2026] veth202i0 (unregistering): left allmulticast mode
+--
+[Thu Nov 26 12:41:46 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:46 2026] CPU: 3 UID: 0 PID: 721964 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:46 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:46 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:46 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:46 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:46 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:46 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:46 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:46 2026] [  12146] 100000 12146     5872      849      838       11         0    90112       71             0 systemd
+[Thu Nov 26 12:41:46 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 12:41:46 2026] [  12312] 100000 12312     1197       47       45        2         0    49152       13             0 agetty
+--
+[Thu Nov 26 12:41:46 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/system.slice/skoed.service,task=skoed,pid=705858,uid=100000
+[Thu Nov 26 12:41:46 2026] Memory cgroup out of memory: Killed process 705858 (skoed) total-vm:2035036kB, anon-rss:585464kB, file-rss:22716kB, shmem-rss:0kB, UID:100000 pgtables:1308kB oom_score_adj:0
+[Thu Nov 26 12:41:46 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:46 2026] CPU: 0 UID: 0 PID: 721964 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:46 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:46 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:46 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:46 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:46 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:46 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:46 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:46 2026] [  12146] 100000 12146     5872      849      838       11         0    90112       71             0 systemd
+[Thu Nov 26 12:41:46 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 12:41:46 2026] [  12312] 100000 12312     1197       47       45        2         0    49152       13             0 agetty
+--
+[Thu Nov 26 12:41:46 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/init.scope,task=systemd,pid=12146,uid=100000
+[Thu Nov 26 12:41:46 2026] Memory cgroup out of memory: Killed process 12146 (systemd) total-vm:23488kB, anon-rss:3352kB, file-rss:44kB, shmem-rss:0kB, UID:100000 pgtables:88kB oom_score_adj:0
+[Thu Nov 26 12:41:46 2026] pct invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=0
+[Thu Nov 26 12:41:46 2026] CPU: 4 UID: 0 PID: 721964 Comm: pct Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:41:46 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:41:46 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:41:46 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:41:46 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:41:46 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:41:46 2026]  memory_max_write+0xcd/0x1d0
+--
+[Thu Nov 26 12:41:46 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:41:46 2026] [  12310] 100000 12310     1197       59       57        2         0    53248        0             0 agetty
+[Thu Nov 26 12:41:46 2026] [  12312] 100000 12312     1197       47       45        2         0    49152       13             0 agetty
+[Thu Nov 26 12:41:46 2026] [  12227] 100000 12227     8627      105      102        2         1    90112      193             0 systemd-journal
+--
+[Thu Nov 26 12:41:46 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=user.slice,mems_allowed=0,oom_memcg=/lxc/203,task_memcg=/lxc/203/ns/system.slice/systemd-networkd.service,task=systemd-network,pid=12370,uid=100998
+[Thu Nov 26 12:41:46 2026] Memory cgroup out of memory: Killed process 12370 (systemd-network) total-vm:20588kB, anon-rss:1300kB, file-rss:8kB, shmem-rss:0kB, UID:100998 pgtables:84kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] vmbr1: port 3(veth203i0) entered disabled state
+[Thu Nov 26 12:41:47 2026] veth203i0 (unregistering): left allmulticast mode
+[Thu Nov 26 12:41:47 2026] veth203i0 (unregistering): left promiscuous mode
+--
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 708386 (skoed) total-vm:3017160kB, anon-rss:653632kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:1480kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 707551 (systemd) total-vm:23440kB, anon-rss:3384kB, file-rss:44kB, shmem-rss:0kB, UID:100000 pgtables:88kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 707940 (systemd-network) total-vm:20584kB, anon-rss:1392kB, file-rss:8kB, shmem-rss:0kB, UID:100998 pgtables:80kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 707891 (sshd) total-vm:11776kB, anon-rss:1208kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:68kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 707720 (systemd-journal) total-vm:34564kB, anon-rss:1176kB, file-rss:8kB, shmem-rss:4kB, UID:100000 pgtables:84kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 707800 (systemd-logind) total-vm:18400kB, anon-rss:1112kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:80kB oom_score_adj:0
+[Thu Nov 26 12:41:47 2026] Memory cgroup out of memory: Killed process 708038 (qmgr) total-vm:44520kB, anon-rss:680kB, file-rss:8kB, shmem-rss:0kB, UID:100101 pgtables:76kB oom_score_adj:0
+[Thu Nov 26 12:41:48 2026] vmbr1: port 4(veth204i0) entered disabled state
+[Thu Nov 26 12:41:48 2026] veth204i0 (unregistering): left allmulticast mode
+[Thu Nov 26 12:41:48 2026] veth204i0 (unregistering): left promiscuous mode
+--
+[Thu Nov 26 12:41:48 2026] Memory cgroup out of memory: Killed process 689111 (skoed) total-vm:2100964kB, anon-rss:546076kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:1296kB oom_score_adj:0
+[Thu Nov 26 12:41:49 2026] EXT4-fs (loop3): unmounting filesystem 403ae590-5dcc-469f-9227-ee74f8ad01d9.
+[Thu Nov 26 12:41:51 2026] vmbr1: port 5(veth205i0) entered disabled state
+[Thu Nov 26 12:41:51 2026] veth205i0 (unregistering): left allmulticast mode
+--
+[Thu Nov 26 12:48:48 2026] oom_kill_process: 8 callbacks suppressed
+[Thu Nov 26 12:48:48 2026] systemd-journal invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+[Thu Nov 26 12:48:48 2026] CPU: 2 UID: 100000 PID: 754273 Comm: systemd-journal Tainted: P           O        7.0.14-30-pve #1 PREEMPT(lazy) 
+[Thu Nov 26 12:48:48 2026] Tainted: [P]=PROPRIETARY_MODULE, [O]=OOT_MODULE
+[Thu Nov 26 12:48:48 2026] Hardware name: Intel Corporation S1200SP/S1200SP, BIOS S1200SP.86B.03.01.5049.111220210556 11/12/2021
+--
+[Thu Nov 26 12:48:48 2026]  oom_kill_process.cold+0x8/0x87
+[Thu Nov 26 12:48:48 2026]  out_of_memory+0x22f/0x4d0
+[Thu Nov 26 12:48:48 2026]  mem_cgroup_out_of_memory+0x100/0x120
+[Thu Nov 26 12:48:48 2026]  try_charge_memcg+0x3e6/0x650
+--
+[Thu Nov 26 12:48:48 2026] [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+[Thu Nov 26 12:48:48 2026] [ 722345] 100000 722345     5859      856      845       11         0    94208        0             0 systemd
+[Thu Nov 26 12:48:48 2026] [ 722549] 100000 722549     1197       59       57        2         0    49152        0             0 agetty
+[Thu Nov 26 12:48:48 2026] [ 722550] 100000 722550     1197       59       57        2         0    49152        0             0 agetty
+--
+[Thu Nov 26 12:48:48 2026] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=ns,mems_allowed=0,oom_memcg=/lxc/205,task_memcg=/lxc/205/ns/system.slice/skoed.service,task=skoed,pid=722806,uid=100000
+[Thu Nov 26 12:48:48 2026] Memory cgroup out of memory: Killed process 722806 (skoed) total-vm:1840012kB, anon-rss:506392kB, file-rss:8kB, shmem-rss:0kB, UID:100000 pgtables:1176kB oom_score_adj:0

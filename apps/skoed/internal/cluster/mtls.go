@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -236,10 +237,18 @@ func BuildClusterTLSConfig(caCertPEM, leafCertPEM, leafKeyPEM []byte) (*tls.Conf
 // hashicorp/raft's StreamLayer interface, letting Raft peers handshake
 // with the cluster CA before any AppendEntries traffic flows.
 type TLSStreamLayer struct {
-	listener net.Listener
-	cfg      *tls.Config
+	listener  net.Listener
+	cfg       *tls.Config
 	advertise net.Addr
+	// resolveID maps a peer's Raft address to its node ID, which Dial
+	// uses as the TLS ServerName. newRaftNode sets it once the Raft node
+	// exists, and again when the node is rebuilt.
+	resolveID atomic.Pointer[ServerIDResolver]
 }
+
+// ServerIDResolver returns the Raft server ID configured for address, and
+// false when address is not in the Raft configuration.
+type ServerIDResolver func(address raft.ServerAddress) (raft.ServerID, bool)
 
 // NewTLSStreamLayer binds to bindAddr and accepts TLS connections
 // validated against the cluster CA. advertise is the address peers
@@ -259,9 +268,39 @@ func (t *TLSStreamLayer) Accept() (net.Conn, error) { return t.listener.Accept()
 func (t *TLSStreamLayer) Close() error              { return t.listener.Close() }
 func (t *TLSStreamLayer) Addr() net.Addr            { return t.advertise }
 
+// SetServerIDResolver sets the function Dial uses to find the node ID of
+// the peer it connects to.
+func (t *TLSStreamLayer) SetServerIDResolver(fn ServerIDResolver) {
+	t.resolveID.Store(&fn)
+}
+
 // Dial connects to a peer over TLS, presenting our leaf and verifying
-// theirs against the cluster CA.
+// theirs against the cluster CA. The peer's leaf must also be issued for
+// the node ID that the Raft configuration gives for address, because
+// leaves carry the node ID rather than the node's Raft IP, and a leaf of
+// another node, though signed by the cluster CA, must be rejected. An
+// address that is not in the configuration is not dialed.
 func (t *TLSStreamLayer) Dial(address raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
+	var id raft.ServerID
+	found := false
+	if fn := t.resolveID.Load(); fn != nil {
+		id, found = (*fn)(address)
+	}
+	if !found || id == "" {
+		return nil, fmt.Errorf("mtls dial %s: address is not in the Raft configuration, so the peer's node ID is unknown", address)
+	}
+	cfg := t.cfg.Clone()
+	cfg.ServerName = string(id)
 	d := &net.Dialer{Timeout: timeout}
-	return tls.DialWithDialer(d, "tcp", string(address), t.cfg)
+	return tls.DialWithDialer(d, "tcp", string(address), cfg)
+}
+
+// serverIDByAddress returns the ID of the server configured with address.
+func serverIDByAddress(cfg raft.Configuration, address raft.ServerAddress) (raft.ServerID, bool) {
+	for _, s := range cfg.Servers {
+		if s.Address == address {
+			return s.ID, true
+		}
+	}
+	return "", false
 }

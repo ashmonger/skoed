@@ -2,6 +2,8 @@
 
 ## Decisions log
 
+- **2026-11-27** — skoed exited on `bind: cannot assign requested address` after a reboot of a Proxmox LXC container, started by systemd before the container's IP was set: once in the 5-node performance run (`demos/perf-5node-lxc/REPORT.md` T8, `tls listen 10.10.10.14:7000`) and twice in the journal of CT 221 during the AdGuard Home comparison runs (`start raft: raft transport: listen tcp 10.10.10.21:7000`; results on the perf host in `/root/perf/results/adguard-compare/`). The UoR approved a direct fix, with an acceptance test in place of a functional specification: skoed waits up to 60 s for a listen address that is not assigned yet; see `decisions/20261127-WaitForUnassignedListenAddress.md`.
+- **2026-11-26** — The UoR removed three planned milestones from the roadmap: M40 Companion / Remote-Admin App, M48 Skoed4Phone (DNS over VPN) and M49 Browser Extension Distribution. None had specs, tests or code; their sections are gone from `ROADMAP.md` and their rows from the `TODO.md` milestone index.
 - **2026-09-17** — v0.4.3 was validated on a 3-node Proxmox cluster built from the published release. DNS forwarding, blocklist replication and leader failover passed, and the `/var/lib/skoed/bin` relocation was confirmed in the `.deb`. Two defects were found that no specification covers: an enabled blocklist with zero domains is accepted and silently filters nothing, and the Alpine provisioning script creates a `skoed` user and then runs the daemon as root. The UoR approved fixing both directly, with acceptance tests in place of a functional specification; see `decisions/20260917-DirectFixForValidationDefects.md`. The audit findings M-15, H-5 and M-5 were also reproduced live on the cluster.
 - **2026-06-30** — M34.5 infrastructure fix: `raft.Config.SnapshotThreshold` lowered from 8192 → 64 and `SnapshotInterval` set to 30 s (`internal/cluster/raft.go`). Root cause: hashicorp/raft v1.7.3 does not persist `lastApplied`; with the default threshold and ~663 log entries no snapshot was ever taken, causing a ~30-second full log replay on every restart. API requests served during replay returned stale mid-replay values. The fix is transparent to operators — no migration required. Validated: all 3 Proxmox nodes restart in <2 s with correct state after the first snapshot is taken.
 - **2026-06-10** — M11 spec-lint updated to accept `*_test.go` acceptance tests (Go) alongside `*.test.ts` (TypeScript). The template default checks for TypeScript; this project uses Go throughout.
@@ -45,6 +47,12 @@
 - Canonical decisions and exceptions are recorded in `decisions/YYYYMMDD-<CamelCaseName>.md`.
 
 ## Exception pointers (optional)
+
+- **2026-11-27 — Wait for an unassigned listen address** (Rule 5)
+  - Scope: the bounded bind retry for every listener bound to a specific IP (Raft plain and mTLS, peer API, main API, dual-port HTTPS) and `tests/acceptance/startup_unassigned_address_test.go`; see `decisions/20261127-WaitForUnassignedListenAddress.md`.
+  - Rationale: the defect is reproduced three times on Proxmox LXC and the expected behavior was stated by the UoR, so a functional spec would not settle anything in question.
+  - Mitigation: an acceptance test carries the contract and was seen to fail before the fix; a retroactive functional scenario with an `@fsid` is owed (TODO.md).
+  - UoR approval: inline (UoR asked for the fix directly on 2026-11-27).
 
 - **2026-06-16 — M15 keepalived Reference Exemption** (Rule 6)
   - Scope: `deploy/keepalived/keepalived.conf.template`, `deploy/keepalived/skoed-health.sh`, `docs/src/cluster/keepalived.md`.

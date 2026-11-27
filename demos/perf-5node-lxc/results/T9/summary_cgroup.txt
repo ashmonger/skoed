@@ -1,0 +1,5 @@
+201 cur=511MB oom_kill 0 some avg10=83.14 avg60=83.33 avg300=79.95 total=1063718489
+202 cur=364MB oom_kill 0 some avg10=0.00 avg60=0.00 avg300=0.00 total=1663862
+203 cur=361MB oom_kill 0 some avg10=0.00 avg60=0.00 avg300=0.00 total=120937
+204 cur=511MB oom_kill 0 some avg10=76.12 avg60=76.59 avg300=74.04 total=982163226
+205 cur=512MB oom_kill 1 some avg10=91.47 avg60=91.82 avg300=90.42 total=1230105987

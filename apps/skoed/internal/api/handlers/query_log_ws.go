@@ -56,10 +56,7 @@ func (h *Handler) StreamQueryLogWS(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case entry, open := <-ch:
-			if !open {
-				return
-			}
+		case entry := <-ch:
 			if !filters.matches(entry) {
 				continue
 			}

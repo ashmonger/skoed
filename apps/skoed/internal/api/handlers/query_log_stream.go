@@ -125,10 +125,7 @@ func (h *Handler) streamSingleNode(w http.ResponseWriter, flusher http.Flusher, 
 		select {
 		case <-ctx.Done():
 			return
-		case entry, open := <-ch:
-			if !open {
-				return
-			}
+		case entry := <-ch:
 			if !filters.matches(entry) {
 				continue
 			}
@@ -266,10 +263,7 @@ func localFan(ctx context.Context, ql interface {
 		select {
 		case <-ctx.Done():
 			return
-		case e, open := <-ch:
-			if !open {
-				return
-			}
+		case e := <-ch:
 			if !filters.matches(e) {
 				continue
 			}

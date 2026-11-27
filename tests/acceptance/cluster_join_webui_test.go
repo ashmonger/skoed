@@ -5,12 +5,20 @@
 //   FS-ClusterJoinWebUiHiddenWhenAlreadyMember
 //   FS-ClusterJoinWebUiExpiredToken
 //   FS-ClusterJoinWebUiInvalidPayload
+//   FS-ClusterJoinWebUiMtls → TestClusterJoinWebUiMtls
 package acceptance
 
 import (
+	"bytes"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -240,4 +248,162 @@ func TestClusterJoinWebUiInvalidPayload(t *testing.T) {
 	}))
 	defer r2.Body.Close()
 	assertStatus(t, r2, http.StatusBadRequest)
+}
+
+// ── FS-ClusterJoinWebUiMtls ──────────────────────────────────────────────────
+
+// @fsid:FS-ClusterJoinWebUiMtls
+// A single-node mTLS cluster on 127.0.0.3, with the CA it generated at
+// start, joins a 1-node mTLS cluster on 127.0.0.2 through
+// POST /api/v1/node/join-cluster. The distinct addresses make Raft and the
+// peer API dial another address, as across hosts.
+//
+// "appears in the nodes table" is checked on GET /api/v1/cluster/status,
+// which the nodes table shows. "the blocklist configuration matches" is
+// checked on a blocklist created on the leader after the join.
+func TestClusterJoinWebUiMtls(t *testing.T) {
+	t.Parallel()
+
+	c := startClusterMTLSAcrossAddresses(t, 1)
+	leader := c.Leader(t)
+	nc := startSingleNodeMTLSOn(t, "node-fresh", "127.0.0.3")
+	newNode := nc.Node(0)
+	if leader.Host == newNode.Host {
+		t.Fatalf("leader and new node share the address %s", leader.Host)
+	}
+
+	tlsFile := func(n *ClusterNode, name string) string {
+		return filepath.Join(n.DataDir, "tls", "cluster", name)
+	}
+	leaderCA, err := os.ReadFile(tlsFile(leader, "ca.crt"))
+	if err != nil {
+		t.Fatalf("read ca.crt of the leader: %v", err)
+	}
+	ownCA, err := os.ReadFile(tlsFile(newNode, "ca.crt"))
+	if err != nil {
+		t.Fatalf("read ca.crt of %s before the join: %v", newNode.NodeID, err)
+	}
+	if bytes.Equal(leaderCA, ownCA) {
+		t.Fatalf("%s already holds the leader's CA before the join", newNode.NodeID)
+	}
+
+	// The join payload the leader's web UI shows.
+	resp := leader.apiDo(t, "POST", "/api/v1/cluster/tokens", "")
+	assertStatus(t, resp, http.StatusCreated)
+	var payload struct {
+		Token         string `json:"token"`
+		LeaderAddress string `json:"leader_address"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+	resp.Body.Close()
+	if payload.Token == "" || payload.LeaderAddress == "" {
+		t.Fatalf("token or leader_address empty in the join payload: %+v", payload)
+	}
+
+	// The join dialog of the new node.
+	start := time.Now()
+	jResp := nodeJoinCluster(t, newNode.Node, payload.Token, payload.LeaderAddress)
+	if jResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(jResp.Body)
+		jResp.Body.Close()
+		t.Fatalf("node/join-cluster on %s returned %d: %s", newNode.NodeID, jResp.StatusCode, body)
+	}
+	jResp.Body.Close()
+
+	// Within 30 seconds, both nodes list two members. The new node's
+	// credentials come from the leader once it has joined, so its session
+	// is renewed while it does not answer.
+	deadline := start.Add(30 * time.Second)
+	members := map[string]int{}
+	for time.Now().Before(deadline) {
+		done := true
+		for _, n := range []*ClusterNode{leader, newNode} {
+			st, ok := c.tryStatus(t, n)
+			if !ok {
+				if tok := loginSessionMaybe(t, n.Node, defaultUsername, defaultPassword); tok != "" {
+					n.Node.sessionToken = tok
+				}
+				done = false
+				continue
+			}
+			members[n.NodeID] = len(st.Nodes)
+			if len(st.Nodes) != 2 {
+				done = false
+			}
+		}
+		if done {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if members[leader.NodeID] != 2 || members[newNode.NodeID] != 2 {
+		t.Fatalf("members listed 30s after the join: %s %d, %s %d; want 2 on both",
+			leader.NodeID, members[leader.NodeID], newNode.NodeID, members[newNode.NodeID])
+	}
+
+	// A blocklist created on the leader reaches the new node.
+	resp = leader.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, map[string]any{
+		"id":      "webui-mtls-leader-bl",
+		"name":    "Created on the leader",
+		"enabled": true,
+		"source":  map[string]string{"type": "inline", "format": "domainlist"},
+		"domains": []string{"leader.webui-mtls.example.com"},
+	}))
+	if b := readBody(t, resp); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create blocklist on the leader: status %d: %s", resp.StatusCode, b)
+	}
+	waitForBlocklist(t, newNode, "webui-mtls-leader-bl", 10*time.Second)
+
+	// A write sent to the new node is forwarded to the leader and applied.
+	resp = newNode.apiDo(t, "POST", "/api/v1/blocklists", mustJSON(t, map[string]any{
+		"id":      "webui-mtls-new-bl",
+		"name":    "Sent to the new node",
+		"enabled": true,
+		"source":  map[string]string{"type": "inline", "format": "domainlist"},
+		"domains": []string{"new.webui-mtls.example.com"},
+	}))
+	if b := readBody(t, resp); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create blocklist via %s: status %d: %s", newNode.NodeID, resp.StatusCode, b)
+	}
+	waitForBlocklist(t, leader, "webui-mtls-new-bl", 10*time.Second)
+
+	// The new node holds the cluster CA and a leaf for its node ID signed
+	// by it, and no longer the key of the CA it generated.
+	gotCA, err := os.ReadFile(tlsFile(newNode, "ca.crt"))
+	if err != nil {
+		t.Fatalf("read ca.crt of %s: %v", newNode.NodeID, err)
+	}
+	if !bytes.Equal(gotCA, leaderCA) {
+		t.Errorf("ca.crt of %s differs from the leader's after the join", newNode.NodeID)
+	}
+	leafPEM, err := os.ReadFile(tlsFile(newNode, "node.crt"))
+	if err != nil {
+		t.Fatalf("read node.crt of %s: %v", newNode.NodeID, err)
+	}
+	block, _ := pem.Decode(leafPEM)
+	if block == nil {
+		t.Fatalf("node.crt of %s holds no PEM block", newNode.NodeID)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse node.crt of %s: %v", newNode.NodeID, err)
+	}
+	if leaf.Subject.CommonName != newNode.NodeID {
+		t.Errorf("node.crt of %s has CN %q, want %q", newNode.NodeID, leaf.Subject.CommonName, newNode.NodeID)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(leaderCA) {
+		t.Fatalf("ca.crt of the leader holds no PEM certificate")
+	}
+	if _, err := leaf.Verify(x509.VerifyOptions{
+		Roots:     pool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}); err != nil {
+		t.Errorf("node.crt of %s is not signed by the cluster CA: %v", newNode.NodeID, err)
+	}
+	if _, err := os.Stat(tlsFile(newNode, "ca.key")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("ca.key of %s still present after the join (stat: %v)", newNode.NodeID, err)
+	}
 }

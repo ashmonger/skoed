@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/skoed/skoed/internal/bindwait"
 )
 
 // RaftLogPath is the raft-boltdb log store, relative to data_dir. It is
@@ -127,7 +129,11 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 		// M5.3: TLS-wrapped Raft transport.
 		transport = raft.NewNetworkTransport(opts.TLSStreamLayer, 3, 10*time.Second, opts.Logger)
 	} else {
-		transport, err = raft.NewTCPTransport(opts.BindAddr, advAddr, 3, 10*time.Second, opts.Logger)
+		// NewTCPTransport returns the error of its bind unwrapped, so a
+		// bind on an address not assigned yet is retried.
+		transport, err = bindwait.Retry(opts.BindAddr, func() (*raft.NetworkTransport, error) {
+			return raft.NewTCPTransport(opts.BindAddr, advAddr, 3, 10*time.Second, opts.Logger)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("raft transport: %w", err)
 		}
@@ -158,6 +164,18 @@ func newRaftNode(opts raftOptions, f *fsm) (*raftNode, error) {
 	r, err = raft.NewRaft(cfg, f, logStore, stableStore, snaps, transport)
 	if err != nil {
 		return nil, fmt.Errorf("create raft: %w", err)
+	}
+	if opts.TLSStreamLayer != nil {
+		// Raft dials only servers of its latest configuration. In
+		// hashicorp/raft v1.8.0, GetConfiguration reads that configuration
+		// from an atomic value instead of asking the main loop, so calling
+		// it from Raft's own replication and election goroutines cannot
+		// deadlock, and the leader stores a new configuration before it
+		// starts replicating to an added voter. A dial made before this
+		// point fails and Raft retries it.
+		opts.TLSStreamLayer.SetServerIDResolver(func(address raft.ServerAddress) (raft.ServerID, bool) {
+			return serverIDByAddress(r.GetConfiguration().Configuration(), address)
+		})
 	}
 
 	if opts.Bootstrap {

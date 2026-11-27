@@ -1,0 +1,7 @@
+leader=n4 create http=201 returned after 1.12 s
+n1 current domain_count=81684 after 1.86 s
+n2 current domain_count=81684 after 1.82 s
+n3 current domain_count=81684 after 1.84 s
+n4 current domain_count=81684 after 1.15 s
+n5 current domain_count=81684 after 2.05 s
+{"id":"stevenblack","domain_count":81684,"content_status":"current","source":{"type":"url","url":"https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"}}

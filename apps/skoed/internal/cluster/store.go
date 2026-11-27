@@ -690,8 +690,9 @@ func (s *Store) applyTx(tx *bolt.Tx, cmd Command) error {
 			return err
 		}
 		// Write a replicated tombstone instead of deleting: local per-node
-		// tracking (TrackNewDynamicClient) fires on every DNS query and would
-		// re-insert a deleted IP within seconds. The tombstone makes tracking
+		// tracking (TrackNewDynamicClient) runs again about every 10 minutes
+		// for a client IP that keeps querying, and would re-insert a
+		// deleted IP. The tombstone makes tracking
 		// skip the IP permanently. DismissedAt comes from the payload so all
 		// nodes store an identical value (FSM determinism).
 		bkt := tx.Bucket(bucketNewDynamicClients)
@@ -1979,8 +1980,17 @@ type NewDynamicClientEntry struct {
 // entry already exists (tracked or dismissed). A dismissed tombstone is never
 // overwritten, so a dismissed alert stays dismissed even under continuous
 // traffic. Thread-safe (direct bbolt Update outside of Raft, because this is
-// fire-and-forget per-node tracking, not replicated config state).
+// fire-and-forget per-node tracking, not replicated config state). A
+// read-only View checks first, so a known IP takes no write lock and
+// commits nothing.
 func (s *Store) TrackNewDynamicClient(clientIP string, firstSeen time.Time) error {
+	var known bool
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		known = tx.Bucket(bucketNewDynamicClients).Get([]byte(clientIP)) != nil
+		return nil
+	}); err != nil || known {
+		return err
+	}
 	return s.db.Update(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket(bucketNewDynamicClients)
 		if bkt.Get([]byte(clientIP)) != nil {

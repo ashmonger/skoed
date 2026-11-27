@@ -1,0 +1,13 @@
+DNS Performance Testing Tool
+Version 2.14.0
+
+[Status] Command line: dnsperf -s 10.10.10.12 -d /root/q/hits.txt -l 60 -c 64 -T 4 -Q 10000 -S 5
+[Status] Sending queries (to 10.10.10.12:53)
+[Status] Started at: Thu Nov 26 16:14:59 2026
+[Status] Stopping after 60.000000 seconds
+1795709704.239179: 9616.618053
+1795709709.244073: 9307.689633
+1795709714.249067: 8460.549603
+1795709719.254069: 9155.840497
+1795709724.259067: 8506.896506
+Terminated

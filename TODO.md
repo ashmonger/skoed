@@ -82,7 +82,6 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M37 | Schedule Binding Web UI + Bulk Operations | ✅ | v0.3.3 | [note](demos/m37/DEMO_NOTE.md) · [report](demos/m37/test-report.html) | — | — |
 | M38 | Per-Profile DNSSEC Policy | ✅ | v0.3.3 | [note](demos/m38/DEMO_NOTE.md) · [report](demos/m38/test-report.html) | — | — |
 | M39 | Prometheus Histograms + Grafana | ✅ | v0.3.3 | [note](demos/m39/DEMO_NOTE.md) · [report](demos/m39/test-report.html) | — | — |
-| M40 | Companion / Remote-Admin App | ⬜ | — | — | — | — |
 | M41 | Cluster-wide Live Query Stream | ✅ | v0.3.4 | [note](demos/m41/DEMO_NOTE.md) · [report](demos/m41/test-report.html) | [cluster-stream](specs/functional/cluster-wide-live-query-stream.feature) | [cluster-stream](tests/acceptance/cluster_wide_stream_test.go) |
 | M42 | Query Log Stream Enhancements (Backfill + WebSocket) | ✅ | v0.3.4 | [note](demos/m42/DEMO_NOTE.md) · [report](demos/m42/test-report.html) | [stream-enh](specs/functional/query-log-stream-enhancements.feature) | [stream-enh](tests/acceptance/query_log_stream_enhancements_test.go) |
 | M43 | DNSSEC Detail on Query Stream | ✅ | v0.3.4 | [note](demos/m43/DEMO_NOTE.md) · [report](demos/m43/test-report.html) | [dnssec-stream](specs/functional/dnssec-detail-query-stream.feature) | [dnssec-stream](tests/acceptance/dnssec_detail_stream_test.go) |
@@ -90,8 +89,6 @@ Legend: ✅ shipped · 🔄 active · ⬜ planned
 | M45 | API Token Enhancements | ⬜ | — | — | — | — |
 | M46 | High-Cardinality Metrics | ⬜ | — | — | — | — |
 | M47 | Upgrade Experience | ⬜ | — | — | — | — |
-| M48 | Skoed4Phone — DNS-over-VPN | ⬜ | — | — | — | — |
-| M49 | Browser Extension Distribution | ⬜ | — | — | — | — |
 | M50 | Hardening & Technical Debt | 🔄 | — | — | [audit](SECURITY_AUDIT.md) · [blocklist-content](specs/functional/blocklist-content-distribution.feature) | — |
 
 ## M12 tasks
@@ -551,7 +548,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   joining node; fixed under `decisions/20261125-DirectFixDnsServerDoubleStart.md` — 2026-11-25
 - [ ] DNS — retroactive functional scenario owed by that exception: a node
   joining a cluster starts its DNS listener once
-- [ ] M50 — CI green on GitHub
+- [x] M50 — merged to master (PR #1 cf20da2, with Go 1.27 PR #2 01311e7), CI green; released as v0.5.0 (release run 41; run 40 failed while uploading the assets and the tag was re-pushed) — 2026-11-25
 - [ ] M50 follow-ups (MINOR, from review, not blocking):
   * legacy attempt record survives two leader changes around a gate loss
     (`refresh/scheduler.go`); tie the attempt to `Content.SHA256`
@@ -564,13 +561,14 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
     for a 409 with an empty leader address)
   * node IDs that differ only by case or a trailing dot verify each
     other's leaves; join has no duplicate-ID check
-- [ ] mTLS — **confirmed in the M50 demo**: Raft over mTLS fails between
-  real hosts (`x509: certificate is valid for 127.0.0.1, ::1, not
-  192.168.1.192`). `TLSStreamLayer.Dial` (`internal/cluster/mtls.go:264`)
-  sets no `ServerName`, and leaves carry only the node ID, localhost,
-  127.0.0.1 and ::1; tests run on 127.0.0.1 only. A join then adds a voter
-  that never receives Raft traffic, so a 2-voter cluster loses its leader.
-  Needs its own spec; docs warn about it
+- [x] mTLS — Raft over mTLS between real hosts: the Raft dial sets
+  `ServerName` to the peer's node ID, `ResetRaftForJoin` keeps TLS, and a
+  web-UI join installs the leader's CA and leaf
+  (`decisions/20261126-MtlsServerNameByNodeId.md`, FS-ClusterJoinWebUiMtls);
+  validated with three Proxmox containers on separate LAN addresses,
+  `demos/mtls-cross-host/DEMO_NOTE.md` — 2026-11-26
+- [ ] Cluster — a join that adds a voter which cannot be reached leaves a
+  2-voter cluster without a leader
 - [ ] Cluster — a joining node with an empty bootstrap token silently starts
   its own single-node cluster
 - [ ] Cluster — the used `bootstrap:` token stays in config.yaml and every
@@ -578,10 +576,45 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   bootstrap"
 - [ ] Docs — `docs/src/cluster/bootstrap.md` shows `curl -u admin:…`, but
   HTTP Basic auth returns 401; only a Bearer token from `/auth/login` works
-- [ ] mTLS — `ResetRaftForJoin` rebuilds Raft without the TLS stream layer
+- [ ] Cluster — at first start, a node logs `members without capability
+  blocklist-content-v1` naming itself (once, before its record is written)
+- [ ] Cluster — `cluster_id` is empty in the join responses and in
+  `/cluster/status`, and `api_address` reports the listen address
+  (`0.0.0.0:8080`) instead of a reachable one
 - [ ] DNS — `rebuildDNS` still writes `dnsCache`, `encryptedSrv` and
   `dnscryptSrv` from the FSM goroutine without a lock, and a pre-boot
   rebuild can start DNSCrypt with a handler built before `main` finished
+- [x] Perf — memory grows without limit under DNS load (≥ 5,000 qps per
+  node): 2 GB containers OOM-killed, 36 kills in the 5-node run; the
+  memory is not released after the load stops (2.0 GB and one core busy 45
+  min later); throughput capped at about one core. Root cause confirmed
+  with pprof: one goroutine per query with no limit, each blocked on a
+  bbolt write transaction (`TrackNewDynamicClient` on every query) or on
+  the `QueryLog.Append` mutex (a 10,000-entry `copy()` per query); the
+  memory is goroutine stacks (`demos/perf-5node-lxc/REPORT.md`) — 2026-11-26
+  — fixed by 80dfa23 (query log ring buffer), 574e7ba, dfd6be2 and 9b7709a
+  (device-new queue) on feature/dns-hot-path, 2026-11-27; measured
+  afterwards on a single node with 1 core (512 MB and 1 GB) during the
+  AdGuard Home comparison: 17,500–25,000 qps on the 70/20/10 mix with RSS
+  at most 262 MB, no OOM kill (results on the perf host in
+  /root/perf/results/adguard-compare/, not in the repo)
+- [ ] DNS — a node answers queries before its blocklists are loaded (after a
+  rejoin or a restart), so blocked names resolve for a few seconds
+- [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
+  slow down as records accumulate (132 → 11 writes/s at 12,000 records)
+- [ ] Blocklists — OISD in auto format loads 11 junk entries: `detectFormat`
+  decides on the `[Adblock Plus]` header line, sees a space, picks hosts
+- [ ] Blocklists — a deleted URL list's file stays on disk; after a restart
+  `blocklistsync` logs `leader answered 404` for it
+- [x] Packaging — after a container reboot skoed starts before the IP is
+  set (`bind: cannot assign requested address`), restarted by systemd
+  — fixed under `decisions/20261127-WaitForUnassignedListenAddress.md`
+  — 2026-11-27
+- [ ] Packaging — retroactive functional scenario with an `@fsid` owed by
+  that exception: a node whose listen address is assigned after start
+  waits for it
+- [ ] Packaging — demo note and UoR validation of the wait for an
+  unassigned listen address
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
@@ -590,7 +623,28 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [x] M50 — real-environment validation on a Proxmox 3-node cluster:
   `demos/m50/DEMO_NOTE.md` (0.3.2 → final rolling upgrade, compaction,
   iptables cut, failover pass; cross-host mTLS fails, pre-existing) — 2026-11-25
-- [ ] M50 — deploy to the home cluster, run `skoed raft compact` on each node
+- [x] M50 — home cluster upgraded 0.3.2 → 0.5.0 from the .deb, skoed1
+  (follower) then skoed2 (leader); backups in /root/skoed{1,2}-skoed-0.3.2-20261125.tgz
+  on pve0/pve1. Blocking held throughout; shadow config.yaml 16 MB → 5.8 KB — 2026-11-25
+- [ ] M50 — compact the home cluster's 1.8 GB `raft-log.bolt` once the log
+  has truncated (needs ~64 new Raft entries; about one per hour on its own):
+  check `GET /api/v1/cluster/status` → `raft.last_snapshot_index -
+  raft.first_log_index <= 256` on both nodes, then one node at a time,
+  follower first: `systemctl stop skoed`,
+  `sudo -u skoed /var/lib/skoed/bin/skoed raft compact --data-dir /var/lib/skoed`,
+  `systemctl start skoed`, wait until it has rejoined, delete
+  `raft/raft-log.bolt.pre-compact`. Then lower the CTs back from 2 GB
+- [x] Scripts — `scripts/proxmox-create.sh`, `proxmox-create-alpine.sh` and
+  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.1 (was 0.4.4)
+  — 2026-11-27
+- [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
+  release run 40; delete it on GitHub if present
+- [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
+  wait (branch fix/boot-bind-retry)
+- [ ] Tests — `tests/acceptance/run-in-docker.sh` still upgrades from
+  `SKOED_PREVIOUS_REF=v0.4.4`; move it to v0.5.1 once v0.5.1 is tagged
+- [ ] Docs — the install pages use github.com/skoed/skoed while the scripts
+  and README use ashmonger/skoed
 - [x] M50 — demo note and UoR validation — 2026-11-25
 - [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
   daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in

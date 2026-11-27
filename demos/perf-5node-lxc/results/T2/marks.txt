@@ -1,0 +1,6 @@
+follower n2 start 1795689269
+follower n2 end 1795689397
+leader n1 start 1795689519 oom=4
+leader n1 end 1795689646 oom=7
+curve n2 start 1795689781 oom=9
+curve n2 end 1795689834 oom=9

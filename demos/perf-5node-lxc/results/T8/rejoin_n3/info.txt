@@ -1,0 +1,9 @@
+leader=n1 rejoin n3
+start 1795696814.537760750
+first DNS answer (NOERROR) after 1.05s
+in_sync at commit 24571 after 2.06s
+blocks sample after 4.10s
+end 1795696818
+23192	/var/lib/skoed/raft
+16384	/var/lib/skoed/cluster.bbolt
+80124	/var/lib/skoed/blocklists

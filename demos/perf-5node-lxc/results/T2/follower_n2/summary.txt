@@ -1,0 +1,4 @@
+file                                           qps  loss%  avg_ms  p50_ms  p99_ms   max_ms  rcodes
+hits.txt                                     19021   4.73  10.373   4.863  61.439   2549.9  NOERROR 583420 (100.00%)
+blocked.txt                                  19424   4.80   7.694   4.479  56.319    128.7  NXDOMAIN 582722 (100.00%)
+miss.txt                                      7528  11.23  33.073  27.135 163.839    745.0  NOERROR 227152 (100.00%)

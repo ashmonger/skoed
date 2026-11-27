@@ -1,0 +1,7 @@
+target=10.10.10.11 n=2000 conc=8 elapsed=14.56s writes/s=137.4 p50=58.7ms p99=112.0ms max=153.2ms codes={201: 2000}
+target=10.10.10.12 n=2000 conc=8 elapsed=33.16s writes/s=60.3 p50=131.4ms p99=201.3ms max=238.9ms codes={201: 2000}
+follower=10.10.10.12 samples=50 p50=6.6ms p90=9.9ms p99=14.2ms max=14.2ms mean=6.9ms
+follower=10.10.10.13 samples=50 p50=7.2ms p90=9.7ms p99=12.4ms max=12.4ms mean=7.0ms
+follower=10.10.10.14 samples=50 p50=7.0ms p90=9.3ms p99=11.4ms max=11.4ms mean=6.8ms
+follower=10.10.10.15 samples=50 p50=6.9ms p90=8.7ms p99=11.1ms max=11.1ms mean=6.4ms
+[{"first_log_index":5879,"last_log_index":8132,"last_snapshot_index":6125},[8132,8132,8132,8132,8132]]

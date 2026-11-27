@@ -153,6 +153,10 @@ type Metrics struct {
 	// deliberately NOT labels.
 	firewallRulesTotal *prometheus.CounterVec
 
+	// Client IPs dropped by the DNS handler's device.new queue because
+	// it was full.
+	deviceNewDropped prometheus.Counter
+
 	requireAuth func() bool       // re-read on every request so config edits take effect live
 	authOK      func(*http.Request) bool
 }
@@ -226,6 +230,12 @@ func New(opts Options) *Metrics {
 	}, []string{"platform"})
 	reg.MustRegister(firewallRulesTotal)
 
+	deviceNewDropped := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "skoed_device_new_dropped_total",
+		Help: "Client IPs not checked for device.new because the queue was full; a later query retries them.",
+	})
+	reg.MustRegister(deviceNewDropped)
+
 	// Cache — registered as a custom Collector that reads from the
 	// CacheStatsFunc on every scrape. Wired only when caching is
 	// available; when CacheStats reports Enabled=false the size gauge
@@ -261,6 +271,7 @@ func New(opts Options) *Metrics {
 		auditEventsTotal:   auditEventsTotal,
 		testDomainTotal:    testDomainTotal,
 		firewallRulesTotal: firewallRulesTotal,
+		deviceNewDropped:   deviceNewDropped,
 		requireAuth:        opts.RequireAuth,
 		authOK:             opts.AuthOK,
 	}
@@ -304,6 +315,15 @@ func (m *Metrics) ObserveFirewallRulesGenerated(platform string) {
 		return
 	}
 	m.firewallRulesTotal.WithLabelValues(platform).Inc()
+}
+
+// ObserveDeviceNewDropped counts one client IP dropped by the device.new
+// queue because it was full.
+func (m *Metrics) ObserveDeviceNewDropped() {
+	if m == nil || m.deviceNewDropped == nil {
+		return
+	}
+	m.deviceNewDropped.Inc()
 }
 
 // ObserveAudit bumps the audit-event counter for the given action.

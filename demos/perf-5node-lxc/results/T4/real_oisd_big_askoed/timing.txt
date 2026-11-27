@@ -1,0 +1,7 @@
+leader=n4 create http=201 returned after 1.66 s
+n1 current domain_count=221884 after 3.05 s
+n2 current domain_count=221884 after 2.59 s
+n3 current domain_count=221884 after 3.04 s
+n4 current domain_count=221884 after 1.69 s
+n5 current domain_count=221884 after 2.37 s
+{"id":"oisd_big_askoed","domain_count":221884,"content_status":"current","source":{"type":"url","url":"https://big.oisd.nl/","format":"askoed"}}

@@ -35,9 +35,9 @@ type HandlerConfig struct {
 	// M39: optional per-upstream latency hook. When non-nil, forwarded to
 	// the Forwarder via WithObserver so every upstream attempt is timed.
 	ObserveUpstreamQuery func(upstream string, elapsed time.Duration)
-	// M22: optional device-new notification hook. When non-nil, called for
-	// every query whose client IP is not recognised by the DHCP lookup.
-	// The dispatcher deduplicates within a 10-minute window.
+	// M22: optional device-new notification hook. When non-nil, called
+	// synchronously for every query, so it must return immediately
+	// (see DeviceNewQueue).
 	OnDeviceNew func(clientIP string)
 	// M26: BlockPageIP is the IPv4 address returned for blocked A queries
 	// when block_policy is "redirect". Empty string disables redirect.
@@ -90,9 +90,10 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	start := time.Now()
 	clientIPStr, clientIP := h.resolveClient(w, r)
 
-	// M22: fire on every query; dispatcher deduplicates within 10 minutes.
+	// M22: called on every query; the hook deduplicates and queues the
+	// work, so no goroutine is started here.
 	if h.onDeviceNew != nil {
-		go h.onDeviceNew(clientIPStr)
+		h.onDeviceNew(clientIPStr)
 	}
 
 	// M4: when a query comes in over DoH/DoT, suffix every query-log

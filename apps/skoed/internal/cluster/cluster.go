@@ -22,8 +22,10 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/skoed/skoed/internal/bindwait"
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
 	"github.com/skoed/skoed/internal/dohresolvers"
@@ -54,8 +56,15 @@ type Cluster struct {
 	// shadow YAML writer use it to detect "something changed".
 	applyCounter atomic.Uint64
 
-	// M5.3 — mTLS material, only populated when MTLSEnabled.
+	// raftLog is the writer of the Raft logs (nil hides them), kept so
+	// ResetRaftForJoin starts the new Raft node with the same one.
+	raftLog io.Writer
+
+	// M5.3 — mTLS material, only populated when MTLSEnabled. mtlsMu guards
+	// the PEMs, which ReloadClusterCerts replaces; read them with
+	// mtlsMaterial.
 	mtlsEnabled  bool
+	mtlsMu       sync.RWMutex
 	mtlsCA       []byte
 	mtlsLeafCert []byte
 	mtlsLeafKey  []byte
@@ -74,13 +83,20 @@ func (c *Cluster) MTLSConfig() *tls.Config {
 	if !c.mtlsEnabled {
 		return nil
 	}
-	cfg, _ := BuildClusterTLSConfig(c.mtlsCA, c.mtlsLeafCert, c.mtlsLeafKey)
+	cfg, _ := BuildClusterTLSConfig(c.mtlsMaterial())
 	return cfg
 }
 
 // MTLSBundle exposes the raw CA + leaf PEMs. The join handler uses this
 // to ship a freshly-signed leaf to a joining node.
 func (c *Cluster) MTLSBundle() (caCert, leafCert, leafKey []byte) {
+	return c.mtlsMaterial()
+}
+
+// mtlsMaterial returns the current CA and leaf PEMs.
+func (c *Cluster) mtlsMaterial() (caCert, leafCert, leafKey []byte) {
+	c.mtlsMu.RLock()
+	defer c.mtlsMu.RUnlock()
 	return c.mtlsCA, c.mtlsLeafCert, c.mtlsLeafKey
 }
 
@@ -123,9 +139,8 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		c.fireSubscribers()
 	})
 
-	var logWriter = raftLogger()
-	if opts.SuppressRaftLog {
-		logWriter = nil
+	if !opts.SuppressRaftLog {
+		c.raftLog = raftLogger()
 	}
 
 	// M5.3 — build the TLS StreamLayer when mTLS is on. The bootstrap
@@ -162,7 +177,9 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 			store.Close()
 			return nil, fmt.Errorf("resolve raft advertise: %w", err)
 		}
-		streamLayer, err = NewTLSStreamLayer(node.Node.RaftAddress, advAddr, tlsCfg)
+		streamLayer, err = bindwait.Retry(node.Node.RaftAddress, func() (*TLSStreamLayer, error) {
+			return NewTLSStreamLayer(node.Node.RaftAddress, advAddr, tlsCfg)
+		})
 		if err != nil {
 			store.Close()
 			return nil, fmt.Errorf("tls stream layer: %w", err)
@@ -184,7 +201,7 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 		AdvertiseAddr:  node.Node.RaftAddress,
 		DataDir:        node.Node.DataDir,
 		Bootstrap:      wantBootstrap,
-		Logger:         logWriter,
+		Logger:         c.raftLog,
 		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
@@ -255,20 +272,70 @@ func (c *Cluster) ResetRaftForJoin() error {
 		c.applyCounter.Add(1)
 		c.fireSubscribers()
 	})
+	// On an mTLS cluster, the new node needs its own TLS stream layer: the
+	// old one was closed with the old transport in Shutdown. Its config is
+	// built from the files on disk, which hold the cluster CA and leaf
+	// received from the leader when the node joins from the web UI.
+	var streamLayer *TLSStreamLayer
+	if c.mtlsEnabled {
+		tlsCfg, err := loadClusterTLSConfig(dataDir, c.node.Node.ID)
+		if err != nil {
+			return fmt.Errorf("raft tls config: %w", err)
+		}
+		advAddr, err := net.ResolveTCPAddr("tcp", c.node.Node.RaftAddress)
+		if err != nil {
+			return fmt.Errorf("resolve raft advertise: %w", err)
+		}
+		streamLayer, err = listenRaftTLS(c.node.Node.RaftAddress, advAddr, tlsCfg)
+		if err != nil {
+			return fmt.Errorf("tls stream layer: %w", err)
+		}
+	}
 	rn, err := newRaftNode(raftOptions{
-		NodeID:        c.node.Node.ID,
-		BindAddr:      c.node.Node.RaftAddress,
-		AdvertiseAddr: c.node.Node.RaftAddress,
-		DataDir:       dataDir,
-		Bootstrap:     false,
+		NodeID:         c.node.Node.ID,
+		BindAddr:       c.node.Node.RaftAddress,
+		AdvertiseAddr:  c.node.Node.RaftAddress,
+		DataDir:        dataDir,
+		Bootstrap:      false,
+		Logger:         c.raftLog,
+		TLSStreamLayer: streamLayer,
 	}, f)
 	if err != nil {
+		// newRaftNode has closed streamLayer.
 		return fmt.Errorf("restart raft: %w", err)
 	}
 	c.raftMu.Lock()
 	c.raft = rn
 	c.raftMu.Unlock()
 	return nil
+}
+
+// loadClusterTLSConfig builds the cluster TLS config from the CA and the
+// node leaf on disk. The CA key may be absent: the leaf must then exist.
+func loadClusterTLSConfig(dataDir, nodeID string) (*tls.Config, error) {
+	caCertPEM, caKeyPEM, err := LoadClusterCA(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	leafCertPEM, leafKeyPEM, err := EnsureNodeLeaf(dataDir, nodeID, caCertPEM, caKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+	return BuildClusterTLSConfig(caCertPEM, leafCertPEM, leafKeyPEM)
+}
+
+// listenRaftTLS creates the TLS stream layer on bindAddr. Shutdown closes
+// the old listener before returning, so the address is normally free; a
+// short, bounded retry on EADDRINUSE covers a slow release.
+func listenRaftTLS(bindAddr string, advertise net.Addr, cfg *tls.Config) (*TLSStreamLayer, error) {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		sl, err := NewTLSStreamLayer(bindAddr, advertise, cfg)
+		if err == nil || !errors.Is(err, syscall.EADDRINUSE) || time.Now().After(deadline) {
+			return sl, err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // currentRaft returns the Raft node, read under raftMu.
@@ -912,7 +979,8 @@ func (c *Cluster) MintLeafForJoin(token, nodeID string) (caCert, leafCert, leafK
 	if rerr != nil {
 		return nil, nil, nil, fmt.Errorf("read CA key: %w", rerr)
 	}
-	cert, key, ierr := IssueLeafCert(c.mtlsCA, caKeyPEM, nodeID, nil)
+	caCertPEM, _, _ := c.mtlsMaterial()
+	cert, key, ierr := IssueLeafCert(caCertPEM, caKeyPEM, nodeID, nil)
 	if ierr != nil {
 		return nil, nil, nil, fmt.Errorf("mint leaf for %s: %w", nodeID, ierr)
 	}
@@ -921,7 +989,7 @@ func (c *Cluster) MintLeafForJoin(token, nodeID string) (caCert, leafCert, leafK
 	if expiry, perr := parseCertExpiry(cert); perr == nil {
 		_ = c.store.SetNodeCertExpiry(nodeID, expiry)
 	}
-	return c.mtlsCA, cert, key, nil
+	return caCertPEM, cert, key, nil
 }
 
 // EnrollNode is called on the leader by a joining node's HTTP request.
@@ -1227,12 +1295,13 @@ func (c *Cluster) CertStatus() CertsStatus {
 		return CertsStatus{}
 	}
 
+	caCertPEM, leafCertPEM, _ := c.mtlsMaterial()
 	var caExpiry time.Time
 	if cc := c.store.certCache; cc != nil {
 		if t, err := cc.CAExpiry(); err == nil {
 			caExpiry = t
 		}
-	} else if t, err := parseCertExpiry(c.mtlsCA); err == nil {
+	} else if t, err := parseCertExpiry(caCertPEM); err == nil {
 		caExpiry = t
 	}
 
@@ -1253,7 +1322,7 @@ func (c *Cluster) CertStatus() CertsStatus {
 		if cc := c.store.certCache; cc != nil {
 			leafExpiry, _ = cc.LeafExpiry()
 		} else {
-			leafExpiry, _ = parseCertExpiry(c.mtlsLeafCert)
+			leafExpiry, _ = parseCertExpiry(leafCertPEM)
 		}
 		nodes = []NodeCertStatus{{NodeID: c.node.Node.ID, CertExpiresAt: leafExpiry}}
 	}
@@ -1373,13 +1442,14 @@ func (c *Cluster) RotateNodeCert(ctx context.Context, nodeID string) error {
 	if err != nil {
 		return fmt.Errorf("read CA key: %w", err)
 	}
-	certPEM, keyPEM, err := IssueLeafCert(c.mtlsCA, caKeyPEM, nodeID, nil)
+	caCertPEM, _, _ := c.mtlsMaterial()
+	certPEM, keyPEM, err := IssueLeafCert(caCertPEM, caKeyPEM, nodeID, nil)
 	if err != nil {
 		return fmt.Errorf("issue leaf cert: %w", err)
 	}
 
 	payload := RotateNodeCertPayload{
-		CACertPEM: c.mtlsCA,
+		CACertPEM: caCertPEM,
 		NodeID:    nodeID,
 		CertPEM:   certPEM,
 		KeyPEM:    keyPEM,
