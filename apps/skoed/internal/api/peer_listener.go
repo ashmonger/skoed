@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/skoed/skoed/internal/bindwait"
 )
 
 // M50 — peer API listener (TS-EncryptedClusterMesh, "Internal API").
@@ -76,7 +78,9 @@ func StartPeerServer(app *App, addr string, tlsCfg *tls.Config) (*PeerServer, er
 	if addr == "" {
 		return nil, errors.New("peer API server: no listen address")
 	}
-	ln, err := tls.Listen("tcp", addr, tlsCfg)
+	ln, err := bindwait.Retry(addr, func() (net.Listener, error) {
+		return tls.Listen("tcp", addr, tlsCfg)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("peer API server: listen %s: %w", addr, err)
 	}
