@@ -649,12 +649,14 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `systemctl start skoed`, wait until it has rejoined, delete
   `raft/raft-log.bolt.pre-compact`. Then lower the CTs back from 2 GB
 - [x] Scripts — `scripts/proxmox-create.sh`, `proxmox-create-alpine.sh` and
-  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.1 (was 0.4.4)
-  — 2026-11-27
+  `proxmox-cluster.sh` default `SKOED_VERSION` to 0.5.2 (0.4.4 → 0.5.1
+  → 0.5.2) — 2026-11-27
 - [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
   release run 40; delete it on GitHub if present
 - [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
   wait (branch fix/boot-bind-retry)
+- [ ] Release v0.5.2 — hotfix: stats aggregator crash (branch
+  fix/aggregator-race)
 - [ ] Tests — `tests/acceptance/run-in-docker.sh` still upgrades from
   `SKOED_PREVIOUS_REF=v0.4.4`; move it to v0.5.1 once v0.5.1 is tagged
 - [ ] Docs — the install pages use github.com/skoed/skoed while the scripts
