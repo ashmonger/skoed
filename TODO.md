@@ -599,8 +599,9 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   decides on the `[Adblock Plus]` header line, sees a space, picks hosts
 - [ ] Blocklists — a deleted URL list's file stays on disk; after a restart
   `blocklistsync` logs `leader answered 404` for it
-- [ ] Packaging — after a container reboot skoed starts before the IP is
+- [x] Packaging — after a container reboot skoed starts before the IP is
   set (`bind: cannot assign requested address`), restarted by systemd
+  — fixed on fix/boot-bind-retry, 2026-11-27
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
