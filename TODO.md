@@ -602,11 +602,16 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   rejoin or a restart), so blocked names resolve for a few seconds
 - [x] Specs — DNS overload protection: functional spec validated by the
   UoR — 2026-11-27
-- [ ] DNS overload protection (v0.6.0): technical spec
-  `specs/technical/dns-overload-protection.md` validated by the UoR —
-  2026-11-27; next acceptance tests, then implementation, load generator,
-  default capacity measured on 2 cores / 2 GB
-  (branch `feature/dns-overload-protection`)
+- [ ] DNS overload protection (v0.6.0): technical spec and the 8
+  acceptance tests (`tests/acceptance/dns_overload_protection_test.go`,
+  CI job `acceptance-overload`) validated by the UoR — 2026-11-27;
+  `tools/dnsload` done; next implementation, then default capacity
+  measured on 2 cores / 2 GB (branch `feature/dns-overload-protection`)
+- [ ] Stats — each flush within an hour (every 60 s) overwrites the stored
+  hourly aggregate: `CmdStatsCommitHour` does a `Put` on (node,
+  hourStart), so the stored hour holds only the last flush window's
+  counts, not the whole hour (found while fixing the aggregator crash,
+  2026-11-27); needs a UoR decision
 - [ ] Specs — DNS startup readiness: decisions validated 2026-11-27,
   functional spec awaiting final UoR validation
 - [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
