@@ -21,8 +21,8 @@ a Proxmox cluster validation run.
   stats aggregator built its top domains and top clients from the current
   hour's counters without holding their lock, while every DNS query kept
   updating them. It now detaches the counters under the lock before
-  building the aggregate, and adds them back to the current counters if
-  the commit fails.
+  building the aggregate, and keeps them, with the queries counted since,
+  for the next attempt if the commit fails.
 - **Query counts**: queries counted while an aggregate was being committed
   were dropped from the hourly stats; they are now kept for the next one.
 - Every node running v0.5.1 or earlier has this defect (it is present

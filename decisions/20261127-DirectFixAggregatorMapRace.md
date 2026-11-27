@@ -3,8 +3,9 @@
 ## Context
 
 On 2026-11-27, the DNS overload acceptance tests (branch
-`work/2/overload-tests`) sent 400–3,000 qps to a cluster, and node-2
-exited with:
+`work/2/overload-tests`) sent 400–3,000 qps to a cluster, and a node
+exited twice in those runs (node-2 in the one whose stack is cited
+below) with:
 
 ```
 fatal error: concurrent map iteration and map write
@@ -40,19 +41,24 @@ the hourly stats.
 
 Rule 5 requires a validated functional specification before code. The
 defect is internal to the aggregator, its cause is known from the stack,
-and it makes a node exit under load. The only behavior a user sees is
-that the daemon stops; no specification states that it must not, and
-the hourly stats keep their current contract.
+and it makes a node exit under load. The hourly stats contract
+(`FS-QueryLogAggregatesPerNodePerHour`) does not change; the fix makes
+the code meet it.
 
 ## Options considered
 
 1. **Detach the bucket under the lock.** `tryFlush` takes the bucket and
    sets `a.bucket` to nil while holding `a.mu`, so the next `Observe`
    starts a new bucket. The aggregate is built from the detached bucket,
-   which no other goroutine can reach. On commit failure, the detached
-   bucket's counters are merged back into the current bucket under the
-   lock, so nothing is lost before the retry. Queries during the build
-   and the commit go into the new bucket and are kept.
+   which no other goroutine can reach. Queries during the build and the
+   commit go into the new bucket. On a successful commit, the new bucket
+   stays current for the next flush. On commit failure, `restore` adds
+   the new bucket's counters to the detached bucket under the lock and
+   makes the detached bucket current again. It keeps its `hourStart` and
+   `openedAt`, so the retry after `retryBackoff` (30 s) happens as
+   before, and all the counters, including those recorded since the
+   detach, are committed for the hour of the bucket's first observation,
+   as before the fix.
 2. **Build the aggregate while holding the lock.** Simpler, but every
    query's `Observe` then waits for `topN`, which copies and sorts both
    maps, once a minute per node; the lock is on the DNS hot path. It
@@ -68,19 +74,26 @@ hotfix release v0.5.2. The fix is made on `fix/aggregator-race` (task
 branch `work/3/aggregator-race`).
 
 No retroactive functional scenario is owed. The two precedents owe one
-because they change what a user can observe: a joining node starts its
-DNS listener once (`decisions/20261125-DirectFixDnsServerDoubleStart.md`),
-and a node waits for a late listen address with a logged contract
-(`decisions/20261127-WaitForUnassignedListenAddress.md`). Here the only
-user-visible behavior is "the daemon does not crash" and "every observed
-query is counted", which the existing stats behavior already implies;
-there is no new outcome to specify.
+because no scenario covered their behavior at all: the DNS server
+started twice at boot and crashed a joining node, and the owed scenario
+states that a joining node starts its DNS listener once
+(`decisions/20261125-DirectFixDnsServerDoubleStart.md`); the late
+listen address had no scenario either
+(`decisions/20261127-WaitForUnassignedListenAddress.md`). Here the
+counting behavior is already specified by
+`FS-QueryLogAggregatesPerNodePerHour`
+(`specs/functional/query-log-aggregates.feature`): a node that handled
+100 queries, 30 of them blocked, commits an aggregate with total=100 and
+blocked=30. The crash and the dropped queries both break that scenario,
+and the fix restores it.
 
 ## Consequences
 
 * A node no longer exits when a flush overlaps a query.
-* Queries observed during a flush are counted in the next aggregate
-  instead of being dropped.
+* Queries observed during a flush are no longer dropped: after a
+  successful commit, they are in the next aggregate; after a failed
+  commit, they are added to the retried bucket and committed for that
+  bucket's hour.
 * Every node running v0.5.1 or earlier should be upgraded to v0.5.2.
 * The exception is for this fix only. It does not lift Rule 5 for any
   other work.

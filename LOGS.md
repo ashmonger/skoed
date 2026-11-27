@@ -51,8 +51,8 @@
 
 - **2026-11-27 — Direct fix for the stats aggregator map race** (Rule 5)
   - Scope: `tryFlush` and the merge on commit failure in `apps/skoed/internal/log/aggregates.go`; see `decisions/20261127-DirectFixAggregatorMapRace.md`.
-  - Rationale: an internal defect with a known cause that makes a node exit under DNS load; the only user-visible behavior is that the daemon stops, so a functional spec would not settle anything in question.
-  - Mitigation: the DNS overload acceptance tests found it and are expected to run without the crash after the fix; no retroactive functional scenario is owed.
+  - Rationale: an internal defect with a known cause that makes a node exit under DNS load; the counting behavior is already specified by `FS-QueryLogAggregatesPerNodePerHour`, which the crash and the dropped queries break, so a new functional spec would not settle anything in question.
+  - Mitigation: the DNS overload acceptance tests found it (two crashes on 2026-11-27) and are expected to run without the crash after the fix; no retroactive functional scenario is owed.
   - UoR approval: inline (UoR approved the fix directly on 2026-11-27 and asked for a hotfix release v0.5.2).
 
 - **2026-11-27 — Wait for an unassigned listen address** (Rule 5)

@@ -653,12 +653,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   → 0.5.2) — 2026-11-27
 - [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
   release run 40; delete it on GitHub if present
-- [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
-  wait (branch fix/boot-bind-retry)
+- [x] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address
+  wait (branch fix/boot-bind-retry) — tagged 2026-11-27 (c948813)
 - [ ] Release v0.5.2 — hotfix: stats aggregator crash (branch
   fix/aggregator-race)
 - [ ] Tests — `tests/acceptance/run-in-docker.sh` still upgrades from
-  `SKOED_PREVIOUS_REF=v0.4.4`; move it to v0.5.1 once v0.5.1 is tagged
+  `SKOED_PREVIOUS_REF=v0.4.4`; move it to the latest release (v0.5.1 or
+  later) in a separate change
 - [ ] Docs — the install pages use github.com/skoed/skoed while the scripts
   and README use ashmonger/skoed
 - [x] M50 — demo note and UoR validation — 2026-11-25
