@@ -412,16 +412,28 @@ components:
                   type: integer
             capacity_qps:
               type: integer
-              minimum: 100
+              minimum: 0
               maximum: 1000000
               x-tsid: TS-DnsOverloadProtection
               x-fsid-links:
                 - FS-DnsOverloadCapacityConfigurable
               description: >
-                DNS capacity of each node, in queries per second, on the
-                plain UDP listeners. Cluster-wide. Effective value: the
-                value the administrator set, or capacity_qps_default when
-                none is set. Queries above it receive REFUSED.
+                DNS capacity set by the administrator, in queries per
+                second, cluster-wide. 0 when none is set and the cluster
+                follows capacity_qps_default. Sending it back unchanged in
+                a PATCH keeps that state.
+            capacity_qps_effective:
+              type: integer
+              minimum: 100
+              maximum: 1000000
+              readOnly: true
+              x-tsid: TS-DnsOverloadProtection
+              x-fsid-links:
+                - FS-DnsOverloadCapacityConfigurable
+              description: >
+                DNS capacity every node applies on its plain UDP listeners:
+                capacity_qps when it is not 0, otherwise
+                capacity_qps_default. Queries above it receive REFUSED.
             capacity_qps_default:
               type: integer
               readOnly: true

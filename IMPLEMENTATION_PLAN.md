@@ -17,14 +17,15 @@
 
 | Order | Step | Outcome | Depends on | FSIDs | TSIDs | Acceptance tests | Status |
 |-------|------|---------|-----------|-------|-------|-----------------|--------|
-| 1 | Technical spec validation | UoR validates TS-DnsOverloadProtection and answers its open questions (in-flight cap, default following, CI durations, web UI) | Functional spec validated | all 8 FS-DnsOverload* | TS-DnsOverloadProtection, TS-PrometheusMetrics | — | In review |
+| 1 | Technical spec validation | UoR validates TS-DnsOverloadProtection and answers its open questions (in-flight cap, default following, CI durations, web UI, bench) | Functional spec validated | all 8 FS-DnsOverload* | TS-DnsOverloadProtection, TS-PrometheusMetrics | — | In review |
 | 2 | Acceptance tests | One test file covering the 8 FSIDs at a low capacity set through the API; UoR validates them | Step 1 | FS-DnsOverloadCapacityConfigurable, FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadFilteringKept, FS-DnsOverloadMemoryBounded, FS-DnsOverloadRecoversWhenLoadDrops, FS-DnsOverloadNoRefusalBelowCapacity, FS-DnsOverloadVisibleToAdministrator | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
 | 3 | Implementation | `dns.capacity_qps` setting and validation, `Admission` token bucket in a UDP `DecorateReader`, in-place REFUSED, counter and log line, `GOMEMLIMIT` from the cgroup limit; acceptance tests green, refactoring phase done | Step 2 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | tests/acceptance/dns_overload_protection_test.go | Planned |
-| 4 | Default capacity measurement | Binary search then 15-minute confirmation of the 2 × C scenarios on the Proxmox LXC bench (3 nodes, 2 cores / 2 GB, no swap); result recorded in TS-DnsOverloadProtection § 9.1 and set as `DefaultDNSCapacityQPS` | Step 3 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | Bench run of the load generator (TS § 9.2) | Planned |
-| 5 | Demo note | Bench results of the 8 scenarios at the measured default, implemented and not implemented scope, limitations; UoR validates | Step 4 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | — | Planned |
-| 6 | Release v0.6.0 | Merge to master after demo validation, tag, changelog; documentation tells administrators to give clients at least two nodes | Step 5 | — | — | — | Planned |
+| 4 | Load generator | Standalone Go binary `tools/dnsload` sharing its client code with the acceptance test: even-rate UDP sending, RCODE and latency recorded per query, per-second answered / REFUSED / lost counts, p99 of answers and p99.9 of all responses (dnsperf's `-O latency-histogram` does not separate answers from refusals) | Step 2 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | — | Planned |
+| 5 | Default capacity measurement | Binary search then 15-minute confirmation of the 2 × C scenarios on the Proxmox LXC bench (3 nodes, 2 cores / 2 GB, no swap); result and the bench's deviation from the Background recorded in TS-DnsOverloadProtection § 9.1 and set as `DefaultDNSCapacityQPS` | Steps 3, 4 | FS-DnsOverloadAnswersUpToCapacity, FS-DnsOverloadRefusesExcess, FS-DnsOverloadMemoryBounded | TS-DnsOverloadProtection | Bench run of `tools/dnsload` (TS § 9.2) | Planned |
+| 6 | Demo note | Bench results of the 8 scenarios at the measured default, implemented and not implemented scope, limitations; UoR validates | Step 5 | all 8 FS-DnsOverload* | TS-DnsOverloadProtection | — | Planned |
+| 7 | Release v0.6.0 | Merge to master after demo validation, tag, changelog; documentation tells administrators to give clients at least two nodes, and the release note tells them to set the capacity again once every node runs v0.6.0 | Step 6 | — | — | — | Planned |
 
-- Critical path: technical spec validation → acceptance tests → implementation → default capacity measurement → demo note → release
+- Critical path: technical spec validation → acceptance tests → implementation and load generator → default capacity measurement → demo note → release
 - Owners: implementation and measurement by agents on the feature branch; validations by the UoR
 - Blockers: the open questions of TS-DnsOverloadProtection § 11 must be answered before step 2
 - Validation checkpoints:
@@ -36,7 +37,7 @@
   - [ ] Demo validated by UoR
 - Risks:
   - The memory may not go back within 50 MB in 5 minutes through the Go scavenger alone. Response: the `debug.FreeOSMemory` fallback of TS § 5.
-  - The bench host has 4 physical cores for 3 nodes, the upstream and the load generator. Response: pin the node under test to 2 physical cores (TS § 9.2) and check the cache hit ratio of each run.
+  - The bench host has 4 physical cores for 3 nodes, the upstream and the load generator, so the load generator shares CPU with two nodes, unlike the Background. Response: pin the node under test to 2 physical cores, record the deviation with the result (TS § 9.2, OQ-5) and check the cache hit ratio of each run.
 
 ---
 
