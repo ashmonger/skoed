@@ -598,12 +598,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   AdGuard Home comparison: 17,500–25,000 qps on the 70/20/10 mix with RSS
   at most 262 MB, no OOM kill (results on the perf host in
   /root/perf/results/adguard-compare/, not in the repo)
-- [ ] Stats — the hourly aggregator crashes the daemon under DNS load
+- [x] Stats — the hourly aggregator crashes the daemon under DNS load
   (`fatal error: concurrent map iteration and map write`, node-2 in the
   overload acceptance tests at 400–3,000 qps): `tryFlush` builds the top-N
   from the bucket's maps without the lock while `Observe` writes them;
-  present since v0.1.0 — fix in progress on fix/aggregator-race under
-  `decisions/20261127-DirectFixAggregatorMapRace.md`
+  present since v0.1.0
+  — fixed under `decisions/20261127-DirectFixAggregatorMapRace.md`
+  — 2026-11-27
 - [ ] Stats — demo note and UoR validation of the aggregator fix
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
