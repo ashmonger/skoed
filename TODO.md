@@ -601,6 +601,20 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   `blocklistsync` logs `leader answered 404` for it
 - [ ] Packaging — after a container reboot skoed starts before the IP is
   set (`bind: cannot assign requested address`), restarted by systemd
+- [ ] Parity — skoed must offer the same filtering-rule features and
+  parental controls as AdGuard Home (UoR, 2026-11-27). We need a gap
+  analysis first: adblock-syntax modifiers in lists (`@@` exceptions,
+  `$important`, `$client`, `$dnstype`, `$dnsrewrite`, `$badfilter`,
+  `$denyallow`), regex rules inside lists, blocked services, safe
+  browsing and parental filtering, then a roadmap milestone with specs
+- [ ] DNS hot path follow-ups (reviews of `feature/dns-hot-path`):
+  * `QueryLog.Query` makes two full-size copies per call (memory churn on
+    the query-log API)
+  * the WebSocket query stream notices a closed client only on the next
+    write, up to 15 s later (`r.Context()` is not cancelled after hijack)
+  * no test checks that `skoed_device_new_dropped_total` is exposed
+  * the device-new interval is 10 minutes plus the callback time; the
+    comments say 10 minutes
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
