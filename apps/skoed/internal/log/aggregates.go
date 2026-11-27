@@ -163,8 +163,12 @@ func (a *Aggregator) run() {
 // if so, commits it via Raft. The decision is:
 //   - hour boundary crossed since the bucket opened, OR
 //   - flushInterval elapsed since the bucket opened.
-// On commit failure, the bucket is retained and retried after retryBackoff.
-// On stop=true, we attempt one final flush regardless of cadence.
+//
+// The due bucket is detached under the lock, so Observe starts a new one
+// and the detached bucket's maps are read by this goroutine only.
+// On commit failure, the detached bucket is merged back and retried after
+// retryBackoff. On stop=true, we attempt one final flush regardless of
+// cadence.
 func (a *Aggregator) tryFlush(now time.Time, stop bool) {
 	a.mu.Lock()
 	if a.bucket == nil || a.bucket.total == 0 {
@@ -184,6 +188,7 @@ func (a *Aggregator) tryFlush(now time.Time, stop bool) {
 		}
 	}
 	bucket := a.bucket
+	a.bucket = nil
 	a.mu.Unlock()
 
 	// CommitHourlyAggregate handles leader vs follower internally: on the
@@ -191,22 +196,44 @@ func (a *Aggregator) tryFlush(now time.Time, stop bool) {
 	// leader's internal endpoint, authenticated with the replicated cluster
 	// secret. So this code path is uniform regardless of role.
 	agg := a.buildAggregate(bucket)
-	if err := a.committer.CommitHourlyAggregate(agg); err != nil {
-		// Retain the bucket and back off. Common case: lost leadership
+	err := a.committer.CommitHourlyAggregate(agg)
+
+	if err != nil {
+		// Put the counters back and back off. Common case: lost leadership
 		// between the IsLeader check and the apply, or Raft is busy.
 		a.mu.Lock()
+		a.restore(bucket)
 		a.nextRetryAfter = now.Add(retryBackoff)
 		a.mu.Unlock()
 		stdlog.Printf("aggregator: commit hourly aggregate failed (will retry in %s): %v", retryBackoff, err)
 		return
 	}
 
-	// Successful commit: reset to a fresh bucket aligned on the current
-	// hour-floor so the next Observe starts a new bucket immediately.
 	a.mu.Lock()
-	a.bucket = nil
 	a.nextRetryAfter = time.Time{}
 	a.mu.Unlock()
+}
+
+// restore makes the detached bucket b current again after a failed commit,
+// adding the counters Observe recorded in the meantime. b keeps its
+// hourStart and openedAt, so the retry cadence and the hour the counters
+// are attributed to are the same as if b had never been detached. Must be
+// called with a.mu held.
+func (a *Aggregator) restore(b *hourBucket) {
+	if cur := a.bucket; cur != nil {
+		b.total += cur.total
+		b.blocked += cur.blocked
+		b.forwarded += cur.forwarded
+		b.cached += cur.cached
+		b.local += cur.local
+		for name, n := range cur.domains {
+			b.domains[name] += n
+		}
+		for name, n := range cur.clients {
+			b.clients[name] += n
+		}
+	}
+	a.bucket = b
 }
 
 // buildAggregate converts the in-memory bucket into the wire-format
