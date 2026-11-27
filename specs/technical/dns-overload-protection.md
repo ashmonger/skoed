@@ -55,7 +55,7 @@ goroutine is started for them.
 | | |
 |---|---|
 | Name | `dns.capacity_qps` (JSON and YAML) |
-| Go field | `config.DNSConfig.CapacityQPS int` with tags `yaml:"capacity_qps,omitempty" json:"capacity_qps,omitempty"` |
+| Go field | `config.DNSConfig.CapacityQPS int` with tags `yaml:"capacity_qps,omitempty" json:"capacity_qps"` (no `omitempty` in JSON, so a stored 0 is returned as 0) |
 | Type | integer, queries per second |
 | Stored values | `0` (or absent): not set, the node follows the shipped default. `100`–`1000000`: set by the administrator, kept even when equal to the current default. |
 | Shipped default | `DefaultDNSCapacityQPS` in `internal/config`: measured, see § 9 Default capacity. Until measured: 10,000 (provisional). |
@@ -129,9 +129,17 @@ larger query is handled as it is today.
 
 The read deadline is set once per `ReadUDP` call, before the loop, as
 the default reader does. Setting it again on each pass would overwrite
-the past deadline `ShutdownContext` sets to stop the read loop, and
-delay `Shutdown` and the listener restart of `Rebuild`. Once that
-deadline has passed, the read returns an error and the loop ends.
+the past deadline `ShutdownContext` sets to stop the read loop for as
+long as packets keep arriving. Once that deadline has passed, the read
+returns an error and the loop ends.
+
+The reader cannot see the server's `lock` and `started` fields. When
+`ShutdownContext` sets its past deadline between the `isStarted()`
+check of `serveUDP` and the reader's own `SetReadDeadline`, the reader
+overwrites it, and the refusal loop goes on until its own deadline:
+now + 2 s (`dnsTimeout`, since skoed sets no `ReadTimeout`). So
+`Shutdown`, and the listener restart of `Rebuild`, can be delayed by at
+most 2 s; miekg/dns's default reader has the same window.
 
 A packet with QR = 1 is dropped in the reader, which is what miekg/dns
 does today (`defaultMsgAcceptFunc` returns `MsgIgnore`), without
@@ -222,10 +230,14 @@ query-log entries would be refusals, hiding the answered queries. The
 refused queries are visible through the counter and the log line of § 6.
 
 Cost: one `recvmsg` and one `sendmsg` system call and a few byte
-operations on the reader goroutine. The only allocations are those
-`dns.ReadFromSessionUDP` makes for every packet (the session and its
-control-message buffer, under 100 bytes, garbage at once); nothing is
-kept after the next read.
+operations on the reader goroutine. The only allocations are those of
+miekg/dns and the standard library for every packet: `ReadMsgUDP`
+allocates the `*net.UDPAddr`, `ReadFromSessionUDP` the session and its
+control-message buffer, and `WriteToSessionUDP` marshals a control
+message to set the source address on wildcard listeners
+(`correctSource`). That is a few hundred bytes per refused packet, all
+garbage at once; nothing is kept after the next read. A write error on
+the refusal path is ignored, as miekg/dns does for answers.
 
 ### 3.4 REFUSED response format
 
@@ -255,10 +267,8 @@ Malformed cases, each still answered REFUSED and counted:
 * More than one OPT record, or an additional section that cannot be
   walked: treated as malformed, REFUSED without OPT.
 * EDNS version above 0: REFUSED with the OPT above (version 0), not
-  BADVERS. Today skoed does not check the EDNS version and answers such
-  queries normally, so an admitted query never gets BADVERS either, and
-  the functional spec requires every response that is not an answer to
-  be REFUSED (FS-DnsOverloadRefusesExcess).
+  BADVERS, the same as for admitted queries today: skoed sends BADVERS
+  nowhere. BADVERS support is out of scope.
 
 No Extended DNS Error option and no cookie. The startup readiness
 feature (dns-startup-readiness.feature, pending) decided to send "the
@@ -291,21 +301,23 @@ upstream that times out (3 s by default), C × 3 s goroutines wait, e.g.
 flight is open question OQ-1.
 
 **GOMEMLIMIT.** When the `GOMEMLIMIT` environment variable is not set,
-`main` sets `debug.SetMemoryLimit` at start to 80 % of the memory limit
-of the node, found in this order:
+`main` sets `debug.SetMemoryLimit` at start to 80 % of the smaller of:
 
-1. The smallest numeric `memory.max` (cgroup v2) or
-   `memory.limit_in_bytes` (cgroup v1) on the path from the process's
-   cgroup (`/proc/self/cgroup`) up to the root of its cgroup namespace.
-2. When none is numeric: `MemTotal` from `/proc/meminfo`. On Proxmox
-   LXC the limit is set on `lxc/<vmid>`, above the namespace root
-   `lxc/<vmid>/ns` where `memory.max` reads `max`, so step 1 finds
-   nothing; lxcfs makes `/proc/meminfo` show the container's limit
-   instead. On a host or VM without a limit, `MemTotal` is the memory
-   of the machine, which is also a correct upper bound.
+* the smallest numeric `memory.max` (cgroup v2) or
+  `memory.limit_in_bytes` (cgroup v1) on the path from the process's
+  cgroup (`/proc/self/cgroup`) up to the root of its cgroup namespace
+  ("max" is not numeric; cgroup v1 shows "unlimited" as a very large
+  number, which the minimum discards);
+* `MemTotal` from `/proc/meminfo`.
 
-The value and its source (`cgroup` or `meminfo`) are logged once at
-start. The other 20 % is left for memory the Go runtime
+On Proxmox LXC the limit is set on `lxc/<vmid>`, above the namespace
+root `lxc/<vmid>/ns` where `memory.max` reads `max`, so the cgroup walk
+finds nothing; lxcfs makes `/proc/meminfo` show the container's limit
+instead. On a host or VM without a limit, `MemTotal` is the memory of
+the machine. Each source is an upper bound of the memory the process
+can use, so the result can only be too high, never too low. The value
+and its source (`cgroup` or `meminfo`) are logged once at start, on the
+same line as `runtime.GOMAXPROCS(0)`. The other 20 % is left for memory the Go runtime
 does not manage (bbolt's mmap, Raft log files in the page cache). This
 does not create the 200 MB bound (points 1–3 do); it makes the garbage
 collector run harder before the cgroup kills the process if something
@@ -407,6 +419,10 @@ management-api.openapi.yaml, with `x-tsid: TS-DnsOverloadProtection`):
   gives 400 with `{"error": "dns.capacity_qps must be 0 (default) or
   between 100 and 1000000"}`. Nothing is committed on a 400.
 * The PATCH response carries the same three fields as the GET response.
+* `GetSettings` serializes `config.DNSConfig` directly today
+  (`settingsResponse.DNS`, `internal/api/handlers/settings.go`). Both
+  responses now use `dnsSettingsResp`, which embeds `config.DNSConfig`
+  and adds `capacity_qps_effective` and `capacity_qps_default`.
 
 ## 8. Failure modes and non-goals
 
@@ -436,7 +452,9 @@ management-api.openapi.yaml, with `x-tsid: TS-DnsOverloadProtection`):
 
   Setting the capacity again once every node runs v0.6.0 is therefore
   required, and the release note says so. Until then the affected nodes
-  apply the shipped default, which is safe.
+  apply the shipped default: a cluster on smaller nodes that set a
+  lower capacity goes back to the shipped default until it sets the
+  capacity again.
 * **No per-client fairness, no priority, no forwarding of the excess to
   another node, no change to the answer rate itself** (non-goals). A
   client that sends most of the queries takes most of the capacity.
@@ -469,18 +487,16 @@ cores / 8 threads).
 
 * 3 skoed nodes in unprivileged Debian 13 LXC containers, each with 2
   CPU cores, 2048 MB of memory and no swap, running the v0.6.0
-  candidate. The node under test is pinned (`lxc.cgroup2.cpuset.cpus`)
-  to 2 physical cores whose sibling threads no other container uses.
-  The load generator and Knot are pinned to the other 2 physical cores,
-  and the two other skoed nodes run on the same cores as Knot.
-
-**Deviation from the Background.** The functional spec's Background says
-the load generator runs on a host that does not share CPU with the
-nodes. On this 4-core host that holds for the node under test only: the
-load generator and Knot share cores with the two other nodes, including
-the leader in the follower scenarios, whose Raft heartbeats can be
-slowed. Every result recorded in § 9.1 states this deviation. Whether
-to accept it is open question OQ-5.
+  candidate. The node under test gets 2 logical CPUs, one thread on
+  each of 2 physical cores, with the sibling threads of those cores
+  left idle (GOMAXPROCS 2). The CPU ids are taken from `lscpu -e` at
+  bench time and set with a raw `lxc.cgroup2.cpuset.cpus` line; Proxmox
+  `cores: 2` alone only limits the CPU count and lets the threads
+  move, so the container config is checked for both. The load
+  generator and Knot are pinned to the other 2 physical cores, and the
+  two other skoed nodes run on the same cores as Knot. Each result
+  records the node's `cpuset.cpus.effective` and the GOMAXPROCS skoed
+  logs at start.
 * Upstream: Knot answering the `perf.test` wildcard zone (p99 1.6 ms in
   the 2026-11-26 run, within the 10 ms of the Background).
 * skoed config: forwarding to the upstream, cache and query log at
@@ -499,6 +515,14 @@ to accept it is open question OQ-5.
   latency-histogram` covers all responses together, and the functional
   spec bounds the latency of answers apart from that of refusals.
   Timeout 5 s; a query with no response within 5 s is lost.
+
+**Deviation from the Background.** The functional spec's Background says
+the load generator runs on a host that does not share CPU with the
+nodes. On this 4-core host that holds for the node under test only: the
+load generator and Knot share cores with the two other nodes, including
+the leader in the follower scenarios, whose Raft heartbeats can be
+slowed. Every result recorded in § 9.1 states this deviation. Whether
+to accept it is open question OQ-5.
 
 Scenarios at a candidate C, each at 2 × C:
 FS-DnsOverloadAnswersUpToCapacity and FS-DnsOverloadRefusesExcess on a

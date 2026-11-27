@@ -419,8 +419,9 @@ components:
                 - FS-DnsOverloadCapacityConfigurable
               description: >
                 DNS capacity set by the administrator, in queries per
-                second, cluster-wide. 0 when none is set and the cluster
-                follows capacity_qps_default. Sending it back unchanged in
+                second, cluster-wide. Always present; 0 when none is set
+                and the cluster follows capacity_qps_default. Sending it
+                back unchanged in
                 a PATCH keeps that state.
             capacity_qps_effective:
               type: integer
