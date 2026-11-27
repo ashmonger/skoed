@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/skoed/skoed/internal/bindwait"
 	"github.com/skoed/skoed/internal/config"
 	"github.com/skoed/skoed/internal/dhcp"
 	"github.com/skoed/skoed/internal/dohresolvers"
@@ -176,7 +177,9 @@ func New(node *NodeYAML, opts Options) (*Cluster, error) {
 			store.Close()
 			return nil, fmt.Errorf("resolve raft advertise: %w", err)
 		}
-		streamLayer, err = NewTLSStreamLayer(node.Node.RaftAddress, advAddr, tlsCfg)
+		streamLayer, err = bindwait.Retry(node.Node.RaftAddress, func() (*TLSStreamLayer, error) {
+			return NewTLSStreamLayer(node.Node.RaftAddress, advAddr, tlsCfg)
+		})
 		if err != nil {
 			store.Close()
 			return nil, fmt.Errorf("tls stream layer: %w", err)

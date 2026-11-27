@@ -37,6 +37,7 @@ is enabled (M4.6), `/metrics` is reachable over the same scheme.
 | `skoed_build_info`                              | gauge     | version, commit, go     |
 | `skoed_dns_queries_total`                       | counter   | outcome, transport      |
 | `skoed_dns_query_duration_seconds`              | histogram | outcome                 |
+| `skoed_device_new_dropped_total`                | counter   | —                       |
 | `skoed_dns_cache_size`                          | gauge     | —                       |
 | `skoed_dns_cache_max_entries`                   | gauge     | —                       |
 | `skoed_dns_cache_hits_total`                    | counter   | —                       |

@@ -1,7 +1,7 @@
 # Top-level convenience Makefile.
 # Application-specific build lives in apps/skoed/Makefile.
 
-SKOED_VERSION ?= 0.5.0
+SKOED_VERSION ?= 0.5.1
 SKOED_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 .PHONY: help build build-ui build-extension openapi-sync dev test acceptance acceptance-clean deb deb-arm64 apk apk-arm64 test-deb helm-lint clean

@@ -45,6 +45,7 @@ API, run a reverse proxy in front of skoed.
 |--------|------|--------|-------------|
 | `skoed_dns_queries_total` | Counter | `outcome`, `transport` | Queries answered, by outcome and transport |
 | `skoed_dns_query_duration_seconds` | Histogram | `outcome` | Wall-clock query latency |
+| `skoed_device_new_dropped_total` | Counter | — | Client IPs not checked for `device.new` because the queue was full (retried on a later query) |
 
 `outcome` values: `forwarded`, `blocked`, `cached`, `local`
 
