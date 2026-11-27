@@ -596,7 +596,7 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   (device-new queue) on feature/dns-hot-path, 2026-11-27; measured
   afterwards on a single node with 1 core (512 MB and 1 GB) during the
   AdGuard Home comparison: 17,500–25,000 qps on the 70/20/10 mix with RSS
-  under 260 MB, no OOM kill (results on the perf host in
+  at most 262 MB, no OOM kill (results on the perf host in
   /root/perf/results/adguard-compare/, not in the repo)
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
