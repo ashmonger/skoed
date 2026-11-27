@@ -118,6 +118,9 @@ func testStartupWaitsForUnassignedAddress(t *testing.T, mtls bool) {
 	if waited < minWaitBeforeExit {
 		t.Errorf("skoed exited %s after it started waiting; want about 60 s", waited.Round(time.Second))
 	}
+	// `out` is the `tailBuffer`, the last 40 lines: if startup prints more
+	// before the exit, the waiting line drops out and the count is 0, so
+	// the check fails, never passes by mistake.
 	if n := strings.Count(out, waitingLine); n != 1 {
 		t.Errorf("the output contains the waiting line %d times; want once:\n%s", n, out)
 	}

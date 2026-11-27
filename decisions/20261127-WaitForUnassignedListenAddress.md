@@ -86,6 +86,14 @@ The contract:
 * A node whose address is wrong in its configuration, rather than late,
   now takes 60 s to fail instead of failing at once. The log line names
   the address, so the cause stays visible.
+* `ResetRaftForJoin` behaves differently by transport. In plain mode,
+  `newRaftNode` goes through the wait, so if the Raft IP has disappeared
+  a web-UI join reset blocks up to 60 s before the handler returns 500.
+  In mTLS mode, `listenRaftTLS` keeps only its `EADDRINUSE` retry and
+  fails at once.
+* The wait takes no context. SIGTERM during the wait at boot still
+  kills the process at once, because `signal.Notify` is called after
+  every bind (`apps/skoed/cmd/skoed/main.go:901`).
 * The case where the address appears while skoed waits cannot be
   reproduced black-box without root changes to the host's interfaces;
   only unit tests cover it.
