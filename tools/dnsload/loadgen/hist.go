@@ -8,9 +8,9 @@ import (
 )
 
 // Latencies are counted in microseconds in log-linear buckets: exact
-// below 32 µs, then 32 buckets per power of two, so a bucket is at most
+// below 64 µs, then 32 buckets per power of two, so a bucket is at most
 // 1/32 (3 %) wide relative to its values. The last bucket holds every
-// value from about 67 s up.
+// value from about 66 s up.
 const (
 	subBuckets  = 32
 	histBuckets = subBuckets * 22

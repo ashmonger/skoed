@@ -21,6 +21,36 @@ const (
 	KindBlocked             // a name from the blocked-names list
 )
 
+// Query is the A query sent for one query number.
+type Query struct {
+	Name []byte // in wire format; nil makes the send fail
+	Kind Kind
+}
+
+// Source gives the query for each query number of a run. Run calls it
+// from several goroutines at once.
+type Source interface {
+	Query(n int64) Query
+}
+
+// SourceFunc makes a Source of a function giving the name, in text form,
+// of each query. A name that cannot be encoded is counted as a send
+// error.
+func SourceFunc(f func(n int64) (name string, kind Kind)) Source {
+	return sourceFunc(f)
+}
+
+type sourceFunc func(n int64) (string, Kind)
+
+func (f sourceFunc) Query(n int64) Query {
+	name, kind := f(n)
+	wire, err := packName(name)
+	if err != nil {
+		return Query{Kind: kind}
+	}
+	return Query{Name: wire, Kind: kind}
+}
+
 // MixConfig describes the names of a run.
 type MixConfig struct {
 	Cached  []string // names warmed before the run
@@ -28,9 +58,12 @@ type MixConfig struct {
 	Zone    string   // zone of the never-asked names, e.g. perf.test
 	Percent [3]int   // share of cached, miss and blocked queries; sums to 100
 	RunID   string   // makes the never-asked names unique to the run
+	Seed    uint64   // seeds the choice of names
 }
 
-// Mix picks the name of each query.
+// Mix is a Source drawing each name from the cached, never-asked and
+// blocked names in the shares of its MixConfig. The name of query n
+// depends only on the seed and n.
 type Mix struct {
 	cached   [][]byte // names in wire format
 	blocked  [][]byte
@@ -38,6 +71,7 @@ type Mix struct {
 	missFrom int // a pick of 0-99 at or above it is a miss
 	blkFrom  int // a pick at or above it is a blocked name
 	runID    string
+	seed     uint64
 }
 
 // NewMix checks c and encodes its names.
@@ -55,7 +89,7 @@ func NewMix(c MixConfig) (*Mix, error) {
 	if len(c.RunID) > 40 {
 		return nil, fmt.Errorf("query mix: run ID %q longer than 40 characters", c.RunID)
 	}
-	m := &Mix{missFrom: p[0], blkFrom: p[0] + p[1], runID: c.RunID}
+	m := &Mix{missFrom: p[0], blkFrom: p[0] + p[1], runID: c.RunID, seed: c.Seed}
 	var err error
 	if m.cached, err = packNames(c.Cached); err != nil {
 		return nil, err
@@ -74,16 +108,19 @@ func NewMix(c MixConfig) (*Mix, error) {
 	return m, nil
 }
 
-// Pick returns the name of query n in wire format, and its kind. The
-// returned slice is shared for cached and blocked names: do not change it.
-func (m *Mix) Pick(r *rand.Rand, n int64) ([]byte, Kind) {
-	switch x := r.IntN(100); {
-	case x < m.missFrom:
-		return m.cached[r.IntN(len(m.cached))], KindCached
-	case x < m.blkFrom:
-		return m.missName(n), KindMiss
+// Query returns the query of number n. Its name is shared between
+// queries for cached and blocked names: do not change it.
+func (m *Mix) Query(n int64) Query {
+	// One draw: the low part picks the kind, the high part the name.
+	x := rand.NewPCG(m.seed, uint64(n)).Uint64()
+	pick, index := int(x%100), x>>32
+	switch {
+	case pick < m.missFrom:
+		return Query{Name: m.cached[index%uint64(len(m.cached))], Kind: KindCached}
+	case pick < m.blkFrom:
+		return Query{Name: m.missName(n), Kind: KindMiss}
 	default:
-		return m.blocked[r.IntN(len(m.blocked))], KindBlocked
+		return Query{Name: m.blocked[index%uint64(len(m.blocked))], Kind: KindBlocked}
 	}
 }
 

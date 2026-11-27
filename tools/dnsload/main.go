@@ -105,18 +105,6 @@ func run() error {
 		fmt.Printf("warm: %d of %d cached names answered\n", answered, len(cached))
 	}
 
-	var csvw *csv.Writer
-	if o.csvPath != "" {
-		f, err := os.Create(o.csvPath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		csvw = csv.NewWriter(f)
-		_ = csvw.Write(rowHeader)
-		defer csvw.Flush()
-	}
-
 	fmt.Printf("server %s, timeout %v, %s\n", o.server, o.timeout, describePhases(phases))
 	printRowHeader(os.Stdout)
 	cpu0 := cpuTime()
@@ -125,19 +113,40 @@ func run() error {
 		Phases:  phases,
 		Timeout: o.timeout,
 		Workers: o.workers,
-		Mix:     mix,
-		Seed:    o.seed,
-	}, func(s loadgen.Second) {
-		printRow(os.Stdout, &s)
-		if csvw != nil {
-			_ = csvw.Write(rowFields(&s))
-		}
-	})
+		Source:  mix,
+	}, func(s loadgen.Second) { printRow(os.Stdout, &s) })
 	if err != nil {
 		return err
 	}
 	printResult(os.Stdout, res, cpuTime()-cpu0)
+	if o.csvPath != "" {
+		return writeCSVFile(o.csvPath, res.Seconds)
+	}
 	return nil
+}
+
+// writeCSVFile writes one row per second of the run, from the final
+// seconds of the result.
+func writeCSVFile(path string, seconds []loadgen.Second) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := writeCSV(f, seconds); err != nil {
+		f.Close()
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return f.Close()
+}
+
+func writeCSV(w io.Writer, seconds []loadgen.Second) error {
+	cw := csv.NewWriter(w)
+	_ = cw.Write(rowHeader)
+	for i := range seconds {
+		_ = cw.Write(rowFields(&seconds[i]))
+	}
+	cw.Flush()
+	return cw.Error()
 }
 
 func buildPhases(o options) ([]loadgen.Phase, error) {
@@ -183,6 +192,7 @@ func buildMix(o options) (*loadgen.Mix, []string, error) {
 		Zone:    o.zone,
 		Percent: pct,
 		RunID:   strconv.FormatUint(o.seed, 36),
+		Seed:    o.seed,
 	})
 	return mix, cached, err
 }
@@ -201,7 +211,7 @@ func describePhases(phases []loadgen.Phase) string {
 	return strings.Join(parts, ", then ")
 }
 
-var rowHeader = []string{"second", "sent", "answered", "refused", "other_rcode", "lost", "ans_p50_ms", "ans_p99_ms", "all_p999_ms"}
+var rowHeader = []string{"second", "sent", "answered", "refused", "other_rcode", "lost", "send_errors", "ans_p50_ms", "ans_p99_ms", "all_p999_ms"}
 
 func rowFields(s *loadgen.Second) []string {
 	return []string{
@@ -211,6 +221,7 @@ func rowFields(s *loadgen.Second) []string {
 		strconv.FormatInt(s.Refused(), 10),
 		strconv.FormatInt(s.Other(), 10),
 		strconv.FormatInt(s.Lost, 10),
+		strconv.FormatInt(s.SendErrors, 10),
 		ms(s.Ans.Quantile(0.5)),
 		ms(s.Ans.Quantile(0.99)),
 		ms(s.All.Quantile(0.999)),
@@ -218,27 +229,29 @@ func rowFields(s *loadgen.Second) []string {
 }
 
 func printRowHeader(w io.Writer) {
-	fmt.Fprintf(w, "%6s %8s %8s %8s %6s %7s %9s %9s %10s\n",
-		"second", "sent", "answered", "refused", "other", "lost", "ans p50", "ans p99", "all p99.9")
+	fmt.Fprintf(w, rowFormat,
+		"second", "sent", "answered", "refused", "other", "lost", "send err", "ans p50", "ans p99", "all p99.9")
 }
 
 func printRow(w io.Writer, s *loadgen.Second) {
 	f := rowFields(s)
-	fmt.Fprintf(w, "%6s %8s %8s %8s %6s %7s %9s %9s %10s\n", f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8])
+	fmt.Fprintf(w, rowFormat, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
 }
+
+const rowFormat = "%6s %8s %8s %8s %6s %7s %8s %9s %9s %10s\n"
 
 func printResult(w io.Writer, res *loadgen.Result, cpu time.Duration) {
 	for i, p := range res.Phases {
-		s := &p.Summary
-		fmt.Fprintf(w, "\nphase %d: %.0f qps × %v, summary over seconds [%d, %d)\n", i+1, p.Phase.Rate, p.Phase.Duration, p.From, p.To)
-		fmt.Fprintf(w, "  sent %d, answered %d, REFUSED %d, other RCODE %d (in answered), lost %d\n",
-			s.Sent, s.Answered, s.Refused(), s.Other(), s.Lost)
-		fmt.Fprintf(w, "  answered/s: mean %.1f, lowest minute %.1f, lowest second %d (second %d)\n",
-			s.AnsweredPerSecond(), s.MinMinuteAnsweredPerSecond, s.MinSecondAnswered, s.MinSecond)
-		fmt.Fprintf(w, "  answered or REFUSED %.3f %%, REFUSED %.3f %%, lost %.3f %%\n",
-			s.PercentAnsweredOrRefused(), s.PercentRefused(), s.PercentLost())
+		s, st := &p.Summary, &p.Settled
+		fmt.Fprintf(w, "\nphase %d: %.0f qps × %v, seconds [%d, %d)\n", i+1, p.Phase.Rate, p.Phase.Duration, p.From, p.To)
+		fmt.Fprintf(w, "  sent %d: answered %d, REFUSED %d, other RCODE %d, lost %d, send errors %d\n",
+			s.Sent, s.Answered(), s.Refused(), s.Other(), s.Lost, s.SendErrors)
+		fmt.Fprintf(w, "  answered or REFUSED %.3f %%, REFUSED %.3f %%, other RCODE %.3f %%, lost %.3f %%\n",
+			s.PercentAnsweredOrRefused(), s.PercentRefused(), s.PercentOther(), s.PercentLost())
 		fmt.Fprintf(w, "  answers p50 %s ms, p99 %s ms; all responses p99.9 %s ms\n",
 			ms(s.Ans.Quantile(0.5)), ms(s.Ans.Quantile(0.99)), ms(s.All.Quantile(0.999)))
+		fmt.Fprintf(w, "  answered/s over seconds [%d, %d): mean %.1f, lowest minute %.1f, lowest second %d (second %d)\n",
+			p.SettledFrom, p.To, st.AnsweredPerSecond(), st.MinMinuteAnsweredPerSecond, st.MinSecondAnswered, st.MinSecond)
 	}
 	// The elapsed time includes waiting for the timeout of the last
 	// queries, so CPU per query is the figure to compare between rates.
@@ -250,9 +263,9 @@ func printResult(w io.Writer, res *loadgen.Result, cpu time.Duration) {
 		res.Workers, res.Elapsed.Seconds(), cpu.Seconds(), cpu.Seconds()/res.Elapsed.Seconds(),
 		float64(cpu.Microseconds())/float64(max(sent, 1)),
 		ms(res.SendLag.Quantile(0.99)), ms(res.SendLag.Quantile(1)))
-	if res.Late+res.Evicted+res.SendErrors > 0 {
-		fmt.Fprintf(w, "warning: %d late or unmatched responses, %d queries evicted before their timeout, %d send errors\n",
-			res.Late, res.Evicted, res.SendErrors)
+	if res.Late+res.Evicted > 0 {
+		fmt.Fprintf(w, "warning: %d late or unmatched responses, %d queries evicted before their timeout\n",
+			res.Late, res.Evicted)
 	}
 }
 

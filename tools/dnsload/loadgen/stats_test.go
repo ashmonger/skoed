@@ -31,12 +31,14 @@ func TestRecorderBucketsBySendSecond(t *testing.T) {
 		t.Errorf("second 0: answer p50 %v, want 200ms", p)
 	}
 	s1 := r.second(1)
-	if s1.Sent != 4 || s1.Answered() != 2 || s1.Refused() != 1 || s1.Other() != 1 || s1.Lost != 1 {
-		t.Errorf("second 1: sent %d answered %d refused %d other %d lost %d, want 4 2 1 1 1",
+	// SERVFAIL is neither an answer nor REFUSED: it counts in Other and
+	// in the latency of all responses, not in the latency of answers.
+	if s1.Sent != 4 || s1.Answered() != 1 || s1.Refused() != 1 || s1.Other() != 1 || s1.Lost != 1 {
+		t.Errorf("second 1: sent %d answered %d refused %d other %d lost %d, want 4 1 1 1 1",
 			s1.Sent, s1.Answered(), s1.Refused(), s1.Other(), s1.Lost)
 	}
-	if s1.Ans.Count() != 2 || s1.All.Count() != 3 {
-		t.Errorf("second 1: %d answer and %d response latencies, want 2 and 3", s1.Ans.Count(), s1.All.Count())
+	if s1.Ans.Count() != 1 || s1.All.Count() != 3 {
+		t.Errorf("second 1: %d answer and %d response latencies, want 1 and 3", s1.Ans.Count(), s1.All.Count())
 	}
 	if got := r.second(3).Sent; got != 1 {
 		t.Errorf("last second: sent %d, want 1", got)
@@ -76,8 +78,8 @@ func TestSummarize(t *testing.T) {
 		t.Errorf("Sent = %d", sum.Sent)
 	}
 	wantAnswered := int64(123*900 + 300)
-	if sum.Answered != wantAnswered {
-		t.Errorf("Answered = %d, want %d", sum.Answered, wantAnswered)
+	if sum.Answered() != wantAnswered {
+		t.Errorf("Answered = %d, want %d", sum.Answered(), wantAnswered)
 	}
 	if got, want := sum.AnsweredPerSecond(), float64(wantAnswered)/124; got != want {
 		t.Errorf("AnsweredPerSecond = %v, want %v", got, want)
@@ -112,5 +114,66 @@ func TestSummarizeEmptyWindow(t *testing.T) {
 	sum := Summarize(make([]Second, 3), 2, 2)
 	if sum.Seconds != 0 || sum.AnsweredPerSecond() != 0 || sum.PercentLost() != 0 {
 		t.Errorf("empty window: %+v", sum)
+	}
+}
+
+func TestClassify(t *testing.T) {
+	for rcode, want := range map[int]Outcome{
+		dns.RcodeSuccess:        OutcomeAnswer,
+		dns.RcodeNameError:      OutcomeAnswer,
+		dns.RcodeRefused:        OutcomeRefused,
+		dns.RcodeServerFailure:  OutcomeOther,
+		dns.RcodeFormatError:    OutcomeOther,
+		dns.RcodeNotImplemented: OutcomeOther,
+	} {
+		if got := Classify(rcode); got != want {
+			t.Errorf("Classify(%s) = %d, want %d", dns.RcodeToString[rcode], got, want)
+		}
+	}
+}
+
+func TestSummaryKeepsOtherRcodesApart(t *testing.T) {
+	r := newRecorder(time.Second)
+	for range 10 {
+		r.sent(0)
+	}
+	for range 6 {
+		r.response(0, time.Millisecond, dns.RcodeSuccess)
+	}
+	r.response(0, time.Millisecond, dns.RcodeNameError)
+	r.response(0, time.Millisecond, dns.RcodeRefused)
+	r.response(0, time.Second, dns.RcodeServerFailure)
+	r.sendError(0)
+	sum := Summarize(r.final(), 0, 1)
+	if sum.Answered() != 7 || sum.Refused() != 1 || sum.Other() != 1 || sum.SendErrors != 1 || sum.Lost != 0 {
+		t.Errorf("answered %d refused %d other %d send errors %d lost %d, want 7 1 1 1 0",
+			sum.Answered(), sum.Refused(), sum.Other(), sum.SendErrors, sum.Lost)
+	}
+	if got := sum.PercentAnsweredOrRefused(); got != 80 {
+		t.Errorf("PercentAnsweredOrRefused = %v, want 80", got)
+	}
+	if got := sum.PercentOther(); got != 10 {
+		t.Errorf("PercentOther = %v, want 10", got)
+	}
+	// The SERVFAIL at 1 s is the slowest response but not an answer.
+	if p := sum.Ans.Quantile(1); p > 2*time.Millisecond {
+		t.Errorf("slowest answer %v, want 1ms", p)
+	}
+	if p := sum.All.Quantile(1); p < time.Second {
+		t.Errorf("slowest response %v, want 1s", p)
+	}
+}
+
+func TestRecorderFinalFoldsTheOverflowSecond(t *testing.T) {
+	r := newRecorder(2 * time.Second)
+	r.sent(1500 * time.Millisecond)
+	r.sent(2100 * time.Millisecond) // past the schedule
+	r.lost(2100 * time.Millisecond)
+	seconds := r.final()
+	if len(seconds) != 2 {
+		t.Fatalf("%d seconds, want 2", len(seconds))
+	}
+	if seconds[1].Sent != 2 || seconds[1].Lost != 1 || seconds[1].Index != 1 {
+		t.Errorf("last second: %+v, want index 1, sent 2, lost 1", seconds[1])
 	}
 }

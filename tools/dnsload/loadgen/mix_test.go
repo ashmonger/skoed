@@ -1,7 +1,6 @@
 package loadgen
 
 import (
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,7 @@ func testMix(t *testing.T) *Mix {
 		Zone:    "perf.test",
 		Percent: [3]int{70, 20, 10},
 		RunID:   "r1",
+		Seed:    1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -27,12 +27,10 @@ func testMix(t *testing.T) *Mix {
 
 func TestMixProportions(t *testing.T) {
 	m := testMix(t)
-	r := rand.New(rand.NewPCG(1, 2))
 	var counts [3]int
 	const n = 100_000
 	for i := range int64(n) {
-		_, kind := m.Pick(r, i)
-		counts[kind]++
+		counts[m.Query(i).Kind]++
 	}
 	for kind, want := range [3]int{70, 20, 10} {
 		got := float64(counts[kind]) * 100 / n
@@ -44,14 +42,17 @@ func TestMixProportions(t *testing.T) {
 
 func TestMixNames(t *testing.T) {
 	m := testMix(t)
-	r := rand.New(rand.NewPCG(3, 4))
 	cached := map[string]bool{}
 	for _, name := range GenerateCached("perf.test", 1000) {
 		cached[dns.Fqdn(name)] = true
 	}
 	misses := map[string]bool{}
 	for i := range int64(20_000) {
-		wire, kind := m.Pick(r, i)
+		q := m.Query(i)
+		wire, kind := q.Name, q.Kind
+		if string(m.Query(i).Name) != string(wire) {
+			t.Fatalf("query %d: two calls give two names", i)
+		}
 		name, _, err := dns.UnpackDomainName(wire, 0)
 		if err != nil {
 			t.Fatalf("query %d: name does not unpack: %v", i, err)
@@ -80,10 +81,7 @@ func TestMixNames(t *testing.T) {
 func TestMixRunsDoNotShareMissNames(t *testing.T) {
 	a, _ := NewMix(MixConfig{Zone: "perf.test", Percent: [3]int{0, 100, 0}, RunID: "a"})
 	b, _ := NewMix(MixConfig{Zone: "perf.test", Percent: [3]int{0, 100, 0}, RunID: "b"})
-	r := rand.New(rand.NewPCG(1, 1))
-	wa, _ := a.Pick(r, 7)
-	wb, _ := b.Pick(r, 7)
-	if string(wa) == string(wb) {
+	if string(a.Query(7).Name) == string(b.Query(7).Name) {
 		t.Errorf("two runs sent the same miss name")
 	}
 }
@@ -104,8 +102,7 @@ func TestNewMixValidates(t *testing.T) {
 
 func TestAppendQuery(t *testing.T) {
 	m := testMix(t)
-	wire, _ := m.Pick(rand.New(rand.NewPCG(5, 6)), 0)
-	pkt := AppendQuery(nil, 0xbeef, wire)
+	pkt := AppendQuery(nil, 0xbeef, m.Query(0).Name)
 	var msg dns.Msg
 	if err := msg.Unpack(pkt); err != nil {
 		t.Fatal(err)
@@ -131,5 +128,22 @@ func TestReadNames(t *testing.T) {
 	want := []string{"tracker.example.com", "ads.example.net", "spaced.example.org"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("ReadNames = %v, want %v", got, want)
+	}
+}
+
+func TestSourceFunc(t *testing.T) {
+	src := SourceFunc(func(n int64) (string, Kind) {
+		if n == 1 {
+			return "bad..name", KindMiss
+		}
+		return "tracker.example.com", KindBlocked
+	})
+	q := src.Query(0)
+	name, _, err := dns.UnpackDomainName(q.Name, 0)
+	if err != nil || name != "tracker.example.com." || q.Kind != KindBlocked {
+		t.Errorf("query 0: %q %d %v", name, q.Kind, err)
+	}
+	if q := src.Query(1); q.Name != nil || q.Kind != KindMiss {
+		t.Errorf("query 1: invalid name gave %+v, want no name", q)
 	}
 }

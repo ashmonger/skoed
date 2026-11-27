@@ -1,10 +1,3 @@
-// Package loadgen sends DNS queries over UDP at an even rate and
-// records, per second of send time, how many were answered, refused or
-// lost and the latency of the answers and of all responses.
-//
-// It is the client code of tools/dnsload (TS-DnsOverloadProtection
-// § 9.2), kept importable so that an acceptance test can drive the same
-// load.
 package loadgen
 
 import (
