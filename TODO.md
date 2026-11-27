@@ -599,9 +599,15 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   decides on the `[Adblock Plus]` header line, sees a space, picks hosts
 - [ ] Blocklists — a deleted URL list's file stays on disk; after a restart
   `blocklistsync` logs `leader answered 404` for it
-- [x] Packaging — after a container reboot skoed starts before the IP is
+- [ ] Packaging — after a container reboot skoed starts before the IP is
   set (`bind: cannot assign requested address`), restarted by systemd
-  — fixed on fix/boot-bind-retry, 2026-11-27
+  — fix in progress on fix/boot-bind-retry under
+  `decisions/20261127-WaitForUnassignedListenAddress.md`
+- [ ] Packaging — retroactive functional scenario with an `@fsid` owed by
+  that exception: a node whose listen address is assigned after start
+  waits for it
+- [ ] Packaging — demo note and UoR validation of the wait for an
+  unassigned listen address
 - [ ] Tests — flaky under full-suite load: TestClientDohStatusEndpointShape,
   TestDotAppliesFilter (query log read right after the query),
   TestLeaseReplLeasesEndpointExposesSnapshot (login within 2 min)
