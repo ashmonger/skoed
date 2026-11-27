@@ -14,12 +14,12 @@ a Proxmox cluster validation run.
 
 ## v0.5.1 — DNS hot path, mTLS across hosts, startup address wait
 
-- **DNS memory growth under load**: in the 5-node LXC run, each query
-  waited for the query-log mutex and a bbolt write transaction, so
+- **DNS memory growth under load, fixed**: in the 5-node LXC run, each
+  query waited for the query-log mutex and a bbolt write transaction, so
   goroutines piled up: 274,239 goroutines and 1.9 GB of RSS after 24 s at
-  10,000 qps ([performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md))
-- **Query log**: the query log is a ring buffer; `QueryLog.Append` at
-  10,000 entries takes 38 ns per call instead of 91 µs
+  10,000 qps; the two changes below remove both waits ([performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md))
+- **Query log**: the query log is a ring buffer; `QueryLog.Append` takes
+  about 90–100 µs → 38 ns per call (`BenchmarkAppendFull`, 10,000 entries)
 - **New-device tracking**: a query from a known client no longer opens a
   bbolt write transaction, and no longer starts a goroutine; `device.new`
   events go through a bounded queue, and dropped events are counted in
@@ -29,11 +29,11 @@ a Proxmox cluster validation run.
 - **mTLS across hosts**: the Raft dial verifies the peer by its node ID
   (`ServerName`), `ResetRaftForJoin` keeps Raft TLS, certificates are
   reloaded on join, and a web-UI join installs the leader's mTLS bundle;
-  validated on three Proxmox hosts
+  validated with three Proxmox containers on separate LAN addresses
   ([demo note](https://github.com/ashmonger/skoed/blob/master/demos/mtls-cross-host/DEMO_NOTE.md))
 - **Startup**: when a configured listen address is not assigned yet
-  ("cannot assign requested address"), skoed waits up to 60 s, logging
-  once, instead of exiting
+  ("cannot assign requested address"), skoed waits up to 60 s instead of
+  exiting, logging when it starts waiting and when the address appears
 - **Roadmap**: M40, M48 and M49 removed
 
 [→ 5-node LXC performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md)
@@ -49,7 +49,9 @@ Validated on a 3-node Proxmox cluster, rolling upgrade from v0.3.2:
 - **Bounded Raft log**: `TrailingLogs` is 256, and `skoed raft compact`
   shrinks an oversized `raft-log.bolt` offline (4 MB → 1 MB)
 - **Peer HTTP over mTLS**: with `mtls.enabled`, peer HTTP calls use the
-  cluster CA and node certificates
+  cluster CA and node certificates. Known limitation: mTLS did not work
+  between real hosts (Raft failed certificate verification on the peer's
+  IP address); fixed in v0.5.1
 - **Go 1.27.4** and updated Go modules
 
 [→ Demo note](https://github.com/ashmonger/skoed/blob/master/demos/m50/DEMO_NOTE.md)

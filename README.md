@@ -106,7 +106,7 @@ Open `http://localhost:8080` to complete first-run setup.
 
 ## Installation
 
-> **Note:** Commands below use version `0.1.0` as an example. Check the [releases page](https://github.com/ashmonger/skoed/releases) for the latest version.
+> **Note:** Commands below use version `0.5.1` as an example. Check the [releases page](https://github.com/ashmonger/skoed/releases) for the latest version.
 
 | Method | Platform | Command |
 |--------|----------|---------|
