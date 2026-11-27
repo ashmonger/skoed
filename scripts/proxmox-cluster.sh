@@ -38,7 +38,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# ─── Release version — updated automatically when bundled with a release ───
+# ─── Release version — bump by hand for each release ───
 SKOED_VERSION="0.5.1"
 
 NODE1_ID=200

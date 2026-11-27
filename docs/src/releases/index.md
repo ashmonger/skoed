@@ -14,14 +14,18 @@ a Proxmox cluster validation run.
 
 ## v0.5.1 — DNS hot path, mTLS across hosts, startup address wait
 
-- **Query log**: the query log is a ring buffer; `Append` at 10,000 entries
-  takes 38 ns instead of 91 µs
-- **New-device tracking**: a query no longer starts a goroutine and a bbolt
-  write transaction; `device.new` events go through a bounded queue, and
-  dropped events are counted in `skoed_device_new_dropped_total`
+- **DNS memory growth under load**: in the 5-node LXC run, each query
+  waited for the query-log mutex and a bbolt write transaction, so
+  goroutines piled up: 274,239 goroutines and 1.9 GB of RSS after 24 s at
+  10,000 qps ([performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md))
+- **Query log**: the query log is a ring buffer; `QueryLog.Append` at
+  10,000 entries takes 38 ns per call instead of 91 µs
+- **New-device tracking**: a query from a known client no longer opens a
+  bbolt write transaction, and no longer starts a goroutine; `device.new`
+  events go through a bounded queue, and dropped events are counted in
+  `skoed_device_new_dropped_total`
 - **Query stream**: a live query-stream client that disconnects can no
   longer crash the daemon (send on closed channel)
-- **Throughput**: on 1 core, 1,000 → 17,500–25,000 qps
 - **mTLS across hosts**: the Raft dial verifies the peer by its node ID
   (`ServerName`), `ResetRaftForJoin` keeps Raft TLS, certificates are
   reloaded on join, and a web-UI join installs the leader's mTLS bundle;

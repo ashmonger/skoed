@@ -625,6 +625,10 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
 - [ ] Releases — an empty `v0.5.0` draft may be left over from the failed
   release run 40; delete it on GitHub if present
 - [ ] Release v0.5.1 — mTLS across hosts, DNS hot path, startup address wait (branch fix/boot-bind-retry)
+- [ ] Tests — `tests/acceptance/run-in-docker.sh` still upgrades from
+  `SKOED_PREVIOUS_REF=v0.4.4`; move it to the previous release after v0.5.1
+- [ ] Docs — the install pages use github.com/skoed/skoed while the scripts
+  and README use ashmonger/skoed
 - [x] M50 — demo note and UoR validation — 2026-11-25
 - [ ] DNS — `config.example.yaml` enables both `ipv4` and `ipv6`, and the
   daemon then fails with `listen tcp 0.0.0.0:53: bind: address already in

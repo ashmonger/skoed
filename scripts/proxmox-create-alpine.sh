@@ -24,7 +24,7 @@
 
 set -euo pipefail
 
-# ─── Release version — updated automatically when bundled with a release ───
+# ─── Release version — bump by hand for each release ───
 SKOED_VERSION="0.5.1"
 GH_REPO="ashmonger/skoed"
 
