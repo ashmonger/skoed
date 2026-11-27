@@ -125,3 +125,6 @@ None.
 
 - **Q**: DNS startup readiness — how does the administrator see that a node is not ready yet?
   **A**: The cluster status shows the node with DNS state "starting" until it answers queries, then "ready", and the node logs when it starts answering. — UoR, 2026-11-27
+
+- **Q**: DNS overload protection — is the functional specification (specs/functional/dns-overload-protection.feature) validated, and is it the next feature to implement?
+  **A**: Yes: "add the overload protection", for the next release (v0.6.0). The startup readiness specification stays pending. — UoR, 2026-11-27

@@ -600,9 +600,13 @@ Found on the home cluster on 2026-11-25: 511k replicated domains, a 1.8 GB
   /root/perf/results/adguard-compare/, not in the repo)
 - [ ] DNS — a node answers queries before its blocklists are loaded (after a
   rejoin or a restart), so blocked names resolve for a few seconds
-- [ ] Specs — DNS overload protection and startup readiness: decisions
-  validated 2026-11-27, functional specs awaiting final UoR validation
+- [x] Specs — DNS overload protection: functional spec validated by the
+  UoR — 2026-11-27
+- [ ] DNS overload protection (v0.6.0): technical spec, then acceptance
+  tests, implementation, default capacity measured on 2 cores / 2 GB
   (branch `feature/dns-overload-protection`)
+- [ ] Specs — DNS startup readiness: decisions validated 2026-11-27,
+  functional spec awaiting final UoR validation
 - [ ] Raft — each `local-dns` write adds 45–56 KB to the Raft log and writes
   slow down as records accumulate (132 → 11 writes/s at 12,000 records)
 - [ ] Blocklists — OISD in auto format loads 11 junk entries: `detectFormat`

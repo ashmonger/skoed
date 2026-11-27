@@ -13,8 +13,7 @@ Feature: DNS overload protection
   5 minutes; after the load stopped, one node was killed 10 minutes later
   and the four others still used 2 GB of memory 45 minutes later.
 
-  Decisions validated by the UoR on 2026-11-27; specification pending
-  final UoR validation. Lines starting with "# Decided" record those
+  Decisions and specification validated by the UoR on 2026-11-27. Lines starting with "# Decided" record those
   decisions; lines starting with "# Derived:" say where a number comes
   from.
 
