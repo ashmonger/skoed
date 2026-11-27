@@ -5,10 +5,50 @@ a Proxmox cluster validation run.
 
 | Release | Feature | Test report |
 |---------|---------|-------------|
+| v0.5.1 | DNS hot path, mTLS across hosts, startup address wait | [Performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md) |
+| [v0.5.0](https://github.com/ashmonger/skoed/releases/tag/v0.5.0) | M50 — Blocklist content distributed by the leader, bounded Raft log, peer HTTP over mTLS | [Demo note](https://github.com/ashmonger/skoed/blob/master/demos/m50/DEMO_NOTE.md) |
 | — (pending) | M15 — Test suite cleanup + keepalived VIP | [Test report](m15-test-report.html) |
 | [v0.1.2](https://github.com/ashmonger/skoed/releases/tag/v0.1.2) | M14 — Block dynamic-lease clients | [Test report](m14-test-report.html) |
 | [v0.1.1](https://github.com/ashmonger/skoed/releases/tag/v0.1.1) | M13 — Filtering pause | — |
 | [v0.1.0](https://github.com/ashmonger/skoed/releases/tag/v0.1.0) | M11 — Distribution & packaging | — |
+
+## v0.5.1 — DNS hot path, mTLS across hosts, startup address wait
+
+- **Query log**: the query log is a ring buffer; `Append` at 10,000 entries
+  takes 38 ns instead of 91 µs
+- **New-device tracking**: a query no longer starts a goroutine and a bbolt
+  write transaction; `device.new` events go through a bounded queue, and
+  dropped events are counted in `skoed_device_new_dropped_total`
+- **Query stream**: a live query-stream client that disconnects can no
+  longer crash the daemon (send on closed channel)
+- **Throughput**: on 1 core, 1,000 → 17,500–25,000 qps
+- **mTLS across hosts**: the Raft dial verifies the peer by its node ID
+  (`ServerName`), `ResetRaftForJoin` keeps Raft TLS, certificates are
+  reloaded on join, and a web-UI join installs the leader's mTLS bundle;
+  validated on three Proxmox hosts
+  ([demo note](https://github.com/ashmonger/skoed/blob/master/demos/mtls-cross-host/DEMO_NOTE.md))
+- **Startup**: when a configured listen address is not assigned yet
+  ("cannot assign requested address"), skoed waits up to 60 s, logging
+  once, instead of exiting
+- **Roadmap**: M40, M48 and M49 removed
+
+[→ 5-node LXC performance report](https://github.com/ashmonger/skoed/blob/master/demos/perf-5node-lxc/REPORT.md)
+
+## v0.5.0 — M50: Blocklist content distributed by the leader
+
+Validated on a 3-node Proxmox cluster, rolling upgrade from v0.3.2:
+
+- **Blocklist content**: the leader downloads URL blocklists into a local
+  cache and followers copy them from the leader; Raft carries only the list
+  definition and version. Shadow `config.yaml` 2.85 MB → about 3 KB, RSS
+  per node 140–168 MB → about 54 MB with an 81,684-domain list
+- **Bounded Raft log**: `TrailingLogs` is 256, and `skoed raft compact`
+  shrinks an oversized `raft-log.bolt` offline (4 MB → 1 MB)
+- **Peer HTTP over mTLS**: with `mtls.enabled`, peer HTTP calls use the
+  cluster CA and node certificates
+- **Go 1.27.4** and updated Go modules
+
+[→ Demo note](https://github.com/ashmonger/skoed/blob/master/demos/m50/DEMO_NOTE.md)
 
 ## M15 — Test suite cleanup + keepalived VIP
 
